@@ -55,7 +55,12 @@ impl Plugin for Seph {
             .build();
     }
 
-    fn handle(&mut self, msg: Message) -> Result<(), Infallible> {
+    fn update_config(&mut self, _: Enable<Self::Config>) {
+        self.sender.as_ref().unwrap().send(Message::Toggle);
+        nvim::print!("updated config");
+    }
+
+    fn handle_message(&mut self, msg: Message) -> Result<(), Infallible> {
         match msg {
             Message::Open => self.open(),
             Message::Toggle => self.toggle(),
@@ -63,26 +68,23 @@ impl Plugin for Seph {
 
         Ok(())
     }
-
-    fn config(&mut self, _: Enable<Self::Config>) {
-        self.sender.as_ref().unwrap().send(Message::Toggle);
-        nvim::print!("updated config");
-    }
 }
 
 impl Seph {
     fn close(&mut self) {
-        if self.is_open {
-            self.is_open = false;
-            nvim::print!("closed seph window");
+        if !self.is_open {
+            return;
         }
+        self.is_open = false;
+        nvim::print!("closed seph window");
     }
 
     fn open(&mut self) {
-        if !self.is_open {
-            self.is_open = true;
-            nvim::print!("opened seph window");
+        if self.is_open {
+            return;
         }
+        self.is_open = true;
+        nvim::print!("opened seph window");
     }
 
     fn toggle(&mut self) {

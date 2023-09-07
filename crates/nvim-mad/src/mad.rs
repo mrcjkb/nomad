@@ -33,7 +33,7 @@ impl Mad {
             .filter(|(_, api)| (!api.is_empty()))
             .map(|(name, api)| (*name, Object::from(api.clone())))
             .chain(core::iter::once((
-                "setup",
+                "config",
                 Function::from_fn(config::config).into(),
             )))
             .collect()
@@ -81,13 +81,13 @@ pub fn start<P: Plugin>() -> (Rc<P>, Sender<P::Message>) {
 
     let plugin_loop = move || {
         while let Ok(msg) = msg_receiver.try_recv() {
-            let cloned = Rc::clone(&cloned);
+            let plugin = Rc::clone(&cloned);
 
             nvim::schedule(move |_| {
                 // SAFETY: todo.
-                let plugin = unsafe { rc_to_mut(&cloned) };
+                let plugin = unsafe { rc_to_mut(&plugin) };
 
-                if let Err(err) = plugin.handle(msg) {
+                if let Err(err) = plugin.handle_message(msg) {
                     display_error(err, Some(P::NAME));
                 }
 

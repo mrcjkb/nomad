@@ -15,22 +15,18 @@ fn yes() -> bool {
 }
 
 impl<T> Enable<T> {
-    #[inline]
     pub fn enable(&self) -> bool {
         self.enable
     }
 
-    #[inline]
     pub fn enable_mut(&mut self) -> &mut bool {
         &mut self.enable
     }
 
-    #[inline]
     pub fn inner(&self) -> &T {
         self.deref()
     }
 
-    #[inline]
     pub fn into_inner(self) -> T {
         self.config
     }
@@ -39,7 +35,6 @@ impl<T> Enable<T> {
 impl<T> Deref for Enable<T> {
     type Target = T;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.config
     }

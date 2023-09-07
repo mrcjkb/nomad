@@ -10,10 +10,10 @@ pub trait Plugin: Default + 'static {
     const NAME: &'static str;
 
     /// TODO: docs
-    type Message: 'static;
+    type Config: DeserializeOwned + 'static;
 
     /// TODO: docs
-    type Config: DeserializeOwned + 'static;
+    type Message: 'static;
 
     /// TODO: docs
     type InitError: Error + 'static;
@@ -22,23 +22,28 @@ pub trait Plugin: Default + 'static {
     type HandleMessageError: Error + 'static;
 
     /// TODO: docs
-    fn init_api(builder: &mut ApiBuilder<'_, Self>);
-
-    /// TODO: docs
-    fn init_commands(builder: &mut CommandBuilder<'_, Self>);
-
-    /// TODO: docs
+    #[allow(unused_variables)]
     fn init(
         &mut self,
         sender: &Sender<Self::Message>,
-    ) -> Result<(), Self::InitError>;
+    ) -> Result<(), Self::InitError> {
+        Ok(())
+    }
 
     /// TODO: docs
-    fn handle(
+    #[allow(unused_variables)]
+    fn init_api(builder: &mut ApiBuilder<'_, Self>) {}
+
+    /// TODO: docs
+    #[allow(unused_variables)]
+    fn init_commands(builder: &mut CommandBuilder<'_, Self>) {}
+
+    /// TODO: docs
+    fn update_config(&mut self, config: Enable<Self::Config>);
+
+    /// TODO: docs
+    fn handle_message(
         &mut self,
         msg: Self::Message,
     ) -> Result<(), Self::HandleMessageError>;
-
-    /// TODO: docs
-    fn config(&mut self, config: Enable<Self::Config>);
 }

@@ -29,7 +29,7 @@ impl<P: Plugin> ConfigurablePlugin for P {
 
         *config.enable_mut() &= global_enable;
 
-        self.config(config);
+        self.update_config(config);
     }
 }
 

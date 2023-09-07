@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
 
-use crate::message::Sender;
 use crate::nvim::{lua::Poppable, Dictionary, Function, Object};
+use crate::sender::Sender;
 use crate::Plugin;
 
 /// TODO: docs

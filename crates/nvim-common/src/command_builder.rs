@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
-use crate::message::Sender;
 use crate::nvim::{self, Function};
 use crate::nvim::{api::opts::*, api::types::CommandArgs};
+use crate::sender::Sender;
 use crate::Plugin;
 
 /// TODO: docs
@@ -60,6 +60,7 @@ pub struct OptsCommandBuilder {
 }
 
 impl OptsCommandBuilder {
+    /// TODO: docs
     pub fn build(self) {
         build(self.command);
     }
@@ -68,6 +69,7 @@ impl OptsCommandBuilder {
         self.command.opts.get_or_insert_with(CreateCommandOpts::builder)
     }
 
+    /// TODO: docs
     pub fn with_desc(mut self, desc: &'static str) -> Self {
         self.opts_builder().desc(desc);
         self

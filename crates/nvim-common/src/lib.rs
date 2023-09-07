@@ -1,17 +1,15 @@
 mod api_builder;
 mod command_builder;
-mod either;
 mod enable;
-mod message;
 mod plugin;
+mod sender;
 
 pub use api_builder::ApiBuilder;
 pub use command_builder::CommandBuilder;
-pub use either::Either;
 pub use enable::Enable;
-pub use message::Sender;
 pub use nvim_oxi as nvim;
 pub use plugin::Plugin;
+pub use sender::Sender;
 pub use utils::*;
 
 mod utils {
