@@ -2,11 +2,11 @@ mod config;
 mod mad;
 mod runtime;
 
-use common::oxi;
+use common::nvim;
 use mad::Mad;
 
-#[oxi::module]
-fn mad() -> oxi::Result<oxi::Dictionary> {
+#[nvim::module]
+fn mad() -> nvim::Result<nvim::Dictionary> {
     Ok(Mad::new()
         // .with_plugin::<completion::Completion>()
         // .with_plugin::<lsp::Lsp>()

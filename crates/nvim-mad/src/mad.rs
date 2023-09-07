@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::convert::Infallible;
+use std::rc::Rc;
 
-use common::oxi::{Dictionary, Function, Object};
+use common::nvim::{Dictionary, Function, Object};
 use common::*;
 
 use crate::config;
@@ -25,7 +27,6 @@ impl Mad {
     }
 
     /// TODO: docs
-    #[inline]
     fn create_api(&self) -> Dictionary {
         self.api
             .iter()
@@ -38,17 +39,72 @@ impl Mad {
             .collect()
     }
 
-    #[inline]
     pub fn new() -> Self {
         Self { api: HashMap::new(), runtime: MadRuntime::new() }
     }
 
     /// Registers a new plugin.
-    #[inline]
     pub fn with_plugin<P: Plugin>(mut self) -> Self {
-        let plugin = P::init();
-        self.api.insert(P::NAME, plugin.api());
+        let (plugin, msg_sender) = start::<P>();
+
+        {
+            // SAFETY: todo.
+            let plugin = unsafe { rc_to_mut(&plugin) };
+            if let Err(err) = plugin.init(&msg_sender) {
+                display_error(err, Some(P::NAME));
+            }
+        }
+
+        P::init_commands(&mut CommandBuilder::new(&msg_sender));
+
+        let api = {
+            let mut builder = ApiBuilder::new(&msg_sender);
+            P::init_api(&mut builder);
+            builder.api()
+        };
+
+        self.api.insert(P::NAME, api);
         self.runtime.add_plugin(plugin);
         self
     }
+}
+
+use std::sync::mpsc;
+
+/// TODO: docs
+pub fn start<P: Plugin>() -> (Rc<P>, Sender<P::Message>) {
+    let plugin = Rc::new(P::default());
+
+    let (msg_sender, msg_receiver) = mpsc::channel();
+
+    let cloned = Rc::clone(&plugin);
+
+    let plugin_loop = move || {
+        while let Ok(msg) = msg_receiver.try_recv() {
+            let cloned = Rc::clone(&cloned);
+
+            nvim::schedule(move |_| {
+                // SAFETY: todo.
+                let plugin = unsafe { rc_to_mut(&cloned) };
+
+                if let Err(err) = plugin.handle(msg) {
+                    display_error(err, Some(P::NAME));
+                }
+
+                Ok(())
+            })
+        }
+
+        Ok::<_, Infallible>(())
+    };
+
+    let handle = nvim::libuv::AsyncHandle::new(plugin_loop).unwrap();
+
+    (plugin, Sender::new(msg_sender, handle))
+}
+
+#[allow(clippy::mut_from_ref)]
+pub(crate) unsafe fn rc_to_mut<T: ?Sized>(rc: &Rc<T>) -> &mut T {
+    // TODO: use `Rc::get_mut_unchecked` once it's stable.
+    &mut *(Rc::as_ptr(rc) as *mut T)
 }

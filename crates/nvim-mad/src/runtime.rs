@@ -1,22 +1,23 @@
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use common::oxi::{self, Object};
+use common::nvim::{self, Object};
 use common::*;
 
 use crate::config::ConfigError;
 
 /// TODO: docs
-pub(crate) trait ObjectSafePlugin {
+pub(crate) trait ConfigurablePlugin {
     /// TODO: docs
     fn config(&mut self, global_enable: bool, config: Object);
 }
 
-impl<P: Plugin> ObjectSafePlugin for P {
+impl<P: Plugin> ConfigurablePlugin for P {
     fn config(&mut self, global_enable: bool, config: Object) {
         let mut config =
             match serde_path_to_error::deserialize::<_, Enable<P::Config>>(
-                oxi::serde::Deserializer::new(config),
+                nvim::serde::Deserializer::new(config),
             ) {
                 Ok(config) => config,
 
@@ -28,35 +29,43 @@ impl<P: Plugin> ObjectSafePlugin for P {
 
         *config.enable_mut() &= global_enable;
 
-        if let Err(err) = self.config(config) {
-            display_error(err, Some(P::NAME));
-        }
+        self.config(config);
     }
 }
 
 /// TODO: docs
 pub(crate) struct MadRuntime {
-    plugins: HashMap<&'static str, Box<dyn ObjectSafePlugin>>,
+    plugins: HashMap<&'static str, Rc<dyn ConfigurablePlugin>>,
 }
 
 impl MadRuntime {
-    #[inline]
-    pub(crate) fn add_plugin<P: Plugin>(&mut self, plugin: P) {
-        let plugin = Box::new(plugin) as Box<dyn ObjectSafePlugin>;
-        self.plugins.insert(P::NAME, plugin);
+    pub(crate) fn add_plugin<P: Plugin>(&mut self, plugin: Rc<P>) {
+        self.plugins.insert(P::NAME, plugin as _);
     }
 
-    #[inline]
-    pub(crate) fn get_plugin_mut(
-        &mut self,
-        name: &str,
-    ) -> Option<&mut Box<dyn ObjectSafePlugin>> {
-        self.plugins.get_mut(name)
+    pub(crate) fn is_registered(&self, plugin: &str) -> bool {
+        self.plugins.contains_key(plugin)
     }
 
-    #[inline]
     pub(crate) fn new() -> Self {
         Self { plugins: HashMap::new() }
+    }
+
+    pub(crate) fn update_config(
+        &mut self,
+        of_plugin: &str,
+        global_enable: bool,
+        config: Object,
+    ) {
+        if let Some(plugin) = self.plugins.get(of_plugin) {
+            let plugin = Rc::clone(plugin);
+            nvim::schedule(move |()| {
+                // SAFETY: todo.
+                let plugin = unsafe { crate::mad::rc_to_mut(&plugin) };
+                plugin.config(global_enable, config);
+                Ok(())
+            });
+        }
     }
 }
 

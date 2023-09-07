@@ -1,8 +1,16 @@
+mod api_builder;
+mod command_builder;
+mod either;
 mod enable;
+mod message;
 mod plugin;
 
+pub use api_builder::ApiBuilder;
+pub use command_builder::CommandBuilder;
+pub use either::Either;
 pub use enable::Enable;
-pub use nvim_oxi as oxi;
+pub use message::Sender;
+pub use nvim_oxi as nvim;
 pub use plugin::Plugin;
 pub use utils::*;
 
@@ -20,6 +28,6 @@ mod utils {
         }
         msg.push_str("] ");
         msg.push_str(&err.to_string());
-        oxi::print!("{msg}");
+        nvim::print!("{msg}");
     }
 }

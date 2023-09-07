@@ -1,30 +1,44 @@
 use std::error::Error;
 
-use nvim_oxi::Dictionary;
 use serde::de::DeserializeOwned;
 
-use crate::Enable;
+use crate::*;
 
 /// TODO: docs
-pub trait Plugin: 'static {
+pub trait Plugin: Default + 'static {
     /// TODO: docs
     const NAME: &'static str;
+
+    /// TODO: docs
+    type Message: 'static;
 
     /// TODO: docs
     type Config: DeserializeOwned + 'static;
 
     /// TODO: docs
-    type SetupError: Error + Send + Sync + 'static;
+    type InitError: Error + 'static;
 
     /// TODO: docs
-    fn init() -> Self;
+    type HandleMessageError: Error + 'static;
 
     /// TODO: docs
-    fn api(&self) -> Dictionary;
+    fn init_api(builder: &mut ApiBuilder<'_, Self>);
 
     /// TODO: docs
-    fn config(
+    fn init_commands(builder: &mut CommandBuilder<'_, Self>);
+
+    /// TODO: docs
+    fn init(
         &mut self,
-        config: Enable<Self::Config>,
-    ) -> Result<(), Self::SetupError>;
+        sender: &Sender<Self::Message>,
+    ) -> Result<(), Self::InitError>;
+
+    /// TODO: docs
+    fn handle(
+        &mut self,
+        msg: Self::Message,
+    ) -> Result<(), Self::HandleMessageError>;
+
+    /// TODO: docs
+    fn config(&mut self, config: Enable<Self::Config>);
 }
