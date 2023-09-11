@@ -23,6 +23,42 @@ pub struct WindowConfig {
     pub(crate) y: ScreenUnit,
 }
 
+impl WindowConfig {
+    pub fn bisect(&self, axis: Axis, at: ScreenUnit) -> (Self, Self) {
+        match axis {
+            Axis::Horizontal => self.bisect_horizontal(at),
+            Axis::Vertical => self.bisect_vertical(at),
+        }
+    }
+
+    fn bisect_horizontal(&self, at: ScreenUnit) -> (Self, Self) {
+        let left = at.to_cells(Axis::Horizontal);
+        let right = self.width.to_cells(Axis::Horizontal) - left;
+        (
+            Self { width: ScreenUnit::Cells(left), ..*self },
+            Self {
+                width: ScreenUnit::Cells(right),
+                x: ScreenUnit::Cells(left),
+                ..*self
+            },
+        )
+    }
+
+    fn bisect_vertical(&self, at: ScreenUnit) -> (Self, Self) {
+        let top = at.to_cells(Axis::Vertical);
+        let bottom = self.height.to_cells(Axis::Vertical) - top;
+        let y = self.y.to_cells(Axis::Vertical);
+        (
+            Self { height: ScreenUnit::Cells(top), ..*self },
+            Self {
+                height: ScreenUnit::Cells(bottom),
+                y: ScreenUnit::Cells(y + top),
+                ..*self
+            },
+        )
+    }
+}
+
 impl Default for WindowConfig {
     fn default() -> Self {
         Self {
@@ -71,12 +107,8 @@ impl ScreenUnit {
         match self {
             Self::Percent(percent) => {
                 let total = match axis {
-                    Axis::Horizontal => {
-                        nvim::api::get_option::<u16>("columns")
-                            .expect("the 'columns' option exists")
-                    },
-                    Axis::Vertical => nvim::api::get_option::<u16>("lines")
-                        .expect("the 'columns' option exists"),
+                    Axis::Horizontal => columns(),
+                    Axis::Vertical => lines(),
                 };
 
                 (total as f32 * percent) as u16
@@ -84,6 +116,15 @@ impl ScreenUnit {
             Self::Cells(cells) => cells,
         }
     }
+}
+
+fn columns() -> u16 {
+    nvim::api::get_option::<u16>("columns")
+        .expect("the 'columns' option exists")
+}
+
+fn lines() -> u16 {
+    nvim::api::get_option::<u16>("lines").expect("the 'columns' option exists")
 }
 
 /// TODO: docs

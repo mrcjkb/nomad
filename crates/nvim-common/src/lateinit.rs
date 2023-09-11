@@ -17,6 +17,14 @@ impl<T> LateInit<T> {
     pub fn init(&mut self, value: T) {
         self.inner = Some(value);
     }
+
+    pub fn into_inner(mut self) -> T {
+        self.inner.take().unwrap()
+    }
+
+    pub fn new() -> Self {
+        Self { inner: None }
+    }
 }
 
 impl<T> Deref for LateInit<T> {
