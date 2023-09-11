@@ -118,8 +118,9 @@ impl Seph {
     fn open(&mut self, config: Option<WindowConfig>) {
         let config = config.as_ref().unwrap_or(&self.config.window);
         let path = nvim::api::Buffer::current().get_name().unwrap();
-        let view = View::new(path, config);
-        self.views.insert(view.id(), view);
+        if let Ok(view) = View::new(path, config) {
+            self.views.insert(view.id(), view);
+        }
     }
 
     #[allow(dead_code)]

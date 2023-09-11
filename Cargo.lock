@@ -385,6 +385,7 @@ version = "0.1.0"
 dependencies = [
  "common",
  "serde",
+ "thiserror",
 ]
 
 [[package]]

@@ -9,3 +9,4 @@ edition.workspace = true
 common = { path = "../nvim-common" }
 
 serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
