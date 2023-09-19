@@ -27,3 +27,24 @@ impl HighlightGroup {
         self
     }
 }
+
+impl From<HighlightGroup> for common::nvim::api::opts::SetHighlightOpts {
+    fn from(group: HighlightGroup) -> Self {
+        let mut builder = Self::builder();
+
+        if let Some(link) = &group.link {
+            builder.link(link);
+            return builder.build();
+        }
+
+        if let Some(foreground) = &group.foreground {
+            builder.foreground(foreground.as_hex_string().as_str());
+        }
+
+        if let Some(background) = &group.background {
+            builder.background(background.as_hex_string().as_str());
+        }
+
+        builder.build()
+    }
+}

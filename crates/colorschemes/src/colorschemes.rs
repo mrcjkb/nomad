@@ -2,6 +2,8 @@ use std::convert::Infallible;
 
 use common::*;
 
+use crate::schemes;
+
 #[derive(Default)]
 pub struct Colorschemes {
     is_disabled: bool,
@@ -12,6 +14,7 @@ pub struct Colorschemes {
 pub enum Message {
     Close,
     Disable,
+    Load(&'static str),
     Open,
 }
 
@@ -36,6 +39,13 @@ impl Plugin for Colorschemes {
 
     fn init_api(builder: &mut ApiBuilder<'_, Self>) {
         builder.function("open").on_execute(|()| Message::Open).build();
+
+        for colorscheme in schemes::colorschemes() {
+            builder
+                .function(colorscheme.api_name())
+                .on_execute(move |()| Message::Load(colorscheme.api_name()))
+                .build();
+        }
     }
 
     fn update_config(&mut self, config: Enable<()>) {
@@ -52,6 +62,7 @@ impl Plugin for Colorschemes {
         match msg {
             Message::Close => self.close(),
             Message::Disable => self.disable(),
+            Message::Load(colorscheme) => self.load(colorscheme),
             Message::Open => self.open(),
         };
 
@@ -61,6 +72,12 @@ impl Plugin for Colorschemes {
 
 impl Colorschemes {
     fn close(&mut self) {}
+
+    fn load(&mut self, colorscheme: &str) {
+        nvim::print!("loading {colorscheme}");
+        // self.load(colorscheme)
+        // colorscheme.load().unwrap();
+    }
 
     fn disable(&mut self) {
         self.is_disabled = true;

@@ -1,3 +1,12 @@
 mod ayu_mirage;
 
-pub(crate) use ayu_mirage::AyuMirage;
+use ayu_mirage::AyuMirage;
+pub(crate) use colorschemes::colorschemes;
+
+mod colorschemes {
+    use super::*;
+
+    pub(crate) fn colorschemes() -> Vec<Box<dyn crate::LoadableColorscheme>> {
+        vec![Box::<AyuMirage>::default()]
+    }
+}

@@ -1,28 +1,20 @@
 use crate::*;
 
-pub(crate) struct AyuMirage {
-    foreground: Color,
-    background: Color,
-}
+#[derive(Default)]
+pub(crate) struct AyuMirage;
 
-impl Default for AyuMirage {
-    fn default() -> Self {
-        Self { foreground: hex!("#252935"), background: hex!("#cccac3") }
-    }
+impl colorscheme::Palette for AyuMirage {
+    const PALETTE: palette::Palette = palette::Palette {
+        foreground: hex!("#252935"),
+        background: hex!("#cccac3"),
+    };
 }
 
 impl Colorscheme for AyuMirage {
     const NAME: &'static str = "Ayu Mirage";
 }
 
-impl BaseColorscheme for AyuMirage {
-    fn normal(&self) -> Option<HighlightGroup> {
-        HighlightGroup::new()
-            .with_foreground(self.foreground)
-            .with_background(self.background)
-            .into_some()
-    }
-}
+impl BaseColorscheme for AyuMirage {}
 
 impl DiagnosticColorscheme for AyuMirage {}
 

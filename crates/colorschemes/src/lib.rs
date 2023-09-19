@@ -2,10 +2,13 @@ mod color;
 mod colorscheme;
 mod colorschemes;
 mod highlight_group;
+mod loadable_colorscheme;
+mod palette;
 mod schemes;
 
-pub(crate) use color::Color;
-pub(crate) use colorscheme::*;
+use color::Color;
+use colorscheme::*;
 pub use colorschemes::Colorschemes;
 use hex::hex;
-pub(crate) use highlight_group::HighlightGroup;
+use highlight_group::HighlightGroup;
+use loadable_colorscheme::LoadableColorscheme;
