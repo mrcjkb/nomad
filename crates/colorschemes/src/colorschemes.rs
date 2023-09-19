@@ -38,8 +38,6 @@ impl Plugin for Colorschemes {
         builder.function("open").on_execute(|()| Message::Open).build();
     }
 
-    fn init_commands(builder: &mut CommandBuilder<'_, Self>) {}
-
     fn update_config(&mut self, config: Enable<()>) {
         if !config.enable() {
             self.disable();

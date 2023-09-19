@@ -18,18 +18,3 @@ impl Color {
         Self { r, g, b }
     }
 }
-
-/// Macro for converting a hex color code to a [`Color`] (at runtime).
-///
-/// # Example
-///
-/// ```rust
-/// # use colorschemes::{hex, Color};
-/// assert_eq!(hex!("#ffffff"), Color::new(255, 255, 255));
-/// ```
-#[macro_export]
-macro_rules! hex {
-    ($hex:literal) => {{
-        $crate::Color::new(255, 255, 255)
-    }};
-}
