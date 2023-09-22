@@ -8,7 +8,7 @@ use crate::*;
 #[derive(Default)]
 pub struct Colorschemes {
     is_disabled: bool,
-    choose_modal: Option<FuzzyModal>,
+    choose_modal: Option<FuzzyHandle>,
     sender: LateInit<Sender<Message>>,
 }
 
@@ -109,7 +109,11 @@ impl Colorschemes {
 
         let on_exit_sender = self.sender.clone();
 
-        let modal = FuzzyModal::builder()
+        // TODO: get fuzzy modal via downcasting.
+        let fuzzy: &FuzzyModal = unsafe { std::mem::transmute(&()) };
+
+        let modal = fuzzy
+            .builder()
             .with_starting_text("Choose colorscheme...")
             .with_items(
                 schemes::colorschemes().keys().copied().map(FuzzyItem::new),
@@ -122,7 +126,7 @@ impl Colorschemes {
                 let colorscheme = item.text;
                 on_confirm_sender.send(Message::Load(colorscheme));
             })
-            .on_exit(move |_| {
+            .on_cancel(move |_| {
                 on_exit_sender.send(Message::Load(original_colorscheme));
             })
             .open();

@@ -1,4 +1,4 @@
-use crate::*;
+use common::WindowConfig;
 
 /// TODO: docs
 pub enum Message {

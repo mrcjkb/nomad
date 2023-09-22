@@ -4,6 +4,7 @@ mod enable;
 mod lateinit;
 mod plugin;
 mod sender;
+mod window_config;
 
 pub use api_builder::ApiBuilder;
 pub use command_builder::CommandBuilder;
@@ -13,6 +14,7 @@ pub use nvim_oxi as nvim;
 pub use plugin::Plugin;
 pub use sender::Sender;
 pub use utils::*;
+pub use window_config::{WindowConfig, *};
 
 mod utils {
     use std::fmt::Display;

@@ -116,7 +116,7 @@ impl Seph {
     }
 
     fn open(&mut self, config: Option<WindowConfig>) {
-        let config = config.as_ref().unwrap_or(&self.config.window);
+        let config = config.unwrap_or(self.config.window.clone());
         let path = nvim::api::Buffer::current().get_name().unwrap();
         if let Ok(view) = View::new(path, config) {
             self.views.insert(view.id(), view);

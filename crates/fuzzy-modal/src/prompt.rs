@@ -18,6 +18,10 @@ pub(crate) struct Prompt {
 }
 
 impl Prompt {
+    pub fn close(self) {
+        todo!();
+    }
+
     pub fn new<F>(
         default_text: Option<String>,
         total_items: u64,

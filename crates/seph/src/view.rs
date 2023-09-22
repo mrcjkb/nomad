@@ -65,7 +65,7 @@ impl View {
     /// TODO: docs.
     pub fn new(
         at_path: PathBuf,
-        with_config: &WindowConfig,
+        with_config: WindowConfig,
     ) -> Result<Self, Error> {
         let is_file_path = at_path.is_file();
 
@@ -104,9 +104,8 @@ impl View {
         Ok(this)
     }
 
-    fn open(&mut self, config: &WindowConfig) {
-        let (prompt_config, files_config) =
-            config.bisect(Axis::Vertical, ScreenUnit::Cells(1));
+    fn open(&mut self, config: WindowConfig) {
+        let (prompt_config, files_config) = config.bisect_vertical(1);
         self.prompt.open(prompt_config);
         self.files.open(files_config);
     }
