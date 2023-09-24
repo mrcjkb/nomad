@@ -71,7 +71,7 @@ impl Plugin for Colorschemes {
             Message::Close => self.close_choose_modal(),
             Message::Disable => self.disable(),
             Message::Load(colorscheme) => self.load(&colorscheme),
-            Message::Choose => self.choose_colorscheme(ctx),
+            Message::Choose => self.open_choose_modal(ctx),
         };
 
         Ok(())
@@ -83,24 +83,6 @@ impl Colorschemes {
         if let Some(modal) = self.choose_modal.take() {
             modal.close();
         }
-    }
-
-    fn choose_colorscheme(&mut self, ctx: &Ctx<Self>) {
-        self.close_choose_modal();
-        self.open_choose_modal(ctx);
-    }
-
-    fn disable(&mut self) {
-        self.is_disabled = true;
-        self.close_choose_modal();
-    }
-
-    fn load(&mut self, colorscheme: &str) {
-        let Some(colorscheme) = schemes::colorschemes().get(colorscheme)
-        else {
-            todo!();
-        };
-        colorscheme.load().unwrap();
     }
 
     fn open_choose_modal(&mut self, ctx: &Ctx<Self>) {
@@ -133,6 +115,19 @@ impl Colorschemes {
             .open();
 
         self.choose_modal = Some(modal);
+    }
+
+    fn disable(&mut self) {
+        self.is_disabled = true;
+        self.close_choose_modal();
+    }
+
+    fn load(&mut self, colorscheme: &str) {
+        let Some(colorscheme) = schemes::colorschemes().get(colorscheme)
+        else {
+            todo!();
+        };
+        colorscheme.load().unwrap();
     }
 
     fn send(&mut self, msg: Message) {
