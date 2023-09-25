@@ -35,11 +35,6 @@ pub(crate) struct PromptConfig {
 
 /// TODO: docs
 pub(crate) struct Prompt {
-    /// The current value of the prompt, which is used as the query to filter
-    /// the results. Its "rest" value should always match the one of the
-    /// [`Results::query`] field.
-    value: String,
-
     /// The number of results that match the current prompt. This is updated
     /// as the user types and it's displayed at the end of the prompt together
     /// with the total number of results.
@@ -125,7 +120,6 @@ impl Prompt {
             .unwrap();
 
         Self {
-            value: String::new(),
             matched_results: 0,
             sender,
             config: PromptConfig::default(),
