@@ -55,11 +55,12 @@ pub(crate) struct Prompt {
 impl Prompt {
     /// TODO: docs
     pub fn close(&mut self) {
-        self.update_placeholder("");
-
         if let Some(window) = self.window.take() {
-            window.close(true).unwrap();
+            // This will fail if the window is already closed.
+            let _ = window.close(true);
         }
+
+        self.update_placeholder("");
     }
 
     /// TODO: docs
@@ -77,11 +78,11 @@ impl Prompt {
             config.total_results,
         );
 
-        // TODO: enter Insert mode.
-
         let window =
             nvim::api::open_win(&self.buffer, true, &window_config.into())
                 .unwrap();
+
+        nvim::api::command("startinsert").unwrap();
 
         self.matched_results = config.total_results;
 
@@ -109,7 +110,7 @@ impl Prompt {
     }
 
     /// TODO: docs
-    fn update_matched(&mut self, new_matched_results: u64) {
+    pub fn update_matched(&mut self, new_matched_results: u64) {
         self.matched_results = new_matched_results;
 
         self.update_matched_on_total(
@@ -172,7 +173,7 @@ impl Prompt {
     }
 
     /// TODO: docs
-    fn update_total(&mut self, new_total_results: u64) {
+    pub fn update_total(&mut self, new_total_results: u64) {
         self.config.total_results = new_total_results;
 
         self.update_matched_on_total(
