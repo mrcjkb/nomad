@@ -73,6 +73,10 @@ impl Prompt {
             let _ = window.close(true);
         }
 
+        self.buffer
+            .set_lines(.., true, std::iter::empty::<nvim::String>())
+            .unwrap();
+
         self.update_placeholder("");
     }
 
