@@ -85,9 +85,12 @@ impl Prompt {
             .group(self.augroup_id)
             .once(true);
 
+        let close_sender = self.sender.clone();
+
         let win_close_opts = builder
-            .callback(|_args| {
-                nvim::print!("closed prompt");
+            .callback(move |_args| {
+                close_sender.send(Message::Close);
+                // Returning `true` deletes the autocmd.
                 Ok::<_, Infallible>(true)
             })
             .build();
@@ -98,9 +101,12 @@ impl Prompt {
         )
         .unwrap();
 
+        let closed_sender = self.sender.clone();
+
         let win_leave_opts = builder
-            .callback(|_args| {
-                nvim::print!("left prompt");
+            .callback(move |_args| {
+                closed_sender.send(Message::Closed);
+                // Returning `true` deletes the autocmd.
                 Ok::<_, Infallible>(true)
             })
             .build();
@@ -126,7 +132,6 @@ impl Prompt {
     pub fn close(&mut self) {
         self.close_window();
         self.clear_buffer();
-        self.delete_autocmds();
         self.update_placeholder("");
     }
 
@@ -141,24 +146,6 @@ impl Prompt {
     /// TODO: docs
     pub fn closed(&mut self) {
         self.close();
-    }
-
-    /// TODO: docs
-    fn delete_autocmds(&mut self) {
-        // Deleting an autocmd will fail if the user somehow deleted it before
-        // we could.
-
-        if let Some(id) = self.win_close_autocmd_id.take() {
-            if let Err(err) = nvim::api::del_autocmd(id) {
-                warn!("failed to delete the prompt's WinClosed autocmd: {err}",)
-            }
-        }
-
-        if let Some(id) = self.win_leave_autocmd_id.take() {
-            if let Err(err) = nvim::api::del_autocmd(id) {
-                warn!("failed to delete the prompt's WinLeave autocmd: {err}",)
-            }
-        }
     }
 
     /// TODO: docs
