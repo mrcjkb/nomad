@@ -28,17 +28,27 @@ impl View {
 
     pub fn close(&mut self) {
         self.prompt.close();
-        self.results.close();
+
+        let maybe_selected = self.results.close();
+
+        if let Some(on_cancel) = self.on_cancel.take() {
+            on_cancel(maybe_selected);
+        }
     }
 
     pub fn closed(&mut self) {
         self.prompt.closed();
-        self.results.closed();
+
+        let maybe_selected = self.results.closed();
+
+        if let Some(on_cancel) = self.on_cancel.take() {
+            on_cancel(maybe_selected);
+        }
     }
 
     /// TODO: docs
     pub fn confirm(&mut self) -> ConfirmResult {
-        if let Some(selected_result) = self.results.confirm() {
+        if let Some(selected_result) = self.results.take_selected() {
             if let Some(on_confirm) = self.on_confirm.take() {
                 on_confirm(selected_result);
             }

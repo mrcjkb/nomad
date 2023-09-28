@@ -23,12 +23,7 @@ pub(crate) struct Results {
     /// The results that are currently being displayed.
     displayed_results: DisplayedResults,
 
-    /// The index of the currently selected result **in the list of displayed
-    /// results**.
-    ///
-    /// Do not use this to index into `self.items`. Instead, use this to index
-    /// into `self.displayed_results`, and then use the result of that to index
-    /// into `self.items`.
+    /// The index of the currently selected result in the displayed results.
     selected_result: Option<DisplayedIdx>,
 
     /// If true, then selecting the previous result when the first result is
@@ -42,16 +37,36 @@ pub(crate) struct Results {
 }
 
 impl Results {
-    pub fn close(&mut self) {}
+    pub fn close(&mut self) -> Option<FuzzyItem> {
+        self.query.clear();
+        self.displayed_results.clear();
+        self.close_window();
+        self.clear_buffer();
+        self.take_selected()
+    }
 
-    pub fn closed(&mut self) {
-        self.close();
+    pub fn closed(&mut self) -> Option<FuzzyItem> {
+        self.close()
     }
 
     /// TODO: docs
-    pub fn confirm(&mut self) -> Option<FuzzyItem> {
-        let selected_idx = self.displayed_results.selected()?;
-        self.displayed_results.selected_item = None;
+    fn clear_buffer(&mut self) {
+        self.buffer
+            .set_lines(.., true, std::iter::empty::<nvim::String>())
+            .unwrap();
+    }
+
+    /// TODO: docs
+    fn close_window(&mut self) {
+        if let Some(window) = self.window.take() {
+            // This fails if the window is already closed.
+            let _ = window.close(true);
+        }
+    }
+
+    /// TODO: docs
+    pub fn take_selected(&mut self) -> Option<FuzzyItem> {
+        let selected_idx = self.selected_result.take()?;
         self.space.drain(..).nth(selected_idx.0)
     }
 
@@ -95,7 +110,15 @@ impl Results {
     /// Returns the currently selected item in the results list, if there is
     /// one.
     pub fn selected(&self) -> Option<&FuzzyItem> {
-        self.displayed_results.selected().map(|idx| &self.space[idx])
+        self.selected_result.map(|displayed_idx| {
+            let result_idx = self.displayed_results[displayed_idx];
+            &self.space[result_idx]
+        })
+    }
+
+    /// TODO: docs
+    fn selected_idx(&self) -> Option<DisplayedIdx> {
+        self.selected_result
     }
 
     /// # Panics
@@ -212,8 +235,6 @@ struct DisplayedResults {
     ///
     /// TODO: use a Btree to store these instead of a Vec.
     items: Vec<ResultIdx>,
-
-    selected_item: Option<DisplayedIdx>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -244,6 +265,10 @@ impl Index<DisplayedIdx> for DisplayedResults {
 }
 
 impl DisplayedResults {
+    fn clear(&mut self) {
+        self.items.clear();
+    }
+
     fn len(&self) -> usize {
         self.items.len()
     }
@@ -258,9 +283,5 @@ impl DisplayedResults {
 
     fn is_last(&self, idx: DisplayedIdx) -> bool {
         !self.is_empty() && (idx.0 == self.len() - 1)
-    }
-
-    fn selected(&self) -> Option<ResultIdx> {
-        self.selected_item.map(|idx| self[idx])
     }
 }
