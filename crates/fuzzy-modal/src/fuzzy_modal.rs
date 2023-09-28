@@ -77,7 +77,7 @@ impl Plugin for FuzzyModal {
             Message::AddResults(items) => self.view.add_results(items),
             Message::Close => self.close(),
             Message::Closed => self.closed(),
-            Message::Confirmed => {},
+            Message::Confirmed => self.confirm(),
             Message::DoneFiltering(matched) => self.done_filtering(matched),
             Message::HidePlaceholder => self.hide_placeholder(),
             Message::Open((config, id)) => self.open(config, id),
@@ -106,6 +106,12 @@ impl FuzzyModal {
     fn closed(&mut self) {
         self.view.closed();
         self.current_modal = None;
+    }
+
+    fn confirm(&mut self) {
+        if let ConfirmResult::Confirmed = self.view.confirm() {
+            self.close();
+        }
     }
 
     fn done_filtering(&mut self, matched: u64) {

@@ -2,9 +2,9 @@ use common::Sender;
 
 use crate::*;
 
-type OnExit = Box<dyn FnOnce(Option<FuzzyItem>) + 'static>;
-type OnSelect = Box<dyn FnMut(&FuzzyItem) + 'static>;
-type OnConfirm = Box<dyn FnOnce(FuzzyItem) + 'static>;
+pub(crate) type OnExit = Box<dyn FnOnce(Option<FuzzyItem>) + 'static>;
+pub(crate) type OnSelect = Box<dyn FnMut(&FuzzyItem) + 'static>;
+pub(crate) type OnConfirm = Box<dyn FnOnce(FuzzyItem) + 'static>;
 
 pub struct FuzzyBuilder {
     config: FuzzyConfig,
@@ -15,12 +15,11 @@ pub struct FuzzyBuilder {
 /// TODO: docs
 #[derive(Default)]
 pub struct FuzzyConfig {
-    pub(crate) items: Vec<FuzzyItem>,
+    pub(crate) results: ResultsConfig,
+    pub(crate) prompt: PromptConfig,
     pub(crate) on_confirm: Option<OnConfirm>,
     pub(crate) on_cancel: Option<OnExit>,
     pub(crate) on_select: Option<OnSelect>,
-    pub(crate) starting_selected: Option<usize>,
-    pub(crate) prompt: PromptConfig,
 }
 
 impl FuzzyBuilder {
@@ -75,7 +74,7 @@ impl FuzzyBuilder {
         mut self,
         selected_item_idx: usize,
     ) -> FuzzyHandle {
-        self.config.starting_selected = Some(selected_item_idx);
+        self.config.results.start_with_selected = Some(selected_item_idx);
         self.open()
     }
 
@@ -92,8 +91,9 @@ impl FuzzyBuilder {
         Item: Into<FuzzyItem>,
         Items: IntoIterator<Item = Item>,
     {
-        self.config.items.extend(items.into_iter().map(Into::into));
-        self.config.prompt.total_results = self.config.items.len() as _;
+        self.config.results.space.extend(items.into_iter().map(Into::into));
+        self.config.prompt.total_results =
+            self.config.results.space.len() as _;
         self
     }
 

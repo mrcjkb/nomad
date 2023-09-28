@@ -5,6 +5,12 @@ use nvim::api::{Buffer, Window};
 
 use crate::{Sender, *};
 
+#[derive(Default)]
+pub(crate) struct ResultsConfig {
+    pub space: Vec<FuzzyItem>,
+    pub start_with_selected: Option<usize>,
+}
+
 pub(crate) struct Results {
     /// The current contents of the prompt, which is used to filter the
     /// results.
@@ -42,6 +48,13 @@ impl Results {
         self.close();
     }
 
+    /// TODO: docs
+    pub fn confirm(&mut self) -> Option<FuzzyItem> {
+        let selected_idx = self.displayed_results.selected()?;
+        self.displayed_results.selected_item = None;
+        self.space.drain(..).nth(selected_idx.0)
+    }
+
     pub fn extend(&mut self, items: impl IntoIterator<Item = FuzzyItem>) {
         self.space.extend(items);
         // TODO: rank the new items and update the displayed results.
@@ -69,6 +82,14 @@ impl Results {
 
     pub fn num_total(&self) -> u64 {
         self.space.items.len() as _
+    }
+
+    pub fn open(
+        &mut self,
+        config: ResultsConfig,
+        window_config: &WindowConfig,
+        modal_id: ModalId,
+    ) {
     }
 
     /// Returns the currently selected item in the results list, if there is
@@ -171,6 +192,13 @@ impl ResultSpace {
 
     fn filter(&self, query: &str) -> Vec<ResultIdx> {
         todo!();
+    }
+
+    fn drain<R>(&mut self, range: R) -> impl Iterator<Item = FuzzyItem> + '_
+    where
+        R: std::ops::RangeBounds<usize>,
+    {
+        self.items.drain(range)
     }
 }
 

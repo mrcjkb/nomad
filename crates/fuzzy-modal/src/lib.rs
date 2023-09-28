@@ -15,10 +15,10 @@ pub use fuzzy_modal::FuzzyModal;
 use fuzzy_modal::Sender;
 pub use handle::FuzzyHandle;
 use message::Message;
-use modal_config::{FuzzyBuilder, FuzzyConfig};
+use modal_config::*;
 use prompt::{Prompt, PromptConfig, PromptDiff};
-use results::Results;
-use view::View;
+use results::{Results, ResultsConfig};
+use view::{ConfirmResult, View};
 
 type ModalId = u64;
 
