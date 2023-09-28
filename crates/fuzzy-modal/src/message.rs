@@ -11,6 +11,9 @@ pub enum Message {
     Close,
 
     /// TODO: docs
+    Closed,
+
+    /// TODO: docs
     Confirmed,
 
     /// TODO: docs

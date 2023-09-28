@@ -38,6 +38,10 @@ pub(crate) struct Results {
 impl Results {
     pub fn close(&mut self) {}
 
+    pub fn closed(&mut self) {
+        self.close();
+    }
+
     pub fn extend(&mut self, items: impl IntoIterator<Item = FuzzyItem>) {
         self.space.extend(items);
         // TODO: rank the new items and update the displayed results.

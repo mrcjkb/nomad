@@ -81,6 +81,11 @@ impl Prompt {
     }
 
     /// TODO: docs
+    pub fn closed(&mut self) {
+        self.close();
+    }
+
+    /// TODO: docs
     pub fn open(
         &mut self,
         config: PromptConfig,

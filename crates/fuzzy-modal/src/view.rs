@@ -19,6 +19,11 @@ impl View {
         self.results.close();
     }
 
+    pub fn closed(&mut self) {
+        self.prompt.closed();
+        self.results.closed();
+    }
+
     pub fn new(sender: Sender<Message>) -> Self {
         Self {
             prompt: Prompt::new(sender.clone()),

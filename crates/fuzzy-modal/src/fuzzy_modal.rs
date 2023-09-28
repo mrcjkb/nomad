@@ -55,6 +55,7 @@ impl Plugin for FuzzyModal {
         match msg {
             Message::AddResults(items) => self.view.add_results(items),
             Message::Close => self.view.close(),
+            Message::Closed => self.view.closed(),
             Message::DoneFiltering(matched) => self.done_filtering(matched),
             Message::HidePlaceholder => self.hide_placeholder(),
             Message::Open(config) => self.open(config),
