@@ -1,8 +1,10 @@
 use std::cmp::Ordering;
+use std::convert::Infallible;
 use std::ops::Range;
 
 use common::{nvim, WindowConfig, *};
 use nvim::api::{opts::*, types::*, Buffer, Window};
+use tracing::*;
 
 use crate::*;
 
@@ -55,6 +57,14 @@ pub(crate) struct Prompt {
     /// open.
     window: Option<Window>,
 
+    augroup_id: u32,
+
+    /// TODO: docs.
+    win_close_autocmd_id: Option<u32>,
+
+    /// TODO: docs.
+    win_leave_autocmd_id: Option<u32>,
+
     /// TODO: docs.
     namespace_id: u32,
 
@@ -67,22 +77,88 @@ pub(crate) struct Prompt {
 
 impl Prompt {
     /// TODO: docs
+    fn create_autocmds(&mut self) {
+        let mut builder = CreateAutocmdOpts::builder();
+
+        let builder = builder
+            .buffer(self.buffer.clone())
+            .group(self.augroup_id)
+            .once(true);
+
+        let win_close_opts = builder
+            .callback(|_args| {
+                nvim::print!("closed prompt");
+                Ok::<_, Infallible>(true)
+            })
+            .build();
+
+        let win_close_id = nvim::api::create_autocmd(
+            std::iter::once("WinClosed"),
+            &win_close_opts,
+        )
+        .unwrap();
+
+        let win_leave_opts = builder
+            .callback(|_args| {
+                nvim::print!("left prompt");
+                Ok::<_, Infallible>(true)
+            })
+            .build();
+
+        let win_leave_id = nvim::api::create_autocmd(
+            std::iter::once("WinLeave"),
+            &win_leave_opts,
+        )
+        .unwrap();
+
+        self.win_close_autocmd_id = Some(win_close_id);
+        self.win_leave_autocmd_id = Some(win_leave_id);
+    }
+
+    /// TODO: docs
+    fn clear_buffer(&mut self) {
+        self.buffer
+            .set_lines(.., true, std::iter::empty::<nvim::String>())
+            .unwrap();
+    }
+
+    /// TODO: docs
     pub fn close(&mut self) {
+        self.close_window();
+        self.clear_buffer();
+        self.delete_autocmds();
+        self.update_placeholder("");
+    }
+
+    /// TODO: docs
+    fn close_window(&mut self) {
         if let Some(window) = self.window.take() {
             // This fails if the window is already closed.
             let _ = window.close(true);
         }
-
-        self.buffer
-            .set_lines(.., true, std::iter::empty::<nvim::String>())
-            .unwrap();
-
-        self.update_placeholder("");
     }
 
     /// TODO: docs
     pub fn closed(&mut self) {
         self.close();
+    }
+
+    /// TODO: docs
+    fn delete_autocmds(&mut self) {
+        // Deleting an autocmd will fail if the user somehow deleted it before
+        // we could.
+
+        if let Some(id) = self.win_close_autocmd_id.take() {
+            if let Err(err) = nvim::api::del_autocmd(id) {
+                warn!("failed to delete the prompt's WinClosed autocmd: {err}",)
+            }
+        }
+
+        if let Some(id) = self.win_leave_autocmd_id.take() {
+            if let Err(err) = nvim::api::del_autocmd(id) {
+                warn!("failed to delete the prompt's WinLeave autocmd: {err}",)
+            }
+        }
     }
 
     /// TODO: docs
@@ -100,17 +176,23 @@ impl Prompt {
             config.total_results,
         );
 
+        self.open_window(window_config);
+
+        self.create_autocmds();
+
+        self.matched_results = config.total_results;
+
+        self.config = config;
+    }
+
+    fn open_window(&mut self, window_config: &WindowConfig) {
         let window =
             nvim::api::open_win(&self.buffer, true, &window_config.into())
                 .unwrap();
 
         nvim::api::command("startinsert").unwrap();
 
-        self.matched_results = config.total_results;
-
         self.window = Some(window);
-
-        self.config = config;
     }
 
     /// Initializes the prompt.
@@ -147,12 +229,21 @@ impl Prompt {
             )
             .unwrap();
 
+        let augroup_id = nvim::api::create_augroup(
+            "nomad-fuzzy-prompt",
+            &CreateAugroupOpts::builder().clear(true).build(),
+        )
+        .unwrap();
+
         Self {
             matched_results: 0,
             sender,
             config: PromptConfig::default(),
             buffer,
             window: None,
+            augroup_id,
+            win_close_autocmd_id: None,
+            win_leave_autocmd_id: None,
             // Create an anonymous namespace for the prompt.
             namespace_id: nvim::api::create_namespace(""),
             placeholder_extmark_id: None,
