@@ -29,23 +29,27 @@ impl Mad {
         let (plugin, msg_sender) = start::<P>(Rc::clone(&self.runtime));
 
         {
-            // SAFETY: todo.
             let mut plugin = plugin.borrow_mut();
+
             if let Err(err) = plugin.init(&msg_sender) {
                 display_error(err, Some(P::NAME));
             }
+
+            plugin.build_commands(&mut CommandBuilder::new(&msg_sender));
+
+            plugin.build_keymaps(&mut KeymapBuilder::new(&msg_sender));
+
+            let api = {
+                let mut builder = ApiBuilder::new(&msg_sender);
+                plugin.build_api(&mut builder);
+                builder.api()
+            };
+
+            self.api.insert(P::NAME, api);
         }
 
-        P::init_commands(&mut CommandBuilder::new(&msg_sender));
-
-        let api = {
-            let mut builder = ApiBuilder::new(&msg_sender);
-            P::init_api(&mut builder);
-            builder.api()
-        };
-
-        self.api.insert(P::NAME, api);
         self.runtime.borrow_mut().add_plugin(plugin);
+
         self
     }
 

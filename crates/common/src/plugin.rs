@@ -32,11 +32,15 @@ pub trait Plugin: Default + 'static {
 
     /// TODO: docs
     #[allow(unused_variables)]
-    fn init_api(builder: &mut ApiBuilder<'_, Self>) {}
+    fn build_api(&self, builder: &mut ApiBuilder<'_, Self>) {}
 
     /// TODO: docs
     #[allow(unused_variables)]
-    fn init_commands(builder: &mut CommandBuilder<'_, Self>) {}
+    fn build_commands(&self, builder: &mut CommandBuilder<'_, Self>) {}
+
+    /// TODO: docs
+    #[allow(unused_variables)]
+    fn build_keymaps(&self, builder: &mut KeymapBuilder<'_, Self>) {}
 
     /// TODO: docs
     fn update_config(&mut self, config: Enable<Self::Config>);

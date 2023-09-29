@@ -41,7 +41,7 @@ impl Plugin for Seph {
         Ok(())
     }
 
-    fn init_api(builder: &mut ApiBuilder<'_, Self>) {
+    fn build_api(&self, builder: &mut ApiBuilder<'_, Self>) {
         builder
             .function("open")
             .on_execute(|config: Option<WindowConfig>| Message::Open(config))
@@ -64,7 +64,7 @@ impl Plugin for Seph {
     //         .build();
     // }
 
-    fn init_commands(builder: &mut CommandBuilder<'_, Self>) {
+    fn build_commands(&self, builder: &mut CommandBuilder<'_, Self>) {
         builder
             .command("Seph")
             .on_execute(|_opts| Message::Open(None))

@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
 use common::*;
+use nvim::api::types::Mode;
 
 use crate::*;
 
@@ -43,6 +44,31 @@ impl Plugin for FuzzyModal {
         self.sender.init(sender.clone());
         self.view.init(View::new(sender.clone()));
         Ok(())
+    }
+
+    fn build_keymaps(&self, builder: &mut KeymapBuilder<'_, Self>) {
+        let prompt_buffer = self.view.prompt().buffer();
+
+        builder
+            .in_mode(Mode::Insert)
+            .in_buffer(prompt_buffer.clone())
+            .map("<Esc>")
+            .to(|| (PASSTHROUGH_ID, Message::Close))
+            .build();
+
+        builder
+            .in_mode(Mode::Insert)
+            .in_buffer(prompt_buffer.clone())
+            .map("<Up>")
+            .to(|| (PASSTHROUGH_ID, Message::SelectPrevItem))
+            .build();
+
+        builder
+            .in_mode(Mode::Insert)
+            .in_buffer(prompt_buffer.clone())
+            .map("<Down>")
+            .to(|| (PASSTHROUGH_ID, Message::SelectNextItem))
+            .build();
     }
 
     fn update_config(&mut self, config: Enable<Config>) {

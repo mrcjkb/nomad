@@ -71,6 +71,11 @@ pub(crate) struct Prompt {
 
 impl Prompt {
     /// TODO: docs
+    pub fn buffer(&self) -> &Buffer {
+        &self.buffer
+    }
+
+    /// TODO: docs
     fn create_autocmds(&mut self, modal_id: ModalId) {
         let mut builder = CreateAutocmdOpts::builder();
 

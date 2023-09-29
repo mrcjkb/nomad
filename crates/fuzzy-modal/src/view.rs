@@ -87,6 +87,10 @@ impl View {
         self.on_cancel = on_cancel;
     }
 
+    pub fn prompt(&self) -> &Prompt {
+        &self.prompt
+    }
+
     pub fn prompt_mut(&mut self) -> &mut Prompt {
         &mut self.prompt
     }

@@ -38,7 +38,7 @@ impl Plugin for Colorschemes {
         Ok(())
     }
 
-    fn init_api(builder: &mut ApiBuilder<'_, Self>) {
+    fn build_api(&self, builder: &mut ApiBuilder<'_, Self>) {
         builder
             .function("load")
             .on_execute(|colorscheme: String| Message::Load(colorscheme))
