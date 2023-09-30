@@ -108,7 +108,7 @@ pub enum ScreenUnit {
 }
 
 impl ScreenUnit {
-    fn to_cells(self, total: u16) -> u16 {
+    pub fn to_cells(self, total: u16) -> u16 {
         match self {
             Self::Percent(percent) => (total as f32 * percent) as u16,
             Self::Cells(cells) => cells,

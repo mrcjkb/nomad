@@ -16,12 +16,12 @@ pub use fuzzy_item::FuzzyItem;
 pub use fuzzy_modal::FuzzyModal;
 use fuzzy_modal::Sender;
 pub use handle::FuzzyHandle;
-pub use layout::Layout;
+pub use layout::*;
 use message::Message;
 use modal_config::*;
 use prompt::{Prompt, PromptConfig, PromptDiff};
 use results::*;
-use view::{ConfirmResult, View};
+use view::{ConfirmResult, Modal};
 
 /// TODO: docs
 type ModalId = u64;

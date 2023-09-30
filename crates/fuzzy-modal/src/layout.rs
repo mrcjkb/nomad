@@ -1,3 +1,21 @@
-use crate::*;
+use common::*;
+use nvim::api::Buffer;
 
-pub trait Layout {}
+pub type DynLayout = Box<dyn Layout + 'static>;
+
+/// TODO: docs
+pub trait Layout {
+    /// TODO: docs
+    fn open(
+        &mut self,
+        prompt_buffer: &Buffer,
+        results_buffer: &Buffer,
+        inside: Rectangle,
+    ) -> nvim::Result<()>;
+
+    /// TODO: docs
+    fn resize(&mut self, inside: Rectangle) -> nvim::Result<()>;
+
+    /// TODO: docs
+    fn close(&mut self) -> nvim::Result<()>;
+}

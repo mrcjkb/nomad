@@ -1,12 +1,29 @@
-use common::{nvim, WindowConfig};
-use nvim::api::types::WindowBorder;
+use common::{nvim, Rectangle};
+use nvim::api::{
+    types::{GotMode, Mode},
+    Window,
+};
 
 use crate::*;
 
-pub(crate) struct View {
+/// TODO: docs
+pub(crate) struct Modal {
+    /// TODO: docs
     prompt: Prompt,
+
+    /// TODO: docs
     results: Results,
+
+    /// TODO: docs
+    layout: Box<dyn Layout>,
+
+    /// TODO: docs
+    ctx: Option<OpenCtx>,
+
+    /// TODO: docs
     on_confirm: Option<OnConfirm>,
+
+    /// TODO: docs
     on_cancel: Option<OnExit>,
 }
 
@@ -19,7 +36,7 @@ pub(crate) enum ConfirmResult {
     Ignored,
 }
 
-impl View {
+impl Modal {
     pub fn add_results(&mut self, new_results: Vec<FuzzyItem>) {
         self.results.extend(new_results);
         let total = self.results.num_total();
@@ -27,7 +44,13 @@ impl View {
     }
 
     pub fn close(&mut self) {
+        // self.layout.close().unwrap();
+
         self.prompt.close();
+
+        if let Some(ctx) = self.ctx.take() {
+            ctx.close();
+        }
 
         let maybe_selected = self.results.close();
 
@@ -37,13 +60,7 @@ impl View {
     }
 
     pub fn closed(&mut self) {
-        self.prompt.closed();
-
-        let maybe_selected = self.results.closed();
-
-        if let Some(on_cancel) = self.on_cancel.take() {
-            on_cancel(maybe_selected);
-        }
+        self.close();
     }
 
     /// TODO: docs
@@ -63,10 +80,16 @@ impl View {
         }
     }
 
-    pub fn new(sender: Sender) -> Self {
+    pub fn id(&self) -> Option<ModalId> {
+        self.ctx.as_ref().map(|ctx| ctx.id)
+    }
+
+    pub fn new(layout: Box<dyn Layout>, sender: Sender) -> Self {
         Self {
             prompt: Prompt::new(sender.clone()),
             results: Results::new(sender),
+            layout,
+            ctx: None,
             on_confirm: None,
             on_cancel: None,
         }
@@ -75,36 +98,27 @@ impl View {
     pub fn open(
         &mut self,
         FuzzyConfig { prompt, results, on_confirm, on_cancel }: FuzzyConfig,
-        window_config: WindowConfig,
+        rectangle: Rectangle,
         modal_id: ModalId,
     ) {
-        let (mut prompt_window_config, mut results_window_config) =
-            window_config.bisect_vertical(1);
+        self.close();
 
-        prompt_window_config =
-            prompt_window_config.with_border(WindowBorder::Anal(
-                '┌'.into(),
-                '─'.into(),
-                '┐'.into(),
-                '│'.into(),
-                '┤'.into(),
-                '─'.into(),
-                '├'.into(),
-                '│'.into(),
-            ));
+        // TODO: switch
+        self.results.open(results, modal_id);
 
-        results_window_config.shift_down(1);
+        self.prompt.open(prompt, modal_id);
 
-        // We open the results window first because doing the opposite would
-        // cause the prompt to lose focus, which would in turn cause the whole
-        // modal to be closed.
-        self.results.open(results, &results_window_config, modal_id);
+        self.layout
+            .open(self.prompt.buffer(), self.results.buffer(), rectangle)
+            .unwrap();
 
-        self.prompt.open(prompt, &prompt_window_config, modal_id);
+        self.ctx = Some(OpenCtx::open(modal_id));
 
         self.on_confirm = on_confirm;
 
         self.on_cancel = on_cancel;
+
+        let _ = nvim::api::command("startinsert");
     }
 
     pub fn prompt(&self) -> &Prompt {
@@ -117,5 +131,59 @@ impl View {
 
     pub fn results_mut(&mut self) -> &mut Results {
         &mut self.results
+    }
+}
+
+/// TODO: docs
+struct OpenCtx {
+    /// TODO: docs
+    id: ModalId,
+
+    /// TODO: docs
+    parent_window: Window,
+
+    /// TODO: docs
+    opened_in_mode: Mode,
+
+    /// TODO: docs
+    opened_at_position: Option<(usize, usize)>,
+}
+
+impl OpenCtx {
+    /// TODO: docs
+    fn close(mut self) {
+        if self.opened_in_mode.is_insert() {
+            return;
+        }
+
+        let _ = nvim::api::command("stopinsert");
+
+        if let Some((line, col)) = self.opened_at_position {
+            // I'm not really sure why it's necessary to add 1 to the original
+            // column for the cursor to be placed at its original position if
+            // the modal was opened while in normal mode.
+            let _ = self.parent_window.set_cursor(line, col + 1);
+        }
+    }
+
+    /// TODO: docs
+    fn open(id: ModalId) -> Self {
+        let current_mode =
+            if let Ok(GotMode { mode, .. }) = nvim::api::get_mode() {
+                mode
+            } else {
+                Mode::Normal
+            };
+
+        let parent_window = nvim::api::Window::current();
+
+        let current_pos = parent_window.get_cursor().ok();
+
+        Self {
+            id,
+            parent_window,
+            opened_in_mode: current_mode,
+            opened_at_position: current_pos,
+        }
     }
 }

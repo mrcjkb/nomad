@@ -1,7 +1,7 @@
 use std::ops::{Add, Index, Sub};
 
 use common::*;
-use nvim::api::{Buffer, Window};
+use nvim::api::Buffer;
 
 use crate::{Sender, *};
 
@@ -34,9 +34,6 @@ pub(crate) struct Results {
     rollover: bool,
 
     /// TODO: docs
-    window: Option<Window>,
-
-    /// TODO: docs
     buffer: Buffer,
 }
 
@@ -50,10 +47,13 @@ enum SelectResult {
 }
 
 impl Results {
+    pub fn buffer(&self) -> &Buffer {
+        &self.buffer
+    }
+
     pub fn close(&mut self) -> Option<FuzzyItem> {
         self.query.clear();
         self.displayed_results.clear();
-        self.close_window();
         self.clear_buffer();
         self.take_selected()
     }
@@ -67,14 +67,6 @@ impl Results {
         self.buffer
             .set_lines(.., true, std::iter::empty::<nvim::String>())
             .unwrap();
-    }
-
-    /// TODO: docs
-    fn close_window(&mut self) {
-        if let Some(window) = self.window.take() {
-            // This fails if the window is already closed.
-            let _ = window.close(true);
-        }
     }
 
     fn execute_on_select(&mut self) {
@@ -148,7 +140,6 @@ impl Results {
             displayed_results: DisplayedResults::default(),
             selected_result: None,
             rollover: false,
-            window: None,
             buffer: nvim::api::create_buf(false, true).unwrap(),
         }
     }
@@ -157,12 +148,7 @@ impl Results {
         self.config.space.len() as _
     }
 
-    pub fn open(
-        &mut self,
-        config: ResultsConfig,
-        window_config: &WindowConfig,
-        _modal_id: ModalId,
-    ) {
+    pub fn open(&mut self, config: ResultsConfig, _modal_id: ModalId) {
         self.config = config;
 
         self.displayed_results =
@@ -170,21 +156,11 @@ impl Results {
 
         self.populate_buffer();
 
-        self.open_window(window_config);
-
         if let Some(start_with_selected) = self.config.start_with_selected {
             self.select_idx(DisplayedIdx(start_with_selected));
         } else if !self.config.space.is_empty() {
             self.select_first();
         }
-    }
-
-    fn open_window(&mut self, window_config: &WindowConfig) {
-        let window =
-            nvim::api::open_win(&self.buffer, true, &window_config.into())
-                .unwrap();
-
-        self.window = Some(window);
     }
 
     fn populate_buffer(&mut self) {
@@ -253,21 +229,21 @@ impl Results {
 
         let old_selected = self.selected_result;
 
-        if let Some(window) = &mut self.window {
-            tracing::info!("line count {:?}", self.buffer.line_count());
-            tracing::info!("idx {idx:?}");
-
-            // Lines are 1-indexed.
-            let line = idx.0 + 1;
-
-            if let Err(err) = window.set_cursor(line, 0) {
-                tracing::error!("{err:?}");
-            }
-
-            if old_selected.is_none() {
-                window.set_option("cursorline", true).unwrap();
-            }
-        }
+        // if let Some(window) = &mut self.window {
+        //     tracing::info!("line count {:?}", self.buffer.line_count());
+        //     tracing::info!("idx {idx:?}");
+        //
+        //     // Lines are 1-indexed.
+        //     let line = idx.0 + 1;
+        //
+        //     if let Err(err) = window.set_cursor(line, 0) {
+        //         tracing::error!("{err:?}");
+        //     }
+        //
+        //     if old_selected.is_none() {
+        //         window.set_option("cursorline", true).unwrap();
+        //     }
+        // }
 
         self.selected_result = Some(idx);
 

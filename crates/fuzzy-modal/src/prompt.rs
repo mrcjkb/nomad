@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 use std::convert::Infallible;
 use std::ops::Range;
 
-use common::{nvim, WindowConfig};
-use nvim::api::{opts::*, types::*, Buffer, Window};
+use common::nvim;
+use nvim::api::{opts::*, types::*, Buffer};
 
 use crate::{Sender, *};
 
@@ -51,10 +51,6 @@ pub(crate) struct Prompt {
 
     /// The buffer used to display the prompt.
     buffer: Buffer,
-
-    /// The window that houses the buffer. This is only set when the prompt is
-    /// open.
-    window: Option<Window>,
 
     /// TODO: docs.
     augroup_id: u32,
@@ -126,17 +122,8 @@ impl Prompt {
 
     /// TODO: docs
     pub fn close(&mut self) {
-        self.close_window();
         self.clear_buffer();
         self.update_placeholder("");
-    }
-
-    /// TODO: docs
-    fn close_window(&mut self) {
-        if let Some(window) = self.window.take() {
-            // This fails if the window is already closed.
-            let _ = window.close(true);
-        }
     }
 
     /// TODO: docs
@@ -145,12 +132,7 @@ impl Prompt {
     }
 
     /// TODO: docs
-    pub fn open(
-        &mut self,
-        config: PromptConfig,
-        window_config: &WindowConfig,
-        modal_id: ModalId,
-    ) {
+    pub fn open(&mut self, config: PromptConfig, modal_id: ModalId) {
         if let Some(placeholder) = config.placeholder_text.as_ref() {
             self.update_placeholder(placeholder);
         }
@@ -160,21 +142,11 @@ impl Prompt {
             config.total_results,
         );
 
-        self.open_window(window_config);
-
         self.create_autocmds(modal_id);
 
         self.matched_results = config.total_results;
 
         self.config = config;
-    }
-
-    fn open_window(&mut self, window_config: &WindowConfig) {
-        let window =
-            nvim::api::open_win(&self.buffer, true, &window_config.into())
-                .unwrap();
-
-        self.window = Some(window);
     }
 
     /// Initializes the prompt.
@@ -222,7 +194,6 @@ impl Prompt {
             sender,
             config: PromptConfig::default(),
             buffer,
-            window: None,
             augroup_id,
             // Create an anonymous namespace for the prompt.
             namespace_id: nvim::api::create_namespace(""),

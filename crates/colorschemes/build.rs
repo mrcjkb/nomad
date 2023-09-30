@@ -68,7 +68,19 @@ fn index_colorschemes(dir: &Path) -> Vec<Colorscheme> {
         module_name: "ayu_mirage".to_owned(),
     };
 
-    let colorschemes = vec![ayu_mirage];
+    let dracula = Colorscheme {
+        struct_name: "Dracula".to_owned(),
+        colorscheme_name: "Dracula".to_owned(),
+        module_name: "dracula".to_owned(),
+    };
+
+    let one_dark = Colorscheme {
+        struct_name: "OneDark".to_owned(),
+        colorscheme_name: "One Dark".to_owned(),
+        module_name: "one_dark".to_owned(),
+    };
+
+    let colorschemes = vec![ayu_mirage, dracula, one_dark];
 
     colorschemes
 }

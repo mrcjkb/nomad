@@ -1,4 +1,4 @@
-use common::WindowConfig;
+use common::Rectangle;
 
 use crate::*;
 
@@ -38,5 +38,5 @@ pub enum Message {
     ShowPlaceholder,
 
     /// TODO: docs
-    UpdateConfig(Option<WindowConfig>),
+    UpdateConfig(Option<Rectangle>),
 }
