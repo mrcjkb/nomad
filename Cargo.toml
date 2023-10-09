@@ -8,9 +8,16 @@ authors = ["Riccardo Mazzarini <me@noib3.dev>"]
 crate-type = ["cdylib"]
 
 [features]
-default = ["neovim-0-9"]
-neovim-0-9 = ["common/neovim-0-9", "fuzzy-modal/neovim-0-9"]
-neovim-nightly = ["common/neovim-nightly"]
+default = ["neovim-nightly"]
+neovim-0-9 = [
+  "common/neovim-0-9",
+  "fuzzy-modal/neovim-0-9",
+  "nvim-oxi/neovim-0-9",
+]
+neovim-nightly = [
+  "common/neovim-nightly",
+  "nvim-oxi/neovim-nightly",
+]
 
 [dependencies]
 colorschemes = { path = "crates/colorschemes" }
