@@ -350,7 +350,7 @@ impl Results {
             let _ = window.close(true);
         }
 
-        Ok(self.selected_result)
+        Ok(self.selected_result.take())
     }
 
     fn is_first(&self, idx: usize) -> bool {
