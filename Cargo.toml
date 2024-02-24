@@ -9,14 +9,11 @@ authors = ["Nomad <hello@nomad.foo>"]
 license = "MIT"
 
 [workspace.dependencies]
-common = { path = "crates/common" }
-nomad = { path = "crates/nomad" }
-nvim-oxi = { git = "https://github.com/noib3/nvim-oxi" }
+neovim = { path = "./neovim" }
 once_cell = "1.18"
 serde = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
-tracing-subscriber = { path = "crates/tracing-subscriber" }
 
 [workspace.lints.rust]
 future_incompatible = "deny"
@@ -38,18 +35,9 @@ name = "nomad"
 crate-type = ["cdylib"]
 
 [features]
-default = ["neovim-0-9"]
-neovim-0-9 = [
-  "common/neovim-0-9",
-  "nvim-oxi/neovim-0-9",
-]
-neovim-nightly = [
-  "common/neovim-nightly",
-  "nvim-oxi/neovim-nightly",
-]
+neovim-0-9 = ["neovim/neovim-0-9"]
+neovim-nightly = ["neovim/neovim-nightly"]
 
 [dependencies]
-common = { workspace = true }
-nomad = { workspace = true }
-nvim-oxi = { workspace = true, features = ["libuv"] }
-tracing-subscriber = { workspace = true }
+neovim = { workspace = true }
+nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv"] }
