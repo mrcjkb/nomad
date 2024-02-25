@@ -6,6 +6,10 @@ authors.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+neovim-0-9 = ["neovim/neovim-0-9"]
+neovim-nightly = ["neovim/neovim-nightly"]
+
 [dependencies]
 macros = { path = "./macros" }
 neovim = { workspace = true }

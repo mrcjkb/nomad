@@ -12,7 +12,7 @@ neovim-0-9 = ["nvim-oxi/neovim-0-9"]
 neovim-nightly = ["nvim-oxi/neovim-nightly"]
 
 [dependencies]
-nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv"] }
+nvim-oxi = { workspace = true, features = ["libuv"] }
 
 [lints]
 workspace = true

@@ -1,4 +1,4 @@
-#[neovim::plugin]
+#[nvim_oxi::module]
 fn nomad() {}
 
 // fn root_view(nvim: &mut Neovim) -> impl View<Neovim> {

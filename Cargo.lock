@@ -45,8 +45,8 @@ name = "nomad-neovim"
 version = "0.1.0"
 dependencies = [
  "collab",
- "neovim",
  "nomad",
+ "nvim-oxi",
 ]
 
 [[package]]
