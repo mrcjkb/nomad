@@ -1,10 +1,8 @@
 use core::future::Future;
-use std::error::Error;
 
-use neovim::{Get, Neovim};
 use serde::de::DeserializeOwned;
 
-use crate::{DefaultEnable, EnableConfig, ModuleName};
+use crate::prelude::*;
 
 /// TODO: docs
 pub trait Module: DefaultEnable + Sized {
@@ -15,11 +13,17 @@ pub trait Module: DefaultEnable + Sized {
     type Config: Default + DeserializeOwned;
 
     /// TODO: docs
-    type InitError: Error;
+    fn init(config: Get<EnableConfig<Self>>, ctx: &InitCtx) -> Self;
 
     /// TODO: docs
-    fn init(
-        config: Get<EnableConfig<Self>>,
-        nvim: &Neovim,
-    ) -> impl Future<Output = Result<Self, Self::InitError>>;
+    fn api(&self) -> Api;
+
+    /// TODO: docs
+    fn commands(&self) -> impl IntoIterator<Item = Command>;
+
+    /// TODO: docs
+    fn load(
+        &self,
+        ctx: &mut SetCtx,
+    ) -> impl Future<Output = impl MaybeResult<()>>;
 }

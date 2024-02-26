@@ -2,7 +2,7 @@ use core::ops::Deref;
 
 use serde::Deserialize;
 
-use crate::Module;
+use crate::module::Module;
 
 /// TODO: docs
 pub trait DefaultEnable {
