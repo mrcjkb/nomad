@@ -1,7 +1,7 @@
 use alloc::rc::Rc;
 use core::cell::RefCell;
 
-use neovim::nvim::Dictionary;
+use neovim::nvim::{Dictionary, Function};
 use neovim::Ctx;
 
 use crate::Module;
@@ -23,9 +23,10 @@ impl<M: Module> ObjectSafeModule for M {
             let function = move |object| {
                 let ctx = &mut *ctx.borrow_mut();
                 action(object, ctx.as_set());
+                Ok::<_, core::convert::Infallible>(())
             };
 
-            dict.insert(action_name.as_str(), function);
+            dict.insert(action_name.as_str(), Function::from_fn(function));
         }
 
         dict

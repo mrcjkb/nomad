@@ -8,6 +8,7 @@ use crate::prelude::SetCtx;
 /// TODO: docs
 #[derive(Default)]
 pub struct Api {
+    #[allow(clippy::type_complexity)]
     functions: Vec<(ActionName, Box<dyn Fn(Object, &mut SetCtx)>)>,
 }
 

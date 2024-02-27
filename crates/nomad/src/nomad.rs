@@ -32,13 +32,17 @@ impl Nomad {
     /// TODO: docs
     #[inline]
     pub fn with_module<M: Module>(mut self) -> Self {
-        let init_ctx = self.ctx.borrow().as_init();
+        let ctx = self.ctx.borrow();
+
+        let init_ctx = ctx.as_init();
 
         // TODO: docs
         let (config, _set_config) =
             init_ctx.new_input(EnableConfig::<M>::default());
 
         let module = Rc::new(M::init(config, init_ctx));
+
+        drop(ctx);
 
         let module_api = ObjectSafeModule::api(&module, &self.ctx);
 
