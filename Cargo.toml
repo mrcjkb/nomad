@@ -10,6 +10,7 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+futures = "0.3"
 neovim = { path = "./crates/neovim" }
 nomad = { path = "./crates/nomad" }
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi" }
