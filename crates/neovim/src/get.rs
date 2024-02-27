@@ -15,8 +15,8 @@ impl<T> Clone for Get<T> {
 impl<T> Get<T> {
     /// TODO: docs
     #[inline]
-    pub fn get(&self, _ctx: &GetCtx) -> &T {
-        todo!();
+    pub fn get<'a>(&'a self, ctx: &'a GetCtx) -> &'a T {
+        self.inner.get(ctx.as_engine())
     }
 
     #[inline]

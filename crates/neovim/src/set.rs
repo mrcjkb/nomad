@@ -20,10 +20,10 @@ impl<T> Set<T> {
 
     /// TODO: docs
     #[inline]
-    pub fn update<F>(&self, _update_with: F, _ctx: &mut SetCtx)
+    pub fn update<F>(&self, update_with: F, ctx: &mut SetCtx)
     where
         F: FnOnce(&mut T),
     {
-        todo!();
+        self.inner.update(update_with, ctx.as_engine_mut())
     }
 }

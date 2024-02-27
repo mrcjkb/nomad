@@ -52,9 +52,23 @@ pub struct GetCtx {
     ctx: Ctx,
 }
 
+impl GetCtx {
+    #[inline]
+    pub(crate) fn as_engine(&self) -> &Engine {
+        &self.ctx.engine
+    }
+}
+
 /// TODO: docs
 pub struct SetCtx {
     ctx: Ctx,
+}
+
+impl SetCtx {
+    #[inline]
+    pub(crate) fn as_engine_mut(&mut self) -> &mut Engine {
+        &mut self.ctx.engine
+    }
 }
 
 impl Deref for SetCtx {

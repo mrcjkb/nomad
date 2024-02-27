@@ -152,7 +152,7 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 [[package]]
 name = "pond"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/pond.git#4eac4f08b8dd852b390be75ea7b5e01d23ef04dd"
+source = "git+ssh://git@github.com/nomad/pond.git#1dfca4cb5d73f9e640cac9ed252fab98ab5465ee"
 
 [[package]]
 name = "proc-macro2"
