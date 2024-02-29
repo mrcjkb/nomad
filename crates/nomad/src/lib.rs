@@ -14,6 +14,7 @@ mod module;
 mod module_name;
 mod nomad;
 mod object_safe_module;
+mod runtime;
 
 pub use action::Action;
 pub use action_name::ActionName;
