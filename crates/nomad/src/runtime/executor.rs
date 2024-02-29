@@ -8,20 +8,14 @@ thread_local! {
         = const { OnceCell::new() };
 }
 
-/// TODO: docs
-#[derive(Default)]
-struct LocalExecutor {}
-
-impl LocalExecutor {
-    /// TODO: docs
-    #[inline]
-    fn spawn<F: Future>(&mut self, future: F) -> JoinHandle<F::Output>
-    where
-        F: Future + 'static,
-        F::Output: 'static,
-    {
-        todo!();
-    }
+/// TODO: doc
+#[inline]
+pub fn spawn<F>(future: F) -> JoinHandle<F::Output>
+where
+    F: Future + 'static,
+    F::Output: 'static,
+{
+    with_executor(move |executor| executor.spawn(future))
 }
 
 /// TODO: docs
@@ -40,12 +34,18 @@ where
     fun(executor)
 }
 
-/// TODO: doc
-#[inline]
-pub fn spawn<F>(future: F) -> JoinHandle<F::Output>
-where
-    F: Future + 'static,
-    F::Output: 'static,
-{
-    with_executor(move |executor| executor.spawn(future))
+/// TODO: docs
+#[derive(Default)]
+struct LocalExecutor {}
+
+impl LocalExecutor {
+    /// TODO: docs
+    #[inline]
+    fn spawn<F: Future>(&mut self, _future: F) -> JoinHandle<F::Output>
+    where
+        F: Future + 'static,
+        F::Output: 'static,
+    {
+        todo!();
+    }
 }

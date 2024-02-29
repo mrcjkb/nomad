@@ -14,7 +14,7 @@ mod module;
 mod module_name;
 mod nomad;
 mod object_safe_module;
-mod runtime;
+pub mod runtime;
 
 pub use action::Action;
 pub use action_name::ActionName;
@@ -32,6 +32,7 @@ pub mod prelude {
     //! TODO: docs
 
     pub use neovim::*;
+    pub use runtime::*;
 
     pub use super::*;
 }

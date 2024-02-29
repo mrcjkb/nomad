@@ -1,3 +1,5 @@
+use core::time::Duration;
+
 use nomad::prelude::*;
 
 use crate::CollabConfig;
@@ -40,7 +42,10 @@ impl Module for Collab {
 
     #[inline]
     async fn load(&self, _ctx: &mut SetCtx) -> impl MaybeResult<()> {
-        nvim::print!("Loading {}...", Self::NAME);
+        loop {
+            nvim::print!("Loading {}...", Self::NAME);
+            sleep(Duration::from_secs(1)).await;
+        }
     }
 }
 
