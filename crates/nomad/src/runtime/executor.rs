@@ -8,8 +8,7 @@ use neovim::nvim::libuv;
 use super::JoinHandle;
 
 thread_local! {
-    static EXECUTOR: OnceCell<UnsafeCell<LocalExecutor>>
-        = const { OnceCell::new() };
+    static LOCAL_EXECUTOR: LocalExecutor = const { LocalExecutor::new() };
 }
 
 /// TODO: doc
@@ -19,23 +18,7 @@ where
     F: Future + 'static,
     F::Output: 'static,
 {
-    with_executor(move |executor| executor.spawn(future))
-}
-
-/// TODO: docs
-#[inline]
-fn with_executor<F, R>(fun: F) -> R
-where
-    F: FnOnce(&mut LocalExecutor) -> R,
-{
-    let executor_ptr = EXECUTOR
-        .with(|executor| executor.get_or_init(UnsafeCell::default).get());
-
-    // SAFETY: we never give out references to the executor, but can we prove
-    // that the function is not reentrant?
-    let executor = unsafe { &mut *executor_ptr };
-
-    fun(executor)
+    LOCAL_EXECUTOR.with(|executor| executor.spawn(future))
 }
 
 /// TODO: docs
@@ -97,12 +80,34 @@ impl LocalExecutorInner {
 
     /// TODO: docs
     #[inline]
-    fn spawn<F: Future>(&self, _future: F) -> JoinHandle<F::Output>
+    fn schedule(&self) -> impl Fn(Runnable<()>) + Send + Sync + 'static {
+        let async_handle = self.async_handle.clone();
+
+        let state = Arc::clone(&self.state);
+
+        move |runnable| {
+            state.woken_queue.push_back(Task::new(runnable));
+            async_handle.send().unwrap();
+        }
+    }
+
+    /// TODO: docs
+    #[inline]
+    fn spawn<F: Future>(&self, future: F) -> JoinHandle<F::Output>
     where
         F: Future + 'static,
         F::Output: 'static,
     {
-        todo!();
+        let builder = Builder::new().propagate_panic(true);
+
+        // SAFETY: todo.
+        let (runnable, task) =
+            unsafe { builder.spawn_unchecked(|()| future, self.schedule()) };
+
+        // Poll the future once immediately.
+        Task::new(runnable).poll();
+
+        JoinHandle::new(task)
     }
 }
 
@@ -162,6 +167,11 @@ struct Task {
 }
 
 impl Task {
+    #[inline(always)]
+    fn new(runnable: Runnable<()>) -> Self {
+        Self { runnable }
+    }
+
     #[inline(always)]
     fn poll(self) {
         self.runnable.run();
