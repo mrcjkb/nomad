@@ -43,8 +43,9 @@ name = "nomad"
 crate-type = ["cdylib"]
 
 [features]
-neovim-0-9 = ["nomad/neovim-0-9", "nvim-oxi/neovim-0-9"]
-neovim-nightly = ["nomad/neovim-nightly", "nvim-oxi/neovim-nightly"]
+default = ["neovim-0-9"]
+neovim-0-9 = ["nomad/neovim-0-9"]
+neovim-nightly = ["nomad/neovim-nightly"]
 
 [dependencies]
 collab = { path = "./crates/collab" }
