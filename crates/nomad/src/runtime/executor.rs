@@ -1,4 +1,4 @@
-use core::cell::{OnceCell, UnsafeCell};
+use core::cell::OnceCell;
 use core::future::Future;
 use std::sync::Arc;
 
@@ -86,7 +86,8 @@ impl LocalExecutorInner {
         let state = Arc::clone(&self.state);
 
         move |runnable| {
-            state.woken_queue.push_back(Task::new(runnable));
+            let task = Task::new(runnable);
+            state.woken_queue.push_back(task);
             async_handle.send().unwrap();
         }
     }
@@ -100,7 +101,10 @@ impl LocalExecutorInner {
     {
         let builder = Builder::new().propagate_panic(true);
 
-        // SAFETY: todo.
+        // SAFETY:
+        //
+        // - the future is not `Send`, but we're dropping the `Runnable` on the
+        // next line, so definitely on this thread;
         let (runnable, task) =
             unsafe { builder.spawn_unchecked(|()| future, self.schedule()) };
 
