@@ -3,7 +3,8 @@ use core::cell::RefCell;
 
 use neovim::Ctx;
 
-use crate::prelude::nvim::{self, Dictionary};
+use crate::prelude::nvim::Dictionary;
+use crate::runtime;
 use crate::{EnableConfig, Module, ObjectSafeModule};
 
 /// TODO: docs
@@ -14,17 +15,16 @@ pub struct Nomad {
 
     /// TODO: docs
     ctx: Rc<RefCell<Ctx>>,
-
-    /// TODO: docs
-    modules: Vec<Box<dyn ObjectSafeModule>>,
+    // /// TODO: docs
+    // modules: Vec<Box<dyn ObjectSafeModule>>,
 }
 
 impl Nomad {
     /// TODO: docs
     #[inline]
     pub fn api(self) -> Dictionary {
-        let Self { api, ctx, modules } = self;
-        load(ctx, modules);
+        let Self { api, .. } = self;
+        // load(ctx, modules);
         api
     }
 
@@ -55,20 +55,30 @@ impl Nomad {
 
         for _command in module.commands() {}
 
-        self.modules.push(Box::new(module));
+        let ctx = self.ctx.clone();
+
+        runtime::spawn(
+            #[allow(clippy::await_holding_refcell_ref)]
+            async move {
+                let ctx = &mut *ctx.borrow_mut();
+                let set_ctx = ctx.as_set();
+                let _ = module.load(set_ctx).await;
+            },
+        )
+        .detach();
 
         self
     }
 }
 
-/// TODO: docs
-fn load(ctx: Rc<RefCell<Ctx>>, modules: Vec<Box<dyn ObjectSafeModule>>) {
-    nvim::schedule(move |()| {
-        let ctx = &mut *ctx.borrow_mut();
-        let set_ctx = ctx.as_set();
-        for module in modules {
-            module.load(set_ctx);
-        }
-        Ok(())
-    });
-}
+// /// TODO: docs
+// fn load(ctx: Rc<RefCell<Ctx>>, modules: Vec<Box<dyn ObjectSafeModule>>) {
+//     nvim::schedule(move |()| {
+//         let ctx = &mut *ctx.borrow_mut();
+//         let set_ctx = ctx.as_set();
+//         for module in modules {
+//             module.load(set_ctx);
+//         }
+//         Ok(())
+//     });
+// }

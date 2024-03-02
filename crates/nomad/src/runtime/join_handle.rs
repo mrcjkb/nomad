@@ -16,6 +16,12 @@ pin_project! {
 impl<T> JoinHandle<T> {
     /// TODO: docs
     #[inline]
+    pub fn detach(self) {
+        self.task.detach()
+    }
+
+    /// TODO: docs
+    #[inline]
     pub(crate) fn new(task: Task<T>) -> JoinHandle<T> {
         JoinHandle { task }
     }
