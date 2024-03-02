@@ -3,6 +3,7 @@ use core::future::Future;
 use std::sync::Arc;
 
 use async_task::{Builder, Runnable};
+use concurrent_queue::{ConcurrentQueue, PopError, PushError};
 use neovim::nvim::libuv;
 
 use super::JoinHandle;
@@ -137,31 +138,41 @@ impl LocalExecutorState {
 }
 
 /// TODO: docs
-struct TaskQueue {}
+struct TaskQueue {
+    queue: ConcurrentQueue<Task>,
+}
 
 impl TaskQueue {
     /// TODO: docs
     #[inline]
     fn len(&self) -> usize {
-        todo!();
+        self.queue.len()
     }
 
     /// TODO: docs
     #[inline]
     fn new() -> Self {
-        todo!();
+        Self { queue: ConcurrentQueue::unbounded() }
     }
 
     /// TODO: docs
     #[inline]
     fn pop_front(&self) -> Option<Task> {
-        todo!();
+        match self.queue.pop() {
+            Ok(task) => Some(task),
+            Err(PopError::Empty) => None,
+            Err(PopError::Closed) => unreachable!(),
+        }
     }
 
     /// TODO: docs
     #[inline]
-    fn push_back(&self, _task: Task) {
-        todo!();
+    fn push_back(&self, task: Task) {
+        match self.queue.push(task) {
+            Ok(()) => {},
+            Err(PushError::Full(_)) => unreachable!("queue is unbounded"),
+            Err(PushError::Closed(_)) => unreachable!("queue is never closed"),
+        }
     }
 }
 
