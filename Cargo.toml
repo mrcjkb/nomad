@@ -50,4 +50,3 @@ neovim-nightly = ["nomad/neovim-nightly"]
 [dependencies]
 collab = { path = "./crates/collab" }
 nomad = { workspace = true }
-nvim-oxi = { workspace = true }

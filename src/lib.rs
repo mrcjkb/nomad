@@ -1,6 +1,6 @@
 use nomad::prelude::*;
 
-#[nvim::module]
+#[nvim::plugin(nvim_oxi = nvim)]
 fn nomad() -> nvim::Dictionary {
     Nomad::new()
         // .with_module::<collab::Collab>()
