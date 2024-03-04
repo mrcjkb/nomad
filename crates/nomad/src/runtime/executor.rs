@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_task::{Builder, Runnable};
 use concurrent_queue::{ConcurrentQueue, PopError, PushError};
-use neovim::nvim::libuv;
+use neovim::nvim::{libuv, schedule};
 
 use super::JoinHandle;
 
@@ -71,12 +71,19 @@ impl LocalExecutorInner {
         // This callback will be registered to be executed on the next tick of
         // the libuv event loop everytime a future calls `Waker::wake()`.
         let async_handle = libuv::AsyncHandle::new(move || {
-            state.tick_all();
+            let state = Arc::clone(&also_state);
+
+            // TODO: explain why we schedule this.
+            schedule(move |()| {
+                state.tick_all();
+                Ok(())
+            });
+
             Ok::<_, core::convert::Infallible>(())
         })
         .unwrap();
 
-        Self { async_handle, state: also_state }
+        Self { async_handle, state }
     }
 
     /// TODO: docs
