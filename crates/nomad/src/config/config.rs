@@ -5,8 +5,9 @@ use serde::de::{self, Deserialize};
 
 use super::EnableConfig;
 use crate::ctx::{Ctx, Set};
-use crate::module::{Module, ModuleId};
+use crate::module::{Module, ModuleId, ModuleName};
 use crate::nvim::{serde::Deserializer, Function, Object};
+use crate::warning::{Chunk, Warning, WarningMsg};
 
 thread_local! {
     /// TODO: docs
@@ -33,6 +34,12 @@ where
         let deserializer = ConfigDeserializer::new(set_config, ctx);
         deserializers.insert(M::NAME.id(), deserializer)
     });
+}
+
+/// TODO: docs
+#[inline]
+fn valid_modules() -> &'static [ModuleName] {
+    &[]
 }
 
 /// TODO: docs
@@ -147,8 +154,8 @@ impl<'de> de::Visitor<'de> for UpdateConfigsVisitor {
         }
 
         for (module_name, module_config) in buffer {
-            if let Err(_err) = update_config(module_name, module_config) {
-                todo!();
+            if let Err(err) = update_config(module_name, module_config) {
+                err.to_warning().print();
             }
         }
 
@@ -157,21 +164,111 @@ impl<'de> de::Visitor<'de> for UpdateConfigsVisitor {
 }
 
 /// TODO: docs
-struct InvalidModule(String);
-
-/// TODO: docs
 #[inline]
 fn update_config(
     module_name: String,
     module_config: Object,
-) -> Result<(), InvalidModule> {
+) -> Result<(), Error> {
     let module_id = ModuleId::from_module_name(&module_name);
 
     DESERIALIZERS.with(move |deserializers| {
         deserializers.with_map(|map| {
             map.get(&module_id)
-                .ok_or(InvalidModule(module_name))
+                .ok_or(Error::InvalidModule(module_name))
                 .map(|des| des.deserialize(module_config))
         })
     })
+}
+
+/// TODO: docs
+enum Error {
+    InvalidModule(String),
+}
+
+impl Error {
+    #[inline]
+    fn to_warning(&self) -> Warning {
+        let msg = match self {
+            Self::InvalidModule(module) => {
+                match InvalidModuleMsgKind::from_str(module) {
+                    InvalidModuleMsgKind::ListAllModules => {
+                        list_all_modules_msg(module)
+                    },
+
+                    InvalidModuleMsgKind::SuggestClosest(closest) => {
+                        suggest_closest_msg(module, closest)
+                    },
+                }
+            },
+        };
+
+        Warning::new().msg(msg)
+    }
+}
+
+enum InvalidModuleMsgKind {
+    ListAllModules,
+    SuggestClosest(ModuleName),
+}
+
+impl InvalidModuleMsgKind {
+    #[inline]
+    fn from_str(_module_name: &str) -> Self {
+        Self::ListAllModules
+    }
+}
+
+/// TODO: docs
+#[inline]
+fn list_all_modules_msg(module: &str) -> WarningMsg {
+    let mut msg = WarningMsg::new();
+
+    msg.add("invalid module ").add(module.highlight());
+
+    match valid_modules() {
+        [] => return msg,
+
+        [one] => {
+            msg.add(", the only valid module is ").add(one.highlight());
+            return msg;
+        },
+
+        modules => {
+            msg.add(", the valid modules are ");
+
+            for (idx, module) in modules.iter().enumerate() {
+                msg.add(module.highlight());
+
+                let is_last = idx + 1 == modules.len();
+
+                if is_last {
+                    break;
+                }
+
+                let is_second_to_last = idx + 2 == modules.len();
+
+                if is_second_to_last {
+                    msg.add(" and ");
+                } else {
+                    msg.add(", ");
+                }
+            }
+        },
+    }
+
+    msg
+}
+
+/// TODO: docs
+#[inline]
+fn suggest_closest_msg(module: &str, closest: ModuleName) -> WarningMsg {
+    let mut msg = WarningMsg::new();
+
+    msg.add("invalid module ")
+        .add(module.highlight())
+        .add(", did you mean ")
+        .add(closest.highlight())
+        .add("?");
+
+    msg
 }

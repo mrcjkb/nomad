@@ -1,7 +1,8 @@
 use super::ModuleId;
+use crate::warning::Chunk;
 
 /// TODO: docs
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ModuleName {
     name: &'static str,
 }
@@ -19,6 +20,8 @@ impl core::fmt::Display for ModuleName {
         f.write_str(self.name)
     }
 }
+
+impl Chunk for ModuleName {}
 
 impl ModuleName {
     /// TODO: docs

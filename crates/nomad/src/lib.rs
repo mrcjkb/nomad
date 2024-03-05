@@ -15,6 +15,7 @@ mod maybe_result;
 pub mod module;
 mod nomad;
 pub mod runtime;
+mod warning;
 
 pub use action::Action;
 pub use action_name::ActionName;
