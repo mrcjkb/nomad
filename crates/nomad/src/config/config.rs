@@ -95,67 +95,83 @@ impl ConfigDeserializer {
 /// TODO: docs
 struct UpdateConfigs;
 
-impl UpdateConfigs {
-    /// TODO: docs
-    #[inline]
-    fn update_config(
-        module_name: String,
-        module_config: Object,
-    ) -> Result<(), InvalidModule> {
-        let module_id = ModuleId::from_module_name(&module_name);
-
-        DESERIALIZERS.with(move |deserializers| {
-            deserializers.with_map(|map| {
-                map.get(&module_id)
-                    .ok_or(InvalidModule(module_name))
-                    .map(|des| des.deserialize(module_config))
-            })
-        })
-    }
-}
-
 impl<'de> Deserialize<'de> for UpdateConfigs {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
     {
-        struct UpdateConfigsVisitor;
+        deserializer.deserialize_map(UpdateConfigsVisitor)
+    }
+}
 
-        impl<'de> de::Visitor<'de> for UpdateConfigsVisitor {
-            type Value = UpdateConfigs;
+struct UpdateConfigsVisitor;
 
-            #[inline]
-            fn expecting(
-                &self,
-                f: &mut std::fmt::Formatter,
-            ) -> std::fmt::Result {
-                f.write_str("a dictionary")
-            }
+impl<'de> de::Visitor<'de> for UpdateConfigsVisitor {
+    type Value = UpdateConfigs;
 
-            #[inline]
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: de::MapAccess<'de>,
-            {
-                while let Some(module_name) = map.next_key::<String>()? {
-                    let module_config = map.next_value::<Object>()?;
+    #[inline]
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a dictionary")
+    }
 
-                    if let Err(_err) = UpdateConfigs::update_config(
-                        module_name,
-                        module_config,
-                    ) {
-                        todo!();
-                    }
-                }
+    #[inline]
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::MapAccess<'de>,
+    {
+        // We store the module names and their configs because we want to make
+        // sure that the map deserializes correctly before deserializing the
+        // individual configs for each module.
+        //
+        // Not doing this could cause only some of the configs to be updated.
+        // For example:
+        //
+        // ```lua
+        // nomad.config({
+        //   foo = { .. },
+        //   "hello",
+        //   bar = { .. },
+        // })
+        // ```
+        //
+        // In this case, the `foo` module would be updated, but the `bar`
+        // module wouldn't because the `config` function would return an error
+        // when it gets to `"hello"`.
 
-                Ok(UpdateConfigs)
+        let mut buffer = Vec::new();
+
+        while let Some(module_name) = map.next_key::<String>()? {
+            let module_config = map.next_value::<Object>()?;
+            buffer.push((module_name, module_config));
+        }
+
+        for (module_name, module_config) in buffer {
+            if let Err(_err) = update_config(module_name, module_config) {
+                todo!();
             }
         }
 
-        deserializer.deserialize_map(UpdateConfigsVisitor)
+        Ok(UpdateConfigs)
     }
 }
 
 /// TODO: docs
 struct InvalidModule(String);
+
+/// TODO: docs
+#[inline]
+fn update_config(
+    module_name: String,
+    module_config: Object,
+) -> Result<(), InvalidModule> {
+    let module_id = ModuleId::from_module_name(&module_name);
+
+    DESERIALIZERS.with(move |deserializers| {
+        deserializers.with_map(|map| {
+            map.get(&module_id)
+                .ok_or(InvalidModule(module_name))
+                .map(|des| des.deserialize(module_config))
+        })
+    })
+}
