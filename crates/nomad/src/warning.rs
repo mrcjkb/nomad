@@ -1,3 +1,4 @@
+use crate::action_name::ActionName;
 use crate::module::ModuleName;
 use crate::nvim;
 
@@ -8,10 +9,27 @@ pub(crate) struct Warning {
     msg: WarningMsg,
 
     /// TODO: docs
+    on_action: Option<ActionName>,
+
+    /// TODO: docs
     on_module: Option<ModuleName>,
 }
 
 impl Warning {
+    /// TODO: docs
+    #[inline]
+    pub(crate) fn action(mut self, action: ActionName) -> Self {
+        self.on_action = Some(action);
+        self
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub(crate) fn module(mut self, module: ModuleName) -> Self {
+        self.on_module = Some(module);
+        self
+    }
+
     /// TODO: docs
     #[inline]
     pub(crate) fn msg(mut self, msg: WarningMsg) -> Self {
@@ -32,7 +50,7 @@ impl Warning {
             return;
         }
 
-        let tag = NomadTag::new(self.on_module);
+        let tag = NomadTag::new(self.on_module, self.on_action);
 
         let chunks = [Chunk::warning(tag), Chunk::space()]
             .into_iter()
@@ -116,12 +134,13 @@ impl From<String> for Chunk {
 /// TODO: docs
 struct NomadTag {
     module: Option<ModuleName>,
+    action: Option<ActionName>,
 }
 
 impl NomadTag {
     #[inline]
-    fn new(module: Option<ModuleName>) -> Self {
-        Self { module }
+    fn new(module: Option<ModuleName>, action: Option<ActionName>) -> Self {
+        Self { module, action }
     }
 }
 
@@ -133,6 +152,11 @@ impl From<NomadTag> for nvim::String {
         if let Some(module) = tag.module {
             s.push('.');
             s.push_str(module.as_str());
+        }
+
+        if let Some(action) = tag.action {
+            s.push('.');
+            s.push_str(action.as_str());
         }
 
         s.push(']');

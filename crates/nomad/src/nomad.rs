@@ -24,7 +24,7 @@ impl Nomad {
     #[inline]
     pub fn api(self) -> Dictionary {
         let Self { mut api, .. } = self;
-        api.insert("config", config::config());
+        api.insert(config::CONFIG_NAME.as_str(), config::config());
         api
     }
 

@@ -5,10 +5,14 @@ use std::collections::HashMap;
 use serde::de::{self, Deserialize};
 use serde_path_to_error::Segment;
 
+use crate::action_name::ActionName;
 use crate::ctx::{Ctx, Set};
 use crate::module::{Module, ModuleId, ModuleName};
 use crate::nvim::{self, serde::Deserializer, Function, Object};
 use crate::warning::{ChunkExt, Warning, WarningMsg};
+
+/// TODO: docs
+pub(crate) const CONFIG_NAME: ActionName = ActionName::from_str("config");
 
 thread_local! {
     /// TODO: docs
@@ -26,7 +30,7 @@ pub(crate) fn config() -> Function<Object, ()> {
         let deserializer = Deserializer::new(object);
 
         if let Err(err) = UpdateConfigs::deserialize(deserializer) {
-            Warning::new().msg(invalid_config_msg(err)).print();
+            warning(invalid_config_msg(err)).print();
         }
 
         Ok::<_, core::convert::Infallible>(())
@@ -57,6 +61,12 @@ fn valid_modules() -> &'static [ModuleName] {
     };
 
     MODULE_NAMES.with(|names| *names.get_or_init(init_module_names))
+}
+
+/// TODO: docs
+#[inline]
+fn warning(msg: WarningMsg) -> Warning {
+    Warning::new().action(CONFIG_NAME).msg(msg)
 }
 
 /// TODO: docs
@@ -260,7 +270,7 @@ impl<'de> de::Visitor<'de> for UpdateConfigsVisitor {
                 Ok(Some(name)) => name,
                 Ok(None) => break,
                 Err(err) => {
-                    Warning::new().msg(invalid_key_msg::<A>(err)).print();
+                    warning(invalid_key_msg::<A>(err)).print();
                     return Ok(UpdateConfigs);
                 },
             };
@@ -268,7 +278,7 @@ impl<'de> de::Visitor<'de> for UpdateConfigsVisitor {
             let module_config = match map.next_value::<Object>() {
                 Ok(obj) => obj,
                 Err(err) => {
-                    Warning::new().msg(invalid_object_msg::<A>(err)).print();
+                    warning(invalid_object_msg::<A>(err)).print();
                     return Ok(UpdateConfigs);
                 },
             };
@@ -360,7 +370,7 @@ impl Error {
             },
         };
 
-        Warning::new().msg(msg)
+        warning(msg)
     }
 }
 
