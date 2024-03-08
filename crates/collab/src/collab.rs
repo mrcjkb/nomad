@@ -32,11 +32,6 @@ impl Module for Collab {
     }
 
     #[inline]
-    fn commands(&self) -> impl IntoIterator<Item = Command> {
-        [self.increment.clone().into(), self.print.clone().into()]
-    }
-
-    #[inline]
     async fn load(
         &self,
         // _ctx: &mut SetCtx,
@@ -57,7 +52,7 @@ struct Print {
     counter: Get<u64>,
 }
 
-impl Action for Print {
+impl Action<Collab> for Print {
     const NAME: ActionName = action_name!("print");
 
     type Args = ();
@@ -73,7 +68,7 @@ struct Increment {
     set_counter: Set<u64>,
 }
 
-impl Action for Increment {
+impl Action<Collab> for Increment {
     const NAME: ActionName = action_name!("increment");
 
     type Args = ();

@@ -19,9 +19,6 @@ pub trait Module: 'static + Sized {
     fn api(&self) -> Api;
 
     /// TODO: docs
-    fn commands(&self) -> impl IntoIterator<Item = Command>;
-
-    /// TODO: docs
     fn load(
         &self,
         // ctx: &mut SetCtx,

@@ -62,7 +62,7 @@ impl Nomad {
         self.api.insert(M::NAME.as_str(), module_api(&module, &self.ctx));
 
         // TODO: Create the module's commands.
-        for _command in module.commands() {}
+        // for _command in module.commands() {}
 
         let ctx = self.ctx.clone();
 

@@ -1,9 +1,9 @@
 use serde::de::DeserializeOwned;
 
-use crate::prelude::{ActionName, SetCtx};
+use crate::prelude::{ActionName, Module, SetCtx};
 
 /// TODO: docs
-pub trait Action: 'static {
+pub trait Action<M: Module>: 'static {
     /// TODO: docs
     const NAME: ActionName;
 

@@ -3,7 +3,7 @@ use serde::de::Deserialize;
 use crate::action::Action;
 use crate::action_name::ActionName;
 use crate::nvim::{self, Object};
-use crate::prelude::SetCtx;
+use crate::prelude::{Module, SetCtx};
 
 /// TODO: docs
 #[derive(Default)]
@@ -30,7 +30,11 @@ impl Api {
 
     /// TODO: docs
     #[inline]
-    pub fn with_function<A: Action>(mut self, action: A) -> Self {
+    pub fn with_function<M, A>(mut self, action: A) -> Self
+    where
+        M: Module,
+        A: Action<M>,
+    {
         let function = move |args: Object, ctx: &mut SetCtx| {
             let deserializer = nvim::serde::Deserializer::new(args);
             let args = A::Args::deserialize(deserializer).unwrap();
