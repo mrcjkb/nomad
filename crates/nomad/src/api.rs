@@ -79,6 +79,7 @@ impl Functions {
     /// TODO: docs
     #[inline]
     fn add<M: Module, A: Action<M>>(&mut self, action: A) {
+        #[inline(always)]
         fn inner<M: Module, A: Action<M>>(
             a: &A,
             obj: Object,
@@ -89,23 +90,23 @@ impl Functions {
             serialize(&ret).map_err(Into::into)
         }
 
-        let function = move |args: Object, ctx: &mut SetCtx| match inner(
-            &action, args, ctx,
-        ) {
-            Ok(obj) => Ok(obj),
+        let function = Box::new(move |args: Object, ctx: &mut SetCtx| {
+            match inner(&action, args, ctx) {
+                Ok(obj) => Ok(obj),
 
-            Err(err) => {
-                Warning::new()
-                    .module(M::NAME)
-                    .action(A::NAME)
-                    .msg(err)
-                    .print();
+                Err(err) => {
+                    Warning::new()
+                        .module(M::NAME)
+                        .action(A::NAME)
+                        .msg(err)
+                        .print();
 
-                Ok(Object::nil())
-            },
-        };
+                    Ok(Object::nil())
+                },
+            }
+        });
 
-        self.functions.push((A::NAME, Box::new(function)));
+        self.functions.push((A::NAME, function));
     }
 }
 
