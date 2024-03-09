@@ -1,5 +1,7 @@
 //! TODO: docs
 
+use core::convert::Infallible;
+
 use nvim::{self, Object};
 use serde::{de::Deserialize, ser::Serialize};
 
@@ -40,9 +42,7 @@ impl<M: Module> Api<M> {
     }
 }
 
-type Function = Box<
-    dyn Fn(Object, &mut SetCtx) -> Result<Object, core::convert::Infallible>,
->;
+type Function = Box<dyn Fn(Object, &mut SetCtx) -> Result<Object, Infallible>>;
 
 /// TODO: docs
 #[derive(Default)]
@@ -75,10 +75,22 @@ impl Functions {
         let function = move |args: Object, ctx: &mut SetCtx| {
             let deserializer = nvim::serde::Deserializer::new(args);
             let args = A::Args::deserialize(deserializer).unwrap();
-            let ret = action.execute(args, ctx).into_result().unwrap();
+            let ret = match action.execute(args, ctx).into_result() {
+                Ok(v) => v,
+                Err(err) => {
+                    Warning::new()
+                        .module(M::NAME)
+                        .action(A::NAME)
+                        .msg(err.into())
+                        .print();
+                    return Ok(Object::nil());
+                },
+            };
             let serializer = nvim::serde::Serializer::new();
-            let obj = ret.serialize(serializer).unwrap();
-            Ok(obj)
+            match ret.serialize(serializer) {
+                Ok(obj) => Ok(obj),
+                Err(_err) => todo!(),
+            }
         };
 
         self.functions.push((A::NAME, Box::new(function)));
@@ -150,5 +162,12 @@ impl From<CommandArgsNotEmtpy> for WarningMsg {
         }
 
         msg
+    }
+}
+
+impl From<Infallible> for WarningMsg {
+    #[inline]
+    fn from(_: Infallible) -> Self {
+        unreachable!("Infallible can't be constructed")
     }
 }

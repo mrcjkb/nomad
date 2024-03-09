@@ -1,11 +1,11 @@
 //! TODO: docs
 
-use std::error::Error as StdError;
+use crate::warning::WarningMsg;
 
 /// TODO: docs
 pub trait MaybeResult<T> {
     /// TODO: docs
-    type Error: StdError;
+    type Error: Into<WarningMsg>;
 
     /// TODO: docs
     fn into_result(self) -> Result<T, Self::Error>;
@@ -23,7 +23,7 @@ impl<T> MaybeResult<T> for T {
 
 impl<T, E> MaybeResult<T> for Result<T, E>
 where
-    E: StdError,
+    E: Into<WarningMsg>,
 {
     type Error = E;
 

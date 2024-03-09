@@ -25,7 +25,7 @@ impl Warning {
 
     /// TODO: docs
     #[inline]
-    pub(crate) fn _module(mut self, module: ModuleName) -> Self {
+    pub(crate) fn module(mut self, module: ModuleName) -> Self {
         self.on_module = Some(module);
         self
     }
