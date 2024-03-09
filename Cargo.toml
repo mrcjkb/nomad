@@ -22,6 +22,7 @@ tracing = "0.1"
 
 [workspace.lints.clippy]
 module_inception = "allow"
+unwrap-used = "deny"
 
 [workspace.lints.rust]
 future_incompatible = "deny"

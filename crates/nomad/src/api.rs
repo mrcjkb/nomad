@@ -81,7 +81,7 @@ impl Functions {
     fn add<M: Module, A: Action<M>>(&mut self, action: A) {
         let function = move |args: Object, ctx: &mut SetCtx| {
             let deserializer = nvim::serde::Deserializer::new(args);
-            let args = A::Args::deserialize(deserializer).unwrap();
+            let args = A::Args::deserialize(deserializer).expect("");
             let ret = match action.execute(args, ctx).into_result() {
                 Ok(v) => v,
                 Err(err) => {

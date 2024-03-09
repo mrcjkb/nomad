@@ -76,7 +76,7 @@ mod tests {
         let addrs = config
             .server_addr
             .socket_addrs(|| Some(config.server_port))
-            .expect("address is valid");
+            .unwrap();
 
         assert_eq!(addrs.len(), 1);
     }
