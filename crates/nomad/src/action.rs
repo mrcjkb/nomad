@@ -1,5 +1,7 @@
 //! TODO: docs
 
+use core::hash::{Hash, Hasher};
+
 pub use macros::action_name;
 use serde::{de::DeserializeOwned, ser::Serialize};
 
@@ -54,5 +56,26 @@ impl ActionName {
     #[doc(hidden)]
     pub const fn from_str(name: &'static str) -> Self {
         Self { name }
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub(crate) fn id(&self) -> ActionId {
+        ActionId::from_action_name(self.name)
+    }
+}
+
+/// TODO: docs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct ActionId(u64);
+
+impl ActionId {
+    /// TODO: docs
+    #[inline]
+    pub(crate) fn from_action_name(name: &str) -> Self {
+        let mut hasher = std::hash::DefaultHasher::new();
+        name.hash(&mut hasher);
+        let hash = hasher.finish();
+        Self(hash)
     }
 }

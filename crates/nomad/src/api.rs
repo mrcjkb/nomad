@@ -20,7 +20,7 @@ impl<M: Module> Api<M> {
     #[inline]
     pub fn new(module: M) -> Self {
         Self {
-            commands: ModuleCommands::default(),
+            commands: ModuleCommands::new(M::NAME),
             functions: Functions::default(),
             module,
         }
