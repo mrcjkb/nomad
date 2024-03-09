@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use nvim::api::{self, opts, types};
 use nvim::Function;
 
-use crate::prelude::{Action, ActionName, Ctx, Module, ModuleId, WarningMsg};
+use crate::prelude::*;
 use crate::warning::ChunkExt;
 
 /// TODO: docs
@@ -33,11 +33,40 @@ impl Command {
 
     #[inline]
     fn into_func(self, ctx: Ctx) -> Function<types::CommandArgs, ()> {
-        Function::from_fn(|args: types::CommandArgs| {
-            let fargs = args.fargs;
-            nvim::print!("{fargs:?}");
+        let Self { map } = self;
+
+        Function::from_fn(move |args: types::CommandArgs| {
+            let mut args = CommandArgs::from(args);
+
+            let Some(first) = args.split_first() else {
+                unreachable!("Nomad needs OneOrMore arguments")
+            };
+
+            let Some(commands) = map.get(&ModuleId::from_module_name(first))
+            else {
+                Warning::new().msg(UnknownModule(first).into()).print();
+                return Ok(());
+            };
+
+            match commands.get(&mut args) {
+                Ok(command) => ctx.with_set(|ctx| command.execute(args, ctx)),
+                Err(_err) => todo!(),
+            }
+
             Ok::<_, Infallible>(())
         })
+    }
+}
+
+struct UnknownModule<'a>(&'a str);
+
+impl From<UnknownModule<'_>> for WarningMsg {
+    #[inline]
+    fn from(UnknownModule(name): UnknownModule) -> WarningMsg {
+        let mut msg = WarningMsg::new();
+        msg.add("unknown module ");
+        msg.add(name.highlight());
+        msg
     }
 }
 
@@ -56,28 +85,102 @@ impl ModuleCommands {
         A::Args: TryFrom<CommandArgs>,
         <A::Args as TryFrom<CommandArgs>>::Error: Into<WarningMsg>,
     {
+        self.map.insert(A::NAME, ModuleCommand::new(action));
+    }
+
+    #[inline]
+    fn get(&self, _args: &mut CommandArgs) -> Result<&ModuleCommand, ()> {
         todo!();
     }
 }
 
-struct ModuleCommand {}
+struct ModuleCommand {
+    #[allow(clippy::type_complexity)]
+    action: Box<dyn Fn(CommandArgs, &mut SetCtx) -> Result<(), WarningMsg>>,
+    action_name: ActionName,
+    module_name: ModuleName,
+}
+
+impl ModuleCommand {
+    #[inline]
+    fn execute(&self, args: CommandArgs, ctx: &mut SetCtx) {
+        if let Err(warning_msg) = (self.action)(args, ctx) {
+            Warning::new()
+                .module(self.module_name)
+                .action(self.action_name)
+                .msg(warning_msg)
+                .print();
+        }
+    }
+
+    #[inline]
+    fn new<M, A>(action: A) -> Self
+    where
+        M: Module,
+        A: Action<M, Return = ()>,
+        A::Args: TryFrom<CommandArgs>,
+        <A::Args as TryFrom<CommandArgs>>::Error: Into<WarningMsg>,
+    {
+        let action = move |args, ctx: &mut _| {
+            A::Args::try_from(args).map_err(Into::into).and_then(|args| {
+                action.execute(args, ctx).into_result().map_err(Into::into)
+            })
+        };
+
+        Self {
+            action: Box::new(action),
+            action_name: A::NAME,
+            module_name: M::NAME,
+        }
+    }
+}
 
 /// TODO: docs
 pub struct CommandArgs {
+    /// TODO: docs
     args: Vec<String>,
+
+    /// TODO: docs
+    consumed: usize,
+}
+
+impl From<types::CommandArgs> for CommandArgs {
+    #[inline]
+    fn from(args: types::CommandArgs) -> Self {
+        Self::new(args.fargs)
+    }
 }
 
 impl CommandArgs {
-    fn into_iter(self) -> impl Iterator<Item = String> {
-        self.args.into_iter()
+    /// TODO: docs
+    #[inline]
+    pub fn into_iter(self) -> impl Iterator<Item = String> {
+        self.args.into_iter().skip(self.consumed)
     }
 
-    fn is_empty(&self) -> bool {
+    /// TODO: docs
+    #[inline]
+    pub fn is_empty(&self) -> bool {
         self.args.is_empty()
     }
 
-    fn len(&self) -> usize {
+    /// TODO: docs
+    #[inline]
+    pub fn len(&self) -> usize {
         self.args.len()
+    }
+
+    fn new(args: Vec<String>) -> Self {
+        Self { args, consumed: 0 }
+    }
+
+    /// TODO: docs
+    #[inline]
+    fn split_first(&mut self) -> Option<&str> {
+        self.args
+            .get(self.consumed)
+            .map(String::as_str)
+            .inspect(|_| self.consumed += 1)
     }
 }
 

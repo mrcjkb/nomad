@@ -25,7 +25,7 @@ pub trait Action<M: Module>: 'static {
 }
 
 /// TODO: docs
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ActionName {
     name: &'static str,
 }
