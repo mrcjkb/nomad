@@ -6,7 +6,13 @@ use crate::CollabConfig;
 
 /// TODO: docs.
 pub struct Collab {
-    config: Get<CollabConfig>,
+    _config: Get<CollabConfig>,
+}
+
+impl Collab {
+    fn new(config: Get<CollabConfig>) -> Self {
+        Self { _config: config }
+    }
 }
 
 impl Module for Collab {
@@ -22,7 +28,7 @@ impl Module for Collab {
 
         let print = Print { counter };
 
-        Api::new(Self { config })
+        Api::new(Self::new(config))
             .with_command(increment.clone())
             .with_command(print.clone())
             .with_function(increment)
@@ -34,14 +40,9 @@ impl Module for Collab {
         &self,
         // _ctx: &mut SetCtx,
     ) -> impl MaybeResult<()> {
-        let mut count = 0;
-
-        loop {
-            nvim::print!("{}'s count is {count}", Self::NAME);
-            sleep(Duration::from_secs(1)).await;
-            count += 1;
-            break;
-        }
+        let count = 0;
+        nvim::print!("{}'s count is {count}", Self::NAME);
+        sleep(Duration::from_secs(1)).await;
     }
 }
 
@@ -54,6 +55,8 @@ impl Action<Collab> for Print {
     const NAME: ActionName = action_name!("print");
 
     type Args = ();
+
+    type Return = ();
 
     #[inline]
     fn execute(&self, _args: (), ctx: &mut SetCtx) {
@@ -70,6 +73,8 @@ impl Action<Collab> for Increment {
     const NAME: ActionName = action_name!("increment");
 
     type Args = ();
+
+    type Return = ();
 
     #[inline]
     fn execute(&self, _args: (), ctx: &mut SetCtx) {
