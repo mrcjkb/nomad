@@ -23,8 +23,8 @@ impl Module for Collab {
         let print = Print { counter };
 
         Api::new(Self { config })
-            // .with_command(increment.clone())
-            // .with_command(print.clone())
+            .with_command(increment.clone())
+            .with_command(print.clone())
             .with_function(increment)
             .with_function(print)
     }

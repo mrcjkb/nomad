@@ -81,4 +81,35 @@ impl Functions {
 }
 
 /// TODO: docs
-pub struct CommandArgs {}
+pub struct CommandArgs {
+    args: Vec<String>,
+}
+
+impl CommandArgs {
+    fn is_empty(&self) -> bool {
+        self.args.is_empty()
+    }
+}
+
+impl TryFrom<CommandArgs> for () {
+    type Error = CommandArgsNotEmtpy;
+
+    #[inline]
+    fn try_from(args: CommandArgs) -> Result<Self, Self::Error> {
+        if args.is_empty() {
+            Ok(())
+        } else {
+            Err(CommandArgsNotEmtpy(args))
+        }
+    }
+}
+
+/// An error indicating a command's arguments were not empty.
+pub struct CommandArgsNotEmtpy(CommandArgs);
+
+impl Into<WarningMsg> for CommandArgsNotEmtpy {
+    #[inline]
+    fn into(self) -> WarningMsg {
+        todo!();
+    }
+}
