@@ -46,6 +46,13 @@ impl core::fmt::Display for ActionName {
     }
 }
 
+impl AsRef<str> for ActionName {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        self.name
+    }
+}
+
 impl ActionName {
     /// TODO: docs
     #[inline]

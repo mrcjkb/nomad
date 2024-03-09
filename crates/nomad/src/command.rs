@@ -119,7 +119,7 @@ impl ModuleCommands {
         action: &'a str,
     ) -> Result<&'this ModuleCommand, UnknownAction<'a, 'this>> {
         self.map.get(&ActionId::from_action_name(action)).ok_or_else(|| {
-            UnknownAction { action, valid_actions: self.map.values() }
+            UnknownAction { action, valid_commands: self.map.values() }
         })
     }
 
@@ -131,56 +131,21 @@ impl ModuleCommands {
 
 struct UnknownAction<'action, 'values> {
     action: &'action str,
-    valid_actions: Values<'values, ActionId, ModuleCommand>,
+    valid_commands: Values<'values, ActionId, ModuleCommand>,
 }
 
 impl From<UnknownAction<'_, '_>> for WarningMsg {
     #[inline]
     fn from(
-        UnknownAction { action, mut valid_actions }: UnknownAction,
+        UnknownAction { action, valid_commands }: UnknownAction,
     ) -> WarningMsg {
         let mut msg = WarningMsg::new();
 
-        msg.add("invalid action ").add(action.highlight());
-
-        let num_valid = valid_actions.len();
-
-        match num_valid {
-            0 => {},
-
-            1 => {
-                msg.add(", the only valid action is ").add(
-                    valid_actions
-                        .next()
-                        .expect("there's one valid action")
-                        .action_name
-                        .as_str()
-                        .highlight(),
-                );
-            },
-
-            _ => {
-                msg.add(", the valid actions are ");
-
-                for (idx, action) in valid_actions.enumerate() {
-                    msg.add(action.action_name.as_str().highlight());
-
-                    let is_last = idx + 1 == num_valid;
-
-                    if is_last {
-                        break;
-                    }
-
-                    let is_second_to_last = idx + 2 == num_valid;
-
-                    if is_second_to_last {
-                        msg.add(" and ");
-                    } else {
-                        msg.add(", ");
-                    }
-                }
-            },
-        }
+        msg.add_invalid(
+            action,
+            valid_commands.map(|c| c.action_name),
+            "action",
+        );
 
         msg
     }
