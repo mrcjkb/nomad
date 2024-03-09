@@ -13,6 +13,7 @@ pub mod maybe_result;
 pub mod module;
 mod nomad;
 pub mod runtime;
+mod serde;
 pub mod warning;
 
 pub use nomad::Nomad;

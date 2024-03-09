@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use nvim::{serde::Deserializer, Function, Object};
 use serde::de::{self, Deserialize};
-use serde_path_to_error::Segment;
 
 use crate::prelude::*;
+use crate::serde::{deserialize, DeserializeError};
 
 /// TODO: docs
 pub(crate) const CONFIG_NAME: ActionName = ActionName::from_str("config");
@@ -130,87 +130,15 @@ impl ConfigDeserializer {
     #[inline]
     fn new<M: Module>(set_config: Set<M::Config>, ctx: Ctx) -> Self {
         let deserializer = move |config: Object| {
-            let deserializer = Deserializer::new(config);
-            let config = serde_path_to_error::deserialize(deserializer)
-                .map_err(|err| DeserializeError::new(M::NAME, err))?;
+            let config = deserialize(config).map_err(|mut err| {
+                err.set_module_name(M::NAME);
+                err
+            })?;
             ctx.with_set(|set_ctx| set_config.set(config, set_ctx));
             Ok(())
         };
 
         Self { deserializer: Box::new(deserializer), module_name: M::NAME }
-    }
-}
-
-struct DeserializeError {
-    module_name: ModuleName,
-    error: serde_path_to_error::Error<nvim::serde::DeserializeError>,
-}
-
-impl DeserializeError {
-    #[inline]
-    fn inner(&self) -> &nvim::serde::DeserializeError {
-        self.error.inner()
-    }
-
-    #[inline]
-    fn new(
-        module_name: ModuleName,
-        error: serde_path_to_error::Error<nvim::serde::DeserializeError>,
-    ) -> Self {
-        Self { module_name, error }
-    }
-
-    #[inline]
-    fn path(&self) -> impl fmt::Display + '_ {
-        PathToError { err: self }
-    }
-}
-
-struct PathToError<'a> {
-    err: &'a DeserializeError,
-}
-
-impl fmt::Display for PathToError<'_> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use nvim::serde::DeserializeError::*;
-
-        write!(f, "{}", self.err.module_name)?;
-
-        let segments = self.err.error.path().iter();
-
-        let num_segments = segments.len();
-
-        if num_segments == 0 {
-            return Ok(());
-        }
-
-        let should_print_last_segment = matches!(
-            self.err.error.inner(),
-            Custom { .. } | UnknownVariant { .. }
-        );
-
-        for (idx, segment) in segments.enumerate() {
-            let is_last = idx + 1 == num_segments;
-
-            let should_print = !is_last | should_print_last_segment;
-
-            if should_print {
-                match segment {
-                    Segment::Seq { index } => {
-                        write!(f, ".[{}]", index)?;
-                    },
-                    Segment::Map { key } | Segment::Enum { variant: key } => {
-                        write!(f, ".{}", key)?;
-                    },
-                    Segment::Unknown => {
-                        write!(f, ".?")?;
-                    },
-                }
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -285,7 +213,7 @@ impl<'de> de::Visitor<'de> for UpdateConfigsVisitor {
 
         for (module_name, module_config) in buffer {
             if let Err(err) = update_config(module_name, module_config) {
-                err.to_warning().print();
+                warning(err.into()).print();
             }
         }
 
@@ -322,49 +250,23 @@ enum Error {
     DeserializeModule(DeserializeError),
 }
 
-impl Error {
+impl From<Error> for WarningMsg {
     #[inline]
-    fn to_warning(&self) -> Warning {
+    fn from(err: Error) -> WarningMsg {
         let mut msg = WarningMsg::new();
 
-        match self {
-            Self::InvalidModule(module) => {
+        match err {
+            Error::InvalidModule(module) => {
                 msg.add("couldn't deserialize config: ");
                 msg.add_invalid(module, valid_modules().iter(), "module");
             },
 
-            Self::DeserializeModule(err) => {
-                msg.add("couldn't deserialize ")
-                    .add(err.path().to_string().highlight())
-                    .add(": ");
-
-                use nvim::serde::DeserializeError::*;
-
-                match err.inner() {
-                    Custom { msg: err_msg } => {
-                        msg.add(err_msg.as_str());
-                    },
-
-                    DuplicateField { field } => {
-                        msg.add("duplicate field ").add(field.highlight());
-                    },
-
-                    MissingField { field } => {
-                        msg.add("missing field ").add(field.highlight());
-                    },
-
-                    UnknownField { variant: field, expected } => {
-                        msg.add_invalid(field, expected.iter(), "field");
-                    },
-
-                    UnknownVariant { field: variant, expected } => {
-                        msg.add_invalid(variant, expected.iter(), "variant");
-                    },
-                }
+            Error::DeserializeModule(err) => {
+                msg = err.into();
             },
         };
 
-        warning(msg)
+        msg
     }
 }
 
