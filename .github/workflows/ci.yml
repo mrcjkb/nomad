@@ -17,6 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+      - name: Access nomad/pond
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.POND_SSH_PRIVATE_KEY }}
       - run: cargo test --no-fail-fast
 
   clippy:
@@ -27,6 +31,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
+      - name: Access nomad/pond
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.POND_SSH_PRIVATE_KEY }}
       - run: cargo clippy --all-targets -- -D warnings
 
   docs:
@@ -35,6 +43,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+      - name: Access nomad/pond
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.POND_SSH_PRIVATE_KEY }}
       - run: RUSTDOCFLAGS="--cfg docsrs" cargo doc #--all-features
 
   format:
