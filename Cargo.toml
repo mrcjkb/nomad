@@ -13,9 +13,6 @@ publish = false
 async-net = "2"
 futures = "0.3"
 nomad = { path = "./crates/nomad" }
-nvim-oxi = { git = "https://github.com/noib3/nvim-oxi" }
-once_cell = "1.18"
-pin-project-lite = "0.2"
 serde = "1.0"
 thiserror = "1.0"
 tracing = "0.1"

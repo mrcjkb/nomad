@@ -18,7 +18,7 @@ futures = { workspace = true }
 home = "0.5"
 macros = { path = "./macros" }
 nvim = { git = "https://github.com/noib3/nvim-oxi", package = "nvim-oxi", features = ["libuv"] }
-pin-project-lite = { workspace = true }
+pin-project-lite = "0.2"
 pond = { git = "ssh://git@github.com/nomad/pond.git" }
 serde = { workspace = true }
 serde_path_to_error = "0.1"
