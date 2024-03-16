@@ -1,7 +1,8 @@
 use core::fmt;
 use std::collections::HashMap;
 
-use nvim::{serde::Deserializer, Function, Object};
+use nvim::serde::Deserializer;
+use nvim::{Function, Object};
 use serde::de::{self, DeserializeSeed};
 
 use crate::prelude::*;

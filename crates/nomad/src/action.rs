@@ -3,7 +3,8 @@
 use core::hash::{Hash, Hasher};
 
 pub use macros::action_name;
-use serde::{de::DeserializeOwned, ser::Serialize};
+use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
 
 use crate::prelude::{MaybeResult, Module};
 

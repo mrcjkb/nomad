@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
-use tracing_subscriber::fmt::{self, format, time::UtcTime};
+use tracing_subscriber::fmt::time::UtcTime;
+use tracing_subscriber::fmt::{self, format};
 use tracing_subscriber::{filter, fmt as fmt_builder};
 
 /// The name of the log file.

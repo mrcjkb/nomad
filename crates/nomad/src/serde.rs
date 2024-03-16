@@ -2,7 +2,8 @@ use core::fmt;
 
 use nvim::serde::{Deserializer, Serializer};
 use nvim::Object;
-use serde::{de::DeserializeOwned, ser::Serialize};
+use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
 
 use crate::prelude::{ModuleName, WarningMsg};
 use crate::warning::ChunkExt;
