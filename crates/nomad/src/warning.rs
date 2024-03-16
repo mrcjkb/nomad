@@ -124,9 +124,9 @@ impl WarningMsg {
             InvalidMsgKind::ListAll => list_all(invalid, what, valid, self),
 
             InvalidMsgKind::SuggestClosest { closest_idx } => {
-                let closest = valid
-                    .nth(closest_idx)
-                    .expect("iterator has at least idx+1 elements");
+                let Some(closest) = valid.nth(closest_idx) else {
+                    unreachable!("iterator has at least idx+1 elements");
+                };
 
                 suggest_closest(invalid, what, closest.as_ref(), self)
             },
@@ -271,8 +271,9 @@ fn list_all(
         0 => {},
 
         1 => {
-            let valid =
-                valid.next().expect("the iterator has exactly one element");
+            let Some(valid) = valid.next() else {
+                unreachable!("the iterator has exactly one element")
+            };
 
             msg.add(", the only valid ")
                 .add(invalid_what)

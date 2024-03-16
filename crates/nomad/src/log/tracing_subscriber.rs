@@ -132,25 +132,12 @@ fn nvim_data_dir() -> PathBuf {
 }
 
 #[allow(unreachable_code)]
-#[inline]
+#[cfg(target_family = "unix")]
 fn data_local_dir() -> PathBuf {
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
-    {
-        return dirs::data_local_dir()
-            .expect("failed to get local data directory");
+    match home::home_dir() {
+        Some(home) if !home.as_os_str().is_empty() => {
+            home.join(".local").join("share")
+        },
+        _ => panic!("failed to get the home directory"),
     }
-
-    // `data_local_dir()` points to `~/Library/Application Support` on macOS,
-    // but we want `~/.local/share`.
-    #[cfg(target_os = "macos")]
-    {
-        match home::home_dir() {
-            Some(home) if !home.as_os_str().is_empty() => {
-                return home.join(".local").join("share");
-            },
-            _ => panic!("failed to get the home directory"),
-        }
-    }
-
-    panic!("failed to get the local data directory for this platform");
 }

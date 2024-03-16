@@ -15,3 +15,8 @@ url = { version = "2", features = ["serde"] }
 
 [lints]
 workspace = true
+
+# Blocked by https://github.com/rust-lang/cargo/issues/13157
+#
+# [lints.rust]
+# unsafe_code = "deny"

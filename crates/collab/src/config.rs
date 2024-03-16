@@ -67,11 +67,14 @@ fn default_server_port() -> u16 {
     64420
 }
 
+/// The error type returned by [`CollabConfig::server_addr`].
 #[derive(Debug, ThisError)]
 pub enum InvalidServerAddr {
+    /// The URL resolved to an empty list of socket addresses.
     #[error("URL resolved to an empty list of socket addresses")]
     EmptyAddresses,
 
+    /// The URL is invalid.
     #[error("{0}")]
     InvalidUrl(#[from] std::io::Error),
 }
