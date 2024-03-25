@@ -22,7 +22,7 @@ pub use nomad::Nomad;
 pub mod prelude {
     //! TODO: docs
 
-    pub use macros::Ready;
+    pub use macros::{async_action, Ready};
     pub use nvim;
 
     pub use crate::action::*;

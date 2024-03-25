@@ -1,7 +1,8 @@
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, DeriveInput, LitStr};
+use syn::{parse_macro_input, DeriveInput, ItemImpl, LitStr};
 
 mod action_name;
+mod async_action;
 mod module_name;
 mod ready;
 
@@ -27,6 +28,17 @@ pub fn action_name(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as LitStr);
 
     match action_name::action_name(input) {
+        Ok(token_stream) => token_stream.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+/// TODO: docs
+#[proc_macro_attribute]
+pub fn async_action(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemImpl);
+
+    match async_action::async_action(input) {
         Ok(token_stream) => token_stream.into(),
         Err(err) => err.to_compile_error().into(),
     }
