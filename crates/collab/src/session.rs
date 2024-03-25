@@ -9,10 +9,10 @@ pub(crate) struct Session {
     id: SessionId,
 
     /// TODO: docs
-    receiver: collab::Receiver,
+    _receiver: collab::Receiver,
 
     /// TODO: docs
-    sender: collab::Sender,
+    _sender: collab::Sender,
 }
 
 impl Session {
@@ -26,7 +26,11 @@ impl Session {
         let (sender, receiver, session_id) =
             config.get().connector()?.start().await?;
 
-        Ok(Self { id: session_id.into(), receiver, sender })
+        Ok(Self {
+            id: session_id.into(),
+            _receiver: receiver,
+            _sender: sender,
+        })
     }
 }
 

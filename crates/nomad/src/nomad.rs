@@ -1,6 +1,5 @@
 use nvim::Dictionary;
 
-use crate::command::Command;
 use crate::config::Config;
 use crate::prelude::*;
 use crate::{log, runtime};

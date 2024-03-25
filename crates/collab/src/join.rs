@@ -3,12 +3,12 @@ use nomad::prelude::*;
 use crate::{Collab, Config, SessionId};
 
 pub(crate) struct Join {
-    config: Get<Config>,
+    _config: Get<Config>,
 }
 
 impl Join {
     pub(crate) fn new(config: Get<Config>) -> Self {
-        Self { config }
+        Self { _config: config }
     }
 }
 

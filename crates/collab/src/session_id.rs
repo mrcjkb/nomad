@@ -5,7 +5,7 @@ use collab::messages::SessionId as CollabSessionId;
 use nomad::prelude::{CommandArgs, WarningMsg};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
-pub(crate) struct SessionId(CollabSessionId);
+pub struct SessionId(CollabSessionId);
 
 impl From<CollabSessionId> for SessionId {
     fn from(id: CollabSessionId) -> Self {
@@ -41,7 +41,7 @@ impl TryFrom<CommandArgs> for SessionId {
 
 /// Errors that can occur when converting [`CommandArgs`] into a[`SessionId`].
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum SessionIdFromArgsError {
+pub enum SessionIdFromArgsError {
     /// The command arguments were empty.
     #[error("expected a session ID")]
     NoArgs,
