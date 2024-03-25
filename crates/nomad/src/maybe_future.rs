@@ -12,15 +12,6 @@ pub trait MaybeFuture<'a> {
     fn into_enum(self) -> MaybeFutureEnum<'a, Self::Output>;
 }
 
-impl MaybeFuture<'static> for () {
-    type Output = ();
-
-    #[inline]
-    fn into_enum(self) -> MaybeFutureEnum<'static, ()> {
-        MaybeFutureEnum::Ready(())
-    }
-}
-
 /// TODO: docs
 pub enum MaybeFutureEnum<'a, T> {
     /// TODO: docs
@@ -47,4 +38,38 @@ where
     fn from(future: F) -> Self {
         MaybeFutureEnum::Future(Box::pin(future))
     }
+}
+
+impls::ready!(());
+impls::ready!(T; Option<T>);
+impls::ready!(T, E; Result<T, E>);
+
+mod impls {
+    /// ..
+    #[macro_export]
+    macro_rules! ready {
+        ($ty:ty) => {
+            impl<'a> MaybeFuture<'a> for $ty {
+                type Output = Self;
+
+                #[inline]
+                fn into_enum(self) -> MaybeFutureEnum<'a, Self> {
+                    MaybeFutureEnum::Ready(self)
+                }
+            }
+        };
+
+        ($($gen:ident),*; $ty:ty) => {
+            impl<'a, $($gen),*> MaybeFuture<'a> for $ty {
+                type Output = Self;
+
+                #[inline]
+                fn into_enum(self) -> MaybeFutureEnum<'a, Self> {
+                    MaybeFutureEnum::Ready(self)
+                }
+            }
+        };
+    }
+
+    pub(super) use ready;
 }
