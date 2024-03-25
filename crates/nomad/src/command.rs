@@ -210,6 +210,12 @@ impl From<types::CommandArgs> for CommandArgs {
 impl CommandArgs {
     /// TODO: docs
     #[inline]
+    pub fn as_slice(&self) -> &[String] {
+        &self.args[self.consumed..]
+    }
+
+    /// TODO: docs
+    #[inline]
     pub fn into_iter(self) -> impl Iterator<Item = String> {
         self.args.into_iter().skip(self.consumed)
     }

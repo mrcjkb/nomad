@@ -1,7 +1,6 @@
-use collab::messages::SessionId;
 use nomad::prelude::*;
 
-use crate::{Collab, Config, Session, SessionState};
+use crate::{Collab, Config, Session, SessionId, SessionState};
 
 /// TODO: docs
 #[derive(Clone)]
@@ -17,13 +16,13 @@ pub(crate) struct Start {
 
 impl Start {
     async fn async_execute(&self) -> Result<(), StartError> {
-        if let SessionState::Active(session) = self.state.get() {
-            return Err(StartError::ExistingSession(session.id()));
+        if let &SessionState::Active(session_id) = self.state.get() {
+            return Err(StartError::ExistingSession(session_id));
         }
 
         let session = Session::start(self.config.clone()).await?;
 
-        self.set_state.set(SessionState::Active(session));
+        self.set_state.set(SessionState::Active(session.id()));
 
         Ok(())
     }

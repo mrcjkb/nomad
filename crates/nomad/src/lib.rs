@@ -25,6 +25,7 @@ pub mod prelude {
 
     pub use crate::action::*;
     pub use crate::api::*;
+    pub use crate::command::*;
     pub use crate::log::*;
     pub use crate::maybe_result::*;
     pub use crate::module::*;

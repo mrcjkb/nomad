@@ -1,8 +1,7 @@
-use collab::messages::SessionId;
 use nomad::prelude::Get;
 
 use crate::config::ConnectorError;
-use crate::Config;
+use crate::{Config, SessionId};
 
 /// TODO: docs
 pub(crate) struct Session {
@@ -27,7 +26,7 @@ impl Session {
         let (sender, receiver, session_id) =
             config.get().connector()?.start().await?;
 
-        Ok(Self { id: session_id, receiver, sender })
+        Ok(Self { id: session_id.into(), receiver, sender })
     }
 }
 
@@ -41,9 +40,10 @@ pub enum StartError {
 }
 
 /// Whether there is an active collab session or not.
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum SessionState {
     /// There is an active collab session.
-    Active(Session),
+    Active(SessionId),
 
     /// There is no active collab session.
     Inactive,

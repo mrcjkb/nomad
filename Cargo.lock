@@ -310,7 +310,7 @@ dependencies = [
 [[package]]
 name = "collab"
 version = "0.0.7"
-source = "git+ssh://git@github.com/nomad/collab.git#9644bdf762e6825be60c810201e9cf47c093ace5"
+source = "git+ssh://git@github.com/nomad/collab.git#6f402d669cabeb52162b04cb846fcdc820758c05"
 dependencies = [
  "async-net",
  "cola",
@@ -338,7 +338,7 @@ dependencies = [
 [[package]]
 name = "collab-common"
 version = "0.0.7"
-source = "git+ssh://git@github.com/nomad/collab.git#9644bdf762e6825be60c810201e9cf47c093ace5"
+source = "git+ssh://git@github.com/nomad/collab.git#6f402d669cabeb52162b04cb846fcdc820758c05"
 dependencies = [
  "async-compat",
  "async-io 2.3.2",
