@@ -1,4 +1,4 @@
-use core::net::SocketAddr;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use collab::rustls_pki_types::{self, DnsName};
@@ -142,7 +142,6 @@ mod tests {
     use super::*;
 
     impl PartialEq for ServerAddrError {
-        #[inline]
         fn eq(&self, other: &Self) -> bool {
             match (self, other) {
                 (Self::EmptyAddresses, Self::EmptyAddresses) => true,
@@ -155,7 +154,6 @@ mod tests {
     }
 
     impl PartialEq for DnsNameError {
-        #[inline]
         fn eq(&self, other: &Self) -> bool {
             matches!(
                 (self, other),

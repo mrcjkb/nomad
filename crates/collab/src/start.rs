@@ -27,6 +27,11 @@ impl Start {
 
         Ok(())
     }
+
+    pub(crate) fn new(config: Get<Config>) -> Self {
+        let (state, set_state) = new_input(SessionState::Inactive);
+        Self { config, state, set_state }
+    }
 }
 
 impl Action<Collab> for Start {
