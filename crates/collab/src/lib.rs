@@ -4,6 +4,7 @@
 
 mod collab;
 mod config;
+mod context;
 mod join;
 mod session;
 mod session_id;
@@ -11,6 +12,7 @@ mod start;
 
 pub use collab::Collab;
 use config::Config;
+use context::Context;
 use join::Join;
 use session::{Session, SessionState};
 use session_id::SessionId;

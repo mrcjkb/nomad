@@ -44,11 +44,12 @@ pub enum StartError {
 }
 
 /// Whether there is an active collab session or not.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub(crate) enum SessionState {
     /// There is an active collab session.
     Active(SessionId),
 
     /// There is no active collab session.
+    #[default]
     Inactive,
 }

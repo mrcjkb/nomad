@@ -1,6 +1,6 @@
 use nomad::prelude::*;
 
-use crate::{Config, Join, Start};
+use crate::{Config, Context, Join, Start};
 
 /// TODO: docs.
 pub struct Collab {
@@ -19,10 +19,18 @@ impl Module for Collab {
     type Config = Config;
 
     fn init(config: Get<Self::Config>) -> Api<Self> {
+        let ctx = Context::new(config.clone());
+
+        let join = Join::new(&ctx);
+
+        let start = Start::new(&ctx);
+
         Api::new(Self::new(config.clone()))
-            .with_command(Join::new(config.clone()))
-            .with_command(Start::new(config))
+            .with_command(start.clone())
+            .with_command(join.clone())
+            .with_function(start)
+            .with_function(join)
     }
 
-    async fn run(&self) -> impl MaybeResult<()> {}
+    async fn run(&self) {}
 }

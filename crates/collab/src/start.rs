@@ -1,29 +1,28 @@
 use nomad::prelude::*;
 
-use crate::{Collab, Config, Session, SessionId, SessionState};
+use crate::{Collab, Config, Context, Session, SessionId, SessionState};
 
 /// TODO: docs
 #[derive(Clone)]
 pub(crate) struct Start {
     config: Get<Config>,
-
-    /// The current collab session, if there is one.
     state: Get<SessionState>,
-
-    /// TODO: docs
     set_state: Set<SessionState>,
 }
 
 impl Start {
-    pub(crate) fn new(config: Get<Config>) -> Self {
-        let (state, set_state) = new_input(SessionState::Inactive);
-        Self { config, state, set_state }
+    pub(crate) fn new(ctx: &Context) -> Self {
+        Self {
+            config: ctx.config.clone(),
+            state: ctx.state.clone(),
+            set_state: ctx.set_state.clone(),
+        }
     }
 }
 
 #[async_action]
 impl Action<Collab> for Start {
-    const NAME: ActionName = action_name!("join");
+    const NAME: ActionName = action_name!("start");
 
     type Args = ();
 

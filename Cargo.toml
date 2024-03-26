@@ -33,6 +33,7 @@ unwrap_used = "deny"
 future_incompatible = "deny"
 missing_docs = "deny"
 nonstandard_style = "deny"
+refining_impl_trait = "allow"
 
 [workspace.lints.rustdoc]
 broken_intra_doc_links = "deny"
