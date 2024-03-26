@@ -1,6 +1,6 @@
 //! TODO: docs
 
-use core::future::Future;
+use core::future::{ready, Future};
 use core::pin::{pin, Pin};
 use core::task::{Context, Poll};
 
@@ -20,15 +20,7 @@ pub trait MaybeFuture: Sized {
     /// TODO: docs
     #[inline]
     fn into_future(self) -> impl Future<Output = Self::Output> {
-        match self.into_enum() {
-            MaybeFutureEnum::Ready(output) => {
-                MaybeFutureFuture::Ready(core::future::ready(output))
-            },
-
-            MaybeFutureEnum::Future(future) => {
-                MaybeFutureFuture::Future(future)
-            },
-        }
+        MaybeFutureFuture::from(self.into_enum())
     }
 
     /// TODO: docs
@@ -51,7 +43,10 @@ pub enum MaybeFutureEnum<F: Future<Output = T>, T> {
     Future(F),
 }
 
-impl<F: Future<Output = T>, T> MaybeFuture for MaybeFutureEnum<F, T> {
+impl<F, T> MaybeFuture for MaybeFutureEnum<F, T>
+where
+    F: Future<Output = T>,
+{
     type Future = F;
 
     type Output = T;
@@ -78,7 +73,23 @@ enum MaybeFutureFuture<F: Future<Output = T>, T> {
     Future(#[pin] F),
 }
 
-impl<F: Future<Output = T>, T> Future for MaybeFutureFuture<F, T> {
+impl<F, T> From<MaybeFutureEnum<F, T>> for MaybeFutureFuture<F, T>
+where
+    F: Future<Output = T>,
+{
+    #[inline]
+    fn from(future: MaybeFutureEnum<F, T>) -> Self {
+        match future {
+            MaybeFutureEnum::Ready(output) => Self::Ready(ready(output)),
+            MaybeFutureEnum::Future(future) => Self::Future(future),
+        }
+    }
+}
+
+impl<F, T> Future for MaybeFutureFuture<F, T>
+where
+    F: Future<Output = T>,
+{
     type Output = T;
 
     #[inline]
