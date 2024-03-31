@@ -9,7 +9,7 @@ use crop::Rope;
 use flume::Sender;
 
 use super::{BufferId, EditorId};
-use crate::streams::{Deletion, Edit, Edits, Insertion};
+use crate::streams::{AppliedDeletion, AppliedEdit, AppliedInsertion, Edits};
 
 /// TODO: docs
 pub struct Buffer {
@@ -46,7 +46,7 @@ impl Buffer {
     #[inline]
     fn on_bytes(
         &self,
-        sender: Sender<Edit>,
+        sender: Sender<AppliedEdit>,
     ) -> impl Fn(ByteEdit) -> bool + 'static {
         move |edit| {
             let byte_range = edit.byte_range();
@@ -59,16 +59,16 @@ impl Buffer {
 
             if !byte_range.is_empty() {
                 let del = replica.deleted(byte_range.clone());
-                let del = Deletion::new(del);
-                let _ = sender.send(Edit::Deletion(del));
+                let del = AppliedDeletion::new(del);
+                let _ = sender.send(AppliedEdit::Deletion(del));
             }
 
             let text_len = edit.replacement.len();
 
             if text_len > 0 {
                 let ins = replica.inserted(byte_range.start, text_len);
-                let ins = Insertion::new(ins, edit.replacement);
-                let _ = sender.send(Edit::Insertion(ins));
+                let ins = AppliedInsertion::new(ins, edit.replacement);
+                let _ = sender.send(AppliedEdit::Insertion(ins));
             }
 
             false
@@ -93,6 +93,54 @@ impl BufferInner {
     ///
     /// # Panics
     ///
+    /// Panics if either the start or end anchor cannot be resolved to a byte
+    /// offset in the buffer.
+    #[track_caller]
+    #[inline]
+    fn apply_local_deletion(
+        &mut self,
+        delete_range: Range<Anchor>,
+    ) -> Option<AppliedDeletion> {
+        let Some(start_offset) = self.crdt.resolve_anchor(delete_range.start)
+        else {
+            panic_couldnt_resolve_anchor(&delete_range.start);
+        };
+
+        let Some(end_offset) = self.crdt.resolve_anchor(delete_range.end)
+        else {
+            panic_couldnt_resolve_anchor(&delete_range.end);
+        };
+
+        if start_offset == end_offset {
+            return None;
+        }
+
+        assert!(start_offset < end_offset);
+
+        let start_point = self.point_of_offset(start_offset);
+
+        let end_point = self.point_of_offset(end_offset);
+
+        self.text.delete(start_offset..end_offset);
+
+        let deletion = self.crdt.deleted(start_offset..end_offset);
+
+        self.nvim
+            .set_text(
+                start_point.row..end_point.row,
+                start_point.col,
+                end_point.col,
+                iter::empty::<nvim::String>(),
+            )
+            .expect("start and end points are within bounds");
+
+        Some(AppliedDeletion::new(deletion))
+    }
+
+    /// TODO: docs
+    ///
+    /// # Panics
+    ///
     /// Panics if the anchor cannot be resolved to a byte offset in the buffer.
     #[track_caller]
     #[inline]
@@ -100,9 +148,9 @@ impl BufferInner {
         &mut self,
         insert_at: Anchor,
         text: String,
-    ) -> cola::Insertion {
+    ) -> AppliedInsertion {
         let Some(byte_offset) = self.crdt.resolve_anchor(insert_at) else {
-            panic!("{insert_at:?} couldn't be resolved");
+            panic_couldnt_resolve_anchor(&insert_at);
         };
 
         let point = self.point_of_offset(byte_offset);
@@ -117,7 +165,7 @@ impl BufferInner {
             .set_text(row..row, col, col, iter::once(&*text))
             .expect("row and col are within bounds");
 
-        insertion
+        AppliedInsertion::new(insertion, text)
     }
 
     /// Transforms the 1-dimensional byte offset into a 2-dimensional
@@ -129,6 +177,11 @@ impl BufferInner {
         let col = byte_offset - row_offset;
         Point { row, col }
     }
+}
+
+#[inline(never)]
+fn panic_couldnt_resolve_anchor(anchor: &Anchor) -> ! {
+    panic!("{anchor:?} couldn't be resolved");
 }
 
 /// TODO: docs

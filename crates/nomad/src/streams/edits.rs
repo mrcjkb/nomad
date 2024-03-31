@@ -8,7 +8,7 @@ use futures::Stream;
 pub struct Edits {}
 
 impl Stream for Edits {
-    type Item = Edit;
+    type Item = AppliedEdit;
 
     #[inline]
     fn poll_next(
@@ -21,22 +21,22 @@ impl Stream for Edits {
 
 /// A single edit to a [`Buffer`].
 #[derive(Clone)]
-pub enum Edit {
+pub enum AppliedEdit {
     /// TODO: docs
-    Insertion(Insertion),
+    Insertion(AppliedInsertion),
 
     /// TODO: docs
-    Deletion(Deletion),
+    Deletion(AppliedDeletion),
 }
 
 /// TODO: docs
 #[derive(Clone)]
-pub struct Insertion {
+pub struct AppliedInsertion {
     inner: cola::Insertion,
     text: String,
 }
 
-impl Insertion {
+impl AppliedInsertion {
     pub(crate) fn new(inner: cola::Insertion, text: String) -> Self {
         Self { inner, text }
     }
@@ -44,11 +44,11 @@ impl Insertion {
 
 /// TODO: docs
 #[derive(Clone)]
-pub struct Deletion {
+pub struct AppliedDeletion {
     inner: cola::Deletion,
 }
 
-impl Deletion {
+impl AppliedDeletion {
     pub(crate) fn new(inner: cola::Deletion) -> Self {
         Self { inner }
     }
