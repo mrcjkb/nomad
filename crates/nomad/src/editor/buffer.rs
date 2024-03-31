@@ -1,12 +1,14 @@
 use alloc::collections::VecDeque;
 use alloc::rc::Rc;
 use core::cell::RefCell;
+use core::convert::Infallible;
 use core::iter;
 use core::ops::Range;
 
 use cola::{Anchor, Replica};
 use crop::{Rope, RopeBuilder};
 use flume::Sender;
+use nvim::api::{opts, Buffer as NvimBuffer};
 
 use super::{BufferId, EditorId};
 use crate::streams::{AppliedDeletion, AppliedEdit, AppliedInsertion, Edits};
@@ -21,6 +23,9 @@ pub struct Buffer {
 
     /// TODO: docs
     inner: Rc<RefCell<BufferInner>>,
+
+    /// TODO: docs
+    receiver: flume::Receiver<AppliedEdit>,
 }
 
 impl Buffer {
@@ -45,11 +50,27 @@ impl Buffer {
     /// TODO: docs
     #[inline]
     pub async fn new(id: BufferId) -> Self {
-        Self {
+        let (tx, rx) = flume::unbounded();
+
+        let this = Self {
             applied_queue: AppliedEditQueue::new(),
             id,
             inner: Rc::new(RefCell::new(BufferInner::new(id))),
-        }
+            receiver: rx,
+        };
+
+        let on_bytes = this.on_bytes(tx);
+
+        let opts = opts::BufAttachOpts::builder()
+            .on_bytes(move |args| {
+                on_bytes(ByteChange::from(args));
+                Ok(false)
+            })
+            .build();
+
+        let _ = NvimBuffer::from(this.id).attach(false, &opts);
+
+        this
     }
 
     #[inline]
@@ -57,14 +78,12 @@ impl Buffer {
         &self,
         sender: Sender<AppliedEdit>,
     ) -> impl Fn(ByteChange) + 'static {
-        fn inner() -> &'static mut BufferInner {
-            todo!()
-        }
+        let applied_queue = self.applied_queue.clone();
+
+        let buffer = self.inner.clone();
 
         move |change| {
-            let buffer = inner();
-
-            let applied_queue = applied_queue();
+            let mut buffer = buffer.borrow_mut();
 
             let caused_by_applied = applied_queue.with_first(|applied| {
                 let Some(applied) = applied else { return false };
@@ -101,7 +120,7 @@ struct BufferInner {
     crdt: Replica,
 
     /// TODO: docs
-    nvim: nvim::api::Buffer,
+    nvim: NvimBuffer,
 
     /// TODO: docs
     text: Rope,
@@ -393,7 +412,7 @@ impl BufferInner {
 
 /// TODO: docs
 #[inline]
-fn rope_from_buf(buf: &nvim::api::Buffer) -> Result<Rope, nvim::api::Error> {
+fn rope_from_buf(buf: &NvimBuffer) -> Result<Rope, nvim::api::Error> {
     let num_lines = buf.line_count()?;
 
     let has_trailine_newline = {
@@ -489,10 +508,6 @@ impl From<RemoteDeletion> for AppliedDeletion {
     }
 }
 
-fn applied_queue() -> &'static AppliedEditQueue {
-    todo!()
-}
-
 type ByteOffset = usize;
 
 /// TODO: docs
@@ -506,5 +521,42 @@ impl ByteChange {
     #[inline]
     fn byte_range(&self) -> Range<usize> {
         self.start..self.end
+    }
+}
+
+impl
+    From<(
+        String,
+        NvimBuffer,
+        u32,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )> for ByteChange
+{
+    #[inline]
+    fn from(
+        _args: (
+            String,
+            NvimBuffer,
+            u32,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+        ),
+    ) -> Self {
+        todo!();
     }
 }
