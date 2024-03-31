@@ -328,8 +328,8 @@ impl BufferInner {
         // comparing the whole texts gets too expensive considering this blocks
         // after every edit.
         else {
-            insertion.text()[..compare_until_threshold]
-                == text[..compare_until_threshold]
+            insertion.text().as_bytes()[..compare_until_threshold]
+                == text.as_bytes()[..compare_until_threshold]
         }
     }
 
