@@ -5,7 +5,7 @@ use core::iter;
 use core::ops::Range;
 
 use cola::{Anchor, Replica};
-use crop::Rope;
+use crop::{Rope, RopeBuilder};
 use flume::Sender;
 
 use super::{BufferId, EditorId};
@@ -13,9 +13,14 @@ use crate::streams::{AppliedDeletion, AppliedEdit, AppliedInsertion, Edits};
 
 /// TODO: docs
 pub struct Buffer {
+    /// TODO: docs
+    applied_queue: AppliedEditQueue,
+
+    /// TODO: docs
     id: BufferId,
-    replica: Replica,
-    text: Rope,
+
+    /// TODO: docs
+    inner: Rc<RefCell<BufferInner>>,
 }
 
 impl Buffer {
@@ -40,7 +45,11 @@ impl Buffer {
     /// TODO: docs
     #[inline]
     pub async fn new(id: BufferId) -> Self {
-        todo!();
+        Self {
+            applied_queue: AppliedEditQueue::new(),
+            id,
+            inner: Rc::new(RefCell::new(BufferInner::new(id))),
+        }
     }
 
     #[inline]
@@ -333,6 +342,14 @@ impl BufferInner {
         }
     }
 
+    #[inline]
+    fn new(id: BufferId) -> Self {
+        let nvim = id.into();
+        let text = rope_from_buf(&nvim).expect("buffer must exist");
+        let crdt = Replica::new(1, text.byte_len());
+        Self { crdt, nvim, text }
+    }
+
     /// TODO: docs
     #[inline]
     fn nvim_delete(&mut self, delete_range: Range<ByteOffset>) {
@@ -374,6 +391,40 @@ impl BufferInner {
     }
 }
 
+/// TODO: docs
+#[inline]
+fn rope_from_buf(buf: &nvim::api::Buffer) -> Result<Rope, nvim::api::Error> {
+    let num_lines = buf.line_count()?;
+
+    let has_trailine_newline = {
+        let mut last_line = buf.get_lines(num_lines - 1..num_lines, true)?;
+
+        let last_line_len =
+            buf.get_offset(num_lines)? - buf.get_offset(num_lines - 1)?;
+
+        if let Some(last_line) = last_line.next() {
+            last_line_len > last_line.len()
+        } else {
+            false
+        }
+    };
+
+    let lines = buf.get_lines(0..num_lines, true)?;
+
+    let mut builder = RopeBuilder::new();
+
+    for (idx, line) in lines.enumerate() {
+        builder.append(line.to_string_lossy());
+        let is_last = idx + 1 == num_lines;
+        let should_append_newline = !is_last | has_trailine_newline;
+        if should_append_newline {
+            builder.append("\n");
+        }
+    }
+
+    Ok(builder.build())
+}
+
 #[inline(never)]
 fn panic_couldnt_resolve_anchor(anchor: &Anchor) -> ! {
     panic!("{anchor:?} couldn't be resolved");
@@ -395,16 +446,21 @@ struct AppliedEditQueue {
 
 impl AppliedEditQueue {
     #[inline]
-    fn with_first<F, R>(&self, _fun: F) -> R
-    where
-        F: FnOnce(Option<&AppliedEdit>) -> R,
-    {
-        todo!();
+    fn new() -> Self {
+        Self { inner: Rc::new(RefCell::new(VecDeque::new())) }
     }
 
     #[inline]
     fn pop_front(&self) -> Option<AppliedEdit> {
         self.inner.borrow_mut().pop_front()
+    }
+
+    #[inline]
+    fn with_first<F, R>(&self, _fun: F) -> R
+    where
+        F: FnOnce(Option<&AppliedEdit>) -> R,
+    {
+        todo!();
     }
 }
 

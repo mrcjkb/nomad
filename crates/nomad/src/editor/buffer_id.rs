@@ -8,3 +8,10 @@ impl From<&nvim::api::Buffer> for BufferId {
         Self(unsafe { core::mem::transmute_copy(buf) })
     }
 }
+
+impl From<BufferId> for nvim::api::Buffer {
+    #[inline]
+    fn from(buf: BufferId) -> Self {
+        unsafe { core::mem::transmute(buf) }
+    }
+}
