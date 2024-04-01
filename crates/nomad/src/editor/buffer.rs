@@ -196,7 +196,7 @@ impl BufferInner {
 
         let mut insertion = None;
 
-        if byte_range.is_empty() {
+        if !byte_range.is_empty() {
             let del = self.crdt.deleted(byte_range.clone());
             deletion = Some(AppliedDeletion::new(del));
         }
