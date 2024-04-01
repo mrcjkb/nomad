@@ -638,18 +638,23 @@ fn nvim_buf_get_text(
     buf: &NvimBuffer,
     point_range: Range<Point>,
 ) -> Result<String, nvim::api::Error> {
-    let opts = opts::GetTextOpts::builder().build();
-
-    let lines = buf.get_text(
+    let mut lines = buf.get_text(
         point_range.start.row..point_range.end.row,
         point_range.start.col,
         point_range.end.col,
-        &opts,
+        &Default::default(),
     )?;
 
     let mut text = String::new();
 
+    let Some(first_line) = lines.next() else {
+        return Ok(text);
+    };
+
+    text.push_str(&first_line.to_string_lossy());
+
     for line in lines {
+        text.push('\n');
         text.push_str(&line.to_string_lossy());
     }
 
