@@ -13,6 +13,12 @@ impl From<CollabSessionId> for SessionId {
     }
 }
 
+impl From<SessionId> for CollabSessionId {
+    fn from(id: SessionId) -> Self {
+        id.0
+    }
+}
+
 impl Display for SessionId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)

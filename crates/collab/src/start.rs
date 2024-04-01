@@ -33,9 +33,13 @@ impl Action<Collab> for Start {
             return Err(StartError::ExistingSession(session_id));
         }
 
-        let session = Session::start(self.config.clone()).await?;
+        let buffer = Buffer::new(BufferId::current());
+
+        let mut session = Session::start(self.config.clone(), buffer).await?;
 
         self.set_state.set(SessionState::Active(session.id()));
+
+        let _ = session.run().await;
 
         Ok(())
     }
@@ -51,7 +55,9 @@ pub enum StartError {
 }
 
 impl From<StartError> for WarningMsg {
-    fn from(_err: StartError) -> Self {
-        todo!();
+    fn from(err: StartError) -> Self {
+        let mut msg = WarningMsg::new();
+        msg.add(err.to_string());
+        msg
     }
 }
