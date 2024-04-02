@@ -1,7 +1,10 @@
 use collab::messages::{
     Deletion as CollabDeletion,
+    File,
     Insertion as CollabInsertion,
     OutboundMessage,
+    PeerId,
+    Project,
     Session,
 };
 use nomad::editor::{BufferSnapshot, RemoteDeletion, RemoteInsertion};
@@ -37,7 +40,18 @@ impl Convert<OutboundMessage> for AppliedDeletion {
 
 impl Convert<Session> for BufferSnapshot {
     fn convert(self) -> Session {
-        todo!();
+        let file = File::build_document()
+            .file_id(unsafe { core::mem::transmute(0u64) })
+            .name("Untitled")
+            .replica(self.replica())
+            .text(self.text().to_string())
+            .build();
+
+        let project = Project::builder().root(file).build();
+
+        let peers = vec![PeerId::new(self.replica().id())];
+
+        Session::new(project, peers)
     }
 }
 

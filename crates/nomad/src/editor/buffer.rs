@@ -170,7 +170,12 @@ impl Buffer {
     /// TODO: docs
     #[inline]
     pub fn snapshot(&self) -> BufferSnapshot {
-        todo!();
+        let inner = self.inner.borrow();
+
+        BufferSnapshot::new(
+            inner.crdt.fork(inner.crdt.id()),
+            inner.text.clone(),
+        )
     }
 }
 
