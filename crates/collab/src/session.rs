@@ -14,20 +14,23 @@ pub(crate) struct Session {
     buffer: Buffer,
 
     /// TODO: docs
-    id: SessionId,
+    editor_id: EditorId,
 
     /// TODO: docs
     receiver: collab::Receiver,
 
     /// TODO: docs
     sender: collab::Sender,
+
+    /// TODO: docs
+    session_id: SessionId,
 }
 
 impl Session {
     /// Returns the [`SessionId`] of the session, which is unique to each
     /// session and can be sent to other peers to join the session.
     pub(crate) fn id(&self) -> SessionId {
-        self.id
+        self.session_id
     }
 
     /// TODO: docs
@@ -55,7 +58,8 @@ impl Session {
 
         Ok(Self {
             buffer: Buffer::create(doc.text(), replica),
-            id: session_id,
+            editor_id: EditorId::generate(),
+            session_id,
             receiver,
             sender,
         })
@@ -63,15 +67,19 @@ impl Session {
 
     /// TODO: docs
     async fn handle_inbound(&mut self, msg: InboundMessage) {
+        let buffer = &mut self.buffer;
+
+        let id = self.editor_id;
+
         match msg {
             InboundMessage::RemoteDeletion(deletion) => {
-                self.buffer.apply_remote_deletion(deletion.convert());
+                buffer.apply_remote_deletion(deletion.convert(), id);
             },
             InboundMessage::RemoteInsertion(insertion) => {
-                self.buffer.apply_remote_insertion(insertion.convert());
+                buffer.apply_remote_insertion(insertion.convert(), id);
             },
             InboundMessage::SessionRequest(request) => {
-                request.send(self.buffer.snapshot().convert());
+                request.send(buffer.snapshot().convert());
             },
             _ => {},
         }
@@ -79,7 +87,7 @@ impl Session {
 
     /// TODO: docs
     pub async fn run(&mut self) -> Result<(), RunError> {
-        let editor_id = EditorId::generate();
+        let editor_id = self.editor_id;
 
         let edits = self
             .buffer
@@ -114,7 +122,13 @@ impl Session {
             .start()
             .await?;
 
-        Ok(Self { buffer, id: session_id.into(), receiver, sender })
+        Ok(Self {
+            buffer,
+            editor_id: EditorId::generate(),
+            receiver,
+            sender,
+            session_id: session_id.into(),
+        })
     }
 }
 

@@ -62,7 +62,9 @@ pub enum SessionIdFromArgsError {
 }
 
 impl From<SessionIdFromArgsError> for WarningMsg {
-    fn from(_err: SessionIdFromArgsError) -> Self {
-        todo!();
+    fn from(err: SessionIdFromArgsError) -> Self {
+        let mut msg = WarningMsg::new();
+        msg.add(err.to_string());
+        msg
     }
 }

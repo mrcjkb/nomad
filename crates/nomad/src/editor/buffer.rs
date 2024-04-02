@@ -11,7 +11,13 @@ use nvim::api::{self, opts, Buffer as NvimBuffer};
 
 use super::{BufferId, BufferSnapshot, EditorId};
 use crate::runtime::spawn;
-use crate::streams::{AppliedDeletion, AppliedEdit, AppliedInsertion, Edits};
+use crate::streams::{
+    AppliedDeletion,
+    AppliedEdit,
+    AppliedEditKind,
+    AppliedInsertion,
+    Edits,
+};
 
 /// TODO: docs
 pub struct Buffer {
@@ -35,39 +41,56 @@ impl Buffer {
     /// TODO: docs
     #[track_caller]
     #[inline]
-    pub fn apply_local_deletion(&mut self, delete_range: Range<Anchor>) {
+    pub fn apply_local_deletion(
+        &mut self,
+        delete_range: Range<Anchor>,
+        id: EditorId,
+    ) {
         let mut buffer = self.inner.borrow_mut();
         let maybe_deletion = buffer.apply_local_deletion(delete_range);
         if let Some(deletion) = maybe_deletion {
-            self.applied_queue.push_back(AppliedEdit::Deletion(deletion));
+            self.applied_queue.push_back(AppliedEdit::deletion(deletion, id));
         }
     }
 
     /// TODO: docs
     #[track_caller]
     #[inline]
-    pub fn apply_local_insertion(&mut self, insert_at: Anchor, text: String) {
+    pub fn apply_local_insertion(
+        &mut self,
+        insert_at: Anchor,
+        text: String,
+        id: EditorId,
+    ) {
         let mut buffer = self.inner.borrow_mut();
         let insertion = buffer.apply_local_insertion(insert_at, text);
-        self.applied_queue.push_back(AppliedEdit::Insertion(insertion));
+        self.applied_queue.push_back(AppliedEdit::insertion(insertion, id));
     }
 
     /// TODO: docs
     #[track_caller]
     #[inline]
-    pub fn apply_remote_deletion(&mut self, deletion: RemoteDeletion) {
+    pub fn apply_remote_deletion(
+        &mut self,
+        deletion: RemoteDeletion,
+        id: EditorId,
+    ) {
         let mut buffer = self.inner.borrow_mut();
         buffer.apply_remote_deletion(&deletion);
-        self.applied_queue.push_back(AppliedEdit::Deletion(deletion.into()));
+        self.applied_queue.push_back(AppliedEdit::deletion(deletion, id));
     }
 
     /// TODO: docs
     #[track_caller]
     #[inline]
-    pub fn apply_remote_insertion(&mut self, insertion: RemoteInsertion) {
+    pub fn apply_remote_insertion(
+        &mut self,
+        insertion: RemoteInsertion,
+        id: EditorId,
+    ) {
         let mut buffer = self.inner.borrow_mut();
         buffer.apply_remote_insertion(&insertion);
-        self.applied_queue.push_back(AppliedEdit::Insertion(insertion.into()));
+        self.applied_queue.push_back(AppliedEdit::insertion(insertion, id));
     }
 
     /// TODO: docs
@@ -148,20 +171,24 @@ impl Buffer {
             // mustn't apply it again. We instead pop the applied edit from
             // the queue.
             if caused_by_applied {
-                let applied = applied_queue.pop_front().expect("just checked");
-                broadcast_edit(&sender, applied);
+                let edit = applied_queue.pop_front().expect("just checked");
+                broadcast_edit(&sender, edit);
             }
             // The change was either caused by the user or by another plugin,
             // so we apply it to our buffer to keep it in sync.
             else {
                 let (del, ins) = buffer.apply_byte_change(change);
 
+                let id = EditorId::unknown();
+
                 if let Some(deletion) = del {
-                    broadcast_edit(&sender, AppliedEdit::Deletion(deletion));
+                    let edit = AppliedEdit::deletion(deletion, id);
+                    broadcast_edit(&sender, edit);
                 }
 
                 if let Some(insertion) = ins {
-                    broadcast_edit(&sender, AppliedEdit::Insertion(insertion));
+                    let edit = AppliedEdit::insertion(insertion, id);
+                    broadcast_edit(&sender, edit);
                 }
             }
         }
@@ -337,7 +364,8 @@ impl BufferInner {
         match (byte_range.is_empty(), change.replacement.is_empty()) {
             // Insertion
             (true, false) => {
-                let AppliedEdit::Insertion(insertion) = &applied else {
+                let AppliedEditKind::Insertion(insertion) = &applied.kind()
+                else {
                     return false;
                 };
 
@@ -350,7 +378,8 @@ impl BufferInner {
 
             // Deletion
             (false, true) => {
-                let AppliedEdit::Deletion(deletion) = &applied else {
+                let AppliedEditKind::Deletion(deletion) = &applied.kind()
+                else {
                     return false;
                 };
 

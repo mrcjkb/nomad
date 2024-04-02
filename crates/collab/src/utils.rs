@@ -8,19 +8,24 @@ use collab::messages::{
     Session,
 };
 use nomad::editor::{BufferSnapshot, RemoteDeletion, RemoteInsertion};
-use nomad::streams::{AppliedDeletion, AppliedEdit, AppliedInsertion};
+use nomad::streams::{
+    AppliedDeletion,
+    AppliedEdit,
+    AppliedEditKind,
+    AppliedInsertion,
+};
 
-/// Exactly the same as the [`Into`] trait, but it lets us convert `T -> U` even
-/// when neither `T` nor `U` are defined in this crate.
+/// Exactly the same as the [`Into`] trait, but it lets us convert `T -> U`
+/// even when neither `T` nor `U` are defined in this crate.
 pub(crate) trait Convert<T> {
     fn convert(self) -> T;
 }
 
 impl Convert<OutboundMessage> for AppliedEdit {
     fn convert(self) -> OutboundMessage {
-        match self {
-            AppliedEdit::Deletion(deletion) => deletion.convert(),
-            AppliedEdit::Insertion(insertion) => insertion.convert(),
+        match self.into_kind() {
+            AppliedEditKind::Deletion(deletion) => deletion.convert(),
+            AppliedEditKind::Insertion(insertion) => insertion.convert(),
         }
     }
 }

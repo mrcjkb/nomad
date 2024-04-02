@@ -37,20 +37,57 @@ impl Stream for Edits {
 
 /// A single edit to a [`Buffer`].
 #[derive(Debug, Clone)]
-pub enum AppliedEdit {
-    /// TODO: docs
-    Insertion(AppliedInsertion),
-
-    /// TODO: docs
-    Deletion(AppliedDeletion),
+pub struct AppliedEdit {
+    kind: AppliedEditKind,
+    id: EditorId,
 }
 
 impl AppliedEdit {
     /// TODO: docs
     #[inline]
     pub fn created_by(&self) -> EditorId {
-        todo!();
+        self.id
     }
+
+    /// TODO: docs
+    #[inline]
+    pub fn deletion(
+        deletion: impl Into<AppliedDeletion>,
+        id: EditorId,
+    ) -> Self {
+        Self { kind: AppliedEditKind::Deletion(deletion.into()), id }
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub fn kind(&self) -> &AppliedEditKind {
+        &self.kind
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub fn insertion(
+        insertion: impl Into<AppliedInsertion>,
+        id: EditorId,
+    ) -> Self {
+        Self { kind: AppliedEditKind::Insertion(insertion.into()), id }
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub fn into_kind(self) -> AppliedEditKind {
+        self.kind
+    }
+}
+
+/// A single edit to a [`Buffer`].
+#[derive(Debug, Clone)]
+pub enum AppliedEditKind {
+    /// TODO: docs
+    Insertion(AppliedInsertion),
+
+    /// TODO: docs
+    Deletion(AppliedDeletion),
 }
 
 /// TODO: docs
