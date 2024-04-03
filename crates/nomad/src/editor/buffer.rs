@@ -227,12 +227,16 @@ fn nvim_delete(buf: &mut NvimBuffer, range: Range<Point>) {
 /// TODO: docs
 #[inline]
 fn nvim_insert(buf: &mut NvimBuffer, insert_at: Point, text: &str) {
+    // If the text has a trailing newline, the iterator we feed to `set_text`
+    // has to yield a final empty line for it to work like we want it to.
+    let lines = text.lines().chain(text.ends_with('\n').then_some(""));
+
     // This can fail if the buffer has been unloaded.
     let _ = buf.set_text(
         insert_at.row..insert_at.row,
         insert_at.col,
         insert_at.col,
-        text.lines(),
+        lines,
     );
 }
 
