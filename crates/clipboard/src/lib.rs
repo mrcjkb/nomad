@@ -47,6 +47,16 @@ impl Display for ClipboardError {
     }
 }
 
+impl PartialEq for ClipboardError {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.inner.to_string() == other.inner.to_string()
+    }
+}
+
+impl Eq for ClipboardError {}
+
 impl StdError for ClipboardError {}
 
 #[derive(Debug, Eq, PartialEq)]
