@@ -1,3 +1,4 @@
+use core::cell::RefCell;
 use core::convert::Infallible;
 use std::collections::hash_map::Values;
 use std::collections::HashMap;
@@ -170,26 +171,13 @@ impl ModuleCommand {
         A::Args: TryFrom<CommandArgs>,
         <A::Args as TryFrom<CommandArgs>>::Error: Into<WarningMsg>,
     {
-        let action = Rc::new(action);
+        let action = Rc::new(RefCell::new(action));
 
         let action = move |args| {
             let action = Rc::clone(&action);
 
             let future = async move {
-                let res = match A::Args::try_from(args) {
-                    Ok(args) => {
-                        let res = match action.execute(args).into_enum() {
-                            MaybeFutureEnum::Ready(res) => res,
-                            MaybeFutureEnum::Future(future) => future.await,
-                        };
-
-                        res.into_result().map_err(Into::into)
-                    },
-
-                    Err(err) => Err(err.into()),
-                };
-
-                if let Err(err) = res {
+                if let Err(err) = exec_action(action, args).await {
                     Warning::new()
                         .module(M::NAME)
                         .action(A::NAME)
@@ -203,6 +191,35 @@ impl ModuleCommand {
 
         Self { action: Box::new(action), action_name: A::NAME }
     }
+}
+
+/// TODO: docs
+#[allow(clippy::await_holding_refcell_ref)]
+#[inline]
+async fn exec_action<M, A>(
+    action: Rc<RefCell<A>>,
+    args: CommandArgs,
+) -> Result<(), WarningMsg>
+where
+    M: Module,
+    A: Action<M, Return = ()>,
+    A::Args: TryFrom<CommandArgs>,
+    <A::Args as TryFrom<CommandArgs>>::Error: Into<WarningMsg>,
+{
+    let args = A::Args::try_from(args).map_err(Into::into)?;
+
+    let Ok(action) = action.try_borrow_mut() else {
+        // Should we maybe return an error to notify the user that the
+        // action couldn't be executed?
+        return Ok(());
+    };
+
+    let res = match action.execute(args).into_enum() {
+        MaybeFutureEnum::Ready(res) => res,
+        MaybeFutureEnum::Future(future) => future.await,
+    };
+
+    res.into_result().map_err(Into::into)
 }
 
 /// TODO: docs
