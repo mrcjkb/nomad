@@ -12,10 +12,9 @@ pub trait MaybeFuture: Sized {
     type Output;
 
     /// TODO: docs
-    type Future: Future<Output = Self::Output>;
-
-    /// TODO: docs
-    fn into_enum(self) -> MaybeFutureEnum<Self::Future, Self::Output>;
+    fn into_enum(
+        self,
+    ) -> MaybeFutureEnum<impl Future<Output = Self::Output>, Self::Output>;
 
     /// TODO: docs
     #[inline]
@@ -47,8 +46,6 @@ impl<F, T> MaybeFuture for MaybeFutureEnum<F, T>
 where
     F: Future<Output = T>,
 {
-    type Future = F;
-
     type Output = T;
 
     #[inline]
@@ -112,10 +109,8 @@ mod impls {
             impl MaybeFuture for $ty {
                 type Output = Self;
 
-                type Future = ::core::future::Ready<Self>;
-
                 #[inline]
-                fn into_enum(self) -> MaybeFutureEnum<Self::Future, Self> {
+                fn into_enum(self) -> MaybeFutureEnum<::core::future::Ready<Self>, Self> {
                     MaybeFutureEnum::Ready(self)
                 }
             }
@@ -125,10 +120,8 @@ mod impls {
             impl<$($gen),*> MaybeFuture for $ty {
                 type Output = Self;
 
-                type Future = ::core::future::Ready<Self>;
-
                 #[inline]
-                fn into_enum(self) -> MaybeFutureEnum<Self::Future, Self> {
+                fn into_enum(self) -> MaybeFutureEnum<::core::future::Ready<Self>, Self> {
                     MaybeFutureEnum::Ready(self)
                 }
             }
