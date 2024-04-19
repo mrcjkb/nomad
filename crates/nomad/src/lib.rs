@@ -6,8 +6,10 @@ extern crate alloc;
 
 pub mod action;
 pub mod api;
+mod byte_offset;
 mod command;
 mod config;
+mod edit;
 pub mod editor;
 pub mod log;
 pub mod maybe_future;
@@ -17,11 +19,10 @@ mod nomad;
 mod nvim_buffer;
 pub mod runtime;
 mod serde;
-mod byte_offset;
 pub mod shared;
 pub mod streams;
+pub mod test;
 pub mod warning;
-mod edit;
 
 pub use nomad::Nomad;
 
@@ -48,5 +49,6 @@ pub mod prelude {
 
 pub use byte_offset::ByteOffset;
 pub use edit::Edit;
-pub use shared::Shared;
 pub use nvim_buffer::{NvimBuffer, NvimBufferDoesntExistError};
+pub use shared::Shared;
+
