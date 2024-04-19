@@ -17,6 +17,7 @@ pub mod maybe_result;
 pub mod module;
 mod nomad;
 mod nvim_buffer;
+mod replacement;
 pub mod runtime;
 mod serde;
 pub mod shared;
@@ -48,6 +49,7 @@ pub mod prelude {
 }
 
 pub use byte_offset::ByteOffset;
-pub use edit::Replacement;
+pub use edit::Edit;
 pub use nvim_buffer::{NvimBuffer, NvimBufferDoesntExistError};
+pub use replacement::Replacement;
 pub use shared::Shared;

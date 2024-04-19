@@ -141,7 +141,7 @@ where
         let range: Range<ByteOffset> = gen.generate(range_ctx);
         let replacement: String = gen.generate(text_len);
 
-        Replacement::new(range.start, range.end, replacement)
+        Replacement::new(range, replacement)
     }
 }
 
