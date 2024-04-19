@@ -3,11 +3,16 @@
 use core::ops::Range;
 
 use rand::distributions::{DistString, Standard};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaChaRng;
 use rand_distr::{Distribution, Normal};
 
 use crate::{ByteOffset, Replacement};
+
+/// Creates a random seed.
+pub fn random_seed() -> u64 {
+    rand::thread_rng().gen()
+}
 
 /// A generator of random values.
 pub struct Generator {
@@ -18,6 +23,11 @@ impl Generator {
     /// Generates a new value.
     pub fn generate<Ctx, T: Generate<Ctx>>(&mut self, ctx: Ctx) -> T {
         T::generate(self, ctx)
+    }
+
+    #[doc(hidden)]
+    pub fn new(seed: u64) -> Self {
+        Self { rng: ChaChaRng::seed_from_u64(seed) }
     }
 
     /// Returns a RNG.

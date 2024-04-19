@@ -1100,10 +1100,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "mini-internal"
+version = "0.1.39"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f28c501b91dabb672c4b303fb6ea259022ab21ed8d06a457ac21b70e479fb367"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.58",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "miniserde"
+version = "0.1.39"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd044c3b41ba1d92e3dbeef687ecfe5d1dcbd8b4fa1d33610f5ce5546ad6aac1"
+dependencies = [
+ "itoa",
+ "mini-internal",
+ "ryu",
+]
 
 [[package]]
 name = "miniz_oxide"
@@ -1214,8 +1236,9 @@ dependencies = [
 [[package]]
 name = "nvim-oxi"
 version = "0.4.2"
-source = "git+https://github.com/noib3/nvim-oxi#2cc277a387aa8d786363512bb368091ef4ff1766"
+source = "git+https://github.com/noib3/nvim-oxi#307b225e4698c405433c574923827ea96d13c5b4"
 dependencies = [
+ "miniserde",
  "nvim-oxi-api",
  "nvim-oxi-libuv",
  "nvim-oxi-luajit",
@@ -1227,7 +1250,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-api"
 version = "0.4.2"
-source = "git+https://github.com/noib3/nvim-oxi#2cc277a387aa8d786363512bb368091ef4ff1766"
+source = "git+https://github.com/noib3/nvim-oxi#307b225e4698c405433c574923827ea96d13c5b4"
 dependencies = [
  "nvim-oxi-luajit",
  "nvim-oxi-macros",
@@ -1240,7 +1263,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-libuv"
 version = "0.4.2"
-source = "git+https://github.com/noib3/nvim-oxi#2cc277a387aa8d786363512bb368091ef4ff1766"
+source = "git+https://github.com/noib3/nvim-oxi#307b225e4698c405433c574923827ea96d13c5b4"
 dependencies = [
  "nvim-oxi-luajit",
  "once_cell",
@@ -1250,7 +1273,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-luajit"
 version = "0.4.2"
-source = "git+https://github.com/noib3/nvim-oxi#2cc277a387aa8d786363512bb368091ef4ff1766"
+source = "git+https://github.com/noib3/nvim-oxi#307b225e4698c405433c574923827ea96d13c5b4"
 dependencies = [
  "once_cell",
  "thiserror",
@@ -1259,7 +1282,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-macros"
 version = "0.4.2"
-source = "git+https://github.com/noib3/nvim-oxi#2cc277a387aa8d786363512bb368091ef4ff1766"
+source = "git+https://github.com/noib3/nvim-oxi#307b225e4698c405433c574923827ea96d13c5b4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1269,10 +1292,11 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-types"
 version = "0.4.2"
-source = "git+https://github.com/noib3/nvim-oxi#2cc277a387aa8d786363512bb368091ef4ff1766"
+source = "git+https://github.com/noib3/nvim-oxi#307b225e4698c405433c574923827ea96d13c5b4"
 dependencies = [
  "libc",
  "nvim-oxi-luajit",
+ "once_cell",
  "serde",
  "thiserror",
 ]
@@ -1634,6 +1658,12 @@ dependencies = [
  "rustls-pki-types",
  "untrusted",
 ]
+
+[[package]]
+name = "ryu"
+version = "1.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e86697c916019a8588c99b5fac3cead74ec0b4b819707a682fd4d23fa0ce1ba1"
 
 [[package]]
 name = "scoped-tls"

@@ -4,6 +4,9 @@
 
 extern crate alloc;
 
+#[doc(hidden)]
+pub use nvim;
+
 pub mod action;
 pub mod api;
 mod byte_offset;
