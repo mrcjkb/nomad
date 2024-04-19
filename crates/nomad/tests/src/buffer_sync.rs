@@ -42,7 +42,7 @@ fn buffer_sync(num_edits: usize, gen: &mut Generator) {
 
     for _ in 0..num_edits {
         let replacement = rope.with(|r| {
-            let ctx = ReplacementCtx::new(r.as_ref(), MeanLen(3), MeanLen(5));
+            let ctx = ReplacementCtx::new(r, MeanLen(3), MeanLen(5));
             let rep: Replacement<ByteOffset> = gen.generate(ctx);
             let point_range = rep.range().into_ctx(r);
             Replacement::<Point<_>>::new(point_range, rep.replacement())

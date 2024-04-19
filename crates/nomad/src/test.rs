@@ -69,43 +69,49 @@ impl Generate<MeanLen> for String {
     }
 }
 
-impl Generate<&str> for ByteOffset {
-    fn generate(gen: &mut Generator, s: &str) -> Self {
+impl<Buf: Buffer> Generate<&Buf> for ByteOffset {
+    fn generate(gen: &mut Generator, s: &Buf) -> Self {
         let offset: usize = gen.rng().gen_range(0..=s.len());
-        let offset = ceil_char_boundary(s, offset);
+        let offset = s.ceil_char_boundary(offset);
         Self::new(offset)
     }
 }
 
 /// A context for generating byte ranges.
-pub struct ByteRangeCtx<'a, Len> {
-    /// The string the byte range is relative to.
-    pub string: &'a str,
+pub struct ByteRangeCtx<Buffer, Len> {
+    /// The buffer the byte range is relative to.
+    pub string: Buffer,
 
     /// The length of the range.
     pub len: Len,
 }
 
-impl Generate<ByteRangeCtx<'_, ExactLen>> for Range<ByteOffset> {
-    fn generate(gen: &mut Generator, ctx: ByteRangeCtx<ExactLen>) -> Self {
-        let start: ByteOffset = gen.generate(ctx.string);
+impl<Buf> Generate<ByteRangeCtx<Buf, ExactLen>> for Range<ByteOffset>
+where
+    Buf: Buffer,
+{
+    fn generate(
+        gen: &mut Generator,
+        ctx: ByteRangeCtx<Buf, ExactLen>,
+    ) -> Self {
+        let start: ByteOffset = gen.generate(&ctx.string);
         let end = (usize::from(start) + ctx.len.0).min(ctx.string.len());
-        let end = ByteOffset::new(ceil_char_boundary(ctx.string, end));
+        let end = ByteOffset::new(ctx.string.ceil_char_boundary(end));
         start..end
     }
 }
 
-impl Generate<ByteRangeCtx<'_, MeanLen>> for Range<ByteOffset> {
-    fn generate(gen: &mut Generator, ctx: ByteRangeCtx<MeanLen>) -> Self {
+impl<Buf: Buffer> Generate<ByteRangeCtx<Buf, MeanLen>> for Range<ByteOffset> {
+    fn generate(gen: &mut Generator, ctx: ByteRangeCtx<Buf, MeanLen>) -> Self {
         let exact_len: ExactLen = gen.generate(ctx.len);
         gen.generate(ByteRangeCtx { len: exact_len, string: ctx.string })
     }
 }
 
 /// A context for generating edits.
-pub struct ReplacementCtx<'a, RangeLen, TextLen> {
-    /// The string the edit acts on.
-    pub string: &'a str,
+pub struct ReplacementCtx<Buffer, RangeLen, TextLen> {
+    /// The buffer the edit acts on.
+    pub string: Buffer,
 
     /// The length of the deleted range.
     pub range_len: RangeLen,
@@ -114,10 +120,10 @@ pub struct ReplacementCtx<'a, RangeLen, TextLen> {
     pub text_len: TextLen,
 }
 
-impl<'a, RangeLen, TextLen> ReplacementCtx<'a, RangeLen, TextLen> {
+impl<Buffer, RangeLen, TextLen> ReplacementCtx<Buffer, RangeLen, TextLen> {
     /// Creates a new [`EditCtx`].
     pub fn new(
-        string: &'a str,
+        string: Buffer,
         range_len: RangeLen,
         text_len: TextLen,
     ) -> Self {
@@ -125,15 +131,16 @@ impl<'a, RangeLen, TextLen> ReplacementCtx<'a, RangeLen, TextLen> {
     }
 }
 
-impl<'a, RangeLen, TextLen> Generate<ReplacementCtx<'a, RangeLen, TextLen>>
+impl<Buf, RangeLen, TextLen> Generate<ReplacementCtx<Buf, RangeLen, TextLen>>
     for Replacement<ByteOffset>
 where
-    Range<ByteOffset>: Generate<ByteRangeCtx<'a, RangeLen>>,
+    Buf: Buffer,
+    Range<ByteOffset>: Generate<ByteRangeCtx<Buf, RangeLen>>,
     String: Generate<TextLen>,
 {
     fn generate(
         gen: &mut Generator,
-        ctx: ReplacementCtx<'a, RangeLen, TextLen>,
+        ctx: ReplacementCtx<Buf, RangeLen, TextLen>,
     ) -> Self {
         let ReplacementCtx { string, range_len, text_len } = ctx;
 
@@ -148,12 +155,48 @@ where
 /// Result value for tests.
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-#[inline]
-fn ceil_char_boundary(s: &str, mut offset: usize) -> usize {
-    loop {
-        if s.is_char_boundary(offset) {
-            return offset;
+/// .
+pub trait Buffer {
+    /// Whether the offset is a character boundary.
+    fn is_char_boundary(&self, offset: usize) -> bool;
+
+    /// The length of the buffer in bytes.
+    fn len(&self) -> usize;
+
+    /// Rounds the offset up to the nearest character boundary.
+    #[inline]
+    fn ceil_char_boundary(&self, mut offset: usize) -> usize {
+        loop {
+            if self.is_char_boundary(offset) {
+                return offset;
+            }
+            offset += 1;
         }
-        offset += 1;
+    }
+
+    /// Whether the buffer is empty.
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl Buffer for &str {
+    fn is_char_boundary(&self, offset: usize) -> bool {
+        str::is_char_boundary(self, offset)
+    }
+
+    fn len(&self) -> usize {
+        str::len(self)
+    }
+}
+
+impl Buffer for &crop::Rope {
+    fn is_char_boundary(&self, offset: usize) -> bool {
+        crop::Rope::is_char_boundary(self, offset)
+    }
+
+    fn len(&self) -> usize {
+        self.byte_len()
     }
 }
