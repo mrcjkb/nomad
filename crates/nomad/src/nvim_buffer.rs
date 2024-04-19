@@ -2,7 +2,7 @@ use core::ops::{Bound, Range, RangeBounds};
 
 use nvim::api::{self, opts};
 
-use crate::{ByteOffset, IntoCtx, Point, Replacement, Shared};
+use crate::{ByteOffset, Edit, FromCtx, IntoCtx, Point, Replacement, Shared};
 
 type OnEdit = Box<dyn FnMut(&Replacement<ByteOffset>) + 'static>;
 
@@ -30,6 +30,15 @@ impl NvimBuffer {
         let Ok(buf) = api::create_buf(true, false) else { unreachable!() };
         let Ok(buf) = Self::new(buf) else { unreachable!() };
         buf
+    }
+
+    /// Edits the buffer.
+    #[inline]
+    pub fn edit<E>(&mut self, edit: E) -> E::Diff
+    where
+        E: Edit<Self>,
+    {
+        edit.apply(self)
     }
 
     /// TODO: docs.
@@ -121,9 +130,69 @@ impl NvimBuffer {
 
         Ok(Self { inner: buffer, on_edit_callbacks })
     }
+
+    #[inline]
+    fn point_of_offset(
+        &self,
+        offset: ByteOffset,
+    ) -> Result<Point<ByteOffset>, api::Error> {
+        todo!();
+    }
+
+    /// TODO: docs
+    #[inline]
+    fn replace_point_range(
+        &mut self,
+        range: Range<Point<ByteOffset>>,
+        replacement: impl Iterator<Item = nvim::String>,
+    ) -> Result<(), api::Error> {
+        self.inner.set_text(
+            range.start.line()..range.end.line(),
+            range.start.offset().into(),
+            range.end.offset().into(),
+            replacement,
+        )
+    }
 }
 
-impl From<nvim::api::opts::OnBytesArgs> for Replacement<ByteOffset> {
+impl<Offset> Edit<NvimBuffer> for &Replacement<Offset>
+where
+    Offset: IntoCtx<Point<ByteOffset>, NvimBuffer> + Copy,
+{
+    type Diff = ();
+
+    #[inline]
+    fn apply(self, buf: &mut NvimBuffer) -> Self::Diff {
+        let start = self.start().into_ctx(buf);
+        let end = self.end().into_ctx(buf);
+        let replacement = core::iter::once(self.replacement().into());
+        let _ = buf.replace_point_range(start..end, replacement);
+    }
+}
+
+impl<Offset> Edit<NvimBuffer> for Replacement<Offset>
+where
+    Offset: IntoCtx<Point<ByteOffset>, NvimBuffer> + Copy,
+{
+    type Diff = ();
+
+    #[inline]
+    fn apply(self, buf: &mut NvimBuffer) -> Self::Diff {
+        (&self).apply(buf)
+    }
+}
+
+impl FromCtx<ByteOffset, NvimBuffer> for Point<ByteOffset> {
+    #[inline]
+    fn from_ctx(offset: ByteOffset, buf: &NvimBuffer) -> Self {
+        match buf.point_of_offset(offset) {
+            Ok(point) => point,
+            Err(err) => panic!("couldn't convert offset to point: {err}"),
+        }
+    }
+}
+
+impl From<opts::OnBytesArgs> for Replacement<ByteOffset> {
     #[inline]
     fn from(
         (
@@ -139,7 +208,7 @@ impl From<nvim::api::opts::OnBytesArgs> for Replacement<ByteOffset> {
             new_end_row,
             new_end_col,
             _new_end_len,
-        ): nvim::api::opts::OnBytesArgs,
+        ): opts::OnBytesArgs,
     ) -> Self {
         todo!();
         // let replacement_start = Point { row: start_row, col: start_col };

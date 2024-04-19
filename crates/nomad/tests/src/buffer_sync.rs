@@ -1,5 +1,7 @@
+use core::ops::Range;
+
 use nomad::test::{Generate, Generator, MeanLen, ReplacementCtx};
-use nomad::{NvimBuffer, Replacement, Shared};
+use nomad::{ByteOffset, NvimBuffer, Replacement, Shared};
 
 #[nomad::test]
 fn nomad_buffer_sync_fuzz_0(gen: &mut Generator) {
@@ -29,16 +31,16 @@ fn buffer_sync(num_edits: usize, gen: &mut Generator) {
     let string = Shared::new(String::new());
 
     {
-        let mut string = string.clone();
+        let string = string.clone();
 
         buffer.on_edit(move |edit| {
-            let range = edit.start().into()..edit.end().into();
+            let range: Range<usize> = edit.start().into()..edit.end().into();
             string.with_mut(|s| s.replace_range(range, edit.replacement()));
         });
     }
 
     for _ in 0..num_edits {
-        let replacement = string.with(|s| {
+        let replacement: Replacement<ByteOffset> = string.with(|s| {
             let ctx = ReplacementCtx::new(s.as_ref(), MeanLen(3), MeanLen(5));
             gen.generate(ctx)
         });
@@ -47,6 +49,6 @@ fn buffer_sync(num_edits: usize, gen: &mut Generator) {
     }
 
     string.with(|s| {
-        assert_eq!(&buffer.get(..).unwrap(), s);
+        assert_eq!(&buffer.get::<_, ByteOffset>(..).unwrap(), s);
     });
 }

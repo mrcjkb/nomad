@@ -4,9 +4,9 @@ pub trait FromCtx<T, Ctx: ?Sized> {
     fn from_ctx(value: T, ctx: &Ctx) -> Self;
 }
 
-impl<T> FromCtx<T, ()> for T {
+impl<T, Ctx> FromCtx<T, Ctx> for T {
     #[inline]
-    fn from_ctx(value: T, _: &()) -> Self {
+    fn from_ctx(value: T, _: &Ctx) -> Self {
         value
     }
 }
