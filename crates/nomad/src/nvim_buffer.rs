@@ -44,7 +44,7 @@ impl NvimBuffer {
             // it must be because the buffer doesn't exist.
             .map_err(|_| NvimBufferDoesntExistError)?;
 
-        Ok(Self { inner: buf, on_edit_callbacks })
+        Ok(Self::new(buf, on_edit_callbacks))
     }
 
     /// Creates a new buffer.
@@ -153,7 +153,10 @@ impl Edit<NvimBuffer> for &Replacement<Point<ByteOffset>> {
     #[inline]
     fn apply(self, buf: &mut NvimBuffer) -> Self::Diff {
         let replacement = core::iter::once(self.replacement().into());
-        let _ = buf.replace(self.range(), replacement);
+
+        if let Err(err) = buf.replace(self.range(), replacement) {
+            panic!("couldn't apply replacement: {err}");
+        }
     }
 }
 
