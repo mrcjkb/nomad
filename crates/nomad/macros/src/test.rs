@@ -60,10 +60,10 @@ fn test_body(
     let err_msg = Ident::new("err_msg", Span::call_site());
 
     let eprintln = if let Seed::None = seed {
-        quote! { eprintln!("{:?}", #err_msg) }
+        quote! { eprintln!("{}", #err_msg) }
     } else {
         let seed_name = seed.name();
-        quote! { eprintln!("failed on seed {}: {:?}", #seed_name, #err_msg) }
+        quote! { eprintln!("failed on seed {}: {}", #seed_name, #err_msg) }
     };
 
     let into_result = into_result();
@@ -79,6 +79,26 @@ fn test_body(
     let out = quote! {
         #into_result
 
+        let panic_msg = ::std::sync::Arc::new(::std::sync::OnceLock::new());
+
+        {
+            let panic_msg = panic_msg.clone();
+
+            ::std::panic::set_hook(
+                ::std::boxed::Box::new(move |info| {
+                    let msg = info
+                        .payload()
+                        .downcast_ref::<&str>()
+                        .map(ToString::to_string)
+                        .or_else(|| {
+                            info.payload().downcast_ref::<String>().map(Clone::clone)
+                        })
+                        .unwrap_or_default();
+                    let _ = panic_msg.set(msg);
+                }),
+            );
+        }
+
         fn #test_fn(#inputs) #output {
             #test_body
         }
@@ -89,10 +109,10 @@ fn test_body(
             #unwind_body
         });
 
-        let #err_msg: &dyn ::core::fmt::Debug = match &result {
+        let #err_msg: &dyn ::core::fmt::Display = match &result {
             Ok(Ok(())) => ::std::process::exit(0),
             Ok(Err(err)) => err,
-            Err(panic) => panic,
+            Err(_panic) => panic_msg.get_or_init(String::new),
         };
 
         #eprintln;
@@ -266,7 +286,7 @@ impl SpecifiedSeed {
 fn into_result() -> proc_macro2::TokenStream {
     quote! {
         trait __IntoResult {
-            type Error: ::core::fmt::Debug;
+            type Error: ::core::fmt::Display;
             fn into_result(self) -> ::core::result::Result<(), Self::Error>;
         }
         impl __IntoResult for () {
@@ -275,7 +295,7 @@ fn into_result() -> proc_macro2::TokenStream {
                 Ok(())
             }
         }
-        impl<E: ::core::fmt::Debug> __IntoResult for ::core::result::Result<(), E> {
+        impl<E: ::core::fmt::Display> __IntoResult for ::core::result::Result<(), E> {
             type Error = E;
             fn into_result(self) -> ::core::result::Result<(), E> {
                 self
