@@ -30,18 +30,13 @@ pub fn test(_attrs: TokenStream, item: TokenStream) -> TokenStream {
 fn test_inner(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let ItemFn { sig, block, .. } = item;
 
+    let test_name = &sig.ident;
+    let output = &sig.output;
     let test_body = test_body(&sig, &block)?;
 
-    let test_name = sig.ident;
-
-    let test_fn_name =
-        Ident::new(&format!("__test_fn_{}", test_name), test_name.span());
-
     let out = quote! {
-        #[::nomad::nvim::test(nvim_oxi = ::nomad::nvim, test_fn = #test_fn_name)]
-        fn #test_name() {}
-
-        fn #test_fn_name() {
+        #[::nomad::nvim::test(nvim_oxi = ::nomad::nvim)]
+        fn #test_name() #output {
             #test_body
         }
     };
@@ -57,72 +52,15 @@ fn test_body(
 
     let define_seed = seed.definition();
 
-    let err_msg = Ident::new("err_msg", Span::call_site());
-
-    let eprintln = if let Seed::None = seed {
-        quote! { eprintln!("{}", #err_msg) }
+    let print_seed = if let Seed::None = seed {
+        quote! {}
     } else {
         let seed_name = seed.name();
-        quote! { eprintln!("failed on seed {}: {}", #seed_name, #err_msg) }
+        quote! { println!("seed: {}", #seed_name); }
     };
-
-    let into_result = into_result();
 
     let test_fn = Ident::new("__test_fn", Span::call_site());
 
-    let unwind_body = unwind_body(&seed, &test_fn);
-
-    let inputs = &test_sig.inputs;
-
-    let output = &test_sig.output;
-
-    let out = quote! {
-        #into_result
-
-        let panic_msg = ::std::sync::Arc::new(::std::sync::OnceLock::new());
-
-        {
-            let panic_msg = panic_msg.clone();
-
-            ::std::panic::set_hook(
-                ::std::boxed::Box::new(move |info| {
-                    let msg = info
-                        .payload()
-                        .downcast_ref::<&str>()
-                        .map(ToString::to_string)
-                        .or_else(|| {
-                            info.payload().downcast_ref::<String>().map(Clone::clone)
-                        })
-                        .unwrap_or_default();
-                    let _ = panic_msg.set(msg);
-                }),
-            );
-        }
-
-        fn #test_fn(#inputs) #output {
-            #test_body
-        }
-
-        #define_seed
-
-        let result = ::std::panic::catch_unwind(|| {
-            #unwind_body
-        });
-
-        let #err_msg: &dyn ::core::fmt::Display = match &result {
-            Ok(Ok(())) => ::std::process::exit(0),
-            Ok(Err(err)) => err,
-            Err(_panic) => panic_msg.get_or_init(String::new),
-        };
-
-        #eprintln;
-        ::std::process::exit(1);
-    };
-
-    Ok(out)
-}
-
-fn unwind_body(seed: &Seed, test_fn: &Ident) -> proc_macro2::TokenStream {
     let generator = if let Seed::None = seed {
         None
     } else {
@@ -136,16 +74,28 @@ fn unwind_body(seed: &Seed, test_fn: &Ident) -> proc_macro2::TokenStream {
         args.push(parse_quote! { &mut #generator });
     }
 
-    let generator_definition = if let Some(generator) = generator {
+    let define_generator = if let Some(generator) = generator {
         generator.definition()
     } else {
         quote! {}
     };
 
-    quote! {
-        #generator_definition
-        __IntoResult::into_result(#test_fn(#args))
-    }
+    let inputs = &test_sig.inputs;
+    let output = &test_sig.output;
+
+    let body = quote! {
+        #define_seed
+        #print_seed
+
+        fn #test_fn(#inputs) #output {
+            #test_body
+        }
+
+        #define_generator
+        #test_fn(#args)
+    };
+
+    Ok(body)
 }
 
 struct Generator {
@@ -277,29 +227,6 @@ impl SpecifiedSeed {
                     };
                 }
             },
-        }
-    }
-}
-
-/// Defines the `__IntoResult` trait and implements it for `()` and `Result<(),
-/// E>` where `E` is `Debug`.
-fn into_result() -> proc_macro2::TokenStream {
-    quote! {
-        trait __IntoResult {
-            type Error: ::core::fmt::Display;
-            fn into_result(self) -> ::core::result::Result<(), Self::Error>;
-        }
-        impl __IntoResult for () {
-            type Error = ::core::convert::Infallible;
-            fn into_result(self) -> ::core::result::Result<(), Self::Error> {
-                Ok(())
-            }
-        }
-        impl<E: ::core::fmt::Display> __IntoResult for ::core::result::Result<(), E> {
-            type Error = E;
-            fn into_result(self) -> ::core::result::Result<(), E> {
-                self
-            }
         }
     }
 }
