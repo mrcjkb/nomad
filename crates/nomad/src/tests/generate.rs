@@ -1,40 +1,11 @@
-//! Utilities for testing.
-
 use core::ops::Range;
 
 use rand::distributions::{DistString, Standard};
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaChaRng;
+use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
+use super::Generator;
 use crate::{ByteOffset, Replacement};
-
-/// Creates a random seed.
-pub fn random_seed() -> u64 {
-    rand::thread_rng().gen()
-}
-
-/// A generator of random values.
-pub struct Generator {
-    rng: ChaChaRng,
-}
-
-impl Generator {
-    /// Generates a new value.
-    pub fn generate<Ctx, T: Generate<Ctx>>(&mut self, ctx: Ctx) -> T {
-        T::generate(self, ctx)
-    }
-
-    #[doc(hidden)]
-    pub fn new(seed: u64) -> Self {
-        Self { rng: ChaChaRng::seed_from_u64(seed) }
-    }
-
-    /// Returns a RNG.
-    pub fn rng(&mut self) -> &mut impl Rng {
-        &mut self.rng
-    }
-}
 
 /// A trait for values that can be generated randomly.
 pub trait Generate<Ctx> {
@@ -161,9 +132,6 @@ where
         Replacement::new(range, replacement)
     }
 }
-
-/// Result value for tests.
-pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// .
 pub trait Buffer {
