@@ -1,10 +1,10 @@
 use core::ops::Range;
 
-use rand::distributions::{DistString, Standard};
+use rand::distributions::DistString;
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
-use super::Generator;
+use super::{Generator, Text};
 use crate::{ByteOffset, Replacement};
 
 /// A trait for values that can be generated randomly.
@@ -39,7 +39,7 @@ impl Generate<MeanLen> for ExactLen {
 
 impl Generate<ExactLen> for String {
     fn generate(gen: &mut Generator, len: ExactLen) -> Self {
-        Standard.sample_string(gen.rng(), len.0)
+        Text.sample_string(gen.rng(), len.0)
     }
 }
 

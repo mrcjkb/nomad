@@ -1,6 +1,6 @@
 use core::num::NonZeroUsize;
 
-use rand::distributions::{Distribution, WeightedIndex};
+use rand::distributions::{DistString, Distribution, WeightedIndex};
 use rand::Rng;
 
 use super::{Emoji, Letter};
@@ -39,6 +39,20 @@ impl Distribution<char> for Text {
             2 => Emoji.sample(rng),
             3 => Letter.sample(rng),
             _ => unreachable!(),
+        }
+    }
+}
+
+impl DistString for Text {
+    #[inline]
+    fn append_string<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+        string: &mut String,
+        len: usize,
+    ) {
+        for _ in 0..len {
+            string.push(self.sample(rng));
         }
     }
 }
