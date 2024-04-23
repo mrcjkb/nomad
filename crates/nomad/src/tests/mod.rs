@@ -12,8 +12,11 @@ pub use generator::Generator;
 pub use letter::Letter;
 pub use text::Text;
 
+/// Error value for tests.
+pub type TestError = Box<dyn std::error::Error>;
+
 /// Result value for tests.
-pub type TestResult = Result<(), Box<dyn std::error::Error>>;
+pub type TestResult = Result<(), TestError>;
 
 /// Creates a random seed.
 pub fn random_seed() -> u64 {
