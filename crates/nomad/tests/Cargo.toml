@@ -10,6 +10,9 @@ crate-type = ["cdylib"]
 neovim-0-9 = ["nomad/neovim-0-9"]
 neovim-nightly = ["nomad/neovim-nightly"]
 
+[build-dependencies]
+nomad = { workspace = true, features = ["tests"] }
+
 [dependencies]
 crop = "0.4"
-nomad = { path = "..", features = ["tests"] }
+nomad = { workspace = true, features = ["tests"] }
