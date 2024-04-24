@@ -8,7 +8,7 @@ use cola::{Anchor, Replica, ReplicaId};
 use crop::Rope;
 use nvim::api;
 
-use super::{BufferState, LocalDeletion, LocalInsertion};
+use super::BufferState;
 use crate::runtime::spawn;
 use crate::streams::{AppliedDeletion, AppliedEdit, AppliedInsertion, Edits};
 use crate::{
@@ -40,36 +40,6 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    /// TODO: docs
-    #[inline]
-    pub fn apply_local_deletion(
-        &mut self,
-        delete_range: Range<Anchor>,
-        id: EditorId,
-    ) {
-        let deletion = LocalDeletion::new(delete_range);
-        let maybe_deletion = self.state.edit(&deletion);
-        if let Some((deletion, range)) = maybe_deletion {
-            self.applied_queue.push_back(AppliedEdit::deletion(deletion, id));
-            self.nvim.delete(range).expect("");
-        }
-    }
-
-    /// TODO: docs
-    #[inline]
-    pub fn apply_local_insertion(
-        &mut self,
-        insert_at: Anchor,
-        text: String,
-        id: EditorId,
-    ) {
-        let also_text = text.clone();
-        let insertion = LocalInsertion::new(insert_at, text);
-        let (insertion, point) = self.state.edit(insertion);
-        self.applied_queue.push_back(AppliedEdit::insertion(insertion, id));
-        self.nvim.insert(point, &also_text).expect("");
-    }
-
     /// TODO: docs
     #[inline]
     fn attach(&self) {

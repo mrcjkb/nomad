@@ -6,7 +6,7 @@ use cola::{Anchor, Deletion, Insertion, Replica};
 use crop::Rope;
 
 use crate::streams::{AppliedDeletion, AppliedInsertion};
-use crate::{BufferSnapshot, ByteOffset, Edit, Point, Replacement};
+use crate::{BufferSnapshot, ByteOffset, Edit, Replacement};
 
 /// TODO: docs
 #[derive(Clone)]
@@ -98,19 +98,6 @@ impl BufferInner {
         Self { replica, text }
     }
 
-    /// Transforms the 1-dimensional byte offset into a 2-dimensional
-    /// [`Point`].
-    #[inline]
-    pub fn point_of_offset(
-        &self,
-        byte_offset: ByteOffset,
-    ) -> Point<ByteOffset> {
-        let row = self.text.line_of_byte(byte_offset.into());
-        let row_offset = ByteOffset::new(self.text.byte_of_line(row));
-        let col = byte_offset - row_offset;
-        Point::new(row, col)
-    }
-
     /// Returns an exclusive reference to the buffer's [`Replica`].
     #[inline]
     pub(crate) fn replica_mut(&mut self) -> &mut Replica {
@@ -163,80 +150,4 @@ impl Edit<BufferInner> for &Replacement<ByteOffset> {
 
         (applied_del, applied_ins)
     }
-}
-
-/// TODO: docs
-pub struct LocalDeletion {
-    range: Range<Anchor>,
-}
-
-impl LocalDeletion {
-    #[inline]
-    pub fn new(range: Range<Anchor>) -> Self {
-        Self { range }
-    }
-}
-
-impl Edit<BufferInner> for &LocalDeletion {
-    type Diff = Option<(AppliedDeletion, Range<Point<ByteOffset>>)>;
-
-    fn apply(self, buf: &mut BufferInner) -> Self::Diff {
-        let start_anchor = &self.range.start;
-
-        let end_anchor = &self.range.end;
-
-        let Some(start_offset) = buf.resolve_anchor(start_anchor) else {
-            panic_couldnt_resolve_anchor(start_anchor);
-        };
-
-        let Some(end_offset) = buf.resolve_anchor(end_anchor) else {
-            panic_couldnt_resolve_anchor(end_anchor);
-        };
-
-        if start_offset == end_offset {
-            return None;
-        }
-
-        let start_point = buf.point_of_offset(start_offset);
-
-        let end_point = buf.point_of_offset(end_offset);
-
-        let deletion = buf.delete(start_offset..end_offset);
-
-        Some((AppliedDeletion::new(deletion), start_point..end_point))
-    }
-}
-
-/// TODO: docs
-pub struct LocalInsertion {
-    insert_at: Anchor,
-    text: String,
-}
-
-impl LocalInsertion {
-    #[inline]
-    pub fn new(insert_at: Anchor, text: String) -> Self {
-        Self { insert_at, text }
-    }
-}
-
-impl Edit<BufferInner> for LocalInsertion {
-    type Diff = (AppliedInsertion, Point<ByteOffset>);
-
-    fn apply(self, buf: &mut BufferInner) -> Self::Diff {
-        let Some(byte_offset) = buf.resolve_anchor(&self.insert_at) else {
-            panic_couldnt_resolve_anchor(&self.insert_at);
-        };
-
-        let point = buf.point_of_offset(byte_offset);
-
-        let insertion = buf.insert(byte_offset, &self.text);
-
-        (AppliedInsertion::new(insertion, self.text), point)
-    }
-}
-
-#[inline(never)]
-fn panic_couldnt_resolve_anchor(anchor: &Anchor) -> ! {
-    panic!("{anchor:?} couldn't be resolved");
 }
