@@ -31,6 +31,17 @@ impl<Offset: Copy> Replacement<Offset> {
 
     /// TODO: docs.
     #[inline]
+    pub fn map_range<NewOffset>(
+        self,
+        f: impl FnOnce(Range<Offset>) -> Range<NewOffset>,
+    ) -> Replacement<NewOffset> {
+        let Self { start, end, replacement } = self;
+        let range = f(start..end);
+        Replacement { start: range.start, end: range.end, replacement }
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn new(range: Range<Offset>, replacement: impl Into<SmolStr>) -> Self {
         Self {
             start: range.start,
