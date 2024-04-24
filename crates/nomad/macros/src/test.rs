@@ -35,7 +35,10 @@ fn test_inner(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let test_body = test_body(&sig, &block)?;
 
     let out = quote! {
-        #[::nomad::nvim::test(nvim_oxi = ::nomad::nvim)]
+        #[::nomad::nvim::test(
+            nvim_oxi = ::nomad::nvim,
+            library_path = ::nomad::tests::library_path(env!("CARGO_CRATE_NAME"))
+        )]
         fn #test_name() #output {
             #test_body
         }
