@@ -302,6 +302,34 @@ impl From<RemoteDeletion> for AppliedDeletion {
     }
 }
 
+impl Apply<&Replacement<ByteOffset>> for Buffer {
+    type Diff = ();
+
+    #[inline]
+    fn apply(&mut self, repl: &Replacement<ByteOffset>) -> Self::Diff {
+        let point_range =
+            self.state.with(|inner| repl.range().into_ctx(inner.rope()));
+
+        self.nvim.edit(Replacement::new(point_range, repl.text().clone()));
+
+        self.state.with_mut(|inner| {
+            let range = repl.range().start.into()..repl.range().end.into();
+            inner.rope_mut().replace(range.clone(), repl.text());
+            inner.replica_mut().deleted(range.clone());
+            inner.replica_mut().inserted(range.start, repl.text().len());
+        });
+    }
+}
+
+impl Apply<Replacement<ByteOffset>> for Buffer {
+    type Diff = ();
+
+    #[inline]
+    fn apply(&mut self, replacement: Replacement<ByteOffset>) -> Self::Diff {
+        self.apply(&replacement)
+    }
+}
+
 impl Apply<&cola::Deletion> for Buffer {
     type Diff = ();
 
@@ -328,5 +356,14 @@ impl Apply<&cola::Deletion> for Buffer {
         for byte_range in byte_ranges.into_iter().rev() {
             self.state.with_mut(|inner| inner.rope_mut().delete(byte_range));
         }
+    }
+}
+
+impl Apply<cola::Deletion> for Buffer {
+    type Diff = ();
+
+    #[inline]
+    fn apply(&mut self, deletion: cola::Deletion) -> Self::Diff {
+        self.apply(&deletion)
     }
 }

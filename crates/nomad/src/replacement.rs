@@ -56,7 +56,7 @@ impl<Offset: Copy> Replacement<Offset> {
 
     /// The text the range is replaced with.
     #[inline]
-    pub fn replacement(&self) -> &str {
+    pub fn text(&self) -> &str {
         &self.replacement
     }
 
