@@ -302,15 +302,13 @@ impl From<RemoteDeletion> for AppliedDeletion {
     }
 }
 
-impl Apply<&Replacement<ByteOffset>> for Buffer {
+impl Apply<Replacement<ByteOffset>> for Buffer {
     type Diff = ();
 
     #[inline]
-    fn apply(&mut self, repl: &Replacement<ByteOffset>) -> Self::Diff {
+    fn apply(&mut self, repl: Replacement<ByteOffset>) -> Self::Diff {
         let point_range =
             self.state.with(|inner| repl.range().into_ctx(inner.rope()));
-
-        self.nvim.edit(Replacement::new(point_range, repl.text().clone()));
 
         self.state.with_mut(|inner| {
             let range = repl.range().start.into()..repl.range().end.into();
@@ -318,15 +316,65 @@ impl Apply<&Replacement<ByteOffset>> for Buffer {
             inner.replica_mut().deleted(range.clone());
             inner.replica_mut().inserted(range.start, repl.text().len());
         });
+
+        self.nvim.edit(repl.map_range(|_| point_range));
     }
 }
 
-impl Apply<Replacement<ByteOffset>> for Buffer {
+impl Apply<Replacement<Anchor>> for Buffer {
     type Diff = ();
 
     #[inline]
-    fn apply(&mut self, replacement: Replacement<ByteOffset>) -> Self::Diff {
-        self.apply(&replacement)
+    fn apply(&mut self, repl: Replacement<Anchor>) -> Self::Diff {
+        let anchor_range = repl.range();
+
+        let (start, end) = self.state.with(|inner| {
+            let start = inner.resolve_anchor(&anchor_range.start);
+            let end = inner.resolve_anchor(&anchor_range.end);
+            (start, end)
+        });
+
+        if let (Some(start), Some(end)) = (start, end) {
+            self.apply(repl.map_range(|_| start..end));
+        }
+    }
+}
+
+impl<T: AsRef<str>> Apply<(&cola::Insertion, T)> for Buffer {
+    type Diff = ();
+
+    #[inline]
+    fn apply(
+        &mut self,
+        (insertion, text): (&cola::Insertion, T),
+    ) -> Self::Diff {
+        let offset = self.state.with_mut(|inner| {
+            inner.replica_mut().integrate_insertion(insertion)
+        });
+
+        if let Some(offset) = offset {
+            self.state.with_mut(|inner| {
+                inner.rope_mut().insert(offset, text.as_ref());
+            });
+
+            let point = self
+                .state
+                .with(|inner| ByteOffset::new(offset).into_ctx(inner.rope()));
+
+            self.nvim.edit(Replacement::insertion(point, text.as_ref()));
+        }
+    }
+}
+
+impl<T: AsRef<str>> Apply<(cola::Insertion, T)> for Buffer {
+    type Diff = ();
+
+    #[inline]
+    fn apply(
+        &mut self,
+        (insertion, text): (cola::Insertion, T),
+    ) -> Self::Diff {
+        self.apply((&insertion, text))
     }
 }
 
