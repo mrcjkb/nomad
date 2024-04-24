@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use async_broadcast::{InactiveReceiver, Sender};
+use async_broadcast::{InactiveReceiver, Receiver, Sender};
 use cola::{Anchor, Replica, ReplicaId};
 use crop::Rope;
 use nvim::api;
@@ -21,19 +21,16 @@ use crate::{
 /// TODO: docs
 pub struct Buffer {
     /// TODO: docs
-    broadcast: Shared<BroadcastNvimReplacement>,
+    broadcast_status: Shared<BroadcastStatus>,
+
+    /// TODO: docs
+    broadcaster: EditBroadcaster,
 
     /// TODO: docs
     inner: Shared<BufferInner>,
 
     /// TODO: docs
     nvim: NvimBuffer,
-
-    /// TODO: docs
-    receiver: InactiveReceiver<AppliedEdit>,
-
-    /// TODO: docs
-    sender: Sender<AppliedEdit>,
 }
 
 impl Buffer {
@@ -77,7 +74,7 @@ impl Buffer {
     /// TODO: docs
     #[inline]
     pub fn edits(&self) -> Edits {
-        Edits::new(self.receiver.activate_cloned())
+        Edits::new(self.broadcaster.receiver())
     }
 
     /// TODO: docs
@@ -94,14 +91,11 @@ impl Buffer {
 
     #[inline]
     fn new(inner: BufferInner, bound_to: NvimBuffer) -> Self {
-        let (sender, receiver) = async_broadcast::broadcast(32);
-
         let this = Self {
-            broadcast: Shared::new(BroadcastNvimReplacement::Broadcast),
+            broadcast_status: Shared::new(BroadcastStatus::Broadcast),
             inner: Shared::new(inner),
             nvim: bound_to,
-            receiver: receiver.deactivate(),
-            sender,
+            broadcaster: EditBroadcaster::new(),
         };
 
         this.attach();
@@ -111,12 +105,12 @@ impl Buffer {
 
     #[inline]
     fn on_edit(&self) -> impl Fn(&Replacement<ByteOffset>) + 'static {
-        let broadcast = self.broadcast.clone();
         let inner = self.inner.clone();
-        let sender = self.sender.clone();
+        let broadcaster = self.broadcaster.clone();
+        let should_broadcast = self.broadcast_status.clone();
 
         move |replacement| {
-            if let BroadcastNvimReplacement::Broadcast = broadcast.get() {
+            if should_broadcast.get().should_broadcast() {
                 let (del, ins) =
                     inner.with_mut(|inner| inner.edit(replacement));
 
@@ -124,12 +118,12 @@ impl Buffer {
 
                 if let Some(deletion) = del {
                     let edit = AppliedEdit::deletion(deletion, id);
-                    broadcast_edit(&sender, edit);
+                    broadcaster.broadcast(edit);
                 }
 
                 if let Some(insertion) = ins {
                     let edit = AppliedEdit::insertion(insertion, id);
-                    broadcast_edit(&sender, edit);
+                    broadcaster.broadcast(edit);
                 }
             }
         }
@@ -143,8 +137,41 @@ impl Buffer {
 }
 
 /// TODO: docs
+#[derive(Clone)]
+struct EditBroadcaster {
+    receiver: InactiveReceiver<AppliedEdit>,
+    sender: Sender<AppliedEdit>,
+}
+
+impl EditBroadcaster {
+    #[inline]
+    fn broadcast(&self, edit: AppliedEdit) {
+        if self.receiver.receiver_count() > 0 {
+            let sender = self.sender.clone();
+
+            spawn(async move {
+                if sender.receiver_count() > 0 {
+                    let _ = sender.broadcast_direct(edit).await;
+                }
+            });
+        }
+    }
+
+    #[inline]
+    fn new() -> Self {
+        let (sender, receiver) = async_broadcast::broadcast(32);
+        Self { sender, receiver: receiver.deactivate() }
+    }
+
+    #[inline]
+    fn receiver(&self) -> Receiver<AppliedEdit> {
+        self.receiver.activate_cloned()
+    }
+}
+
+/// TODO: docs
 #[derive(Copy, Clone, Debug)]
-enum BroadcastNvimReplacement {
+enum BroadcastStatus {
     /// The [`NvimBuffer`] is not being edited on our side, so replacements
     /// should be broadcasted.
     Broadcast,
@@ -154,17 +181,10 @@ enum BroadcastNvimReplacement {
     DontBroadcast,
 }
 
-/// TODO: docs
-#[inline]
-fn broadcast_edit(sender: &Sender<AppliedEdit>, edit: AppliedEdit) {
-    if sender.receiver_count() > 0 {
-        let sender = sender.clone();
-
-        spawn(async move {
-            if sender.receiver_count() > 0 {
-                let _ = sender.broadcast_direct(edit).await;
-            }
-        });
+impl BroadcastStatus {
+    #[inline]
+    fn should_broadcast(&self) -> bool {
+        matches!(self, Self::Broadcast)
     }
 }
 
@@ -184,9 +204,9 @@ impl Apply<Replacement<ByteOffset>> for Buffer {
                 inner.replica_mut().inserted(range.start, repl.text().len());
         });
 
-        self.broadcast.set(BroadcastNvimReplacement::DontBroadcast);
+        self.broadcast_status.set(BroadcastStatus::DontBroadcast);
         self.nvim.edit(repl.map_range(|_| point_range));
-        self.broadcast.set(BroadcastNvimReplacement::Broadcast);
+        self.broadcast_status.set(BroadcastStatus::Broadcast);
     }
 }
 
@@ -224,9 +244,9 @@ impl<T: AsRef<str>> Apply<(&cola::Insertion, T)> for Buffer {
         });
 
         if let Some(point) = maybe_point {
-            self.broadcast.set(BroadcastNvimReplacement::DontBroadcast);
+            self.broadcast_status.set(BroadcastStatus::DontBroadcast);
             self.nvim.edit(Replacement::insertion(point, text.as_ref()));
-            self.broadcast.set(BroadcastNvimReplacement::Broadcast);
+            self.broadcast_status.set(BroadcastStatus::Broadcast);
         }
     }
 }
@@ -250,13 +270,13 @@ impl Apply<&cola::Deletion> for Buffer {
                 self.inner.with(|inner| range.into_ctx(inner.rope()))
             });
 
-        self.broadcast.set(BroadcastNvimReplacement::DontBroadcast);
+        self.broadcast_status.set(BroadcastStatus::DontBroadcast);
 
         for point_range in point_ranges {
             self.nvim.edit(Replacement::deletion(point_range));
         }
 
-        self.broadcast.set(BroadcastNvimReplacement::Broadcast);
+        self.broadcast_status.set(BroadcastStatus::Broadcast);
 
         for byte_range in byte_ranges.into_iter().rev() {
             self.inner.with_mut(|inner| inner.rope_mut().delete(byte_range));
