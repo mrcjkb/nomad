@@ -16,23 +16,28 @@ use syn::{
     Pat,
     Signature,
 };
+use syn_derive_args::Parse;
 
 #[inline]
-pub fn test(_attrs: TokenStream, item: TokenStream) -> TokenStream {
+pub fn test(args: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as Args);
     let item = parse_macro_input!(item as syn::ItemFn);
 
-    match test_inner(item) {
+    match test_inner(args, item) {
         Ok(out) => out.into(),
         Err(err) => err.to_compile_error().into(),
     }
 }
 
-fn test_inner(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
+fn test_inner(
+    args: Args,
+    item: ItemFn,
+) -> syn::Result<proc_macro2::TokenStream> {
     let ItemFn { sig, block, .. } = item;
 
     let test_name = &sig.ident;
     let output = &sig.output;
-    let test_body = test_body(&sig, &block)?;
+    let test_body = test_body(&args, &sig, &block)?;
 
     let out = quote! {
         #[::nomad::nvim::test(
@@ -48,10 +53,11 @@ fn test_inner(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
 }
 
 fn test_body(
+    args: &Args,
     test_sig: &Signature,
     test_body: &Block,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let seed = Seed::new(&test_sig.inputs)?;
+    let seed = Seed::new(args, &test_sig.inputs)?;
 
     let define_seed = seed.definition();
 
@@ -101,22 +107,10 @@ fn test_body(
     Ok(body)
 }
 
-struct Generator {
-    seed_name: Ident,
-}
-
-impl Generator {
-    fn definition(&self) -> proc_macro2::TokenStream {
-        let seed = &self.seed_name;
-        let this = self.name();
-        quote! {
-            let mut #this = ::nomad::tests::Generator::new(#seed);
-        }
-    }
-
-    fn name(&self) -> Ident {
-        Ident::new("generator", Span::call_site())
-    }
+#[derive(Parse)]
+#[args(default)]
+struct Args {
+    seed: SpecifiedSeed,
 }
 
 enum Seed {
@@ -143,7 +137,14 @@ impl Seed {
         Ident::new("seed", Span::call_site())
     }
 
-    fn new(inputs: &Punctuated<FnArg, Comma>) -> syn::Result<Self> {
+    fn new(
+        args: &Args,
+        inputs: &Punctuated<FnArg, Comma>,
+    ) -> syn::Result<Self> {
+        if args.seed.is_some() {
+            return Ok(Self::Specified(args.seed.clone()));
+        }
+
         let Some(first) = inputs.first() else {
             return Ok(Self::None);
         };
@@ -172,31 +173,12 @@ impl Seed {
     }
 }
 
+#[derive(Clone, Default)]
 enum SpecifiedSeed {
     Literal(LitInt),
     FromEnv,
-}
-
-impl Parse for SpecifiedSeed {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        if input.peek(LitInt) {
-            let lit = input.parse()?;
-            return Ok(Self::Literal(lit));
-        }
-
-        let _ = input.parse::<Dollar>()?;
-
-        let seed = input.parse::<Ident>()?;
-
-        if seed != "SEED" {
-            return Err(syn::Error::new_spanned(
-                seed,
-                "expected `$SEED` or an integer",
-            ));
-        }
-
-        Ok(Self::FromEnv)
-    }
+    #[default]
+    None,
 }
 
 impl SpecifiedSeed {
@@ -230,6 +212,52 @@ impl SpecifiedSeed {
                     };
                 }
             },
+
+            Self::None => unreachable!(),
         }
+    }
+
+    fn is_some(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
+impl Parse for SpecifiedSeed {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        if input.peek(LitInt) {
+            let lit = input.parse()?;
+            return Ok(Self::Literal(lit));
+        }
+
+        let _ = input.parse::<Dollar>()?;
+
+        let seed = input.parse::<Ident>()?;
+
+        if seed != "SEED" {
+            return Err(syn::Error::new_spanned(
+                seed,
+                "expected `$SEED` or an integer",
+            ));
+        }
+
+        Ok(Self::FromEnv)
+    }
+}
+
+struct Generator {
+    seed_name: Ident,
+}
+
+impl Generator {
+    fn definition(&self) -> proc_macro2::TokenStream {
+        let seed = &self.seed_name;
+        let this = self.name();
+        quote! {
+            let mut #this = ::nomad::tests::Generator::new(#seed);
+        }
+    }
+
+    fn name(&self) -> Ident {
+        Ident::new("generator", Span::call_site())
     }
 }

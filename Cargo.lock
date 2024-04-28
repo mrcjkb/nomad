@@ -945,6 +945,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.60",
+ "syn-derive-args",
 ]
 
 [[package]]
@@ -1650,6 +1651,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "syn-derive-args"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/syn-derive-args.git#00bcb66a10d1bfffafdc37ee5c941d94f716af85"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.60",
 ]
 
 [[package]]
