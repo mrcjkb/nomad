@@ -1,5 +1,6 @@
 use collab_client::messages::{
     File,
+    FileId,
     OutboundMessage,
     PeerId,
     Project,
@@ -22,7 +23,8 @@ impl Convert<OutboundMessage> for Edit {
 impl Convert<Session> for BufferSnapshot {
     fn convert(self) -> Session {
         let file = File::build_document()
-            .file_id(unsafe { core::mem::transmute(0u64) })
+            // TODO: don't transmute.
+            .file_id(unsafe { core::mem::transmute::<u64, FileId>(0u64) })
             .name("Untitled")
             .replica(self.replica())
             .text(self.text().to_string())
