@@ -25,7 +25,7 @@ jobs:
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.POND_SSH_PRIVATE_KEY }}
-      - run: cargo test --no-fail-fast
+      - run: CARGO_NET_GIT_FETCH_WITH_CLI=true cargo test --no-fail-fast
 
   clippy:
     name: clippy
@@ -43,7 +43,7 @@ jobs:
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.POND_SSH_PRIVATE_KEY }}
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: CARGO_NET_GIT_FETCH_WITH_CLI=true cargo clippy --all-targets -- -D warnings
 
   docs:
     name: docs
@@ -69,4 +69,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
-      - run: cargo fmt --check
+      - run: CARGO_NET_GIT_FETCH_WITH_CLI=true cargo fmt --check
