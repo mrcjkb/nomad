@@ -8,8 +8,8 @@ publish = false
 
 [features]
 default = ["neovim-0-9"]
-neovim-0-9 = ["nvim/neovim-0-9"]
-neovim-nightly = ["nvim/neovim-nightly"]
+neovim-0-9 = ["nvim/neovim-0-9", "ui/neovim-0-9"]
+neovim-nightly = ["nvim/neovim-nightly", "ui/neovim-nightly"]
 tests = ["nvim/test-terminator", "rand", "rand_chacha", "rand_distr"]
 
 [dependencies]
@@ -17,10 +17,11 @@ cola = { workspace = true }
 crop = { workspace = true }
 home = "0.5"
 macros = { path = "./macros" }
-nvim = { git = "https://github.com/noib3/nvim-oxi", package = "nvim-oxi", features = ["libuv"] }
+nvim = { workspace = true, features = ["libuv"] }
 pond = { git = "ssh://git@github.com/nomad/pond.git" }
 smallvec = { workspace = true }
 smol_str = { workspace = true }
+ui = { path = "../ui" }
 
 # Async executor
 async-task = "4.7"
