@@ -1,41 +1,29 @@
-use crate::adapters::*;
-use crate::{Cells, ExpandRect, RequestedBound, SceneFragment};
+use crate::{Cells, Component, RequestedBound, SceneFragment};
 
 /// TODO: docs
-pub trait Render: 'static {
+pub trait Render {
     /// TODO: docs
     fn layout(&self) -> RequestedBound<Cells>;
 
     /// TODO: docs
     fn paint(&self, scene_fragment: &mut SceneFragment);
+}
 
-    /// TODO: docs
+impl<T: Render> Render for &T {
     #[inline]
-    fn margin<R>(self, expand_rect: R) -> Margin<Self>
-    where
-        Self: Sized,
-        R: Into<ExpandRect<Cells>>,
-    {
-        Margin::new(self, expand_rect.into())
+    fn layout(&self) -> RequestedBound<Cells> {
+        (*self).layout()
     }
 
-    /// A convenience method for setting the margin on the x-axis.
     #[inline]
-    fn margin_x<C>(self, cells: C) -> Margin<Self>
-    where
-        Self: Sized,
-        C: Into<Cells>,
-    {
-        self.margin(ExpandRect::default().x(cells.into()))
+    fn paint(&self, scene_fragment: &mut SceneFragment) {
+        (*self).paint(scene_fragment)
     }
+}
 
-    /// A convenience method for setting the margin on the y-axis.
+impl<T: Render> Component for T {
     #[inline]
-    fn margin_y<C>(self, cells: C) -> Margin<Self>
-    where
-        Self: Sized,
-        C: Into<Cells>,
-    {
-        self.margin(ExpandRect::default().y(cells.into()))
+    fn compose(&self) -> impl Render {
+        self
     }
 }
