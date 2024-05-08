@@ -15,6 +15,7 @@ pub struct Popover {
 }
 
 impl Popover {
+    /// TODO: docs
     #[inline]
     pub fn builder() -> PopoverBuilder<RootRender> {
         PopoverBuilder { popover: Self::uninit(), _state: PhantomData }
@@ -32,7 +33,10 @@ impl Popover {
 
 /// TODO: docs
 pub enum PopoverAnchor {
+    /// TODO: docs
     Cursor,
+
+    /// TODO: docs
     Editor,
 }
 

@@ -1,4 +1,4 @@
-use crate::adapters::*;
+use crate::render::*;
 use crate::{Cells, ExpandRect, Render};
 
 /// TODO: docs
