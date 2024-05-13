@@ -20,7 +20,11 @@ impl<R: Render> Render for Margin<R> {
     }
 
     #[inline]
-    fn paint(&self, scene_fragment: &mut SceneFragment) {
-        self.inner.paint(scene_fragment)
+    fn paint(&self, fragment: &mut SceneFragment) {
+        let _ = fragment.cutout(self.expand);
+
+        if !fragment.is_empty() {
+            self.inner.paint(fragment);
+        }
     }
 }

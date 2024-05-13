@@ -1,3 +1,5 @@
+use crate::{Cells, Cutout, SceneFragment};
+
 /// TODO: docs
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ExpandRect<T> {
@@ -31,4 +33,18 @@ impl<T: Copy> ExpandRect<T> {
         self.bottom = expand_y_by;
         self
     }
+}
+
+impl Cutout for ExpandRect<Cells> {
+    type Cutout = ExpandRectCutout;
+
+    #[inline]
+    fn cutout(self, _fragment: &mut SceneFragment) -> Self::Cutout {
+        todo!();
+    }
+}
+
+/// TODO: docs.
+pub enum ExpandRectCutout {
+    Single,
 }

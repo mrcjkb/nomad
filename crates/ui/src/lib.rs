@@ -19,5 +19,5 @@ pub use popover::{Popover, PopoverAnchor, PopoverBuilder};
 pub use react::React;
 pub use render::{IntoRender, Render};
 pub use requested_bound::RequestedBound;
-pub use scene_fragment::SceneFragment;
+pub use scene_fragment::{Cutout, SceneFragment};
 use view::View;
