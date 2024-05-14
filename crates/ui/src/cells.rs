@@ -13,6 +13,13 @@ impl From<u32> for Cells {
     }
 }
 
+impl From<Cells> for u32 {
+    #[inline]
+    fn from(cells: Cells) -> Self {
+        cells.0
+    }
+}
+
 impl Add for Cells {
     type Output = Self;
 

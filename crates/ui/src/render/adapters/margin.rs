@@ -21,7 +21,7 @@ impl<R: Render> Render for Margin<R> {
 
     #[inline]
     fn paint(&self, fragment: &mut SceneFragment) {
-        let _ = fragment.cutout(self.expand);
+        let (fragment, _) = fragment.cutout(self.expand);
 
         if !fragment.is_empty() {
             self.inner.paint(fragment);

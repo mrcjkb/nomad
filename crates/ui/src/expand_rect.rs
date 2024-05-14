@@ -17,7 +17,8 @@ impl Default for ExpandRect<Cells> {
 }
 
 impl<T: Metric> ExpandRect<T> {
-    /// Creates a new [`ExpandRect`] with the given top, bottom, left, and right values.
+    /// Creates a new [`ExpandRect`] with the given top, bottom, left, and
+    /// right values.
     #[inline]
     pub fn new(top: T, bottom: T, left: T, right: T) -> Self {
         Self { top, bottom, left, right }
@@ -41,15 +42,56 @@ impl<T: Metric> ExpandRect<T> {
 }
 
 impl Cutout for ExpandRect<Cells> {
-    type Cutout = ExpandRectCutout;
+    type Cutout<'a> = ExpandRectCutout<'a>;
 
     #[inline]
-    fn cutout(self, _fragment: &mut SceneFragment) -> Self::Cutout {
-        todo!();
+    fn cutout(
+        self,
+        fragment: &mut SceneFragment,
+    ) -> (&mut SceneFragment, Self::Cutout<'_>) {
+        let (top, bottom) =
+            foo(self.top.into(), self.bottom.into(), fragment.height().into());
+
+        let (left, right) =
+            foo(self.left.into(), self.right.into(), fragment.width().into());
+
+        let (top, fragment) = fragment.split_x(top.into());
+
+        let height = fragment.height();
+        let (fragment, bottom) = fragment.split_x(height - bottom.into());
+
+        let (left, fragment) = fragment.split_y(left.into());
+
+        let width = fragment.width();
+        let (fragment, right) = fragment.split_y(width - right.into());
+
+        let cutout = ExpandRectCutout { top, bottom, left, right };
+
+        (fragment, cutout)
+    }
+}
+
+/// Splits `total` between `lhs` and `rhs`, trying to split the total evenly
+/// if `lhs` and `rhs` exceed `total`.
+fn foo(lhs: u32, rhs: u32, total: u32) -> (u32, u32) {
+    if lhs + rhs <= total {
+        (lhs, rhs)
+    } else {
+        let half = total / 2;
+        let to_lhs = half;
+        let to_rhs = half + total % 2;
+        if lhs < rhs {
+            (lhs.min(to_lhs), to_rhs + to_lhs.saturating_sub(lhs))
+        } else {
+            (to_lhs + to_rhs.saturating_sub(rhs), rhs.min(to_rhs))
+        }
     }
 }
 
 /// TODO: docs.
-pub enum ExpandRectCutout {
-    Single,
+pub struct ExpandRectCutout<'a> {
+    top: &'a mut SceneFragment,
+    bottom: &'a mut SceneFragment,
+    left: &'a mut SceneFragment,
+    right: &'a mut SceneFragment,
 }
