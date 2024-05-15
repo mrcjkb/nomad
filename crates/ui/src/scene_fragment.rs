@@ -1,4 +1,4 @@
-use crate::Cells;
+use crate::{Cells, View};
 
 /// TODO: docs.
 pub struct SceneFragment<'a> {

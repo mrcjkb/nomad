@@ -1,13 +1,7 @@
-use api::types::*;
-use nvim::api;
-
-use crate::{Bound, Cells, Render, RequestedBound, Scene};
+use crate::{Bound, Cells, Render, RequestedBound, Scene, Surface};
 
 /// TODO: docs.
 pub(crate) struct View {
-    /// TODO: docs.
-    buffer: api::Buffer,
-
     /// TODO: docs.
     root: Box<dyn Render + 'static>,
 
@@ -15,16 +9,13 @@ pub(crate) struct View {
     scene: Scene,
 
     /// TODO: docs.
-    window: api::Window,
+    surface: Surface,
 }
 
 impl View {
     #[inline]
     pub(crate) fn is_hidden(&self) -> bool {
-        self.window
-            .get_config()
-            .map(|config| config.hide.unwrap_or(false))
-            .unwrap_or(false)
+        self.surface.is_hidden()
     }
 
     /// Opens a new `View`.
@@ -33,26 +24,18 @@ impl View {
         root: Box<dyn Render + 'static>,
         available_size: Bound<Cells>,
     ) -> Self {
-        let buffer = api::create_buf(false, true).expect("never fails(?)");
-
-        let config = WindowConfig::builder()
-            .relative(WindowRelativeTo::Editor)
-            .height(1)
-            .width(1)
-            .row(0)
-            .col(0)
-            .hide(true)
-            .style(WindowStyle::Minimal)
-            .build();
-
-        let window = api::open_win(&buffer, false, &config)
-            .expect("the config is valid");
-
-        let mut this = Self { buffer, root, scene: Scene::new(), window };
-
+        let mut this = Self::new(root, Scene::new(), Surface::new_hidden());
         this.render(available_size);
-
         this
+    }
+
+    #[inline]
+    fn new(
+        root: Box<dyn Render + 'static>,
+        scene: Scene,
+        surface: Surface,
+    ) -> Self {
+        Self { root, scene, surface }
     }
 
     /// TODO: docs.
@@ -67,11 +50,9 @@ impl View {
 
         self.scene.resize(size);
 
-        let scene_fragment = self.scene.as_fragment();
+        self.root.paint(self.scene.as_fragment());
 
-        self.root.paint(scene_fragment);
-
-        self.scene.diff().apply(self);
+        self.scene.diff().apply(&mut self.surface);
     }
 
     /// TODO: docs.

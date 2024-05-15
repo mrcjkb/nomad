@@ -1,7 +1,11 @@
-use crate::{Bound, Cells, SceneFragment, View};
+use compact_str::CompactString;
+
+use crate::{Bound, Cells, SceneFragment, Surface};
 
 /// TODO: docs
-pub(crate) struct Scene {}
+pub(crate) struct Scene {
+    lines: Vec<SceneLine>,
+}
 
 impl Scene {
     /// Turns the entire `Scene` into a `SceneFragment` which can be used in
@@ -14,7 +18,7 @@ impl Scene {
 
     /// TODO: docs
     #[inline]
-    pub(crate) fn diff(&self) -> SceneDiff {
+    pub(crate) fn diff(&self) -> SceneDiff<'_> {
         todo!();
     }
 
@@ -38,12 +42,25 @@ impl Scene {
 }
 
 /// TODO: docs
-pub(crate) struct SceneDiff {}
+struct SceneLine {
+    runs: Vec<SceneRun>,
+}
 
-impl SceneDiff {
+/// TODO: docs
+struct SceneRun {
+    /// TODO: docs.
+    text: CompactString,
+}
+
+/// TODO: docs
+pub(crate) struct SceneDiff<'a> {
+    fragment: SceneFragment<'a>,
+}
+
+impl<'a> SceneDiff<'a> {
     /// TODO: docs
     #[inline]
-    pub(crate) fn apply(self, _view: &mut View) {
+    pub(crate) fn apply(self, _surface: &mut Surface) {
         todo!()
     }
 }

@@ -11,6 +11,7 @@ pub mod render;
 mod requested_bound;
 mod scene;
 mod scene_fragment;
+mod surface;
 mod view;
 
 use bound::Bound;
@@ -24,4 +25,5 @@ pub use render::{IntoRender, Render};
 pub use requested_bound::RequestedBound;
 pub(crate) use scene::Scene;
 pub use scene_fragment::{Cutout, SceneFragment};
+pub(crate) use surface::Surface;
 use view::View;
