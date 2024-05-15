@@ -1,9 +1,10 @@
+use core::cmp::Ordering;
 use core::ops::{Add, AddAssign};
 
 use crate::{ExpandRect, Metric};
 
 /// TODO: docs
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Bound<T: Metric> {
     height: T,
     width: T,
@@ -24,6 +25,28 @@ impl<T: Metric> Bound<T> {
         W: Into<T>,
     {
         Self { height: height.into(), width: width.into() }
+    }
+}
+
+impl<T: Metric> PartialOrd for Bound<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        let height_cmp = self.height.cmp(&other.height);
+        let width_cmp = self.width.cmp(&other.width);
+
+        match (height_cmp, width_cmp) {
+            (Ordering::Equal, Ordering::Equal) => Some(Ordering::Equal),
+
+            (Ordering::Less, Ordering::Less)
+            | (Ordering::Equal, Ordering::Less)
+            | (Ordering::Less, Ordering::Equal) => Some(Ordering::Less),
+
+            (Ordering::Greater, Ordering::Greater)
+            | (Ordering::Equal, Ordering::Greater)
+            | (Ordering::Greater, Ordering::Equal) => Some(Ordering::Greater),
+
+            _ => None,
+        }
     }
 }
 
