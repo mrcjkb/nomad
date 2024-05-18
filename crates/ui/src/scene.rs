@@ -30,6 +30,12 @@ impl Scene {
 
     /// TODO: docs
     #[inline]
+    pub(crate) fn height(&self) -> Cells {
+        (self.lines.len() as u32).into()
+    }
+
+    /// TODO: docs
+    #[inline]
     pub(crate) fn new() -> Self {
         todo!()
     }
@@ -45,6 +51,12 @@ impl Scene {
     /// TODO: docs
     #[inline]
     pub(crate) fn size(&self) -> Bound<Cells> {
+        Bound::new(self.height(), self.width())
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub(crate) fn width(&self) -> Cells {
         todo!();
     }
 }
@@ -54,10 +66,38 @@ struct SceneLine {
     runs: Vec<SceneRun>,
 }
 
+impl SceneLine {
+    /// TODO: docs.
+    #[inline]
+    fn extend(&mut self, _len: Cells) {
+        todo!();
+    }
+
+    /// Creates a new empty `SceneLine` with the given width.
+    #[inline]
+    fn new_empty(width: Cells) -> Self {
+        Self { runs: vec![SceneRun::new_empty(width)] }
+    }
+
+    /// TODO: docs.
+    #[inline]
+    fn truncate(&mut self, _len: Cells) {
+        todo!();
+    }
+}
+
 /// TODO: docs
 struct SceneRun {
     /// TODO: docs.
     text: CompactString,
+}
+
+impl SceneRun {
+    /// Creates a new empty `SceneRun` with the given width.
+    #[inline]
+    fn new_empty(_width: Cells) -> Self {
+        todo!();
+    }
 }
 
 /// TODO: docs
@@ -84,7 +124,7 @@ impl ResizeOp {
     /// `new_size` after this method is called, where `new_size` is the new
     /// size passed to [`ResizeOp::new`].
     #[inline]
-    fn apply_to(&self, scene: &mut Scene) {
+    fn apply_to(self, scene: &mut Scene) {
         self.shrink.apply_to(scene);
         self.expand.apply_to(scene);
     }
@@ -106,7 +146,7 @@ struct ShrinkOp {
 
 impl ShrinkOp {
     #[inline]
-    fn apply_to(&self, scene: &mut Scene) {
+    fn apply_to(self, scene: &mut Scene) {
         if let Some(delete_lines) = self.delete_lines {
             delete_lines.apply_to(scene);
         }
@@ -161,8 +201,8 @@ struct DeleteLinesOp(u32);
 
 impl DeleteLinesOp {
     #[inline]
-    fn apply_to(&self, _scene: &mut Scene) {
-        todo!();
+    fn apply_to(self, scene: &mut Scene) {
+        scene.lines.truncate(self.0 as usize);
     }
 }
 
@@ -195,8 +235,9 @@ struct TruncateLinesOp(u32);
 
 impl TruncateLinesOp {
     #[inline]
-    fn apply_to(&self, _scene: &mut Scene) {
-        todo!();
+    fn apply_to(self, scene: &mut Scene) {
+        let cells = Cells::from(self.0);
+        scene.lines.iter_mut().for_each(|line| line.truncate(cells));
     }
 }
 
@@ -209,7 +250,7 @@ struct ExpandOp {
 
 impl ExpandOp {
     #[inline]
-    fn apply_to(&self, _scene: &mut Scene) {
+    fn apply_to(self, _scene: &mut Scene) {
         if let Some(extend_lines) = self.extend_lines {
             extend_lines.apply_to(_scene);
         }
@@ -221,7 +262,19 @@ impl ExpandOp {
 
     #[inline]
     fn new(old_size: Bound<Cells>, new_size: Bound<Cells>) -> Self {
-        todo!();
+        let extend_lines = if new_size.width() > old_size.width() {
+            Some(ExtendLinesOp((new_size.width() - old_size.width()).into()))
+        } else {
+            None
+        };
+
+        let insert_lines = if new_size.height() > old_size.height() {
+            Some(InsertLinesOp((new_size.height() - old_size.height()).into()))
+        } else {
+            None
+        };
+
+        Self { extend_lines, insert_lines }
     }
 }
 
@@ -254,8 +307,10 @@ struct InsertLinesOp(u32);
 
 impl InsertLinesOp {
     #[inline]
-    fn apply_to(&self, _scene: &mut Scene) {
-        todo!();
+    fn apply_to(self, scene: &mut Scene) {
+        let len = self.0 as usize;
+        let width = scene.width();
+        scene.lines.resize_with(len, || SceneLine::new_empty(width));
     }
 }
 
@@ -286,8 +341,9 @@ struct ExtendLinesOp(u32);
 
 impl ExtendLinesOp {
     #[inline]
-    fn apply_to(&self, _scene: &mut Scene) {
-        todo!();
+    fn apply_to(self, scene: &mut Scene) {
+        let cells = Cells::from(self.0);
+        scene.lines.iter_mut().for_each(|line| line.extend(cells));
     }
 }
 
