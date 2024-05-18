@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 
 use compact_str::CompactString;
 
-use crate::{Bound, Cells, SceneFragment, Surface};
+use crate::{Bound, Cells, Metric, SceneFragment, Surface};
 
 /// TODO: docs
 #[derive(Debug, Default)]
@@ -77,8 +77,11 @@ struct SceneLine {
 impl SceneLine {
     /// TODO: docs.
     #[inline]
-    fn extend(&mut self, _len: Cells) {
-        todo!();
+    fn extend(&mut self, to_width: Cells) {
+        if to_width > self.width() {
+            let cells = to_width - self.width();
+            self.runs.push(SceneRun::new_empty(cells));
+        }
     }
 
     /// Creates a new empty `SceneLine` with the given width.
@@ -89,12 +92,12 @@ impl SceneLine {
 
     /// TODO: docs.
     #[inline]
-    fn run_at_offset(&self, offset: Cells, bias: Bias) -> (&SceneRun, Cells) {
-        let mut run_offset = Cells::default();
-        let mut runs = self.runs.iter();
+    fn run_at_offset(&self, offset: Cells, bias: Bias) -> (usize, Cells) {
+        let mut run_offset = Cells::zero();
+        let mut runs = self.runs.iter().enumerate();
 
         loop {
-            let Some(mut run) = runs.next() else {
+            let Some((mut run_idx, run)) = runs.next() else {
                 panic!("offset out of bounds");
             };
 
@@ -105,17 +108,17 @@ impl SceneLine {
 
                 Ordering::Equal => {
                     if bias == Bias::Right {
-                        if let Some(next_run) = runs.next() {
+                        if let Some((next_idx, _)) = runs.next() {
+                            run_idx = next_idx;
                             run_offset += run.width();
-                            run = next_run;
                         }
                     }
 
-                    return (run, run_offset);
+                    return (run_idx, run_offset);
                 },
 
                 Ordering::Greater => {
-                    return (run, run_offset);
+                    return (run_idx, run_offset);
                 },
             }
         }
@@ -123,8 +126,15 @@ impl SceneLine {
 
     /// TODO: docs.
     #[inline]
-    fn truncate(&mut self, _len: Cells) {
-        todo!();
+    fn truncate(&mut self, to_width: Cells) {
+        let (run_idx, run_offset) = self.run_at_offset(to_width, Bias::Right);
+
+        if run_offset < to_width {
+            self.runs[run_idx].truncate(to_width - run_offset);
+            self.runs.truncate(run_idx + 1);
+        } else {
+            self.runs.truncate(run_idx);
+        }
     }
 
     /// TODO: docs.
@@ -177,6 +187,18 @@ impl SceneRun {
             },
 
             Self::Text { text } => Cow::Borrowed(text.as_str()),
+        }
+    }
+
+    /// TODO: docs.
+    #[inline]
+    fn truncate(&mut self, to_width: Cells) {
+        match self {
+            Self::Empty { width } => *width = to_width,
+
+            Self::Text { text } => {
+                todo!("convert cells to byte_offset");
+            },
         }
     }
 
