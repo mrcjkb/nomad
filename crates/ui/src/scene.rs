@@ -9,6 +9,11 @@ pub(crate) struct Scene {
 }
 
 impl Scene {
+    #[inline]
+    fn apply(&mut self, resize_op: ResizeOp) {
+        resize_op.apply_to(self);
+    }
+
     /// Turns the entire `Scene` into a `SceneFragment` which can be used in
     /// the [`paint`](crate::Render::paint) method of a
     /// [`Render`](crate::Render) implementation.
@@ -33,7 +38,7 @@ impl Scene {
     #[inline]
     pub(crate) fn resize(&mut self, new_size: Bound<Cells>) {
         let op = ResizeOp::new(self.size(), new_size);
-        op.apply(self);
+        self.apply(op);
         self.diff.resize = op;
     }
 
@@ -79,9 +84,9 @@ impl ResizeOp {
     /// `new_size` after this method is called, where `new_size` is the new
     /// size passed to [`ResizeOp::new`].
     #[inline]
-    fn apply(&self, scene: &mut Scene) {
-        self.shrink.apply(scene);
-        self.expand.apply(scene);
+    fn apply_to(&self, scene: &mut Scene) {
+        self.shrink.apply_to(scene);
+        self.expand.apply_to(scene);
     }
 
     #[inline]
@@ -101,7 +106,15 @@ struct ShrinkOp {
 
 impl ShrinkOp {
     #[inline]
-    fn apply(&self, _scene: &mut Scene) {}
+    fn apply_to(&self, scene: &mut Scene) {
+        if let Some(delete_lines) = self.delete_lines {
+            delete_lines.apply_to(scene);
+        }
+
+        if let Some(truncate_lines) = self.truncate_lines {
+            truncate_lines.apply_to(scene);
+        }
+    }
 
     #[inline]
     fn new(old_size: Bound<Cells>, new_size: Bound<Cells>) -> Self {
@@ -146,6 +159,13 @@ impl ShrinkOp {
 #[derive(Debug, Clone, Copy)]
 struct DeleteLinesOp(u32);
 
+impl DeleteLinesOp {
+    #[inline]
+    fn apply_to(&self, _scene: &mut Scene) {
+        todo!();
+    }
+}
+
 /// A `TruncateLinesOp(n)` shrinks a [`Scene`] horizontally by keeping the
 /// first `n` cells of every line and deleting the rest.
 ///
@@ -173,6 +193,13 @@ struct DeleteLinesOp(u32);
 #[derive(Debug, Clone, Copy)]
 struct TruncateLinesOp(u32);
 
+impl TruncateLinesOp {
+    #[inline]
+    fn apply_to(&self, _scene: &mut Scene) {
+        todo!();
+    }
+}
+
 /// An `ExpandOp` expands a `Scene` by inserting lines and/or extending lines.
 #[derive(Debug, Clone, Copy, Default)]
 struct ExpandOp {
@@ -182,7 +209,15 @@ struct ExpandOp {
 
 impl ExpandOp {
     #[inline]
-    fn apply(&self, _scene: &mut Scene) {}
+    fn apply_to(&self, _scene: &mut Scene) {
+        if let Some(extend_lines) = self.extend_lines {
+            extend_lines.apply_to(_scene);
+        }
+
+        if let Some(insert_lines) = self.insert_lines {
+            insert_lines.apply_to(_scene);
+        }
+    }
 
     #[inline]
     fn new(old_size: Bound<Cells>, new_size: Bound<Cells>) -> Self {
@@ -191,7 +226,7 @@ impl ExpandOp {
 }
 
 /// An `InsertLinesOp(n)` expands a [`Scene`] vertically by appending lines
-/// until its height reacher `n` cells.
+/// until its height reaches `n` cells.
 ///
 /// For example, an `InsertLinesOp(5)` would transform the following scene:
 ///
@@ -217,6 +252,13 @@ impl ExpandOp {
 #[derive(Debug, Clone, Copy)]
 struct InsertLinesOp(u32);
 
+impl InsertLinesOp {
+    #[inline]
+    fn apply_to(&self, _scene: &mut Scene) {
+        todo!();
+    }
+}
+
 /// An `ExtendLinesOp(n)` expands a [`Scene`] horizontally by extending every
 /// line until its width reaches `n` cells.
 ///
@@ -241,6 +283,13 @@ struct InsertLinesOp(u32);
 /// ```
 #[derive(Debug, Clone, Copy)]
 struct ExtendLinesOp(u32);
+
+impl ExtendLinesOp {
+    #[inline]
+    fn apply_to(&self, _scene: &mut Scene) {
+        todo!();
+    }
+}
 
 /// TODO: docs
 #[derive(Debug)]
