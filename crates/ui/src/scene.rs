@@ -1,5 +1,7 @@
 use alloc::borrow::Cow;
+use alloc::vec::Drain;
 use core::cmp::Ordering;
+use core::mem;
 
 use compact_str::CompactString;
 
@@ -32,7 +34,9 @@ impl Scene {
     /// TODO: docs
     #[inline]
     pub(crate) fn diff(&mut self) -> SceneDiff<'_> {
-        todo!();
+        let resize = mem::take(&mut self.diff.resize);
+        let paint = self.diff.paint.drain(..);
+        SceneDiff { lines: &self.lines, resize, paint }
     }
 
     /// TODO: docs
@@ -468,7 +472,9 @@ struct PaintOp {}
 
 /// TODO: docs
 pub(crate) struct SceneDiff<'a> {
-    fragment: SceneFragment<'a>,
+    lines: &'a [SceneLine],
+    resize: ResizeOp,
+    paint: Drain<'a, PaintOp>,
 }
 
 impl<'a> SceneDiff<'a> {
