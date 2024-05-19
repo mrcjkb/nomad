@@ -44,15 +44,7 @@ impl Scene {
     /// TODO: docs
     #[inline]
     pub(crate) fn diff(&mut self) -> SceneDiff<'_> {
-        SceneDiff {
-            surface: &self.surface,
-            deleted: self.diff_tracker.deleted.take(),
-            inserted: self.diff_tracker.inserted.take(),
-            truncated: self.diff_tracker.truncated.drain(..),
-            extended: self.diff_tracker.extended.drain(..),
-            replaced: self.diff_tracker.replaced.drain(..),
-            _paint: self.diff_tracker.paint.drain(..),
-        }
+        SceneDiff::new(self)
     }
 
     /// Returns the height of the scene in terminal [`Cells`].
@@ -336,16 +328,13 @@ impl RunText {
 #[derive(Debug, Default)]
 struct DiffTracker {
     /// TODO: docs.
-    deleted: Option<DeleteHunk>,
+    vertical_resize: Option<VerticalResizeHunk>,
 
     /// TODO: docs.
-    inserted: Option<InsertHunk>,
+    horizontal_shrink: Vec<HorizontalShrinkHunk>,
 
     /// TODO: docs.
-    truncated: Vec<TruncateHunk>,
-
-    /// TODO: docs.
-    extended: Vec<ExtendHunk>,
+    horizontal_expand: Vec<HorizontalExpandHunk>,
 
     /// TODO: docs
     replaced: Vec<ReplaceHunk>,
@@ -355,37 +344,37 @@ struct DiffTracker {
 }
 
 #[derive(Debug)]
-struct DeleteHunk {
-    delete_all_from: usize,
+enum VerticalResizeHunk {
+    Shrink { delete_from_line_idx: usize },
+    Expand { num_lines_start: usize, num_inserted: usize, lines_width: Cells },
 }
 
-impl DeleteHunk {
+impl VerticalResizeHunk {
     #[inline]
-    fn new(delete_all_from: usize) -> Self {
-        Self { delete_all_from }
+    fn apply_to(self, surface: &mut Surface) {
+        match self {
+            Self::Shrink { delete_from_line_idx } => {
+                surface.replace_lines(
+                    delete_from_line_idx..,
+                    core::iter::empty::<&str>(),
+                );
+            },
+
+            Self::Expand { num_lines_start, num_inserted, lines_width } => {
+                let line_range = num_lines_start..num_lines_start;
+                let lines = (0..num_inserted).map(|_| spaces(lines_width));
+                surface.replace_lines(line_range, lines);
+            },
+        }
     }
 }
 
 #[derive(Debug)]
-struct InsertHunk {
-    at_line: usize,
-    num_inserted: usize,
-    width: Cells,
-}
-
-impl InsertHunk {
-    #[inline]
-    fn new(at_line: usize, num_inserted: usize, width: Cells) -> Self {
-        Self { at_line, num_inserted, width }
-    }
-}
-
-#[derive(Debug)]
-struct TruncateHunk {
+struct HorizontalShrinkHunk {
     range: Range<Point>,
 }
 
-impl TruncateHunk {
+impl HorizontalShrinkHunk {
     #[inline]
     fn new(range: Range<Point>) -> Self {
         Self { range }
@@ -393,12 +382,12 @@ impl TruncateHunk {
 }
 
 #[derive(Debug)]
-struct ExtendHunk {
+struct HorizontalExpandHunk {
     at: Point,
     width: Cells,
 }
 
-impl ExtendHunk {
+impl HorizontalExpandHunk {
     #[inline]
     fn new(at: Point, width: Cells) -> Self {
         Self { at, width }
@@ -441,8 +430,8 @@ impl HorizontalOp {
     #[inline]
     fn apply_to(self, scene: &mut Scene) {
         match self {
-            Self::Shrink(truncate) => truncate.apply_to(scene),
-            Self::Expand(extend) => extend.apply_to(scene),
+            Self::Shrink(shrink) => shrink.apply_to(scene),
+            Self::Expand(expand) => expand.apply_to(scene),
         }
     }
 }
@@ -451,14 +440,14 @@ impl ResizeOp {
     #[inline]
     fn apply_to(self, scene: &mut Scene) {
         match self.vertical {
-            Some(VerticalOp::Shrink(delete)) => {
-                delete.apply_to(scene);
+            Some(VerticalOp::Shrink(v_shrink)) => {
+                v_shrink.apply_to(scene);
                 self.horizontal.inspect(|op| op.apply_to(scene));
             },
 
-            Some(VerticalOp::Expand(insert)) => {
+            Some(VerticalOp::Expand(v_expand)) => {
                 self.horizontal.inspect(|op| op.apply_to(scene));
-                insert.apply_to(scene);
+                v_expand.apply_to(scene);
             },
 
             None => {
@@ -524,7 +513,12 @@ impl VerticalShrinkOp {
     #[inline]
     fn apply_to(self, scene: &mut Scene) {
         let num_lines = self.0 as usize;
-        scene.diff_tracker.deleted = Some(DeleteHunk::new(num_lines));
+
+        scene.diff_tracker.vertical_resize =
+            Some(VerticalResizeHunk::Shrink {
+                delete_from_line_idx: num_lines,
+            });
+
         scene.surface.lines.truncate(num_lines);
     }
 }
@@ -565,7 +559,10 @@ impl HorizontalShrinkOp {
             let start = Point::new(idx, line.byte_len());
             line.truncate(cells);
             let end = Point::new(idx, line.byte_len());
-            scene.diff_tracker.truncated.push(TruncateHunk::new(start..end));
+            scene
+                .diff_tracker
+                .horizontal_shrink
+                .push(HorizontalShrinkHunk::new(start..end));
         }
     }
 }
@@ -573,7 +570,7 @@ impl HorizontalShrinkOp {
 /// A `VerticalExpandOp(n)` expands a [`Scene`] vertically by appending lines
 /// until its height reaches `n` cells.
 ///
-/// For example, an `VerticalExpandOp(5)` would transform the following scene:
+/// For example, a `VerticalExpandOp(5)` would transform the following scene:
 ///
 /// ```txt
 /// ┌──────────────┐
@@ -604,11 +601,12 @@ impl VerticalExpandOp {
 
         let num_inserted = len - scene.surface.lines.len();
 
-        scene.diff_tracker.inserted = Some(InsertHunk::new(
-            scene.surface.lines.len(),
-            num_inserted,
-            scene.width(),
-        ));
+        scene.diff_tracker.vertical_resize =
+            Some(VerticalResizeHunk::Expand {
+                num_lines_start: scene.surface.lines.len(),
+                num_inserted,
+                lines_width: scene.width(),
+            });
 
         let width = scene.width();
         scene.surface.lines.resize_with(len, || SceneLine::new_empty(width));
@@ -618,7 +616,7 @@ impl VerticalExpandOp {
 /// A `HorizontalExpandOp(n)` expands a [`Scene`] horizontally by extending
 /// every line until its width reaches `n` cells.
 ///
-/// For example, an `HorizontalExpandOp(18)` would transform the following
+/// For example, a `HorizontalExpandOp(18)` would transform the following
 /// scene:
 ///
 /// ```txt
@@ -649,10 +647,10 @@ impl HorizontalExpandOp {
         let insert_hunks =
             scene.surface.lines().enumerate().map(|(idx, line)| {
                 let point = Point::new(idx, line.byte_len());
-                ExtendHunk::new(point, cells)
+                HorizontalExpandHunk::new(point, cells)
             });
 
-        scene.diff_tracker.extended.extend(insert_hunks);
+        scene.diff_tracker.horizontal_expand.extend(insert_hunks);
 
         scene.surface.lines_mut().for_each(|line| line.extend(cells));
     }
@@ -665,24 +663,27 @@ struct PaintOp {}
 /// TODO: docs
 pub(crate) struct SceneDiff<'scene> {
     surface: &'scene SceneSurface,
-    deleted: Option<DeleteHunk>,
-    inserted: Option<InsertHunk>,
-    truncated: Drain<'scene, TruncateHunk>,
-    extended: Drain<'scene, ExtendHunk>,
+    resize_vertical: Option<VerticalResizeHunk>,
+    resize_horizontal: HorizontalHunks<'scene>,
     replaced: Drain<'scene, ReplaceHunk>,
     _paint: Drain<'scene, PaintOp>,
+}
+
+enum HorizontalHunks<'scene> {
+    Shrink(Drain<'scene, HorizontalShrinkHunk>),
+    Expand(Drain<'scene, HorizontalExpandHunk>),
 }
 
 impl<'scene> SceneDiff<'scene> {
     /// TODO: docs
     #[inline]
     pub(crate) fn apply_to(mut self, surface: &mut Surface) {
-        for hunk in self.text_hunks() {
-            hunk.apply_to(surface);
+        for text_hunk in self.text_hunks() {
+            text_hunk.apply_to(surface);
         }
 
-        for hunk in self.hl_hunks() {
-            hunk.apply_to(surface);
+        for hl_hunk in self.hl_hunks() {
+            hl_hunk.apply_to(surface);
         }
     }
 
@@ -694,8 +695,28 @@ impl<'scene> SceneDiff<'scene> {
 
     /// TODO: docs.
     #[inline]
+    fn new(scene: &'scene mut Scene) -> Self {
+        let tracker = &mut scene.diff_tracker;
+
+        let resize_horizontal = if tracker.horizontal_shrink.is_empty() {
+            HorizontalHunks::Expand(tracker.horizontal_expand.drain(..))
+        } else {
+            HorizontalHunks::Shrink(tracker.horizontal_shrink.drain(..))
+        };
+
+        Self {
+            surface: &scene.surface,
+            resize_vertical: tracker.vertical_resize.take(),
+            resize_horizontal,
+            replaced: tracker.replaced.drain(..),
+            _paint: tracker.paint.drain(..),
+        }
+    }
+
+    /// TODO: docs.
+    #[inline]
     fn text_hunks(&mut self) -> TextHunks<'_, 'scene> {
-        TextHunks { diff: self, status: TextHunkStatus::Deleted }
+        TextHunks::new(self)
     }
 }
 
@@ -742,16 +763,21 @@ impl HlHunk {
 /// TODO: docs.
 struct TextHunks<'a, 'scene> {
     diff: &'a mut SceneDiff<'scene>,
-    status: TextHunkStatus,
+    status: TextHunksStatus,
 }
 
-enum TextHunkStatus {
-    Deleted,
-    Inserted,
-    Truncated,
-    Extended,
+enum TextHunksStatus {
+    ResizeVertical,
+    ResizeHorizontal,
     Replaced,
     Done,
+}
+
+impl<'a, 'scene> TextHunks<'a, 'scene> {
+    #[inline]
+    fn new(diff: &'a mut SceneDiff<'scene>) -> Self {
+        Self { diff, status: TextHunksStatus::ResizeVertical }
+    }
 }
 
 impl<'scene> Iterator for TextHunks<'_, 'scene> {
@@ -760,54 +786,52 @@ impl<'scene> Iterator for TextHunks<'_, 'scene> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let diff = &mut self.diff;
+
         loop {
             let text_hunk = match self.status {
-                TextHunkStatus::Deleted => {
-                    let Some(delete) = diff.deleted.take() else {
-                        self.status = TextHunkStatus::Inserted;
+                TextHunksStatus::ResizeVertical => {
+                    let Some(resize) = diff.resize_vertical.take() else {
+                        self.status = TextHunksStatus::ResizeHorizontal;
                         continue;
                     };
 
-                    TextHunk::DeleteLines(delete)
+                    TextHunk::VerticalResize(resize)
                 },
 
-                TextHunkStatus::Inserted => {
-                    let Some(insert) = diff.inserted.take() else {
-                        self.status = TextHunkStatus::Truncated;
+                TextHunksStatus::ResizeHorizontal => {
+                    let Some(text_hunk) = (match &mut diff.resize_horizontal {
+                        HorizontalHunks::Shrink(shrinks) => {
+                            shrinks.next().map(Into::into)
+                        },
+                        HorizontalHunks::Expand(expands) => {
+                            expands.next().map(Into::into)
+                        },
+                    }) else {
+                        self.status = TextHunksStatus::Replaced;
                         continue;
                     };
 
-                    TextHunk::InsertLines(insert)
+                    text_hunk
                 },
 
-                TextHunkStatus::Truncated => {
-                    let Some(truncate) = diff.truncated.next() else {
-                        self.status = TextHunkStatus::Extended;
-                        continue;
-                    };
-                    TextHunk::new_delete(truncate.range)
-                },
-
-                TextHunkStatus::Extended => {
-                    let Some(extend) = diff.extended.next() else {
-                        self.status = TextHunkStatus::Replaced;
-                        continue;
-                    };
-                    TextHunk::new_insert(extend.at, spaces(extend.width))
-                },
-
-                TextHunkStatus::Replaced => {
+                TextHunksStatus::Replaced => {
                     let Some(replace) = diff.replaced.next() else {
-                        self.status = TextHunkStatus::Done;
+                        self.status = TextHunksStatus::Done;
                         continue;
                     };
+
                     let (line_idx, run_offset) = replace.replaced_with;
-                    let run =
-                        diff.surface.run_at(line_idx, run_offset, Bias::Right);
-                    TextHunk::new(replace.range, run.text())
+
+                    TextHunk::Replace {
+                        range: replace.range,
+                        text: diff
+                            .surface
+                            .run_at(line_idx, run_offset, Bias::Right)
+                            .text(),
+                    }
                 },
 
-                TextHunkStatus::Done => return None,
+                TextHunksStatus::Done => return None,
             };
 
             return Some(text_hunk);
@@ -818,14 +842,8 @@ impl<'scene> Iterator for TextHunks<'_, 'scene> {
 /// TODO: docs.
 #[derive(Debug)]
 enum TextHunk<'scene> {
-    /// TODO: docs
+    VerticalResize(VerticalResizeHunk),
     Replace { range: Range<Point>, text: Cow<'scene, str> },
-
-    /// TODO: docs
-    InsertLines(InsertHunk),
-
-    /// TODO: docs
-    DeleteLines(DeleteHunk),
 }
 
 /// TODO: docs.
@@ -838,42 +856,25 @@ impl<'scene> TextHunk<'scene> {
                 surface.replace_text(range, text.as_ref());
             },
 
-            Self::InsertLines(insert) => {
-                let line_range = insert.at_line..insert.at_line;
-                let lines =
-                    (0..insert.num_inserted).map(|_| spaces(insert.width));
-                surface.replace_lines(line_range, lines);
-            },
-
-            Self::DeleteLines(delete) => {
-                surface.replace_lines(
-                    delete.delete_all_from..,
-                    core::iter::empty::<&str>(),
-                );
-            },
+            Self::VerticalResize(resize) => resize.apply_to(surface),
         }
-    }
-
-    #[inline]
-    fn new(range: Range<Point>, text: impl Into<Cow<'scene, str>>) -> Self {
-        Self::Replace { range, text: text.into() }
-    }
-
-    #[inline]
-    fn new_delete(range: Range<Point>) -> Self {
-        Self::new(range, "")
-    }
-
-    #[inline]
-    fn new_insert(at: Point, text: impl Into<Cow<'scene, str>>) -> Self {
-        Self::new(at..at, text)
     }
 }
 
-impl From<DeleteHunk> for TextHunk<'_> {
+impl From<HorizontalShrinkHunk> for TextHunk<'_> {
     #[inline]
-    fn from(delete: DeleteHunk) -> Self {
-        Self::DeleteLines(delete)
+    fn from(shrink: HorizontalShrinkHunk) -> Self {
+        Self::Replace { range: shrink.range, text: Cow::Borrowed("") }
+    }
+}
+
+impl From<HorizontalExpandHunk> for TextHunk<'_> {
+    #[inline]
+    fn from(expand: HorizontalExpandHunk) -> Self {
+        Self::Replace {
+            range: expand.at..expand.at,
+            text: spaces(expand.width),
+        }
     }
 }
 
