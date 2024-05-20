@@ -1,7 +1,7 @@
 use alloc::borrow::Cow;
 use alloc::vec::Drain;
 use core::cmp::Ordering;
-use core::ops::{Range, RangeBounds};
+use core::ops::Range;
 
 use compact_str::CompactString;
 
@@ -59,8 +59,11 @@ impl Scene {
     ///
     /// Panics if the index is out of bounds.
     #[inline]
-    pub(crate) fn line_mut(&mut self, line_idx: usize) -> &mut SceneLine {
-        self.surface.line_mut(line_idx)
+    pub(crate) fn line_mut(&mut self, line_idx: usize) -> SceneLineBorrow<'_> {
+        SceneLineBorrow {
+            line: self.surface.line_mut(line_idx),
+            diff_tracker: &mut self.diff_tracker,
+        }
     }
 
     /// TODO: docs
@@ -136,7 +139,7 @@ impl SceneSurface {
 
 /// TODO: docs
 #[derive(Debug)]
-pub(crate) struct SceneLine {
+struct SceneLine {
     runs: Vec<SceneRun>,
 }
 
@@ -242,7 +245,7 @@ enum Bias {
 
 /// TODO: docs
 #[derive(Debug)]
-pub(crate) struct SceneRun {
+struct SceneRun {
     text: RunText,
 }
 
@@ -668,6 +671,48 @@ impl HorizontalExpandOp {
         scene.diff_tracker.horizontal_expand.extend(insert_hunks);
 
         scene.surface.lines_mut().for_each(|line| line.extend(cells));
+    }
+}
+
+/// TODO: docs
+pub(crate) struct SceneLineBorrow<'scene> {
+    line: &'scene mut SceneLine,
+    diff_tracker: &'scene mut DiffTracker,
+}
+
+impl<'scene> SceneLineBorrow<'scene> {
+    /// TODO: docs
+    #[inline]
+    pub(crate) fn split(
+        self,
+        split_at: Cells,
+    ) -> (SceneRunBorrow<'scene>, Option<Self>) {
+        todo!();
+    }
+}
+
+/// TODO: docs
+pub(crate) struct SceneRunBorrow<'scene> {
+    run: &'scene mut SceneRun,
+    diff_tracker: &'scene mut DiffTracker,
+}
+
+impl<'scene> SceneRunBorrow<'scene> {
+    /// TODO: docs.
+    pub(crate) fn set_text(&mut self, _text: &str) {
+        todo!();
+    }
+
+    /// TODO: docs.
+    pub(crate) fn set_highlight(&mut self, _hl_group: &HighlightGroup) {
+        todo!();
+    }
+}
+
+impl Drop for SceneLineBorrow<'_> {
+    #[inline]
+    fn drop(&mut self) {
+        todo!();
     }
 }
 
