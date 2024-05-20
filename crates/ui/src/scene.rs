@@ -689,6 +689,12 @@ impl<'scene> SceneLineBorrow<'scene> {
     ) -> (SceneRunBorrow<'scene>, Option<Self>) {
         todo!();
     }
+
+    /// TODO: docs
+    #[inline]
+    pub fn width(&self) -> Cells {
+        self.line.width()
+    }
 }
 
 /// TODO: docs
@@ -706,6 +712,12 @@ impl<'scene> SceneRunBorrow<'scene> {
     /// TODO: docs.
     pub(crate) fn set_highlight(&mut self, _hl_group: &HighlightGroup) {
         todo!();
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub fn width(&self) -> Cells {
+        self.run.width()
     }
 }
 

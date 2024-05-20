@@ -142,6 +142,15 @@ impl<'a, 'scene> FragmentLines<'a, 'scene> {
     }
 }
 
+impl<'a> Iterator for FragmentLines<'a, '_> {
+    type Item = FragmentLine<'a>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!();
+    }
+}
+
 impl Drop for FragmentLines<'_, '_> {
     #[inline]
     fn drop(&mut self) {
@@ -156,6 +165,12 @@ pub struct FragmentLine<'scene> {
 }
 
 impl<'scene> FragmentLine<'scene> {
+    /// TODO: docs
+    #[inline]
+    pub fn into_run(self) -> FragmentRun<'scene> {
+        todo!();
+    }
+
     #[inline]
     fn new(inner: SceneLineBorrow<'scene>) -> Self {
         Self { inner }
@@ -169,6 +184,12 @@ impl<'scene> FragmentLine<'scene> {
     ) -> (FragmentRun<'scene>, Option<Self>) {
         let (run, inner) = self.inner.split_run(split_at);
         (FragmentRun::new(run), inner.map(FragmentLine::new))
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub fn width(&self) -> Cells {
+        todo!();
     }
 }
 
@@ -194,6 +215,12 @@ impl<'scene> FragmentRun<'scene> {
     #[inline]
     pub fn set_text(&mut self, text: &str) {
         self.inner.set_text(text);
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub fn width(&self) -> Cells {
+        self.inner.width()
     }
 }
 

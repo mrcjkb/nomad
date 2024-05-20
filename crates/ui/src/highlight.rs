@@ -53,7 +53,7 @@ impl HighlightName {
 }
 
 /// TODO: docs
-pub(crate) struct HighlightGroup {
+pub struct HighlightGroup {
     name: HighlightName,
     opts: Option<SetHighlightOpts>,
 }
@@ -67,7 +67,7 @@ impl core::fmt::Debug for HighlightGroup {
 impl HighlightGroup {
     /// TODO: docs
     #[inline]
-    pub(crate) fn from_highlight<Hl: Highlight>(hl: &Hl) -> Self {
+    pub fn from_highlight<Hl: Highlight>(hl: &Hl) -> Self {
         if hl.builtin() {
             return Self { name: Hl::NAME, opts: None };
         }
@@ -89,7 +89,7 @@ impl HighlightGroup {
 
     /// TODO: docs
     #[inline]
-    pub(crate) fn name(&self) -> HighlightName {
+    pub fn name(&self) -> HighlightName {
         self.name
     }
 

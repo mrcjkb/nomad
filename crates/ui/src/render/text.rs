@@ -5,12 +5,13 @@ use crate::{Bound, Cells, IntoRender, Render, RequestedBound, SceneFragment};
 /// TODO: docs
 pub struct Text {
     inner: CompactString,
+    width: Cells,
 }
 
 impl Text {
     #[inline]
     pub(crate) fn new(inner: CompactString) -> Self {
-        Self { inner }
+        Self { width: Cells::measure(&inner), inner }
     }
 }
 
@@ -19,14 +20,25 @@ impl Render for Text {
     fn layout(&self) -> RequestedBound<Cells> {
         // TODO: is it worth counting graphemes instead of characters?
         // TODO: support soft wrapping.
-        let bound = Bound::new(1u32, Cells::measure(&self.inner));
+        let bound = Bound::new(1u32, self.width);
         RequestedBound::Explicit(bound)
     }
 
     #[inline]
-    fn paint(&self, _scene_fragment: SceneFragment) {
-        // TODO: support soft wrapping.
-        todo!()
+    fn paint(&self, mut fragment: SceneFragment) {
+        let Some(mut run) =
+            fragment.lines().next().map(|line| line.into_run())
+        else {
+            return;
+        };
+
+        let mut text = &*self.inner;
+
+        if run.width() < self.width {
+            (text, _) = run.width().split(text);
+        }
+
+        run.set_text(text);
     }
 }
 
