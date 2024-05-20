@@ -30,6 +30,12 @@ impl<T: Metric> Bound<T> {
         self.height
     }
 
+    /// Returns a mutable reference to the height of the [`Bound`].
+    #[inline]
+    pub fn height_mut(&mut self) -> &mut T {
+        &mut self.height
+    }
+
     /// TODO: docs
     #[inline]
     pub fn intersect(self, other: Self) -> Self {

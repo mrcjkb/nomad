@@ -12,8 +12,8 @@ pub struct SceneFragment<'scene> {
 
     /// The origin of the fragment.
     ///
-    /// The sub-area of the scene represented by this fragment is the rectangle
-    /// given by [`Self::size`] with its top-left corner at this point.
+    /// The area of the scene covered by this fragment is the rectangle given
+    /// by [`Self::size`] with its top-left corner at this point.
     origin: Point<Cells>,
 
     /// The size of the fragment.
@@ -41,13 +41,13 @@ impl<'scene> SceneFragment<'scene> {
     /// TODO: docs
     #[inline]
     pub fn is_empty(&self) -> bool {
-        todo!()
+        self.size.is_empty()
     }
 
     /// TODO: docs
     #[inline]
     pub fn height(&self) -> Cells {
-        todo!()
+        self.size.height()
     }
 
     /// TODO: docs
@@ -64,8 +64,24 @@ impl<'scene> SceneFragment<'scene> {
 
     /// TODO: docs
     #[inline]
-    pub fn split_x(self, _split_at: Cells) -> (Self, Self) {
-        todo!()
+    pub fn split_x(mut self, split_at: Cells) -> (Self, Self) {
+        let mut bottom_origin = self.origin;
+        *bottom_origin.y_mut() += split_at;
+
+        let mut bottom_size = self.size;
+        *bottom_size.height_mut() -= split_at;
+
+        *self.size.height_mut() = split_at;
+
+        let bottom_fragment = Self {
+            ptr: self.ptr,
+            origin: bottom_origin,
+            size: bottom_size,
+            borrow: self.borrow.clone(),
+            _lifetime: PhantomData,
+        };
+
+        (self, bottom_fragment)
     }
 
     /// TODO: docs
@@ -93,7 +109,7 @@ impl<'scene> SceneFragment<'scene> {
     /// TODO: docs
     #[inline]
     pub fn width(&self) -> Cells {
-        todo!()
+        self.size.width()
     }
 }
 
