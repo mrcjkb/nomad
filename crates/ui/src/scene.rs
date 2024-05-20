@@ -64,7 +64,7 @@ impl Scene {
     #[inline]
     pub(crate) fn line_mut(&mut self, line_idx: usize) -> SceneLineBorrow<'_> {
         SceneLineBorrow {
-            line: NonNull::from(self.surface.line_mut(line_idx)),
+            line: self.surface.line_mut(line_idx),
             diff_tracker: &mut self.diff_tracker,
             line_idx,
             offset: Cells::zero(),
@@ -800,7 +800,7 @@ impl HorizontalExpandOp {
 
 /// TODO: docs
 pub(crate) struct SceneLineBorrow<'scene> {
-    line: NonNull<SceneLine>,
+    line: &'scene mut SceneLine,
     diff_tracker: &'scene mut DiffTracker,
     line_idx: usize,
     offset: Cells,
@@ -809,27 +809,19 @@ pub(crate) struct SceneLineBorrow<'scene> {
 impl<'scene> SceneLineBorrow<'scene> {
     /// TODO: docs
     #[inline]
-    fn line(&self) -> &SceneLine {
-        // SAFETY: todo.
-        unsafe { self.line.as_ref() }
-    }
-
-    /// TODO: docs
-    #[inline]
-    fn line_mut(&mut self) -> &mut SceneLine {
-        // SAFETY: todo.
-        unsafe { self.line.as_mut() }
-    }
-
-    /// TODO: docs
-    #[inline]
     pub(crate) fn split_run(
-        mut self,
+        &mut self,
         split_at: Cells,
-    ) -> (SceneRunBorrow<'scene>, Option<Self>) {
+    ) -> Option<SceneRunBorrow<'_>> {
+        if self.offset == self.line.width() {
+            return None;
+        }
+
+        self.offset += split_at;
+
         let cell_range = self.offset..self.offset + split_at;
 
-        let byte_range = self.line_mut().to_byte_range(cell_range);
+        let byte_range = self.line.to_byte_range(cell_range);
 
         let point_range = Point::new(self.line_idx, byte_range.start)
             ..Point::new(self.line_idx, byte_range.end);
@@ -840,54 +832,25 @@ impl<'scene> SceneLineBorrow<'scene> {
 
         let splice_range = self.offset..self.offset + split_at;
 
-        let run_idx = self
-            .line_mut()
-            .splice(splice_range, [SceneRun::new_empty(split_at)]);
+        let run_idx =
+            self.line.splice(splice_range, [SceneRun::new_empty(split_at)]);
 
-        let run = NonNull::from(&mut self.line_mut().runs[run_idx]);
-
-        let run_borrow = SceneRunBorrow { run, lifetime: PhantomData };
-
-        let new_offset = self.offset + split_at;
-
-        let rest = if new_offset < self.line_mut().width() {
-            self.offset = new_offset;
-            Some(self)
-        } else {
-            None
-        };
-
-        (run_borrow, rest)
+        Some(SceneRunBorrow { run: &mut self.line.runs[run_idx] })
     }
 
     /// TODO: docs
     #[inline]
     pub(crate) fn width(&self) -> Cells {
-        self.line().width() - self.offset
+        self.line.width() - self.offset
     }
 }
 
 /// TODO: docs
 pub(crate) struct SceneRunBorrow<'scene> {
-    run: NonNull<SceneRun>,
-    lifetime: PhantomData<&'scene Scene>,
+    run: &'scene mut SceneRun,
 }
 
 impl<'scene> SceneRunBorrow<'scene> {
-    /// TODO: docs
-    #[inline]
-    fn run(&self) -> &SceneRun {
-        // SAFETY: todo.
-        unsafe { self.run.as_ref() }
-    }
-
-    /// TODO: docs
-    #[inline]
-    fn run_mut(&mut self) -> &mut SceneRun {
-        // SAFETY: todo.
-        unsafe { self.run.as_mut() }
-    }
-
     /// TODO: docs.
     pub(crate) fn set_text(&mut self, _text: &str) {
         todo!();
@@ -901,7 +864,7 @@ impl<'scene> SceneRunBorrow<'scene> {
     /// TODO: docs
     #[inline]
     pub fn width(&self) -> Cells {
-        self.run().width()
+        self.run.width()
     }
 }
 

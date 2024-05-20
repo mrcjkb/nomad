@@ -178,12 +178,8 @@ impl<'scene> FragmentLine<'scene> {
 
     /// TODO: docs
     #[inline]
-    pub fn split_run(
-        self,
-        split_at: Cells,
-    ) -> (FragmentRun<'scene>, Option<Self>) {
-        let (run, inner) = self.inner.split_run(split_at);
-        (FragmentRun::new(run), inner.map(FragmentLine::new))
+    pub fn split_run(&mut self, split_at: Cells) -> Option<FragmentRun<'_>> {
+        self.inner.split_run(split_at).map(FragmentRun::new)
     }
 
     /// TODO: docs
