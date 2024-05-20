@@ -1,10 +1,8 @@
 use alloc::borrow::Cow;
 use alloc::vec::Drain;
 use core::cmp::Ordering;
-use core::marker::PhantomData;
 use core::mem;
 use core::ops::Range;
-use core::ptr::NonNull;
 
 use compact_str::CompactString;
 
@@ -331,6 +329,15 @@ impl SceneRun {
     #[inline]
     fn new_empty(width: Cells) -> Self {
         Self { text: RunText::new_empty(width) }
+    }
+
+    /// Sets the text of this `SceneRun`.
+    #[inline]
+    fn set_text(&mut self, text: &str) {
+        self.text = RunText::Text {
+            text: CompactString::from(text),
+            width: Memoize::new(),
+        };
     }
 
     /// TODO: docs.
@@ -852,26 +859,23 @@ pub(crate) struct SceneRunBorrow<'scene> {
 
 impl<'scene> SceneRunBorrow<'scene> {
     /// TODO: docs.
-    pub(crate) fn set_text(&mut self, _text: &str) {
-        todo!();
+    #[inline]
+    pub(crate) fn set_text(&mut self, text: &str) {
+        debug_assert_eq!(Cells::measure(text), self.width());
+        self.run.set_text(text);
     }
 
     /// TODO: docs.
-    pub(crate) fn set_highlight(&mut self, _hl_group: &HighlightGroup) {
+    #[inline]
+    pub(crate) fn set_hl_group(&mut self, _hl_group: &HighlightGroup) {
         todo!();
+        // self.run.set_hl_group(hl_group);
     }
 
     /// TODO: docs
     #[inline]
     pub fn width(&self) -> Cells {
         self.run.width()
-    }
-}
-
-impl Drop for SceneLineBorrow<'_> {
-    #[inline]
-    fn drop(&mut self) {
-        todo!();
     }
 }
 

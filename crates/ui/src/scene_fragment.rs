@@ -185,7 +185,7 @@ impl<'scene> FragmentLine<'scene> {
     /// TODO: docs
     #[inline]
     pub fn width(&self) -> Cells {
-        todo!();
+        self.inner.width()
     }
 }
 
@@ -204,7 +204,7 @@ impl<'scene> FragmentRun<'scene> {
     /// TODO: docs
     #[inline]
     pub fn set_highlight(&mut self, hl_group: &HighlightGroup) {
-        self.inner.set_highlight(hl_group);
+        self.inner.set_hl_group(hl_group);
     }
 
     /// TODO: docs
