@@ -99,3 +99,16 @@ impl Metric for Cells {
         Self(0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn cells_measure_two_cell_char() {
+        assert_eq!(Cells::measure("老").as_usize(), 2);
+        assert_eq!(Cells::measure("虎").as_usize(), 2);
+        assert_eq!(Cells::measure("老虎").as_usize(), 4);
+    }
+}

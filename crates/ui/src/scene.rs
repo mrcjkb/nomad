@@ -143,6 +143,7 @@ impl SceneSurface {
 /// TODO: docs
 #[derive(Debug)]
 struct SceneLine {
+    // Q: do we really have to split the text into runs?
     runs: Vec<SceneRun>,
 }
 
@@ -842,6 +843,8 @@ impl<'scene> SceneLineBorrow<'scene> {
         &mut self,
         split_at: Cells,
     ) -> Option<SceneRunBorrow<'_>> {
+        debug_assert!(split_at <= self.width());
+
         if self.offset == self.line.width() {
             return None;
         }
@@ -863,6 +866,11 @@ impl<'scene> SceneLineBorrow<'scene> {
             self.line.splice(cell_range, [SceneRun::new_empty(split_at)]);
 
         Some(SceneRunBorrow { run: &mut self.line.runs[run_idx] })
+    }
+
+    #[inline]
+    pub(crate) fn split(self, _split_at: Cells) -> (Self, Self) {
+        todo!();
     }
 
     /// TODO: docs

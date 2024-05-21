@@ -6,12 +6,12 @@ use core::panic::Location;
 use core::ptr::NonNull;
 
 use crate::scene::{SceneLineBorrow, SceneRunBorrow};
-use crate::{Bound, Cells, HighlightGroup, Point, Scene};
+use crate::{Bound, Cells, HighlightGroup, Metric, Point, Scene};
 
 /// TODO: docs.
 pub struct SceneFragment<'scene> {
     /// TODO: docs.
-    ptr: NonNull<Scene>,
+    scene_ptr: NonNull<Scene>,
 
     /// The origin of the fragment.
     ///
@@ -66,7 +66,7 @@ impl<'scene> SceneFragment<'scene> {
     pub(crate) fn new(scene: &'scene mut Scene) -> Self {
         Self {
             size: scene.size(),
-            ptr: NonNull::from(scene),
+            scene_ptr: NonNull::from(scene),
             origin: Point::origin(),
             borrow: Rc::new(Cell::new(Borrow::NotBorrowed)),
             _lifetime: PhantomData,
@@ -85,7 +85,7 @@ impl<'scene> SceneFragment<'scene> {
         *self.size.height_mut() = split_at;
 
         let bottom_fragment = Self {
-            ptr: self.ptr,
+            scene_ptr: self.scene_ptr,
             origin: bottom_origin,
             size: bottom_size,
             borrow: self.borrow.clone(),
@@ -107,7 +107,7 @@ impl<'scene> SceneFragment<'scene> {
         *self.size.width_mut() = split_at;
 
         let right_fragment = Self {
-            ptr: self.ptr,
+            scene_ptr: self.scene_ptr,
             origin: right_origin,
             size: right_size,
             borrow: self.borrow.clone(),
@@ -126,7 +126,7 @@ impl<'scene> SceneFragment<'scene> {
 
 /// TODO: docs.
 pub struct FragmentLines<'fragment> {
-    scene: &'fragment mut Scene,
+    scene_ptr: NonNull<Scene>,
     borrow: Rc<Cell<Borrow>>,
 
     /// The index range of the scene lines that this iterator will yield.
@@ -137,6 +137,8 @@ pub struct FragmentLines<'fragment> {
 
     /// The width of the [`SceneFragment`] this iterator was created from.
     fragment_width: Cells,
+
+    lifetime: PhantomData<&'fragment Scene>,
 }
 
 impl<'fragment> FragmentLines<'fragment> {
@@ -147,9 +149,6 @@ impl<'fragment> FragmentLines<'fragment> {
             panic!("fragment already borrowed at {at}")
         }
 
-        // SAFETY: we just checked that the fragment is not borrowed.
-        let scene = unsafe { fragment.ptr.as_mut() };
-
         fragment.borrow.set(Borrow::Borrowed(Location::caller()));
 
         let line_idxs = {
@@ -159,11 +158,12 @@ impl<'fragment> FragmentLines<'fragment> {
         };
 
         Self {
-            scene,
+            scene_ptr: fragment.scene_ptr,
             line_idxs,
             borrow: fragment.borrow.clone(),
             cell_offset: fragment.origin.x(),
             fragment_width: fragment.size.width(),
+            lifetime: PhantomData,
         }
     }
 }
@@ -173,7 +173,19 @@ impl<'fragment> Iterator for FragmentLines<'fragment> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        todo!();
+        let line_idx = self.line_idxs.next()?;
+
+        // SAFETY: TODO.
+        let scene = unsafe { self.scene_ptr.as_mut() };
+
+        let (_, line) = scene.line_mut(line_idx).split(self.cell_offset);
+        let (line, _) = line.split(self.fragment_width);
+
+        Some(FragmentLine {
+            inner: line,
+            offset: Cells::zero(),
+            fragment_width: self.fragment_width,
+        })
     }
 }
 
@@ -186,8 +198,9 @@ impl Drop for FragmentLines<'_> {
 
 /// TODO: docs
 pub struct FragmentLine<'fragment> {
-    /// TODO: docs
     inner: SceneLineBorrow<'fragment>,
+    offset: Cells,
+    fragment_width: Cells,
 }
 
 impl<'fragment> FragmentLine<'fragment> {
@@ -197,21 +210,22 @@ impl<'fragment> FragmentLine<'fragment> {
         FragmentRun::new(self.inner.into_run())
     }
 
-    #[inline]
-    fn new(inner: SceneLineBorrow<'fragment>) -> Self {
-        Self { inner }
-    }
-
     /// TODO: docs
     #[inline]
     pub fn split_run(&mut self, split_at: Cells) -> Option<FragmentRun<'_>> {
-        self.inner.split_run(split_at).map(FragmentRun::new)
+        assert!(split_at <= self.width());
+
+        if split_at == self.width() {
+            None
+        } else {
+            self.inner.split_run(split_at).map(FragmentRun::new)
+        }
     }
 
     /// TODO: docs
     #[inline]
     pub fn width(&self) -> Cells {
-        self.inner.width()
+        self.fragment_width - self.offset
     }
 }
 
