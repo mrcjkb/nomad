@@ -13,11 +13,6 @@ pub(crate) struct View {
 }
 
 impl View {
-    #[inline]
-    pub(crate) fn is_hidden(&self) -> bool {
-        self.surface.is_hidden()
-    }
-
     /// Opens a new `View`.
     #[inline]
     pub(crate) fn open(
@@ -53,6 +48,12 @@ impl View {
         self.root.paint(self.scene.as_fragment());
 
         self.scene.diff().apply_to(&mut self.surface);
+
+        match (self.surface.is_hidden(), size.is_empty()) {
+            (true, false) => self.surface.show(),
+            (false, true) => self.surface.hide(),
+            _ => {},
+        }
     }
 
     /// TODO: docs.

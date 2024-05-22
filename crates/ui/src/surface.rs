@@ -22,6 +22,13 @@ pub(crate) struct Surface {
 impl Surface {
     /// TODO: docs
     #[inline]
+    pub(crate) fn hide(&mut self) {
+        let config = WindowConfig::builder().hide(true).build();
+        let _ = self.window.set_config(&config);
+    }
+
+    /// TODO: docs
+    #[inline]
     fn highlight_line_range<R>(
         &mut self,
         line: usize,
@@ -137,6 +144,13 @@ impl Surface {
             .width(new_size.width().into())
             .build();
 
+        let _ = self.window.set_config(&config);
+    }
+
+    /// TODO: docs
+    #[inline]
+    pub(crate) fn show(&mut self) {
+        let config = WindowConfig::builder().hide(false).build();
         let _ = self.window.set_config(&config);
     }
 }
