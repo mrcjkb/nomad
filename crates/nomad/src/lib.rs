@@ -17,6 +17,7 @@ mod buffer_id;
 mod buffer_snapshot;
 mod byte_offset;
 mod command;
+mod command_args;
 mod config;
 mod crdt_replacement;
 mod edit;
@@ -51,6 +52,7 @@ pub mod prelude {
     pub use crate::action::*;
     pub use crate::api::*;
     pub use crate::command::*;
+    pub use crate::command_args::*;
     pub use crate::log::*;
     pub use crate::maybe_future::*;
     pub use crate::maybe_result::*;
