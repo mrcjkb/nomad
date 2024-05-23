@@ -11,6 +11,7 @@ use serde::ser::Serialize;
 
 use crate::prelude::*;
 use crate::serde::{deserialize, serialize};
+use crate::ModuleCommands;
 
 /// TODO: docs
 pub struct Api<M: Module> {

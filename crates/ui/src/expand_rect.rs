@@ -90,8 +90,15 @@ fn foo(lhs: u32, rhs: u32, total: u32) -> (u32, u32) {
 
 /// TODO: docs.
 pub struct ExpandRectCutout<'a> {
-    top: SceneFragment<'a>,
-    bottom: SceneFragment<'a>,
-    left: SceneFragment<'a>,
-    right: SceneFragment<'a>,
+    /// TODO: docs.
+    pub top: SceneFragment<'a>,
+
+    /// TODO: docs.
+    pub bottom: SceneFragment<'a>,
+
+    /// TODO: docs.
+    pub left: SceneFragment<'a>,
+
+    /// TODO: docs.
+    pub right: SceneFragment<'a>,
 }

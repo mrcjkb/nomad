@@ -58,7 +58,7 @@ impl View {
 
     /// TODO: docs.
     #[inline]
-    pub(crate) fn size(&self) -> Bound<Cells> {
+    pub(crate) fn _size(&self) -> Bound<Cells> {
         self.scene.size()
     }
 }

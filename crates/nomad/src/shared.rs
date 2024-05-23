@@ -1,9 +1,9 @@
 //! TODO: docs
 
-use alloc::rc::Rc;
 use core::cell::{Cell, UnsafeCell};
 #[cfg(debug_assertions)]
 use core::panic::Location;
+use std::rc::Rc;
 
 /// TODO: docs
 #[derive(Default)]

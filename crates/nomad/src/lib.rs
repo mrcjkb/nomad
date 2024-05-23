@@ -2,8 +2,6 @@
 //!
 //! TODO: docs
 
-extern crate alloc;
-
 #[doc(hidden)]
 pub use nvim;
 pub use ui;
@@ -51,7 +49,6 @@ pub mod prelude {
 
     pub use crate::action::*;
     pub use crate::api::*;
-    pub use crate::command::*;
     pub use crate::command_args::*;
     pub use crate::log::*;
     pub use crate::maybe_future::*;
@@ -70,6 +67,7 @@ pub use buffer::Buffer;
 pub use buffer_id::BufferId;
 pub use buffer_snapshot::BufferSnapshot;
 pub use byte_offset::ByteOffset;
+pub(crate) use command::{Command, ModuleCommands};
 pub use crdt_replacement::CrdtReplacement;
 pub use edit::Edit;
 pub use editor_id::EditorId;

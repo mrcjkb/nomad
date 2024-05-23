@@ -5,7 +5,7 @@ use crate::{Bound, Cells, Render, View};
 /// TODO: docs
 pub struct Popover {
     /// TODO: docs
-    anchor: PopoverAnchor,
+    _anchor: PopoverAnchor,
 
     /// TODO: docs
     view: View,
@@ -89,7 +89,7 @@ impl PopoverBuilder<Done> {
     pub fn open(self) -> Popover {
         let available_size = self.anchor.max_size();
         let view = View::open(self.root, available_size);
-        Popover { anchor: self.anchor, view }
+        Popover { _anchor: self.anchor, view }
     }
 }
 

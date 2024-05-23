@@ -2,7 +2,7 @@ use nvim::Dictionary;
 
 use crate::config::Config;
 use crate::prelude::*;
-use crate::{log, runtime};
+use crate::{log, runtime, Command};
 
 /// TODO: docs
 pub struct Nomad {

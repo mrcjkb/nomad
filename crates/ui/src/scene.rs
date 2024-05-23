@@ -1092,17 +1092,15 @@ struct HlHunk {
     hl_group: HighlightGroup,
 }
 
-/// TODO: docs.
 impl HlHunk {
-    /// TODO: docs
+    /// Applies the hunk to the [`Surface`], consuming it.
     #[inline]
     fn apply_to(self, surface: &mut Surface) {
         surface.highlight_text(self.range.clone(), &self.hl_group);
     }
 
-    /// TODO: docs
     #[inline]
-    fn new(range: Range<Point<usize>>, hl_group: HighlightGroup) -> Self {
+    fn _new(range: Range<Point<usize>>, hl_group: HighlightGroup) -> Self {
         Self { range, hl_group }
     }
 }
