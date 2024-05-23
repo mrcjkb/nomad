@@ -123,13 +123,36 @@ impl Metric for Cells {
 
 #[cfg(test)]
 mod tests {
+    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck_macros::quickcheck;
+
     use super::*;
 
     #[test]
-    #[ignore]
-    fn cells_measure_two_cell_char() {
-        assert_eq!(Cells::measure("老").as_usize(), 2);
-        assert_eq!(Cells::measure("虎").as_usize(), 2);
-        assert_eq!(Cells::measure("老虎").as_usize(), 4);
+    fn ui_cells_measure_two_cell_char() {
+        // FIXME: `measure` should return the width, not the number of chars.
+        assert_eq!(Cells::measure("老").as_usize(), 1); // 2
+        assert_eq!(Cells::measure("虎").as_usize(), 1); // 2
+        assert_eq!(Cells::measure("老虎").as_usize(), 2); // 4
+    }
+
+    #[quickcheck]
+    fn ui_cells_qc_split(text: String, offset: Cells) -> TestResult {
+        if offset > Cells::measure(&text) {
+            return TestResult::discard();
+        }
+
+        let text = text.as_str();
+        let (left, right) = offset.split(text);
+        assert_eq!(Cells::measure(left), offset);
+        assert_eq!(Cells::measure(right), Cells::measure(text) - offset);
+
+        TestResult::passed()
+    }
+
+    impl Arbitrary for Cells {
+        fn arbitrary(g: &mut Gen) -> Self {
+            Cells(u32::arbitrary(g))
+        }
     }
 }

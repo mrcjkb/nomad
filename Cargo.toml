@@ -16,6 +16,8 @@ clipboard = { path = "./crates/clipboard" }
 cola = "0.4"
 crop = "0.4"
 futures = "0.3"
+quickcheck = "1"
+quickcheck_macros = "1"
 nomad = { path = "./crates/nomad" }
 nvim = { git = "https://github.com/noib3/nvim-oxi", package = "nvim-oxi" }
 serde = "1.0"

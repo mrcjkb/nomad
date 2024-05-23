@@ -15,5 +15,9 @@ compact_str = "0.7"
 nvim = { workspace = true }
 str_indices = "0.4"
 
+[dev-dependencies]
+quickcheck = { workspace = true }
+quickcheck_macros = { workspace = true }
+
 [lints]
 workspace = true
