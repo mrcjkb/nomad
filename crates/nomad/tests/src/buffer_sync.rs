@@ -1,8 +1,8 @@
-use core::ops::Range;
+use std::ops::Range;
 
 use crop::Rope;
 use nomad::tests::{Generator, MeanLen, ReplacementCtx};
-use nomad::{IntoCtx, NvimBuffer, Replacement, Shared};
+use nomad::{IntoWith, NvimBuffer, Replacement, Shared};
 
 #[nomad::test]
 fn nomad_buffer_sync_fuzz_0(gen: &mut Generator) {
@@ -44,7 +44,7 @@ fn buffer_sync(num_edits: usize, gen: &mut Generator) {
         let replacement = rope.with(|r| {
             ReplacementCtx::new(r, MeanLen(3), MeanLen(5))
                 .generate::<Replacement<_>>(gen)
-                .map_range(|range| range.into_ctx(r))
+                .map_range(|range| range.into_with(r))
         });
 
         buffer.edit(replacement);

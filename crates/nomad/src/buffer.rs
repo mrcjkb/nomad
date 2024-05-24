@@ -15,7 +15,7 @@ use crate::{
     CrdtReplacement,
     Edit,
     EditorId,
-    IntoCtx,
+    IntoWith,
     NvimBuffer,
     Replacement,
     Shared,
@@ -184,8 +184,9 @@ impl Apply<Replacement<ByteOffset>> for Buffer {
 
     #[inline]
     fn apply(&mut self, replacement: Replacement<ByteOffset>) -> Self::Diff {
-        let point_range =
-            self.inner.with(|inner| replacement.range().into_ctx(&inner.text));
+        let point_range = self
+            .inner
+            .with(|inner| replacement.range().into_with(&inner.text));
 
         self.broadcast_status.set(BroadcastStatus::DontBroadcast);
         self.nvim.edit(replacement.clone().map_range(|_| point_range));
@@ -234,7 +235,7 @@ impl<T: AsRef<str>> Apply<(cola::Insertion, T)> for Buffer {
             return Edit::no_op();
         };
 
-        let point = self.inner.with(|inner| offset.into_ctx(&inner.text));
+        let point = self.inner.with(|inner| offset.into_with(&inner.text));
 
         self.broadcast_status.set(BroadcastStatus::DontBroadcast);
         self.nvim.edit(Replacement::insertion(point, text));
@@ -255,7 +256,7 @@ impl Apply<cola::Deletion> for Buffer {
 
         let point_ranges =
             byte_ranges.iter().cloned().map(utils::into_byte_range).map(
-                |range| self.inner.with(|inner| range.into_ctx(&inner.text)),
+                |range| self.inner.with(|inner| range.into_with(&inner.text)),
             );
 
         self.broadcast_status.set(BroadcastStatus::DontBroadcast);

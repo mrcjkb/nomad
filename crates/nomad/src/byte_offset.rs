@@ -2,7 +2,7 @@ use core::ops::{Add, AddAssign, Range, Sub, SubAssign};
 
 use crop::Rope;
 
-use crate::{FromCtx, IntoCtx, Point};
+use crate::{FromWith, IntoWith, Point};
 
 /// A byte offset in a buffer.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -61,19 +61,19 @@ impl From<ByteOffset> for usize {
     }
 }
 
-impl FromCtx<Point<ByteOffset>, Rope> for ByteOffset {
+impl FromWith<Point<ByteOffset>, Rope> for ByteOffset {
     #[inline]
-    fn from_ctx(point: Point<ByteOffset>, rope: &Rope) -> Self {
+    fn from_with(point: Point<ByteOffset>, rope: &Rope) -> Self {
         let line_offset = rope.byte_of_line(point.line());
         Self::new(line_offset) + point.offset()
     }
 }
 
-impl FromCtx<Range<Point<ByteOffset>>, Rope> for Range<ByteOffset> {
+impl FromWith<Range<Point<ByteOffset>>, Rope> for Range<ByteOffset> {
     #[inline]
-    fn from_ctx(range: Range<Point<ByteOffset>>, rope: &Rope) -> Self {
-        let start = range.start.into_ctx(rope);
-        let end = range.end.into_ctx(rope);
+    fn from_with(range: Range<Point<ByteOffset>>, rope: &Rope) -> Self {
+        let start = range.start.into_with(rope);
+        let end = range.end.into_with(rope);
         start..end
     }
 }

@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use crop::Rope;
 
-use crate::{ByteOffset, FromCtx, IntoCtx};
+use crate::{ByteOffset, FromWith, IntoWith};
 
 /// A point in a text buffer.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
@@ -34,9 +34,9 @@ impl<Offset: Copy> Point<Offset> {
     }
 }
 
-impl FromCtx<ByteOffset, Rope> for Point<ByteOffset> {
+impl FromWith<ByteOffset, Rope> for Point<ByteOffset> {
     #[inline]
-    fn from_ctx(offset: ByteOffset, rope: &Rope) -> Self {
+    fn from_with(offset: ByteOffset, rope: &Rope) -> Self {
         let offset = offset.into();
         let line = rope.line_of_byte(offset);
         let line_offset = rope.byte_of_line(line);
@@ -45,14 +45,14 @@ impl FromCtx<ByteOffset, Rope> for Point<ByteOffset> {
     }
 }
 
-impl<Offset, Ctx> FromCtx<Range<Offset>, Ctx> for Range<Point<Offset>>
+impl<Offset, Ctx> FromWith<Range<Offset>, Ctx> for Range<Point<Offset>>
 where
-    Offset: IntoCtx<Point<Offset>, Ctx>,
+    Offset: IntoWith<Point<Offset>, Ctx>,
 {
     #[inline]
-    fn from_ctx(range: Range<Offset>, ctx: &Ctx) -> Self {
-        let start = range.start.into_ctx(ctx);
-        let end = range.end.into_ctx(ctx);
+    fn from_with(range: Range<Offset>, ctx: &Ctx) -> Self {
+        let start = range.start.into_with(ctx);
+        let end = range.end.into_with(ctx);
         start..end
     }
 }
