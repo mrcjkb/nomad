@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 
 use serde::de::DeserializeOwned;
 
-use crate::{Api, Get, MaybeResult};
+use crate::{Api, Ctx, Get, MaybeResult};
 
 /// TODO: docs
 pub trait Module: 'static + Sized {
@@ -17,7 +17,7 @@ pub trait Module: 'static + Sized {
     type Config: Default + DeserializeOwned;
 
     /// TODO: docs
-    fn init(config: Get<Self::Config>) -> Api<Self>;
+    fn init(config: Get<Self::Config>, ctx: &Ctx) -> Api<Self>;
 
     /// TODO: docs
     fn run(&self) -> impl Future<Output = impl MaybeResult<()>>;

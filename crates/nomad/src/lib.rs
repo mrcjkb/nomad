@@ -18,6 +18,7 @@ mod command;
 mod command_args;
 mod config;
 mod crdt_replacement;
+mod ctx;
 mod edit;
 mod editor_id;
 mod from_with;
@@ -55,6 +56,7 @@ pub mod prelude {
     pub use crate::byte_offset::ByteOffset;
     pub use crate::command_args::*;
     pub use crate::crdt_replacement::CrdtReplacement;
+    pub use crate::ctx::Ctx;
     pub use crate::edit::Edit;
     pub use crate::editor_id::EditorId;
     pub use crate::from_with::{FromWith, IntoWith};

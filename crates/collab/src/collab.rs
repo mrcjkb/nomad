@@ -6,11 +6,12 @@ use crate::{Activity, Config, Join, Start};
 pub struct Collab {
     pub(crate) activity: Shared<Activity>,
     pub(crate) config: Get<Config>,
+    pub(crate) _ctx: Ctx,
 }
 
 impl Collab {
-    fn new(config: Get<Config>) -> Self {
-        Self { activity: Shared::new(Activity::default()), config }
+    fn new(config: Get<Config>, ctx: Ctx) -> Self {
+        Self { activity: Shared::new(Activity::default()), config, _ctx: ctx }
     }
 }
 
@@ -19,8 +20,8 @@ impl Module for Collab {
 
     type Config = Config;
 
-    fn init(config: Get<Self::Config>) -> Api<Self> {
-        let collab = Self::new(config);
+    fn init(config: Get<Self::Config>, ctx: &Ctx) -> Api<Self> {
+        let collab = Self::new(config, ctx.clone());
 
         let join = Join::new(&collab);
 

@@ -1,6 +1,6 @@
 use nvim::Dictionary;
 
-use crate::{log, runtime, Api, Command, Config, Module};
+use crate::{log, runtime, Api, Command, Config, Ctx, Module};
 
 /// TODO: docs
 pub struct Nomad {
@@ -12,6 +12,9 @@ pub struct Nomad {
 
     /// TODO: docs
     config: Config,
+
+    /// TODO: docs
+    ctx: Ctx,
 }
 
 impl Default for Nomad {
@@ -25,7 +28,7 @@ impl Nomad {
     /// TODO: docs
     #[inline]
     pub fn api(self) -> Dictionary {
-        let Self { mut api, command, config } = self;
+        let Self { mut api, command, config, .. } = self;
 
         command.create();
 
@@ -52,6 +55,7 @@ impl Nomad {
             api: Dictionary::default(),
             command: Command::default(),
             config: Config::default(),
+            ctx: Ctx::default(),
         }
     }
 
@@ -60,7 +64,7 @@ impl Nomad {
     pub fn with_module<M: Module>(mut self) -> Self {
         let (config, set_config) = runtime::new_input(M::Config::default());
 
-        let Api { commands, functions, module } = M::init(config);
+        let Api { commands, functions, module } = M::init(config, &self.ctx);
 
         // Register the module's config.
         self.config.add_module::<M>(set_config);
