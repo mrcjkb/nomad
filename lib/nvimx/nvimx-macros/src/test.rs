@@ -48,7 +48,7 @@ impl<'a> Test<'a> {
         let nvimx = &self.nvimx_path.path();
 
         parse_quote! {
-            #nvimx::tests::test_macro::async_body(#terminator, async move {
+            #nvimx::tests::test_macro::run_async_test(#terminator, async move {
                 #orig_body.await
             })
         }

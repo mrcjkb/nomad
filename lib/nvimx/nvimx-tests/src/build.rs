@@ -21,6 +21,7 @@ use crate::{TestError, TestResult};
 /// of a build script, like so:
 ///
 /// ```ignore
+/// // build.rs
 /// fn main() {
 ///    nvimx::tests::build();
 /// }

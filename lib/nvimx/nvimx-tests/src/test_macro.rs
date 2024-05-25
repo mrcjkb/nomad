@@ -4,21 +4,47 @@ use std::path::PathBuf;
 use nvim_oxi::tests::IntoResult;
 use nvim_oxi::TestTerminator;
 
-/// TODO: docs
-pub fn async_body<F, R>(terminator: TestTerminator, test_body: F)
-where
-    F: Future<Output = R> + 'static,
-    R: IntoResult,
-{
-    async_body::body(terminator, test_body)
-}
-
-/// TODO: docs
+/// Returns the path where [`build`](crate::build) places the compiled dynamic
+/// library for the given crate.
+///
+/// This function is not part of the crate's public API and should only be used
+/// by the `#[nvimx::test]` macro.
 pub fn library_path(crate_name: &str) -> PathBuf {
     library_path::path(crate_name)
 }
 
-mod async_body {
+/// Runs an async function annotated with `#[nvimx::test]` to completion.
+///
+/// This function is not part of the crate's public API and should only be used
+/// by the `#[nvimx::test]` macro.
+pub fn run_async_test<F, R>(terminator: TestTerminator, test_body: F)
+where
+    F: Future<Output = R> + 'static,
+    R: IntoResult,
+{
+    run_async_test::run(terminator, test_body)
+}
+
+mod library_path {
+    use std::env::consts;
+
+    use super::*;
+    use crate::build;
+
+    pub(super) fn path(crate_name: &str) -> PathBuf {
+        let library_name = format!(
+            "{prefix}{crate_name}{suffix}",
+            prefix = consts::DLL_PREFIX,
+            suffix = consts::DLL_SUFFIX,
+        );
+
+        build::target_dir()
+            .join(build::BuildProfile::from_env().as_str())
+            .join(library_name)
+    }
+}
+
+mod run_async_test {
     use std::cell::OnceCell;
     use std::convert::Infallible;
     use std::panic;
@@ -33,7 +59,7 @@ mod async_body {
         static EXECUTOR: OnceCell<Executor<'static>> = const { OnceCell::new() };
     }
 
-    pub(super) fn body<F, R>(terminator: TestTerminator, test_body: F)
+    pub(super) fn run<F, R>(terminator: TestTerminator, test_body: F)
     where
         F: Future<Output = R> + 'static,
         R: IntoResult,
@@ -97,24 +123,5 @@ mod async_body {
             let inner = Arc::new(Mutex::new(terminator));
             Self { inner }
         }
-    }
-}
-
-mod library_path {
-    use std::env::consts;
-
-    use super::*;
-    use crate::build;
-
-    pub(super) fn path(crate_name: &str) -> PathBuf {
-        let library_name = format!(
-            "{prefix}{crate_name}{suffix}",
-            prefix = consts::DLL_PREFIX,
-            suffix = consts::DLL_SUFFIX,
-        );
-
-        build::target_dir()
-            .join(build::BuildProfile::from_env().as_str())
-            .join(library_name)
     }
 }
