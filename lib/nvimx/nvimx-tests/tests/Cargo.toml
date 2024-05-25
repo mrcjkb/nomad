@@ -10,9 +10,9 @@ crate-type = ["cdylib"]
 neovim-nightly = ["nvimx/neovim-nightly"]
 
 [build-dependencies]
-nvimx = { path = "../../", features = ["tests"] }
+nvimx = { workspace = true, features = ["tests"] }
 
 [dependencies]
 async-io = "2"
 futures = "0.3"
-nvimx = { path = "../../", features = ["macros", "tests"] }
+nvimx = { workspace = true, features = ["macros", "tests"] }
