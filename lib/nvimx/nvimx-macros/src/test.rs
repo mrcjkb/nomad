@@ -47,11 +47,11 @@ impl<'a> Test<'a> {
         let orig_body = &self.orig.block;
         let nvimx = &self.nvimx_path.path();
 
-        parse_quote! {
+        parse_quote! {{
             #nvimx::tests::test_macro::run_async_test(#terminator, async move {
-                #orig_body.await
+                (async {#orig_body}).await
             })
-        }
+        }}
     }
 
     #[inline]
@@ -78,7 +78,7 @@ impl<'a> Test<'a> {
         self.terminator_name.as_ref().map(|terminator| {
             let nvimx = &self.nvimx_path.path();
             parse_quote! {
-                #terminator: #nvimx::oxi::TestTerminator,
+                #terminator: #nvimx::oxi::TestTerminator
             }
         })
     }
