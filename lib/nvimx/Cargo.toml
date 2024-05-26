@@ -14,6 +14,7 @@ nvim-oxi = { git = "https://github.com/noib3/nvim-oxi" }
 thiserror = "1.0"
 
 nvimx = { path = "." }
+nvimx-common = { path = "./nvimx-common" }
 nvimx-executor = { path = "./nvimx-executor" }
 nvimx-macros = { path = "./nvimx-macros" }
 nvimx-project = { path = "./nvimx-project" }
