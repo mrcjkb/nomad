@@ -65,7 +65,7 @@ impl<'a> Executor<'a> {
     where
         F: Future<Output = ()> + 'a,
     {
-        let builder = Builder::new();
+        let builder = Builder::new().propagate_panic(true);
 
         let schedule = {
             let callback_handle = self.callback_handle.clone();
