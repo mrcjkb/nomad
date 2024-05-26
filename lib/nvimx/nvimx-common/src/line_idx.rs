@@ -1,5 +1,7 @@
 use core::ops::{Add, AddAssign, Sub, SubAssign};
 
+use crate::Metric;
+
 /// A line index a buffer.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LineIdx(usize);
@@ -61,5 +63,12 @@ impl From<LineIdx> for usize {
     #[inline]
     fn from(idx: LineIdx) -> usize {
         idx.as_usize()
+    }
+}
+
+impl Metric for LineIdx {
+    #[inline]
+    fn zero() -> Self {
+        Self(0)
     }
 }

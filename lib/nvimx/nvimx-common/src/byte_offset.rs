@@ -1,6 +1,6 @@
-use core::ops::{Add, AddAssign, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-use crate::ByteLen;
+use crate::{ByteLen, Metric};
 
 /// A byte offset in a buffer.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -52,6 +52,22 @@ impl SubAssign<ByteLen> for ByteOffset {
     }
 }
 
+impl Mul<usize> for ByteOffset {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: usize) -> Self {
+        Self(self.0 * rhs)
+    }
+}
+
+impl MulAssign<usize> for ByteOffset {
+    #[inline]
+    fn mul_assign(&mut self, rhs: usize) {
+        self.0 *= rhs;
+    }
+}
+
 impl From<usize> for ByteOffset {
     #[inline]
     fn from(offset: usize) -> Self {
@@ -63,5 +79,12 @@ impl From<ByteOffset> for usize {
     #[inline]
     fn from(offset: ByteOffset) -> usize {
         offset.as_usize()
+    }
+}
+
+impl Metric for ByteOffset {
+    #[inline]
+    fn zero() -> Self {
+        Self(0)
     }
 }
