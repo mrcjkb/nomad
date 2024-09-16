@@ -14,8 +14,10 @@ publish = false
 async-net = "2"
 clipboard = { path = "./crates/clipboard" }
 cola = "0.4"
+collab-fs = { git = "ssh://git@github.com/nomad/collab.git", package = "collab-fs" }
 crop = "0.4"
 futures = "0.3"
+futures-util = "0.3"
 quickcheck = "1"
 quickcheck_macros = "1"
 nomad = { path = "./crates/nomad" }
