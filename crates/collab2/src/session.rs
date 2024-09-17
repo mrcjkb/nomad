@@ -12,7 +12,7 @@ use nomad_server::{Io, Message};
 use root_finder::markers::Git;
 use root_finder::Finder;
 
-use crate::{Config, SessionError};
+use crate::Config;
 
 pub(crate) struct Session<E: Editor> {
     /// TODO: docs.
@@ -70,7 +70,7 @@ impl<E: Editor> Session<E> {
         Ok(Self::new(config, ctx, joined, project, project_root))
     }
 
-    pub(crate) async fn run(self) -> Result<(), SessionError> {
+    pub(crate) async fn run(self) -> Result<(), RunSessionError> {
         loop {
             select! {
                 cursor = self.cursor_sub.next().fuse() => {
@@ -94,7 +94,7 @@ impl<E: Editor> Session<E> {
                         Some(Err(err)) => return Err(err.into()),
                         None => todo!(),
                     };
-                }
+                },
             }
         }
     }
@@ -139,8 +139,12 @@ impl<E: Editor> Session<E> {
     async fn integrate_message(
         &mut self,
         message: Message,
-    ) -> Result<(), SessionError> {
+    ) -> Result<(), RunSessionError> {
         todo!();
+    }
+
+    fn is_host(&self) -> bool {
+        todo!()
     }
 
     fn peer_id(&self) -> PeerId {
@@ -211,10 +215,28 @@ async fn create_project_dir(
     project: &Project,
     project_root: &AbsUtf8Path,
     fs: &impl Fs,
-) -> Result<(), SessionError> {
+) -> Result<(), JoinSessionError> {
     fs.create_dir(project_root).await?;
     fs.set_root(project_root).await?;
     Ok(())
+}
+
+impl<E: Editor> Drop for Session<E> {
+    fn drop(&mut self) {
+        if self.is_host() {
+            return;
+        }
+
+        self.ctx
+            .spawner()
+            .spawn(async {
+                let fs = self.ctx.fs();
+                if let Err(err) = fs.remove_dir(&self.project_root).await {
+                    println!("failed to remove project directory: {err}");
+                }
+            })
+            .detach();
+    }
 }
 
 struct ConfirmStart<'path>(&'path AbsUtf8Path);
@@ -225,9 +247,14 @@ impl fmt::Display for ConfirmStart<'_> {
     }
 }
 
-enum JoinSessionError {}
+#[derive(Debug)]
+pub(crate) enum JoinSessionError {}
 
-enum StartSessionError {
+#[derive(Debug)]
+pub(crate) enum RunSessionError {}
+
+#[derive(Debug)]
+pub(crate) enum StartSessionError {
     /// The session was started in a non-file buffer.
     NotInFile,
 
@@ -238,10 +265,4 @@ enum StartSessionError {
     /// We asked the user for confirmation to start the session, but they
     /// cancelled.
     UserCancelled,
-}
-
-impl<E: Editor> Drop for Session<E> {
-    fn drop(&mut self) {
-        todo!();
-    }
 }
