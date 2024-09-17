@@ -7,30 +7,36 @@ use nomad2::{
     Api,
     Context,
     Editor,
+    Event,
     Module,
     ModuleName,
-    Subsctiption,
+    Neovim,
+    Subscription,
 };
 
 use crate::actions::{JoinSession, StartSession};
 use crate::{Config, Session};
 
 /// TODO: docs.
-pub struct Collab {
+pub struct Collab<E> {
+    ctx: Context<E>,
     config: Config,
-    join_sub: Subscription<JoinSession>,
-    start_sub: Subscription<StartSession>,
+    join_sub: Subscription<JoinSession, E>,
+    start_sub: Subscription<StartSession, E>,
 }
 
-impl Collab {
-    fn join_session<E: Editor>(
-        &self,
-        id: SessionId,
-        ctx: Context<E>,
-    ) -> impl Future<Output = ()> + 'static {
+impl<E: Editor> Collab<E>
+where
+    JoinSession: Event<E>,
+    StartSession: Event<E>,
+{
+    const NAME: ModuleName = module_name!("collab");
+
+    fn join_session(&self, id: SessionId) {
+        let ctx = self.ctx.clone();
         let config = self.config.clone();
 
-        async move {
+        let fut = async move {
             let session = match Session::join(id, config, ctx).await {
                 Ok(session) => session,
                 Err(err) => {
@@ -42,16 +48,25 @@ impl Collab {
             if let Err(err) = session.run().await {
                 println!("{err}");
             }
+        };
+
+        self.ctx.spawner().spawn(fut).detach();
+    }
+
+    async fn run(&mut self) {
+        loop {
+            select! {
+                _ = self.start_sub.next().fuse() => self.start_session(),
+                id = self.join_sub.next().fuse() => self.join_session(id),
+            }
         }
     }
 
-    fn start_session<E: Editor>(
-        &self,
-        ctx: Context<E>,
-    ) -> impl Future<Output = ()> + 'static {
+    fn start_session(&self) {
+        let ctx = self.ctx.clone();
         let config = self.config.clone();
 
-        async move {
+        let fut = async move {
             let session = match Session::start(config, ctx).await {
                 Ok(session) => session,
                 Err(err) => {
@@ -63,31 +78,22 @@ impl Collab {
             if let Err(err) = session.run().await {
                 println!("{err}");
             }
-        }
+        };
+
+        self.ctx.spawner().spawn(fut).detach();
     }
 }
 
-impl<E: Editor> Module<E> for Collab {
-    const NAME: ModuleName = module_name!("collab");
+impl Module<Neovim> for Collab<Neovim> {
+    const NAME: Self::NAME;
 
     type Config = Config;
 
-    fn init(_ctx: &Context<E>) -> Api<E, Self> {
+    fn init(_ctx: &Context<Neovim>) -> Neovim::ModuleApi<Self> {
         todo!();
     }
 
-    async fn run(&mut self, ctx: &Context<E>) {
-        loop {
-            select! {
-                _ = self.start_sub.next().fuse() => {
-                    let fut = self.start_session(ctx.clone());
-                    ctx.spawner().spawn(fut).detach();
-                },
-                session_id = self.join_sub.next().fuse() => {
-                    let fut = self.join_session(session_id, ctx.clone());
-                    ctx.spawner().spawn(fut).detach();
-                },
-            }
-        }
+    async fn run(&mut self, _: &Context<Neovim>) {
+        self.run().await;
     }
 }
