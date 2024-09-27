@@ -14,6 +14,12 @@ pub struct Context<E> {
 impl<E: Editor> Context<E> {
     /// TODO: docs.
     #[inline]
+    pub fn spawner(&self) -> E::Spawner {
+        self.with_editor(|editor| editor.spawner())
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn subscribe<T>(&self, event: T) -> Subscription<T, E>
     where
         T: Event<E>,

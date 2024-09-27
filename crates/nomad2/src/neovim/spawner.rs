@@ -4,6 +4,7 @@ use super::{executor, NeovimJoinHandle};
 use crate::Spawner;
 
 /// TODO: docs.
+#[derive(Debug, Copy, Clone, Default)]
 pub struct NeovimSpawner;
 
 impl Spawner for NeovimSpawner {
