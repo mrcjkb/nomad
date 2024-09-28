@@ -1,4 +1,5 @@
-use nomad2::{Context, Emitter, Event, Neovim};
+use nomad2::neovim::Neovim;
+use nomad2::{Context, Emitter, Event};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct StartSession;
@@ -11,11 +12,5 @@ impl Event<Neovim> for StartSession {
     type Payload = ();
     type SubscribeCtx = ();
 
-    fn subscribe(
-        &self,
-        _emitter: Emitter<Self::Payload>,
-        _ctx: &Context<Neovim>,
-    ) {
-        todo!()
-    }
+    fn subscribe(&mut self, _: Emitter<Self::Payload>, _: &Context<Neovim>) {}
 }

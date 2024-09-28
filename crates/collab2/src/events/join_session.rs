@@ -13,11 +13,5 @@ impl Event<Neovim> for JoinSession {
     type Payload = SessionId;
     type SubscribeCtx = ();
 
-    fn subscribe(
-        &self,
-        _emitter: Emitter<Self::Payload>,
-        _ctx: &Context<Neovim>,
-    ) {
-        todo!()
-    }
+    fn subscribe(&mut self, _: Emitter<Self::Payload>, _: &Context<Neovim>) {}
 }

@@ -89,7 +89,7 @@ impl Module<Neovim> for Collab<Neovim> {
 
     type Config = Config;
 
-    fn init(ctx: &Context<Neovim>) -> NeovimModuleApi<Self> {
+    fn api(ctx: &Context<Neovim>) -> NeovimModuleApi<Self> {
         // let join_cmd_sub = ctx.with_editor(|nvim| {
         //     nvim.create_command(JoinSession::NAME, JoinSession)
         // });
@@ -105,15 +105,15 @@ impl Module<Neovim> for Collab<Neovim> {
 
         let (join_fn, join_fn_sub) = NeovimFunction::builder()
             .name(JoinSession::NAME)
-            .on_execute(JoinSession)
-            .build(ctx.clone());
+            .args::<SessionId>()
+            .build::<Self>(ctx);
 
         let (start_fn, start_fn_sub) = NeovimFunction::builder()
             .name(StartSession::NAME)
-            .on_execute(StartSession)
-            .build(ctx.clone());
+            .args::<()>()
+            .build::<Self>(ctx);
 
-        let collab = Self {
+        let collab = Collab {
             ctx: ctx.clone(),
             config: Config::default(),
             join_sub: join_fn_sub,

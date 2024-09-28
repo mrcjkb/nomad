@@ -1,12 +1,13 @@
 use core::fmt;
+use std::collections::HashMap;
 
 use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf, Fs};
 use collab_messaging::{Outbound, PeerId, Recipients};
-use collab_project::{Integrate, Project, Synchronize};
+use collab_project::{FileId, Integrate, Project, Synchronize};
 use collab_server::{JoinRequest, SessionId};
 use futures_util::{select, FutureExt, StreamExt};
 use nohash::IntSet as NoHashSet;
-use nomad2::{Context, Editor, JoinHandle, Spawner};
+use nomad2::{Context, Editor, JoinHandle, Spawner, Subscription};
 use nomad_server::client::{Joined, Receiver, Sender};
 use nomad_server::{Io, Message};
 use root_finder::markers::Git;
@@ -42,6 +43,15 @@ pub(crate) struct Session<E: Editor> {
 
     /// A sender for sending messages to the server.
     sender: Sender,
+
+    /// TODO: docs.
+    subs_edits: HashMap<FileId, Subscription<EditEvent, E>>,
+
+    /// TODO: docs.
+    subs_cursors: HashMap<FileId, Subscription<CursorEvent, E>>,
+
+    /// TODO: docs.
+    subs_selections: HashMap<FileId, Subscription<SelectionEvent, E>>,
 }
 
 impl<E: Editor> Session<E> {
