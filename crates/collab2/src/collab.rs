@@ -1,6 +1,6 @@
 use collab_server::SessionId;
 use futures_util::{select, FutureExt};
-use nomad2::neovim::{Neovim, NeovimFunction, NeovimModuleApi};
+use nomad2::neovim::{self, Neovim, NeovimModuleApi};
 use nomad2::{
     module_name,
     Api,
@@ -90,37 +90,33 @@ impl Module<Neovim> for Collab<Neovim> {
     type Config = Config;
 
     fn api(ctx: &Context<Neovim>) -> NeovimModuleApi<Self> {
-        // let join_cmd_sub = ctx.with_editor(|nvim| {
-        //     nvim.create_command(JoinSession::NAME, JoinSession)
-        // });
+        // let (join_fn, join_fn_sub) = NeovimFunction::builder()
+        //     .name(JoinSession::NAME)
+        //     .args::<SessionId>()
+        //     .build::<Self>(ctx);
         //
-        // let start_cmd_sub = ctx.with_editor(|nvim| {
-        //     nvim.create_command(StartSession::NAME, StartSession)
-        // });
-
-        // let start_cmd_sub = NeovimCommand::builder()
+        // let (start_fn, start_fn_sub) = NeovimFunction::builder()
         //     .name(StartSession::NAME)
-        //     .on_execute(StartSession)
-        //     .build(ctx.clone());
+        //     .args::<()>()
+        //     .build::<Self>(ctx);
 
-        let (join_fn, join_fn_sub) = NeovimFunction::builder()
-            .name(JoinSession::NAME)
-            .args::<SessionId>()
-            .build::<Self>(ctx);
+        let (join_cmd, join_cmd_sub) = NeovimCommand::new(JoinSession, ctx);
+        let (start_cmd, start_cmd_sub) = NeovimCommand::new(StartSession, ctx);
 
-        let (start_fn, start_fn_sub) = NeovimFunction::builder()
-            .name(StartSession::NAME)
-            .args::<()>()
-            .build::<Self>(ctx);
+        let (join_fn, join_fn_sub) = neovim::function::<JoinSession>(ctx);
+        let (start_fn, start_fn_sub) = neovim::function::<StartSession>(ctx);
 
         let this = Self(Collab {
             ctx: ctx.clone(),
             config: Config::default(),
-            join_sub: join_fn_sub,
-            start_sub: start_fn_sub,
+            join_sub: join_cmd_sub.zip(join_fn_sub),
+            start_sub: start_cmd_sub.zip(start_fn_sub),
         });
 
         NeovimModuleApi::new(this)
+            // .with_default_command(Auth)
+            .with_command(join_cmd)
+            .with_command(start_cmd)
             .with_function(join_fn)
             .with_function(start_fn)
     }
