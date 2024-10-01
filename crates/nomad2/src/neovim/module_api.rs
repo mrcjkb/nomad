@@ -4,16 +4,16 @@ use super::{FunctionHandle, Neovim};
 use crate::Module;
 
 /// TODO: docs.
-pub struct ModuleApi<M: Module<Neovim>> {
+pub struct ModuleApi {
+    pub(super) name: &'static str,
     pub(super) dict: NvimDictionary,
-    pub(super) module: M,
 }
 
-impl<M: Module<Neovim>> ModuleApi<M> {
+impl ModuleApi {
     /// TODO: docs.
     #[inline]
-    pub fn new(module: M) -> Self {
-        Self { dict: NvimDictionary::default(), module }
+    pub fn new<M: Module<Neovim>>() -> Self {
+        Self { name: M::NAME.as_str(), dict: NvimDictionary::default() }
     }
 
     /// TODO: docs.

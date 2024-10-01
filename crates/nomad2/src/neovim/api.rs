@@ -13,14 +13,14 @@ use crate::Module;
 
 const SETUP_FN_NAME: &str = "setup";
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct Api {
     dict: NvimDictionary,
 }
 
-impl<M: Module<Neovim>> AddAssign<ModuleApi<M>> for Api {
+impl AddAssign<ModuleApi> for Api {
     #[track_caller]
-    fn add_assign(&mut self, module_api: ModuleApi<M>) {
+    fn add_assign(&mut self, module_api: ModuleApi) {
         if self.dict.get(&module_api.name).is_some() {
             panic!(
                 "a module with the name '{}' already exists in {self:#?}",

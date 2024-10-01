@@ -1,14 +1,19 @@
+use core::ops::AddAssign;
+
 use collab_fs::Fs;
 
-use crate::{Module, Spawner};
+use crate::Spawner;
 
 /// TODO: docs.
 pub trait Editor: 'static {
     /// TODO: docs.
-    type Fs: Fs;
+    type Api: Default + AddAssign<Self::ModuleApi>;
 
     /// TODO: docs.
-    type ModuleApi<M: Module<Self>>;
+    type ModuleApi;
+
+    /// TODO: docs.
+    type Fs: Fs;
 
     /// TODO: docs.
     type Spawner: Spawner;

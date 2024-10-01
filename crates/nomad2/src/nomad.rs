@@ -4,9 +4,9 @@ use core::pin::Pin;
 use crate::{Context, Editor, JoinHandle, Module, Spawner};
 
 /// TODO: docs.
-pub struct Nomad<E> {
+pub struct Nomad<E: Editor> {
     api: E::Api,
-    run: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    run: Vec<Pin<Box<dyn Future<Output = ()>>>>,
     ctx: Context<E>,
 }
 
@@ -36,9 +36,10 @@ impl<E: Editor> Nomad<E> {
     }
 
     /// TODO: docs.
+    #[track_caller]
     #[inline]
-    pub fn with_module<M: Module<E>>(mut self, module: M) -> Self {
-        let module_api = M::init(&self.ctx);
+    pub fn with_module<M: Module<E>>(mut self) -> Self {
+        let (mut module, module_api) = M::init(&self.ctx);
         self.api += module_api;
         self.run.push({
             let ctx = self.ctx.clone();

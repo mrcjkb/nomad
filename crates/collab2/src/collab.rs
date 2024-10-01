@@ -89,7 +89,7 @@ impl Module<Neovim> for Collab<Neovim> {
 
     type Config = Config;
 
-    fn api(ctx: &Context<Neovim>) -> ModuleApi<Self> {
+    fn init(ctx: &Context<Neovim>) -> (Self, ModuleApi) {
         // let (join_fn, join_fn_sub) = NeovimFunction::builder()
         //     .name(JoinSession::NAME)
         //     .args::<SessionId>()
@@ -113,12 +113,14 @@ impl Module<Neovim> for Collab<Neovim> {
             start_sub: start_cmd_sub.zip(start_fn_sub),
         });
 
-        ModuleApi::new(this)
+        let api = ModuleApi::new::<Self>()
             // .with_default_command(Auth)
             // .with_command(join_cmd)
             // .with_command(start_cmd)
             .with_function(join_fn)
-            .with_function(start_fn)
+            .with_function(start_fn);
+
+        (this, api)
     }
 
     async fn run(&mut self, _: &Context<Neovim>) {

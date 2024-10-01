@@ -1,6 +1,6 @@
 use collab_fs::OsFs;
 
-use super::{ModuleApi, NeovimSpawner};
+use super::{Api, ModuleApi, NeovimSpawner};
 use crate::{Editor, Module};
 
 /// TODO: docs.
@@ -9,7 +9,8 @@ pub struct Neovim {}
 
 impl Editor for Neovim {
     type Fs = OsFs;
-    type ModuleApi<M: Module<Self>> = ModuleApi<M>;
+    type Api = Api;
+    type ModuleApi = ModuleApi;
     type Spawner = NeovimSpawner;
 
     #[inline]
