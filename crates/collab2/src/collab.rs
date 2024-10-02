@@ -1,5 +1,5 @@
 use collab_server::SessionId;
-use futures_util::{select, FutureExt, StreamExt};
+use futures_util::{select, FutureExt, Stream, StreamExt};
 use nomad2::{
     module_name,
     Api,
@@ -13,22 +13,29 @@ use nomad2::{
     Subscription,
 };
 
-use crate::events::{JoinSession, StartSession};
-use crate::{Config, Session};
+use crate::{CollabEditor, Config, Session};
 
 /// TODO: docs.
-pub(crate) struct Collab<E, JoinStream, StartStream> {
+pub(crate) struct Collab<E: CollabEditor> {
     pub(crate) ctx: Context<E>,
     pub(crate) config: Config,
-    pub(crate) join_stream: JoinStream,
-    pub(crate) start_stream: StartStream,
+    pub(crate) join_stream: E::JoinStream,
+    pub(crate) start_stream: E::StartStream,
 }
 
-impl<E: Editor> Collab<E>
-where
-    JoinSession: Event<E, Payload = SessionId>,
-    StartSession: Event<E>,
-{
+impl<E: CollabEditor> Collab<E> {
+    pub(crate) async fn run(&mut self) {
+        loop {
+            select! {
+                _ = self.start_stream.next().fuse() => self.start_session(),
+                session_id = self.join_stream.next().fuse() => {
+                    let session_id = session_id.expect("never ends");
+                    self.join_session(session_id)
+                },
+            }
+        }
+    }
+
     fn join_session(&self, id: SessionId) {
         let ctx = self.ctx.clone();
         let config = self.config.clone();
@@ -48,15 +55,6 @@ where
         };
 
         self.ctx.spawner().spawn(fut).detach();
-    }
-
-    async fn run(&mut self) {
-        loop {
-            select! {
-                _ = self.start_stream.next().fuse() => self.start_session(),
-                &id = self.join_stream.next().fuse() => self.join_session(id),
-            }
-        }
     }
 
     fn start_session(&self) {

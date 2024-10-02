@@ -1,4 +1,4 @@
-use futures_util::stream::Zip;
+use futures_util::stream::select;
 use futures_util::StreamExt;
 use nomad2::neovim::{
     command,
@@ -13,18 +13,8 @@ use nomad2::{module_name, Context, Module, ModuleName, Subscription};
 use crate::events::{JoinSession, StartSession};
 use crate::{Collab, Config};
 
-type JoinStream = Zip<
-    Subscription<CommandEvent<JoinSession>, Neovim>,
-    Subscription<FunctionEvent<JoinSession>, Neovim>,
->;
-
-type StartStream = Zip<
-    Subscription<CommandEvent<StartSession>, Neovim>,
-    Subscription<FunctionEvent<StartSession>, Neovim>,
->;
-
 /// TODO: docs.
-pub struct NeovimCollab(Collab<Neovim, JoinStream, StartStream>);
+pub struct NeovimCollab(Collab<Neovim>);
 
 impl Module<Neovim> for NeovimCollab {
     const NAME: ModuleName = module_name!("collab");
@@ -47,8 +37,8 @@ impl Module<Neovim> for NeovimCollab {
         let this = Self(Collab {
             ctx: ctx.clone(),
             config: Config::default(),
-            join_stream: join_cmd_sub.zip(join_fn_sub),
-            start_stream: start_cmd_sub.zip(start_fn_sub),
+            join_stream: select(join_cmd_sub, join_fn_sub),
+            start_stream: select(start_cmd_sub, start_fn_sub),
         });
 
         (this, api)

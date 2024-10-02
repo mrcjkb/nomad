@@ -1,21 +1,31 @@
 use core::fmt;
 use std::collections::HashMap;
+use std::io;
 
 use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf, Fs};
 use collab_messaging::{Outbound, PeerId, Recipients};
 use collab_project::{FileId, Integrate, Project, Synchronize};
 use collab_server::{JoinRequest, SessionId};
+use futures_util::stream::select_all;
 use futures_util::{select, FutureExt, StreamExt};
 use nohash::IntSet as NoHashSet;
-use nomad2::{Context, Editor, JoinHandle, Spawner, Subscription};
+use nomad2::{Context, Editor, Event, JoinHandle, Spawner, Subscription};
 use nomad_server::client::{Joined, Receiver, Sender};
 use nomad_server::{Io, Message};
 use root_finder::markers::Git;
 use root_finder::Finder;
 
-use crate::Config;
+use crate::events::{
+    Cursor,
+    CursorEvent,
+    Edit,
+    EditEvent,
+    Selection,
+    SelectionEvent,
+};
+use crate::{CollabEditor, Config};
 
-pub(crate) struct Session<E: Editor> {
+pub(crate) struct Session<E: CollabEditor> {
     /// TODO: docs.
     config: Config,
 
@@ -45,112 +55,78 @@ pub(crate) struct Session<E: Editor> {
     sender: Sender,
 
     /// TODO: docs.
-    subs_edits: HashMap<FileId, Subscription<EditEvent, E>>,
+    subs_edits: HashMap<FileId, E::EditStream>,
 
     /// TODO: docs.
-    subs_cursors: HashMap<FileId, Subscription<CursorEvent, E>>,
+    subs_cursors: HashMap<FileId, E::CursorStream>,
 
     /// TODO: docs.
-    subs_selections: HashMap<FileId, Subscription<SelectionEvent, E>>,
+    subs_selections: HashMap<FileId, E::SelectionStream>,
 }
 
-impl<E: Editor> Session<E> {
+impl<E: CollabEditor> Session<E> {
     pub(crate) async fn join(
         id: SessionId,
         config: Config,
         ctx: Context<E>,
     ) -> Result<Self, JoinSessionError> {
-        let mut joined = Io::connect()
-            .await?
-            .authenticate(())
-            .await?
-            .join(JoinRequest::JoinExistingSession(id))
-            .await?;
-
-        let project = ask_for_project(&mut joined).await?;
-
-        let project_root = config.nomad_dir().join(project.name());
-
-        create_project_dir(&project, project_root, ctx.fs()).await?;
-
-        // TODO: navigate to the project.
+        todo!();
+        // let mut joined = Io::connect()
+        //     .await?
+        //     .authenticate(())
+        //     .await?
+        //     .join(JoinRequest::JoinExistingSession(id))
+        //     .await?;
         //
-        // focus_project_file(ctx, &project_root).await?;
-
-        Ok(Self::new(config, ctx, joined, project, project_root))
-    }
-
-    pub(crate) async fn run(self) -> Result<(), RunSessionError> {
-        loop {
-            select! {
-                cursor = self.cursor_sub.next().fuse() => {
-                    let cursor = cursor.expect("never ends");
-                    self.sync_cursor_moved(cursor).await?;
-                },
-
-                edit = self.edits_subs.next().fuse() => {
-                    let edit = edit.expect("never ends");
-                    self.sync_local_edit(edit).await?;
-                },
-
-                focus = self.focus_subs.next().fuse() => {
-                    let focus = focus.expect("never ends");
-                    self.sync_window_focus(focus).await?;
-                },
-
-                maybe_msg = self.receiver.next().fuse() => {
-                    match maybe_msg {
-                        Some(Ok(msg)) => self.integrate_message(msg).await?,
-                        Some(Err(err)) => return Err(err.into()),
-                        None => todo!(),
-                    };
-                },
-            }
-        }
+        // let project = ask_for_project(&mut joined).await?;
+        //
+        // let project_root = config.nomad_dir().join(project.name());
+        //
+        // create_project_dir(&project, project_root, ctx.fs()).await?;
+        //
+        // // TODO: navigate to the project.
+        // //
+        // // focus_project_file(ctx, &project_root).await?;
+        //
+        // Ok(Self::new(config, ctx, joined, project, project_root))
     }
 
     pub(crate) async fn start(
         config: Config,
         ctx: Context<E>,
     ) -> Result<Self, StartSessionError> {
-        let Some(file) = ctx.buffer().file() else {
-            return Err(StartSessionError::NotInFile);
-        };
-
-        let Some(root_candidate) =
-            Finder::find_root(file.path(), &Git, ctx.fs()).await?
-        else {
-            return Err(StartSessionError::CouldntFindRoot(
-                file.path().to_owned(),
-            ));
-        };
-
-        let project_root =
-            match ctx.ask_user(ConfirmStart(&root_candidate)).await {
-                Ok(true) => root_candidate,
-                Ok(false) => return Err(StartSessionError::UserCancelled),
-                Err(err) => return Err(err.into()),
-            };
-
-        let joined = Io::connect()
-            .await?
-            .authenticate(())
-            .await?
-            .join(JoinRequest::StartNewSession)
-            .await?;
-
-        let peer_id = joined.join_response.client_id;
-
-        let project = Project::from_fs(peer_id, ctx.fs()).await?;
-
-        Ok(Self::new(config, ctx, joined, project, project_root))
-    }
-
-    async fn integrate_message(
-        &mut self,
-        message: Message,
-    ) -> Result<(), RunSessionError> {
         todo!();
+        // let Some(file) = ctx.buffer().file() else {
+        //     return Err(StartSessionError::NotInFile);
+        // };
+        //
+        // let Some(root_candidate) =
+        //     Finder::find_root(file.path(), &Git, ctx.fs()).await?
+        // else {
+        //     return Err(StartSessionError::CouldntFindRoot(
+        //         file.path().to_owned(),
+        //     ));
+        // };
+        //
+        // let project_root =
+        //     match ctx.ask_user(ConfirmStart(&root_candidate)).await {
+        //         Ok(true) => root_candidate,
+        //         Ok(false) => return Err(StartSessionError::UserCancelled),
+        //         Err(err) => return Err(err.into()),
+        //     };
+        //
+        // let joined = Io::connect()
+        //     .await?
+        //     .authenticate(())
+        //     .await?
+        //     .join(JoinRequest::StartNewSession)
+        //     .await?;
+        //
+        // let peer_id = joined.join_response.client_id;
+        //
+        // let project = Project::from_fs(peer_id, ctx.fs()).await?;
+        //
+        // Ok(Self::new(config, ctx, joined, project, project_root))
     }
 
     fn is_host(&self) -> bool {
@@ -179,59 +155,129 @@ impl<E: Editor> Session<E> {
             receiver,
             sender,
             server_id: join_response.server_id,
+            subs_cursors: HashMap::new(),
+            subs_edits: HashMap::new(),
+            subs_selections: HashMap::new(),
         }
+    }
+}
+
+impl<E: CollabEditor> Session<E> {
+    async fn integrate_message(
+        &mut self,
+        message: Message,
+    ) -> Result<(), RunSessionError> {
+        todo!();
+    }
+
+    pub(crate) async fn run(self) -> Result<(), RunSessionError> {
+        loop {
+            let cursors = select_all(self.subs_cursors.values_mut());
+            let edits = select_all(self.subs_edits.values_mut());
+            let selections = select_all(self.subs_selections.values_mut());
+
+            select! {
+                cursor = cursors.next().fuse() => {
+                    let cursor = cursor.expect("never ends");
+                    self.sync_cursor_moved(cursor).await?;
+                },
+
+                edit = edits.next().fuse() => {
+                    let edit = edit.expect("never ends");
+                    self.sync_local_edit(edit).await?;
+                },
+
+                selection = selections.next().fuse() => {
+                    let selection = selection.expect("never ends");
+                    self.sync_selection_changed(selection).await?;
+                },
+
+                maybe_msg = self.receiver.next().fuse() => {
+                    match maybe_msg {
+                        Some(Ok(msg)) => self.integrate_message(msg).await?,
+                        Some(Err(err)) => return Err(err.into()),
+                        None => todo!(),
+                    };
+                },
+            }
+        }
+    }
+
+    #[inline]
+    async fn sync_cursor_moved(
+        &mut self,
+        cursor: Cursor,
+    ) -> Result<(), RunSessionError> {
+        todo!();
+    }
+
+    #[inline]
+    async fn sync_local_edit(
+        &mut self,
+        edit: Edit,
+    ) -> Result<(), RunSessionError> {
+        todo!();
+    }
+
+    #[inline]
+    async fn sync_selection_changed(
+        &mut self,
+        selection: Selection,
+    ) -> Result<(), RunSessionError> {
+        todo!();
     }
 }
 
 async fn ask_for_project(
     joined: &mut Joined,
 ) -> Result<Project, JoinSessionError> {
-    let local_id = joined.join_response.client_id;
-
-    let &ask_project_to =
-        joined.peers.iter().find(|id| id != local_id).expect("never empty");
-
-    let message = Message::ProjectRequest(local_id);
-
-    let outbound = Outbound {
-        should_compress: message.should_compress(),
-        message,
-        recipients: Recipients::only([ask_project_to]),
-    };
-
-    let mut buffered = Vec::new();
-
-    let mut project = loop {
-        let message = match this.receiver.next().await {
-            Some(Ok(message)) => message,
-            Some(Err(err)) => return Err(err.into()),
-            None => todo!(),
-        };
-
-        match message {
-            Message::ProjectResponse(project) => break project,
-            other => buffered.push(other),
-        }
-    };
-
-    for project_msg in buffered {
-        let _ = project.integrate(project_msg);
-    }
-
-    project
+    todo!();
+    // let local_id = joined.join_response.client_id;
+    //
+    // let &ask_project_to =
+    //     joined.peers.iter().find(|id| id != local_id).expect("never empty");
+    //
+    // let message = Message::ProjectRequest(local_id);
+    //
+    // let outbound = Outbound {
+    //     should_compress: message.should_compress(),
+    //     message,
+    //     recipients: Recipients::only([ask_project_to]),
+    // };
+    //
+    // let mut buffered = Vec::new();
+    //
+    // let mut project = loop {
+    //     let message = match this.receiver.next().await {
+    //         Some(Ok(message)) => message,
+    //         Some(Err(err)) => return Err(err.into()),
+    //         None => todo!(),
+    //     };
+    //
+    //     match message {
+    //         Message::ProjectResponse(project) => break project,
+    //         other => buffered.push(other),
+    //     }
+    // };
+    //
+    // for project_msg in buffered {
+    //     let _ = project.integrate(project_msg);
+    // }
+    //
+    // project
 }
 
 async fn create_project_dir(
     project: &Project,
     project_root: &AbsUtf8Path,
-    fs: &impl Fs,
+    fs: &mut impl Fs,
 ) -> Result<(), JoinSessionError> {
     fs.create_dir(project_root).await?;
-    fs.set_root(project_root).await?;
+    fs.set_root(project_root.to_owned());
     Ok(())
 }
 
-impl<E: Editor> Drop for Session<E> {
+impl<E: CollabEditor> Drop for Session<E> {
     fn drop(&mut self) {
         if self.is_host() {
             return;
@@ -262,8 +308,20 @@ impl fmt::Display for ConfirmStart<'_> {
 #[derive(Debug)]
 pub(crate) enum JoinSessionError {}
 
+impl From<io::Error> for JoinSessionError {
+    fn from(err: io::Error) -> Self {
+        todo!();
+    }
+}
+
 #[derive(Debug)]
 pub(crate) enum RunSessionError {}
+
+impl From<io::Error> for RunSessionError {
+    fn from(err: io::Error) -> Self {
+        todo!();
+    }
+}
 
 #[derive(Debug)]
 pub(crate) enum StartSessionError {
@@ -277,4 +335,10 @@ pub(crate) enum StartSessionError {
     /// We asked the user for confirmation to start the session, but they
     /// cancelled.
     UserCancelled,
+}
+
+impl From<io::Error> for StartSessionError {
+    fn from(err: io::Error) -> Self {
+        todo!();
+    }
 }
