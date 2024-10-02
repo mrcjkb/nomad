@@ -9,7 +9,7 @@ use crate::Module;
 /// TODO: docs.
 pub struct ModuleApi {
     pub(super) name: &'static str,
-    pub(super) commands: HashMap<&'static str, OnExecute>,
+    pub(super) commands: ModuleCommands,
     pub(super) inner: NvimDictionary,
 }
 
@@ -19,7 +19,7 @@ impl ModuleApi {
     pub fn new<M: Module<Neovim>>() -> Self {
         Self {
             name: M::NAME.as_str(),
-            commands: HashMap::default(),
+            commands: ModuleCommands::new(M::NAME.as_str()),
             inner: NvimDictionary::default(),
         }
     }
@@ -27,23 +27,7 @@ impl ModuleApi {
     /// TODO: docs.
     #[inline]
     pub fn with_command(mut self, command: CommandHandle) -> Self {
-        if self.name != command.module_name {
-            panic!(
-                "trying to register a command for module '{}' in the API for \
-                 module '{}'",
-                command.module_name, self.name
-            );
-        }
-
-        if self.commands.contains_key(command.name) {
-            panic!(
-                "a command with the name '{}' already exists in the API for \
-                 module '{}'",
-                command.name, self.name
-            );
-        }
-
-        self.commands.insert(command.name, command.on_execute);
+        self.commands.add_command(command);
         self
     }
 
@@ -69,5 +53,43 @@ impl ModuleApi {
 
         self.inner.insert(function.name, function.inner);
         self
+    }
+}
+
+pub(super) struct ModuleCommands {
+    /// The name of the module these commands belong to.
+    pub(super) module_name: &'static str,
+
+    /// Map from command name to the function to run when the command is
+    /// executed.
+    pub(super) map: HashMap<&'static str, OnExecute>,
+}
+
+impl ModuleCommands {
+    fn new(module_name: &'static str) -> Self {
+        Self { module_name, map: HashMap::new() }
+    }
+}
+
+impl ModuleCommands {
+    #[track_caller]
+    fn add_command(&mut self, command: CommandHandle) {
+        if self.module_name != command.module_name {
+            panic!(
+                "trying to register a command for module '{}' in the API for \
+                 module '{}'",
+                command.module_name, self.module_name
+            );
+        }
+
+        if self.map.contains_key(command.name) {
+            panic!(
+                "a command with the name '{}' already exists in the API for \
+                 module '{}'",
+                command.name, self.module_name
+            );
+        }
+
+        self.map.insert(command.name, command.on_execute);
     }
 }
