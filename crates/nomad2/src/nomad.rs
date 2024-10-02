@@ -6,8 +6,8 @@ use crate::{Context, Editor, JoinHandle, Module, Spawner};
 /// TODO: docs.
 pub struct Nomad<E: Editor> {
     api: E::Api,
-    run: Vec<Pin<Box<dyn Future<Output = ()>>>>,
     ctx: Context<E>,
+    run: Vec<Pin<Box<dyn Future<Output = ()>>>>,
 }
 
 impl<E: Editor> Nomad<E> {
@@ -22,8 +22,8 @@ impl<E: Editor> Nomad<E> {
     pub fn new(editor: E) -> Self {
         Self {
             api: E::Api::default(),
-            run: Vec::default(),
             ctx: Context::new(editor),
+            run: Vec::default(),
         }
     }
 
