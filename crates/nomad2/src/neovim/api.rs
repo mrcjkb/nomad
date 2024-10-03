@@ -7,7 +7,6 @@ use nvim_oxi::{
     lua,
     Dictionary as NvimDictionary,
     Function as NvimFunction,
-    Object as NvimObject,
 };
 
 use super::config::{OnConfigChange, Setup};
@@ -72,7 +71,7 @@ impl Commands {
     fn on_execute(self) -> impl Fn(api::types::CommandArgs) + 'static {
         move |args| {
             if let Err(err) = self.on_execute_inner(args) {
-                todo!();
+                err.emit();
             }
         }
     }
@@ -93,11 +92,11 @@ impl Commands {
             })?;
 
         let Some(command_name) = args.pop_front() else {
-            return (if let Some(default) = module_commands.default_command() {
+            return if let Some(default) = module_commands.default_command() {
                 default(args)
             } else {
                 Err(CommandArgsError::missing_command(module_commands))
-            });
+            };
         };
 
         let command = module_commands

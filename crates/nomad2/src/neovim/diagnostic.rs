@@ -66,17 +66,17 @@ impl fmt::Display for DiagnosticSource {
 }
 
 #[derive(Default)]
-pub(super) struct DiagnosticMessage {
+pub struct DiagnosticMessage {
     chunks: Vec<(NvimString, Option<HighlightGroup>)>,
 }
 
 impl DiagnosticMessage {
-    pub(super) fn emit(self, level: Level, source: DiagnosticSource) {
-        emit(level, source, self);
+    pub fn new() -> Self {
+        Self { chunks: Vec::new() }
     }
 
-    pub(super) fn new() -> Self {
-        Self { chunks: Vec::new() }
+    pub(super) fn emit(self, level: Level, source: DiagnosticSource) {
+        emit(level, source, self);
     }
 
     pub(super) fn push_str(&mut self, s: &str) -> &mut Self {

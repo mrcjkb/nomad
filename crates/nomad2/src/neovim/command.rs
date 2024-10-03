@@ -2,6 +2,7 @@ use core::cmp::Ordering;
 use core::marker::PhantomData;
 
 use super::api::Commands;
+use super::diagnostic::{DiagnosticMessage, DiagnosticSource, Level};
 use super::module_api::ModuleCommands;
 use super::Neovim;
 use crate::{Context, Emitter, Event, Module, Shared, Subscription};
@@ -139,9 +140,28 @@ impl<T> Ord for CommandEvent<T> {
 }
 
 /// TODO: docs.
-pub struct CommandArgsError {}
+pub struct CommandArgsError {
+    source: DiagnosticSource,
+    msg: DiagnosticMessage,
+}
 
 impl CommandArgsError {
+    /// TODO: docs.
+    pub fn new(
+        module_name: &str,
+        command_name: &str,
+        msg: DiagnosticMessage,
+    ) -> Self {
+        let mut source = DiagnosticSource::new();
+        source.push_segment(module_name).push_segment(command_name);
+        Self { source, msg }
+    }
+
+    #[inline]
+    pub(super) fn emit(self) {
+        self.msg.emit(Level::Error, self.source);
+    }
+
     #[inline]
     pub(super) fn missing_command(commands: &ModuleCommands) -> Self {
         todo!();
@@ -149,6 +169,10 @@ impl CommandArgsError {
 
     #[inline]
     pub(super) fn missing_module(commands: &Commands) -> Self {
+        // missing_command -> [<module>]
+        // missing_module -> []
+        // unknown_command -> [<module>]
+        // unknown_module -> []
         todo!();
     }
 
