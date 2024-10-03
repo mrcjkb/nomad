@@ -1,5 +1,6 @@
 use core::cmp::Ordering;
 use core::marker::PhantomData;
+use std::vec::IntoIter;
 
 use super::api::Commands;
 use super::diagnostic::{
@@ -50,13 +51,15 @@ pub trait Command: 'static {
 }
 
 /// TODO: docs.
-pub struct CommandArgs {}
+pub struct CommandArgs {
+    inner: IntoIter<String>,
+}
 
 impl CommandArgs {
     /// TODO: docs.
     #[inline]
     pub fn as_slice(&self) -> &[String] {
-        todo!();
+        self.inner.as_slice()
     }
 
     /// TODO: docs.
@@ -68,20 +71,20 @@ impl CommandArgs {
     /// TODO: docs.
     #[inline]
     pub fn len(&self) -> usize {
-        todo!();
+        self.inner.len()
     }
 
     /// TODO: docs.
     #[inline]
     pub fn pop_front(&mut self) -> Option<String> {
-        todo!();
+        self.inner.next()
     }
 }
 
 impl From<nvim_oxi::api::types::CommandArgs> for CommandArgs {
     #[inline]
-    fn from(_: nvim_oxi::api::types::CommandArgs) -> Self {
-        todo!();
+    fn from(args: nvim_oxi::api::types::CommandArgs) -> Self {
+        Self { inner: args.fargs.into_iter() }
     }
 }
 
