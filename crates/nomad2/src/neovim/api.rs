@@ -10,6 +10,7 @@ use nvim_oxi::{
     Object as NvimObject,
 };
 
+use super::config::{OnConfigChange, Setup};
 use super::module_api::ModuleCommands;
 use super::{CommandArgs, CommandArgsError, ModuleApi, Neovim};
 use crate::Nomad;
@@ -18,39 +19,39 @@ use crate::Nomad;
 const NOMAD_CMD_NAME: &str = "Mad";
 
 /// TODO: docs.
-const SETUP_FN_NAME: &str = "setup";
-
-/// TODO: docs.
 #[derive(Default)]
 pub struct Api {
     commands: Commands,
     dict: NvimDictionary,
+    on_config_change: HashMap<&'static str, OnConfigChange>,
 }
 
 impl AddAssign<ModuleApi> for Api {
     #[track_caller]
     fn add_assign(&mut self, module_api: ModuleApi) {
-        if self.dict.get(&module_api.name).is_some() {
+        let module_name = module_api.name;
+
+        if self.dict.get(&module_name).is_some() {
             panic!(
                 "a module with the name '{}' has already been added to the \
                  API",
-                module_api.name
+                module_name
             );
         }
 
-        if module_api.name == SETUP_FN_NAME {
+        if module_name == Setup::NAME {
             panic!(
                 "got a module with the name '{}', which is reserved for the \
                  setup function",
-                module_api.name
+                module_name
             );
         }
 
-        self.dict.insert(module_api.name, module_api.inner);
+        self.commands.map.insert(module_name, module_api.commands);
+        self.dict.insert(module_name, module_api.inner);
+        self.on_config_change.insert(module_name, module_api.on_config_change);
     }
 }
-
-fn setup(_obj: NvimObject) {}
 
 #[derive(Default)]
 pub(super) struct Commands {
@@ -113,27 +114,11 @@ impl Commands {
     }
 }
 
-impl AddAssign<ModuleCommands> for Commands {
-    #[track_caller]
-    fn add_assign(&mut self, commands: ModuleCommands) {
-        if self.map.contains_key(&commands.module_name) {
-            panic!(
-                "a module with the name '{}' has already been added to the \
-                 API",
-                commands.module_name
-            );
-        }
-
-        self.map.insert(commands.module_name, commands);
-    }
-}
-
 impl lua::Pushable for Api {
     unsafe fn push(mut self, state: *mut LuaState) -> Result<i32, lua::Error> {
         self.commands.create_mad_command();
-
-        let setup = NvimFunction::from_fn(|obj| setup(obj));
-        self.dict.insert(SETUP_FN_NAME, setup);
+        let setup = Setup::new(self.on_config_change);
+        self.dict.insert(Setup::NAME, NvimFunction::from_fn(setup.into_fn()));
         self.dict.push(state)
     }
 }

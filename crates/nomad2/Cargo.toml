@@ -7,14 +7,17 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-async-task = "4.7"
 collab-fs = { workspace = true }
-concurrent-queue = "2.4"
 futures-util = { workspace = true }
 nomad-macros = { path = "./macros" }
+serde = { workspace = true }
+
+# Neovim-specific dependencies.
+async-task = "4.7"
+concurrent-queue = "2.4"
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv", "neovim-0-10" ] }
 pin-project-lite = "0.2"
-serde = { workspace = true }
+
 
 [lints]
 workspace = true

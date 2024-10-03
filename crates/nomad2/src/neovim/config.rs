@@ -1,5 +1,6 @@
 use core::cmp::Ordering;
 use core::marker::PhantomData;
+use std::collections::HashMap;
 
 use nvim_oxi::Object as NvimObject;
 use serde::de::DeserializeOwned;
@@ -68,6 +69,46 @@ impl<T: Module<Neovim>> Event<Neovim> for ConfigEvent<T> {
     }
 }
 
-fn obj_to_config<T: DeserializeOwned>(obj: NvimObject) -> Result<T, ()> {
+pub(super) struct Setup {
+    on_config_change: HashMap<&'static str, OnConfigChange>,
+    module_names: &'static [&'static str],
+}
+
+impl Setup {
+    pub(super) const NAME: &'static str = "setup";
+
+    pub(super) fn into_fn(self) -> impl Fn(NvimObject) {
+        move |obj| {
+            if let Err(err) = self.on_config_change(obj) {
+                todo!();
+            }
+        }
+    }
+
+    pub(super) fn new(
+        on_config_change: HashMap<&'static str, OnConfigChange>,
+    ) -> Self {
+        let mut names = on_config_change.keys().copied().collect::<Vec<_>>();
+
+        // Sort the module names alphabetically to have a nicer message when
+        // including the list of valid modules in a warning.
+        names.sort_unstable();
+
+        Self { on_config_change, module_names: &*(names.leak()) }
+    }
+
+    fn on_config_change(
+        &self,
+        obj: NvimObject,
+    ) -> Result<(), DeserializeConfigError> {
+        todo!();
+    }
+}
+
+fn obj_to_config<T: DeserializeOwned>(
+    obj: NvimObject,
+) -> Result<T, DeserializeConfigError> {
     todo!();
 }
+
+struct DeserializeConfigError {}
