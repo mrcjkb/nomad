@@ -13,6 +13,13 @@ nomad-macros = { path = "./macros" }
 serde = { workspace = true }
 smol_str = { workspace = true }
 
+# Instrumentation-related dependencies.
+home = "0.5"
+time = { version = "0.3", features = ["macros"] }
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["time"] }
+
 # Neovim-specific dependencies.
 async-task = "4.7"
 concurrent-queue = "2.4"

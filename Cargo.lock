@@ -957,12 +957,17 @@ dependencies = [
  "collab-fs",
  "concurrent-queue",
  "futures-util",
+ "home",
  "nomad-macros",
  "nvim-oxi",
  "pin-project-lite",
  "serde",
  "serde_path_to_error",
  "smol_str",
+ "time",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]

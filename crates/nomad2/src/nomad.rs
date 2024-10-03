@@ -20,6 +20,7 @@ impl<E: Editor> Nomad<E> {
     /// TODO: docs.
     #[inline]
     pub fn new(editor: E) -> Self {
+        crate::log::init(&editor.log_dir());
         Self {
             api: E::Api::default(),
             ctx: Context::new(editor),

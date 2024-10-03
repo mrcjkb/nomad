@@ -1,6 +1,6 @@
 use core::ops::AddAssign;
 
-use collab_fs::Fs;
+use collab_fs::{AbsUtf8PathBuf, Fs};
 
 use crate::Spawner;
 
@@ -20,6 +20,9 @@ pub trait Editor: 'static {
 
     /// TODO: docs.
     fn fs(&self) -> Self::Fs;
+
+    /// TODO: docs.
+    fn log_dir(&self) -> AbsUtf8PathBuf;
 
     /// TODO: docs.
     fn spawner(&self) -> Self::Spawner;

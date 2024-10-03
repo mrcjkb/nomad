@@ -6,6 +6,7 @@ mod api;
 mod context;
 mod editor;
 mod event;
+mod log;
 mod module;
 mod module_name;
 pub mod neovim;
