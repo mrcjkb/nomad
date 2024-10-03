@@ -2,7 +2,12 @@ use core::cmp::Ordering;
 use core::marker::PhantomData;
 
 use super::api::Commands;
-use super::diagnostic::{DiagnosticMessage, DiagnosticSource, Level};
+use super::diagnostic::{
+    DiagnosticMessage,
+    DiagnosticSource,
+    HighlightGroup,
+    Level,
+};
 use super::module_api::ModuleCommands;
 use super::Neovim;
 use crate::{Context, Emitter, Event, Module, Shared, Subscription};
@@ -164,16 +169,33 @@ impl CommandArgsError {
 
     #[inline]
     pub(super) fn missing_command(commands: &ModuleCommands) -> Self {
-        todo!();
+        debug_assert!(!commands.map.is_empty());
+
+        let mut source = DiagnosticSource::new();
+        source.push_segment(commands.module_name);
+
+        let mut msg = DiagnosticMessage::new();
+        msg.push_str("missing command, the valid commands are ")
+            .push_comma_separated(
+                commands.map.keys(),
+                HighlightGroup::special(),
+            );
+
+        Self { source, msg }
     }
 
     #[inline]
     pub(super) fn missing_module(commands: &Commands) -> Self {
-        // missing_command -> [<module>]
-        // missing_module -> []
-        // unknown_command -> [<module>]
-        // unknown_module -> []
-        todo!();
+        debug_assert!(!commands.map.is_empty());
+
+        let mut msg = DiagnosticMessage::new();
+        msg.push_str("missing module, the valid modules are ")
+            .push_comma_separated(
+                commands.map.keys(),
+                HighlightGroup::special(),
+            );
+
+        Self { source: DiagnosticSource::new(), msg }
     }
 
     #[inline]
@@ -181,7 +203,21 @@ impl CommandArgsError {
         command_name: &str,
         commands: &ModuleCommands,
     ) -> Self {
-        todo!();
+        debug_assert!(!commands.map.is_empty());
+
+        let mut source = DiagnosticSource::new();
+        source.push_segment(commands.module_name);
+
+        let mut msg = DiagnosticMessage::new();
+        msg.push_str("unknown command '")
+            .push_str_highlighted(command_name, HighlightGroup::special())
+            .push_str("', the valid commands are ")
+            .push_comma_separated(
+                commands.map.keys(),
+                HighlightGroup::special(),
+            );
+
+        Self { source, msg }
     }
 
     #[inline]
@@ -189,7 +225,18 @@ impl CommandArgsError {
         module_name: &str,
         commands: &Commands,
     ) -> Self {
-        todo!();
+        debug_assert!(!commands.map.is_empty());
+
+        let mut msg = DiagnosticMessage::new();
+        msg.push_str("unknown module '")
+            .push_str_highlighted(module_name, HighlightGroup::special())
+            .push_str("', the valid modules are ")
+            .push_comma_separated(
+                commands.map.keys(),
+                HighlightGroup::special(),
+            );
+
+        Self { source: DiagnosticSource::new(), msg }
     }
 }
 
