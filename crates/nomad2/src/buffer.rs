@@ -3,13 +3,20 @@ use core::hash::Hash;
 use core::ops::RangeBounds;
 
 use collab_fs::AbsUtf8Path;
+use futures_util::Stream;
 
-use crate::{ByteOffset, Editor, Text};
+use crate::{ByteOffset, Context, Edit, Editor, Text};
 
 /// TODO: docs.
-pub trait Buffer<E: Editor + ?Sized> {
+pub trait Buffer<E: Editor> {
+    /// TODO: docs.
+    type EditStream: Stream<Item = Edit>;
+
     /// TODO: docs.
     type Id: Clone + PartialEq + Hash + Ord;
+
+    /// TODO: docs.
+    fn edit_stream(&mut self, ctx: &Context<E>) -> Self::EditStream;
 
     /// TODO: docs.
     fn get_text<R>(&self, byte_range: R) -> Text

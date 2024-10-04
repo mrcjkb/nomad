@@ -4,10 +4,11 @@ use core::fmt;
 use core::ops::{Bound, Range, RangeBounds};
 
 use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf};
+use futures_util::stream::{pending, Pending};
 use nvim_oxi::api::{self, Buffer as NvimBuffer};
 
 use super::Neovim;
-use crate::{ByteOffset, Text};
+use crate::{ByteOffset, Context, Edit, Text};
 
 /// TODO: docs.
 pub struct Buffer {
@@ -175,7 +176,12 @@ impl Buffer {
 }
 
 impl crate::Buffer<Neovim> for Buffer {
+    type EditStream = Pending<Edit>;
     type Id = BufferId;
+
+    fn edit_stream(&mut self, _: &Context<Neovim>) -> Self::EditStream {
+        pending()
+    }
 
     fn get_text<R>(&self, byte_range: R) -> Text
     where

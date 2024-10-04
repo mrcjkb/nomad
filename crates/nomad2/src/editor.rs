@@ -5,7 +5,7 @@ use collab_fs::{AbsUtf8PathBuf, Fs};
 use crate::{Buffer, Spawner};
 
 /// TODO: docs.
-pub trait Editor: 'static {
+pub trait Editor: Sized + 'static {
     /// TODO: docs.
     type Api: Default + AddAssign<Self::ModuleApi>;
 
