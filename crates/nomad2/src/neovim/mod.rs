@@ -21,6 +21,7 @@ pub use command::{
     CommandHandle,
 };
 pub use config::ConfigEvent;
+pub use diagnostic::{DiagnosticMessage, HighlightGroup};
 pub use function::{function, Function, FunctionEvent, FunctionHandle};
 pub use join_handle::NeovimJoinHandle;
 pub use module_api::{module_api, ModuleApi};

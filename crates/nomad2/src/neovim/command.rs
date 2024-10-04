@@ -44,7 +44,10 @@ pub trait Command: 'static {
     const NAME: &'static str;
 
     /// TODO: docs.
-    type Args: TryFrom<CommandArgs, Error: Into<DiagnosticMessage>>;
+    type Args: for<'a> TryFrom<
+        &'a mut CommandArgs,
+        Error: Into<DiagnosticMessage>,
+    >;
 
     /// TODO: docs.
     type Module: Module<Neovim>;
@@ -81,6 +84,33 @@ impl CommandArgs {
     }
 }
 
+impl<T: TryFrom<String>> TryFrom<&mut CommandArgs> for Vec<T> {
+    type Error = T::Error;
+
+    fn try_from(args: &mut CommandArgs) -> Result<Self, Self::Error> {
+        let mut buf = Vec::with_capacity(args.len());
+        while let Some(arg) = args.pop_front() {
+            let item = T::try_from(arg)?;
+            buf.push(item);
+        }
+        Ok(buf)
+    }
+}
+
+impl<T1, T2> TryFrom<&mut CommandArgs> for (T1, T2)
+where
+    T1: for<'a> TryFrom<&'a mut CommandArgs, Error: Into<DiagnosticMessage>>,
+    T2: for<'a> TryFrom<&'a mut CommandArgs, Error: Into<DiagnosticMessage>>,
+{
+    type Error = DiagnosticMessage;
+
+    fn try_from(args: &mut CommandArgs) -> Result<Self, Self::Error> {
+        let t1 = T1::try_from(args).map_err(Into::into)?;
+        let t2 = T2::try_from(args).map_err(Into::into)?;
+        Ok((t1, t2))
+    }
+}
+
 impl From<nvim_oxi::api::types::CommandArgs> for CommandArgs {
     #[inline]
     fn from(args: nvim_oxi::api::types::CommandArgs) -> Self {
@@ -109,8 +139,8 @@ impl<T: Command> Event<Neovim> for CommandEvent<T> {
 
     #[inline]
     fn subscribe(&mut self, emitter: Emitter<T::Args>, _: &Context<Neovim>) {
-        let on_execute = Box::new(move |args| {
-            let args = T::Args::try_from(args).map_err(Into::into)?;
+        let on_execute = Box::new(move |mut args| {
+            let args = T::Args::try_from(&mut args).map_err(Into::into)?;
             emitter.send(args);
             Ok(())
         });
@@ -239,10 +269,10 @@ impl CommandArgsError {
     }
 }
 
-impl TryFrom<CommandArgs> for () {
+impl TryFrom<&mut CommandArgs> for () {
     type Error = DiagnosticMessage;
 
-    fn try_from(args: CommandArgs) -> Result<Self, Self::Error> {
+    fn try_from(args: &mut CommandArgs) -> Result<Self, Self::Error> {
         if args.is_empty() {
             Ok(())
         } else {

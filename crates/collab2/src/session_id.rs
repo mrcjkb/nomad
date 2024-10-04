@@ -1,7 +1,7 @@
 use core::num::ParseIntError;
 use core::{fmt, str};
 
-use nomad2::neovim::{CommandArgs, CommandArgsError};
+use nomad2::neovim::{CommandArgs, DiagnosticMessage};
 
 #[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SessionId(pub(crate) collab_server::SessionId);
@@ -20,10 +20,10 @@ impl str::FromStr for SessionId {
     }
 }
 
-impl TryFrom<CommandArgs> for SessionId {
-    type Error = CommandArgsError;
+impl TryFrom<&mut CommandArgs> for SessionId {
+    type Error = DiagnosticMessage;
 
-    fn try_from(args: CommandArgs) -> Result<Self, Self::Error> {
+    fn try_from(args: &mut CommandArgs) -> Result<Self, Self::Error> {
         let [id] = args.as_slice() else {
             todo!();
         };

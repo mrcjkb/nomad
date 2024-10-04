@@ -65,14 +65,16 @@ impl fmt::Display for DiagnosticSource {
     }
 }
 
+/// TODO: docs.
 #[derive(Default)]
 pub struct DiagnosticMessage {
     chunks: Vec<(NvimString, Option<HighlightGroup>)>,
 }
 
 impl DiagnosticMessage {
+    /// Creates a new, empty [`DiagnosticMessage`].
     pub fn new() -> Self {
-        Self { chunks: Vec::new() }
+        Self::default()
     }
 
     pub(super) fn emit(self, level: Level, source: DiagnosticSource) {
@@ -150,8 +152,9 @@ impl DiagnosticMessage {
     }
 }
 
+/// TODO: docs.
 #[derive(Clone)]
-pub(super) struct HighlightGroup(SmolStr);
+pub struct HighlightGroup(SmolStr);
 
 impl HighlightGroup {
     pub(super) fn as_str(&self) -> &str {
