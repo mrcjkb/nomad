@@ -14,8 +14,11 @@ impl Editor for Neovim {
     type ModuleApi = ModuleApi;
     type Spawner = NeovimSpawner;
 
-    fn current_buffer(&self) -> Option<Self::Buffer<'_>> {
-        let id = BufferId::new(nvim_oxi::api::Buffer::current());
+    fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
+        self.get_buffer(BufferId::new(nvim_oxi::api::Buffer::current()))
+    }
+
+    fn get_buffer(&mut self, id: BufferId) -> Option<Self::Buffer<'_>> {
         id.is_of_text_buffer().then_some(Buffer::new(id))
     }
 
