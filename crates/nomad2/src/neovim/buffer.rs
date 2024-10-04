@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use core::fmt;
 use core::ops::{Bound, Range, RangeBounds};
 
-use collab_fs::AbsUtf8Path;
+use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf};
 use nvim_oxi::api::{self, Buffer as NvimBuffer};
 use nvim_oxi::Array as NvimArray;
 
@@ -178,10 +178,6 @@ impl Buffer {
 impl crate::Buffer<Neovim> for Buffer {
     type Id = BufferId;
 
-    fn byte_len(&self) -> usize {
-        todo!()
-    }
-
     fn get_text<R>(&self, byte_range: R) -> Text
     where
         R: RangeBounds<ByteOffset>,
@@ -194,8 +190,17 @@ impl crate::Buffer<Neovim> for Buffer {
         self.id.clone()
     }
 
+    #[track_caller]
     fn path(&self) -> Option<Cow<'_, AbsUtf8Path>> {
-        todo!()
+        self.id.is_of_text_buffer().then(|| {
+            let Ok(path) = self.as_nvim().get_name() else {
+                panic!("{self:?} has been deleted");
+            };
+            Cow::Owned(
+                AbsUtf8PathBuf::from_path_buf(path)
+                    .expect("path is absolute and valid UTF-8"),
+            )
+        })
     }
 
     fn set_text<R, T>(&mut self, replaced_range: R, new_text: T)

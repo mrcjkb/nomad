@@ -12,9 +12,6 @@ pub trait Buffer<E: Editor + ?Sized> {
     type Id: Clone + PartialEq + Hash + Ord;
 
     /// TODO: docs.
-    fn byte_len(&self) -> usize;
-
-    /// TODO: docs.
     fn get_text<R>(&self, byte_range: R) -> Text
     where
         R: RangeBounds<ByteOffset>;
