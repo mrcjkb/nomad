@@ -4,11 +4,20 @@ use core::fmt;
 use core::ops::{Bound, Range, RangeBounds};
 
 use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf};
-use futures_util::stream::{pending, Pending};
 use nvim_oxi::api::{self, Buffer as NvimBuffer};
 
 use super::Neovim;
-use crate::{ByteOffset, Context, Edit, Emitter, Event, Subscription, Text};
+use crate::{
+    ByteOffset,
+    Context,
+    Edit,
+    Emitter,
+    Event,
+    Hunk,
+    Shared,
+    Subscription,
+    Text,
+};
 
 /// TODO: docs.
 pub struct Buffer {
@@ -259,6 +268,12 @@ impl BufferId {
     }
 }
 
+impl fmt::Debug for BufferId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("BufferId").field(&self.inner.handle()).finish()
+    }
+}
+
 impl PartialOrd for BufferId {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -273,22 +288,39 @@ impl Ord for BufferId {
 
 impl Event<Neovim> for EditEvent {
     type Payload = Edit;
-    type SubscribeCtx = BufferId;
+    type SubscribeCtx = Shared<bool>;
 
     fn subscribe(
         &mut self,
         emitter: Emitter<Self::Payload>,
         _: &Context<Neovim>,
     ) -> Self::SubscribeCtx {
-        todo!()
+        let should_detach = Shared::new(false);
+
+        let opts = api::opts::BufAttachOpts::builder()
+            .on_bytes({
+                let should_detach = should_detach.clone();
+                move |args| {
+                    let edit = Edit::new([Hunk::from(args)]);
+                    emitter.send(edit);
+                    should_detach.get()
+                }
+            })
+            .build();
+
+        if let Err(err) = self.id.inner.attach(false, &opts) {
+            panic!("couldn't attach to {:?}: {err}", self.id);
+        }
+
+        should_detach
     }
 
     fn unsubscribe(
         &mut self,
-        sub_ctx: Self::SubscribeCtx,
+        should_detach: Self::SubscribeCtx,
         _: &Context<Neovim>,
     ) {
-        todo!();
+        should_detach.set(true);
     }
 }
 

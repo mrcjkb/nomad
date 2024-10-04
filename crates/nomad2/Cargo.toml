@@ -16,6 +16,7 @@ compact_str = { workspace = true }
 futures-util = { workspace = true }
 nomad-macros = { path = "./macros" }
 serde = { workspace = true }
+smallvec = { workspace = true }
 smol_str = { workspace = true }
 
 # Instrumentation-related dependencies.

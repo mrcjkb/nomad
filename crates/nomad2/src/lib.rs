@@ -21,7 +21,7 @@ mod text;
 pub use buffer::Buffer;
 pub use byte_offset::ByteOffset;
 pub use context::Context;
-pub use edit::Edit;
+pub use edit::{Edit, Hunk};
 pub use editor::Editor;
 pub use event::Event;
 pub use module::Module;
