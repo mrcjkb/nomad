@@ -49,19 +49,81 @@ impl Buffer {
     pub(super) fn new(id: BufferId) -> Self {
         Self { id }
     }
+}
 
-    fn as_nvim(&self) -> &NvimBuffer {
-        &self.id.inner
+impl crate::Buffer<Neovim> for Buffer {
+    type EditStream = Subscription<EditEvent, Neovim>;
+    type Id = BufferId;
+
+    fn edit_stream(&mut self, ctx: &Context<Neovim>) -> Self::EditStream {
+        ctx.subscribe(EditEvent { id: self.id.clone() })
     }
 
-    fn as_nvim_mut(&mut self) -> &mut NvimBuffer {
-        &mut self.id.inner
+    fn get_text<R>(&self, byte_range: R) -> Text
+    where
+        R: RangeBounds<ByteOffset>,
+    {
+        let point_range = self.id.point_range_of_byte_range(byte_range);
+        self.id.get_text_in_point_range(point_range)
+    }
+
+    fn id(&self) -> Self::Id {
+        self.id.clone()
+    }
+
+    #[track_caller]
+    fn path(&self) -> Option<Cow<'_, AbsUtf8Path>> {
+        self.id.is_of_text_buffer().then(|| Cow::Owned(self.id.path()))
+    }
+
+    fn set_text<R, T>(&mut self, replaced_range: R, new_text: T)
+    where
+        R: RangeBounds<ByteOffset>,
+        T: AsRef<str>,
+    {
+        let point_range = self.id.point_range_of_byte_range(replaced_range);
+        self.id.replace_text_in_point_range(point_range, new_text.as_ref());
+    }
+}
+
+impl fmt::Debug for Buffer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Buffer").field(&self.id.handle()).finish()
+    }
+}
+
+impl BufferId {
+    pub(super) fn is_of_text_buffer(&self) -> bool {
+        let opts = api::opts::OptionOpts::builder()
+            .buffer(self.inner.clone())
+            .build();
+
+        self.inner.is_loaded()
+        // Checks that the buftype is empty. This filters out help and terminal
+        // buffers, the quickfix list, etc.
+        && api::get_option_value::<String>("buftype", &opts)
+                .ok()
+                .map(|buftype| buftype.is_empty())
+                .unwrap_or(false)
+        // Checks that the buffer contents are UTF-8 encoded, which filters
+        // out buffers containing binary data.
+        && api::get_option_value::<String>("fileencoding", &opts)
+                .ok()
+                .map(|mut encoding| {
+                    encoding.make_ascii_lowercase();
+                    encoding == "utf-8"
+                })
+                .unwrap_or(false)
+    }
+
+    pub(super) fn new(inner: NvimBuffer) -> Self {
+        Self { inner }
     }
 
     #[track_caller]
     fn byte_offset_of_point(&self, point: Point) -> ByteOffset {
         point.byte_offset
-            + self.as_nvim().get_offset(point.line_idx).expect("todo")
+            + self.inner.get_offset(point.line_idx).expect("todo")
     }
 
     /// # Panics
@@ -70,7 +132,7 @@ impl Buffer {
     /// deleted or unloaded.
     #[track_caller]
     fn get_text_in_point_range(&self, point_range: Range<Point>) -> Text {
-        let lines = match self.as_nvim().get_text(
+        let lines = match self.inner.get_text(
             point_range.start.line_idx..point_range.end.line_idx,
             point_range.start.byte_offset.into(),
             point_range.end.byte_offset.into(),
@@ -96,9 +158,22 @@ impl Buffer {
         text
     }
 
+    fn handle(&self) -> i32 {
+        self.inner.handle()
+    }
+
+    #[track_caller]
+    fn path(&self) -> AbsUtf8PathBuf {
+        let Ok(path) = self.inner.get_name() else {
+            panic!("{self:?} has been deleted");
+        };
+        AbsUtf8PathBuf::from_path_buf(path)
+            .expect("path is absolute and valid UTF-8")
+    }
+
     #[track_caller]
     fn point_of_byte_offset(&self, byte_offset: ByteOffset) -> Point {
-        let buf = self.as_nvim();
+        let buf = &self.inner;
 
         let line_idx = buf
             .call(move |_| {
@@ -113,8 +188,8 @@ impl Buffer {
     }
 
     fn point_of_eof(&self) -> Point {
-        fn point_of_eof(buffer: &Buffer) -> Result<Point, api::Error> {
-            let buf = buffer.as_nvim();
+        fn point_of_eof(buffer: &BufferId) -> Result<Point, api::Error> {
+            let buf = &buffer.inner;
 
             let num_lines = buf.line_count()?;
 
@@ -179,7 +254,7 @@ impl Buffer {
             .lines()
             .chain(replacement.ends_with('\n').then_some(""));
 
-        if let Err(err) = self.as_nvim_mut().set_text(
+        if let Err(err) = self.inner.set_text(
             point_range.start.line_idx..point_range.end.line_idx,
             point_range.start.byte_offset.into(),
             point_range.end.byte_offset.into(),
@@ -187,84 +262,6 @@ impl Buffer {
         ) {
             panic!("{err}");
         }
-    }
-}
-
-impl crate::Buffer<Neovim> for Buffer {
-    type EditStream = Subscription<EditEvent, Neovim>;
-    type Id = BufferId;
-
-    fn edit_stream(&mut self, ctx: &Context<Neovim>) -> Self::EditStream {
-        ctx.subscribe(EditEvent { id: self.id.clone() })
-    }
-
-    fn get_text<R>(&self, byte_range: R) -> Text
-    where
-        R: RangeBounds<ByteOffset>,
-    {
-        let point_range = self.point_range_of_byte_range(byte_range);
-        self.get_text_in_point_range(point_range)
-    }
-
-    fn id(&self) -> Self::Id {
-        self.id.clone()
-    }
-
-    #[track_caller]
-    fn path(&self) -> Option<Cow<'_, AbsUtf8Path>> {
-        self.id.is_of_text_buffer().then(|| {
-            let Ok(path) = self.as_nvim().get_name() else {
-                panic!("{self:?} has been deleted");
-            };
-            Cow::Owned(
-                AbsUtf8PathBuf::from_path_buf(path)
-                    .expect("path is absolute and valid UTF-8"),
-            )
-        })
-    }
-
-    fn set_text<R, T>(&mut self, replaced_range: R, new_text: T)
-    where
-        R: RangeBounds<ByteOffset>,
-        T: AsRef<str>,
-    {
-        let point_range = self.point_range_of_byte_range(replaced_range);
-        self.replace_text_in_point_range(point_range, new_text.as_ref());
-    }
-}
-
-impl fmt::Debug for Buffer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Buffer").field(&self.as_nvim().handle()).finish()
-    }
-}
-
-impl BufferId {
-    pub(super) fn is_of_text_buffer(&self) -> bool {
-        let opts = api::opts::OptionOpts::builder()
-            .buffer(self.inner.clone())
-            .build();
-
-        self.inner.is_loaded()
-        // Checks that the buftype is empty. This filters out help and terminal
-        // buffers, the quickfix list, etc.
-        && api::get_option_value::<String>("buftype", &opts)
-                .ok()
-                .map(|buftype| buftype.is_empty())
-                .unwrap_or(false)
-        // Checks that the buffer contents are UTF-8 encoded, which filters
-        // out buffers containing binary data.
-        && api::get_option_value::<String>("fileencoding", &opts)
-                .ok()
-                .map(|mut encoding| {
-                    encoding.make_ascii_lowercase();
-                    encoding == "utf-8"
-                })
-                .unwrap_or(false)
-    }
-
-    pub(super) fn new(inner: NvimBuffer) -> Self {
-        Self { inner }
     }
 }
 
