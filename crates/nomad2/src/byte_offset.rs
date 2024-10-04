@@ -27,6 +27,15 @@ impl AddAssign<Self> for ByteOffset {
     }
 }
 
+impl Add<usize> for ByteOffset {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: usize) -> Self {
+        Self(self.0 + rhs)
+    }
+}
+
 impl Sub<Self> for ByteOffset {
     type Output = Self;
 
