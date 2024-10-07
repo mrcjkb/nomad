@@ -84,6 +84,12 @@ impl<T> Emitter<T> {
     }
 }
 
+impl<T> Clone for Emitter<T> {
+    fn clone(&self) -> Self {
+        todo!();
+    }
+}
+
 /// TODO: docs.
 pub(crate) struct Receiver<T> {
     inner: T,
