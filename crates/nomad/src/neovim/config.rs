@@ -1,7 +1,5 @@
 //! Contains things related to the configuration of modules.
 
-use core::cmp::Ordering;
-use core::marker::PhantomData;
 use std::collections::HashMap;
 
 use nvim_oxi::{
@@ -16,72 +14,9 @@ use super::diagnostic::{
     HighlightGroup,
     Level,
 };
-use super::serde::deserialize;
-use super::Neovim;
-use crate::{Context, Emitter, Event, Module, Shared};
 
 pub(super) type OnConfigChange =
     Box<dyn Fn(NvimObject) -> Result<(), DeserializeConfigError>>;
-
-/// TODO: docs.
-pub struct ConfigEvent<T> {
-    pub(super) module_name: &'static str,
-    pub(super) buf: Shared<Option<OnConfigChange>>,
-    pub(super) ty: PhantomData<T>,
-}
-
-impl<T: Module<Neovim>> ConfigEvent<T> {
-    pub(super) fn new(buf: Shared<Option<OnConfigChange>>) -> Self {
-        Self { module_name: T::NAME.as_str(), buf, ty: PhantomData }
-    }
-}
-
-impl<T> PartialEq for ConfigEvent<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-
-impl<T> Eq for ConfigEvent<T> {}
-
-impl<T> PartialOrd for ConfigEvent<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T> Ord for ConfigEvent<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.module_name.cmp(other.module_name)
-    }
-}
-
-impl<T: Module<Neovim>> Event<Neovim> for ConfigEvent<T> {
-    type Payload = T::Config;
-    type SubscribeCtx = ();
-
-    fn subscribe(
-        &mut self,
-        emitter: Emitter<Self::Payload>,
-        _: &Context<Neovim>,
-    ) {
-        let on_config_change = Box::new(move |obj| {
-            let config = deserialize::<T::Config>(obj).map_err(|err| {
-                let mut source = DiagnosticSource::new();
-                source
-                    .push_segment(Setup::NAME)
-                    .push_segment(T::NAME.as_str());
-                DeserializeConfigError::new(source, err.into_msg())
-            })?;
-            emitter.send(config);
-            Ok(())
-        });
-
-        self.buf.with_mut(|buf| {
-            *buf = Some(on_config_change);
-        });
-    }
-}
 
 pub(super) struct Setup {
     on_config_change: HashMap<&'static str, OnConfigChange>,
@@ -160,12 +95,15 @@ pub(super) struct DeserializeConfigError {
 }
 
 impl DeserializeConfigError {
-    fn emit(self) {
-        self.msg.emit(Level::Error, self.source);
+    pub(super) fn new(
+        source: DiagnosticSource,
+        msg: DiagnosticMessage,
+    ) -> Self {
+        Self { source, msg }
     }
 
-    fn new(source: DiagnosticSource, msg: DiagnosticMessage) -> Self {
-        Self { source, msg }
+    fn emit(self) {
+        self.msg.emit(Level::Error, self.source);
     }
 
     fn non_unicode_module_name(module_name: &NvimString) -> Self {

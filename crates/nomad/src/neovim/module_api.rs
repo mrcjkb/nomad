@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use nvim_oxi::Dictionary as NvimDictionary;
 
 use super::command::OnExecute;
-use super::config::{ConfigEvent, OnConfigChange};
+use super::config::OnConfigChange;
+use super::events::ConfigEvent;
 use super::{CommandHandle, FunctionHandle, Neovim};
 use crate::{Context, Module, Shared, Subscription};
 

@@ -13,8 +13,8 @@ pub struct FocusBuffer {
 
 /// TODO: docs.
 pub struct FocusBufferEvent {
-    send_current: bool,
-    next_buffer_focused_by: Shared<Option<ActorId>>,
+    pub(in crate::neovim) next_buffer_focused_by: Shared<Option<ActorId>>,
+    pub(in crate::neovim) send_current: bool,
 }
 
 impl FocusBuffer {
@@ -26,26 +26,6 @@ impl FocusBuffer {
     /// TODO: docs.
     pub fn id(&self) -> BufferId {
         self.id.clone()
-    }
-}
-
-impl PartialEq for FocusBufferEvent {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
-
-impl Eq for FocusBufferEvent {}
-
-impl PartialOrd for FocusBufferEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for FocusBufferEvent {
-    fn cmp(&self, _: &Self) -> Ordering {
-        Ordering::Equal
     }
 }
 
@@ -95,5 +75,25 @@ impl Event<Neovim> for FocusBufferEvent {
 
     fn unsubscribe(&mut self, id: u32, _: &Context<Neovim>) {
         let _ = api::del_autocmd(id);
+    }
+}
+
+impl PartialEq for FocusBufferEvent {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for FocusBufferEvent {}
+
+impl PartialOrd for FocusBufferEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FocusBufferEvent {
+    fn cmp(&self, _: &Self) -> Ordering {
+        Ordering::Equal
     }
 }

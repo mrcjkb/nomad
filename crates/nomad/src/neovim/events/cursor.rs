@@ -2,7 +2,7 @@ use core::cmp::Ordering;
 
 use nvim_oxi::api;
 
-use super::{BufferId, Neovim, Point};
+use crate::neovim::{BufferId, Neovim, Point};
 use crate::{ActorId, ByteOffset, Context, Emitter, Event, Shared};
 
 /// TODO: docs.
@@ -10,18 +10,6 @@ use crate::{ActorId, ByteOffset, Context, Emitter, Event, Shared};
 pub struct Cursor {
     action: CursorAction,
     moved_by: ActorId,
-}
-
-impl Cursor {
-    /// TODO: docs.
-    pub fn action(&self) -> CursorAction {
-        self.action
-    }
-
-    /// TODO: docs.
-    pub fn moved_by(&self) -> ActorId {
-        self.moved_by
-    }
 }
 
 /// TODO: docs.
@@ -39,27 +27,19 @@ pub enum CursorAction {
 
 /// TODO: docs.
 pub struct CursorEvent {
-    pub(super) id: BufferId,
-    pub(super) next_cursor_moved_by: Shared<Option<ActorId>>,
+    pub(in crate::neovim) id: BufferId,
+    pub(in crate::neovim) next_cursor_moved_by: Shared<Option<ActorId>>,
 }
 
-impl PartialEq for CursorEvent {
-    fn eq(&self, other: &Self) -> bool {
-        self.id.cmp(&other.id) == Ordering::Equal
+impl Cursor {
+    /// TODO: docs.
+    pub fn action(&self) -> CursorAction {
+        self.action
     }
-}
 
-impl Eq for CursorEvent {}
-
-impl PartialOrd for CursorEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CursorEvent {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
+    /// TODO: docs.
+    pub fn moved_by(&self) -> ActorId {
+        self.moved_by
     }
 }
 
@@ -164,5 +144,25 @@ impl Event<Neovim> for CursorEvent {
             // another plugin.
             let _ = api::del_autocmd(id);
         }
+    }
+}
+
+impl PartialEq for CursorEvent {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.cmp(&other.id) == Ordering::Equal
+    }
+}
+
+impl Eq for CursorEvent {}
+
+impl PartialOrd for CursorEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CursorEvent {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
     }
 }

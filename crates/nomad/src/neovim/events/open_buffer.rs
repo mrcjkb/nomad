@@ -13,8 +13,8 @@ pub struct OpenBuffer {
 
 /// TODO: docs.
 pub struct OpenBufferEvent {
-    send_current: bool,
-    next_buffer_opened_by: Shared<Option<ActorId>>,
+    pub(in crate::neovim) next_buffer_opened_by: Shared<Option<ActorId>>,
+    pub(in crate::neovim) send_current: bool,
 }
 
 impl OpenBuffer {
@@ -26,26 +26,6 @@ impl OpenBuffer {
     /// TODO: docs.
     pub fn opened_by(&self) -> ActorId {
         self.opened_by
-    }
-}
-
-impl PartialEq for OpenBufferEvent {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
-
-impl Eq for OpenBufferEvent {}
-
-impl PartialOrd for OpenBufferEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for OpenBufferEvent {
-    fn cmp(&self, _: &Self) -> Ordering {
-        Ordering::Equal
     }
 }
 
@@ -94,5 +74,25 @@ impl Event<Neovim> for OpenBufferEvent {
 
     fn unsubscribe(&mut self, id: u32, _: &Context<Neovim>) {
         let _ = api::del_autocmd(id);
+    }
+}
+
+impl PartialEq for OpenBufferEvent {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for OpenBufferEvent {}
+
+impl PartialOrd for OpenBufferEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for OpenBufferEvent {
+    fn cmp(&self, _: &Self) -> Ordering {
+        Ordering::Equal
     }
 }

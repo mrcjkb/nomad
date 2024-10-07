@@ -1,4 +1,3 @@
-use core::cmp::Ordering;
 use core::marker::PhantomData;
 use std::vec::IntoIter;
 
@@ -9,9 +8,10 @@ use super::diagnostic::{
     HighlightGroup,
     Level,
 };
+use super::events::CommandEvent;
 use super::module_api::ModuleCommands;
 use super::Neovim;
-use crate::{Context, Emitter, Event, Module, Shared, Subscription};
+use crate::{Context, Module, Shared, Subscription};
 
 pub(super) type OnExecute =
     Box<dyn Fn(CommandArgs) -> Result<(), DiagnosticMessage> + 'static>;
@@ -118,54 +118,6 @@ pub struct CommandHandle {
     pub(super) name: &'static str,
     pub(super) module_name: &'static str,
     pub(super) on_execute: OnExecute,
-}
-
-/// TODO: docs.
-pub struct CommandEvent<T> {
-    module_name: &'static str,
-    command_name: &'static str,
-    on_execute_buf: Shared<Option<OnExecute>>,
-    ty: PhantomData<T>,
-}
-
-impl<T: Command> Event<Neovim> for CommandEvent<T> {
-    type Payload = T::Args;
-    type SubscribeCtx = ();
-
-    fn subscribe(&mut self, emitter: Emitter<T::Args>, _: &Context<Neovim>) {
-        let on_execute = Box::new(move |mut args| {
-            let args = T::Args::try_from(&mut args).map_err(Into::into)?;
-            emitter.send(args);
-            Ok(())
-        });
-
-        self.on_execute_buf.with_mut(|buf| {
-            *buf = Some(on_execute);
-        });
-    }
-}
-
-impl<T> PartialEq for CommandEvent<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-
-impl<T> Eq for CommandEvent<T> {}
-
-impl<T> PartialOrd for CommandEvent<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T> Ord for CommandEvent<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.module_name.cmp(other.module_name) {
-            Ordering::Equal => self.command_name.cmp(other.command_name),
-            ord => ord,
-        }
-    }
 }
 
 /// TODO: docs.

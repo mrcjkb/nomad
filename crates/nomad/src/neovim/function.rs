@@ -1,13 +1,11 @@
-use core::cmp::Ordering;
 use core::marker::PhantomData;
 
 use nvim_oxi::{Function as NvimFunction, Object as NvimObject};
 use serde::de::DeserializeOwned;
 
-use super::diagnostic::{DiagnosticSource, Level};
-use super::serde::deserialize;
+use super::events::FunctionEvent;
 use super::Neovim;
-use crate::{Context, Emitter, Event, Module, Shared, Subscription};
+use crate::{Context, Module, Shared, Subscription};
 
 /// TODO: docs.
 pub fn function<T: Function>(
@@ -46,59 +44,4 @@ pub struct FunctionHandle {
     pub(super) name: &'static str,
     pub(super) module_name: &'static str,
     pub(super) inner: NvimFunction<NvimObject, ()>,
-}
-
-/// TODO: docs.
-pub struct FunctionEvent<T> {
-    module_name: &'static str,
-    function_name: &'static str,
-    function_buf: Shared<Option<NvimFunction<NvimObject, ()>>>,
-    ty: PhantomData<T>,
-}
-
-impl<T: Function> Event<Neovim> for FunctionEvent<T> {
-    type Payload = T::Args;
-    type SubscribeCtx = ();
-
-    fn subscribe(&mut self, emitter: Emitter<T::Args>, _: &Context<Neovim>) {
-        let nvim_fun = NvimFunction::<NvimObject, ()>::from_fn(move |obj| {
-            match deserialize::<T::Args>(obj) {
-                Ok(payload) => emitter.send(payload),
-                Err(err) => {
-                    let mut source = DiagnosticSource::new();
-                    source
-                        .push_segment(T::Module::NAME.as_str())
-                        .push_segment(T::NAME);
-                    err.into_msg().emit(Level::Error, source);
-                },
-            };
-        });
-
-        self.function_buf.with_mut(|buf| {
-            *buf = Some(nvim_fun);
-        });
-    }
-}
-
-impl<T> PartialEq for FunctionEvent<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-
-impl<T> Eq for FunctionEvent<T> {}
-
-impl<T> PartialOrd for FunctionEvent<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T> Ord for FunctionEvent<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.module_name.cmp(other.module_name) {
-            Ordering::Equal => self.function_name.cmp(other.function_name),
-            ord => ord,
-        }
-    }
 }

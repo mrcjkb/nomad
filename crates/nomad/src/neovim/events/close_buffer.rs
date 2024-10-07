@@ -13,7 +13,7 @@ pub struct CloseBuffer {
 
 /// TODO: docs.
 pub struct CloseBufferEvent {
-    next_buffer_closed_by: Shared<Option<ActorId>>,
+    pub(in crate::neovim) next_buffer_closed_by: Shared<Option<ActorId>>,
 }
 
 impl CloseBuffer {
@@ -25,26 +25,6 @@ impl CloseBuffer {
     /// TODO: docs.
     pub fn id(&self) -> BufferId {
         self.id.clone()
-    }
-}
-
-impl PartialEq for CloseBufferEvent {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
-
-impl Eq for CloseBufferEvent {}
-
-impl PartialOrd for CloseBufferEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CloseBufferEvent {
-    fn cmp(&self, _: &Self) -> Ordering {
-        Ordering::Equal
     }
 }
 
@@ -81,5 +61,25 @@ impl Event<Neovim> for CloseBufferEvent {
 
     fn unsubscribe(&mut self, id: u32, _: &Context<Neovim>) {
         let _ = api::del_autocmd(id);
+    }
+}
+
+impl PartialEq for CloseBufferEvent {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for CloseBufferEvent {}
+
+impl PartialOrd for CloseBufferEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CloseBufferEvent {
+    fn cmp(&self, _: &Self) -> Ordering {
+        Ordering::Equal
     }
 }
