@@ -7,7 +7,7 @@ use core::ops::{Bound, Range, RangeBounds};
 use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf};
 use nvim_oxi::api::{self, Buffer as NvimBuffer};
 
-use super::events::{Cursor, CursorEvent, EditEvent};
+use super::events::{CursorEvent, EditEvent};
 use super::{Neovim, Point};
 use crate::{ActorId, ByteOffset, Context, Shared, Subscription, Text};
 
@@ -29,6 +29,28 @@ pub struct BufferId {
 }
 
 impl Buffer {
+    /// TODO: docs.
+    pub fn cursor_stream(
+        &mut self,
+        ctx: &Context<Neovim>,
+    ) -> Subscription<CursorEvent, Neovim> {
+        ctx.subscribe(CursorEvent {
+            id: self.id.clone(),
+            next_cursor_moved_by: self.next_cursor_moved_by.clone(),
+        })
+    }
+
+    /// TODO: docs.
+    pub fn edit_stream(
+        &mut self,
+        ctx: &Context<Neovim>,
+    ) -> Subscription<EditEvent, Neovim> {
+        ctx.subscribe(EditEvent {
+            id: self.id.clone(),
+            next_edit_made_by: self.next_edit_made_by.clone(),
+        })
+    }
+
     pub(super) fn new(
         id: BufferId,
         next_cursor_moved_by: Shared<Option<ActorId>>,
@@ -39,24 +61,7 @@ impl Buffer {
 }
 
 impl crate::Buffer<Neovim> for Buffer {
-    type Cursor = Cursor;
-    type CursorStream = Subscription<CursorEvent, Neovim>;
-    type EditStream = Subscription<EditEvent, Neovim>;
     type Id = BufferId;
-
-    fn cursor_stream(&mut self, ctx: &Context<Neovim>) -> Self::CursorStream {
-        ctx.subscribe(CursorEvent {
-            id: self.id.clone(),
-            next_cursor_moved_by: self.next_cursor_moved_by.clone(),
-        })
-    }
-
-    fn edit_stream(&mut self, ctx: &Context<Neovim>) -> Self::EditStream {
-        ctx.subscribe(EditEvent {
-            id: self.id.clone(),
-            next_edit_made_by: self.next_edit_made_by.clone(),
-        })
-    }
 
     fn get_text<R>(&self, byte_range: R) -> Text
     where
