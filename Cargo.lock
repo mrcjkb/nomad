@@ -265,6 +265,8 @@ dependencies = [
  "pin-project-lite",
  "root-finder",
  "serde",
+ "smallvec",
+ "smol_str",
  "tracing",
 ]
 
