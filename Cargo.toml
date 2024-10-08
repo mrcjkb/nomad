@@ -20,6 +20,7 @@ futures = "0.3"
 futures-util = "0.3"
 nohash = "0.2"
 nvim = { git = "https://github.com/noib3/nvim-oxi", package = "nvim-oxi" }
+pin-project-lite = "0.2"
 quickcheck = "1"
 quickcheck_macros = "1"
 serde = "1.0"

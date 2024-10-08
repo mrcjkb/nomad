@@ -13,8 +13,9 @@ collab-project = { git = "ssh://git@github.com/nomad/collab.git" }
 collab-server = { git = "ssh://git@github.com/nomad/collab.git" }
 futures-util = { workspace = true }
 nohash = { workspace = true }
-nomad-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = ["client"] }
 nomad = { workspace = true }
+nomad-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = ["client"] }
+pin-project-lite = { workspace = true }
 root-finder = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
