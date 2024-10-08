@@ -246,23 +246,33 @@ impl<E: CollabEditor> Session<E> {
         &mut self,
         cursor: Cursor<E>,
     ) -> Result<(), RunSessionError> {
-        let cursor_id = cursor.cursor_id;
-        let file_id = cursor.file_id;
         match cursor.action {
             CursorAction::Created(offset) => {
-                self.sync_created_cursor(file_id, cursor_id, offset).await
+                self.sync_created_cursor(
+                    cursor.cursor_id,
+                    cursor.file_id,
+                    offset,
+                )
+                .await
             },
             CursorAction::Moved(offset) => {
-                self.sync_moved_cursor(file_id, cursor_id, offset).await
+                self.sync_moved_cursor(
+                    cursor.cursor_id,
+                    cursor.file_id,
+                    offset,
+                )
+                .await
             },
-            CursorAction::Removed => self.sync_removed_cursor(cursor_id).await,
+            CursorAction::Removed => {
+                self.sync_removed_cursor(cursor.cursor_id).await
+            },
         }
     }
 
     async fn sync_created_cursor(
         &mut self,
-        file_id: E::FileId,
         cursor_id: E::CursorId,
+        file_id: E::FileId,
         offset: ByteOffset,
     ) -> Result<(), RunSessionError> {
         let file_id = self.to_file_id(file_id);
@@ -291,8 +301,8 @@ impl<E: CollabEditor> Session<E> {
 
     async fn sync_moved_cursor(
         &mut self,
-        file_id: E::FileId,
         cursor_id: E::CursorId,
+        file_id: E::FileId,
         offset: ByteOffset,
     ) -> Result<(), RunSessionError> {
         let file_id = self.to_file_id(file_id);
