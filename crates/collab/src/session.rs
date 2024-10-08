@@ -343,6 +343,7 @@ impl<E: CollabEditor> Session<E> {
             .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn sync_created_selection(
         &mut self,
         selection_id: E::SelectionId,
@@ -351,26 +352,15 @@ impl<E: CollabEditor> Session<E> {
         tail: ByteOffset,
     ) -> Result<(), RunSessionError> {
         let file_id = self.to_file_id(file_id);
+        let file = self.project.file(file_id).expect("");
 
         let head_bias =
             if head < tail { AnchorBias::Right } else { AnchorBias::Left };
 
-        let head = self
-            .project
-            .file(file_id)
-            .expect("")
-            .create_anchor(head.into(), head_bias);
-
-        let tail = self
-            .project
-            .file(file_id)
-            .expect("")
-            .create_anchor(tail.into(), !head_bias);
-
         let action = actions::create_selection::CreatedSelection {
             file_id,
-            head,
-            tail,
+            head: file.create_anchor(head.into(), head_bias),
+            tail: file.create_anchor(tail.into(), !head_bias),
         };
 
         let (selection, msg) = match self.project.synchronize(action) {
@@ -466,6 +456,37 @@ impl<E: CollabEditor> Session<E> {
             .await
     }
 
+    #[allow(clippy::too_many_arguments)]
+    async fn sync_moved_selection(
+        &mut self,
+        selection_id: E::SelectionId,
+        file_id: E::FileId,
+        head: ByteOffset,
+        tail: ByteOffset,
+    ) -> Result<(), RunSessionError> {
+        let file_id = self.to_file_id(file_id);
+        let file = self.project.file(file_id).expect("");
+
+        let head_bias =
+            if head < tail { AnchorBias::Right } else { AnchorBias::Left };
+
+        let selection = self
+            .selections
+            .get_local_mut(selection_id)
+            .expect("already received its creation");
+
+        let action = actions::move_selection::MovedSelection {
+            selection,
+            head: file.create_anchor(head.into(), head_bias),
+            tail: file.create_anchor(tail.into(), !head_bias),
+        };
+
+        let msg = self.project.synchronize(action);
+
+        self.broadcast(Message::Project(ProjectMessage::MovedSelection(msg)))
+            .await
+    }
+
     async fn sync_removed_cursor(
         &mut self,
         cursor_id: E::CursorId,
@@ -498,14 +519,13 @@ impl<E: CollabEditor> Session<E> {
                 .await
             },
             SelectionAction::Moved { head, tail } => {
-                todo!();
-                // self.sync_moved_selection(
-                //     selection.selection_id,
-                //     selection.file_id,
-                //     head,
-                //     tail,
-                // )
-                // .await
+                self.sync_moved_selection(
+                    selection.selection_id,
+                    selection.file_id,
+                    head,
+                    tail,
+                )
+                .await
             },
             SelectionAction::Removed => {
                 todo!();
