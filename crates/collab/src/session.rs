@@ -5,7 +5,7 @@ use std::io;
 use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf, Fs};
 use collab_messaging::{Outbound, PeerId, Recipients};
 use collab_project::file::{AnchorBias, FileId};
-use collab_project::{actions, cursor, Integrate, Project, Synchronize};
+use collab_project::{actions, cursor, selection, Integrate, Project};
 use collab_server::JoinRequest;
 use futures_util::stream::select_all;
 use futures_util::{select, FutureExt, SinkExt, StreamExt};
@@ -19,7 +19,7 @@ use tracing::error;
 
 use crate::events::cursor::{Cursor, CursorAction};
 use crate::events::edit::Edit;
-use crate::events::selection::Selection;
+use crate::events::selection::{Selection, SelectionAction};
 use crate::{CollabEditor, Config, SessionId};
 
 pub(crate) struct Session<E: CollabEditor> {
@@ -62,11 +62,19 @@ pub(crate) struct Session<E: CollabEditor> {
 
     /// TODO: docs.
     cursors: Cursors<E>,
+
+    /// TODO: docs.
+    selections: Selections<E>,
 }
 
 struct Cursors<E: CollabEditor> {
     local: HashMap<E::CursorId, cursor::Cursor>,
     remote: NoHashMap<PeerId, HashMap<FileId, cursor::Cursor>>,
+}
+
+struct Selections<E: CollabEditor> {
+    local: HashMap<E::SelectionId, selection::Selection>,
+    remote: NoHashMap<PeerId, HashMap<FileId, selection::Selection>>,
 }
 
 impl<E: CollabEditor> Session<E> {
@@ -198,7 +206,7 @@ impl<E: CollabEditor> Session<E> {
                     drop(cursors);
                     drop(edits);
                     drop(selections);
-                    self.sync_selection_changed(selection).await?;
+                    self.sync_selection(selection).await?;
                 },
 
                 maybe_msg = self.receiver.next().fuse() => {
@@ -335,6 +343,50 @@ impl<E: CollabEditor> Session<E> {
             .await
     }
 
+    async fn sync_created_selection(
+        &mut self,
+        selection_id: E::SelectionId,
+        file_id: E::FileId,
+        head: ByteOffset,
+        tail: ByteOffset,
+    ) -> Result<(), RunSessionError> {
+        let file_id = self.to_file_id(file_id);
+
+        let head_bias =
+            if head < tail { AnchorBias::Right } else { AnchorBias::Left };
+
+        let head = self
+            .project
+            .file(file_id)
+            .expect("")
+            .create_anchor(head.into(), head_bias);
+
+        let tail = self
+            .project
+            .file(file_id)
+            .expect("")
+            .create_anchor(tail.into(), !head_bias);
+
+        let action = actions::create_selection::CreatedSelection {
+            file_id,
+            head,
+            tail,
+        };
+
+        let (selection, msg) = match self.project.synchronize(action) {
+            Ok(res) => res,
+            Err(err) => {
+                error!("moved selection to a deleted file: {err}");
+                return Ok(());
+            },
+        };
+
+        self.selections.insert_local(selection_id, selection);
+
+        self.broadcast(Message::Project(ProjectMessage::CreatedSelection(msg)))
+            .await
+    }
+
     async fn sync_edit(
         &mut self,
         edit: Edit<E>,
@@ -431,11 +483,35 @@ impl<E: CollabEditor> Session<E> {
             .await
     }
 
-    async fn sync_selection_changed(
+    async fn sync_selection(
         &mut self,
         selection: Selection<E>,
     ) -> Result<(), RunSessionError> {
-        todo!();
+        match selection.action {
+            SelectionAction::Created { head, tail } => {
+                self.sync_created_selection(
+                    selection.selection_id,
+                    selection.file_id,
+                    head,
+                    tail,
+                )
+                .await
+            },
+            SelectionAction::Moved { head, tail } => {
+                todo!();
+                // self.sync_moved_selection(
+                //     selection.selection_id,
+                //     selection.file_id,
+                //     head,
+                //     tail,
+                // )
+                // .await
+            },
+            SelectionAction::Removed => {
+                todo!();
+                // self.sync_removed_selection(selection.selection_id).await
+            },
+        }
     }
 
     fn to_file_id(&self, file_id: E::FileId) -> FileId {
@@ -476,6 +552,50 @@ impl<E: CollabEditor> Cursors<E> {
     }
 
     fn remove_local(&mut self, id: E::CursorId) -> Option<cursor::Cursor> {
+        self.local.remove(&id)
+    }
+}
+
+impl<E: CollabEditor> Default for Selections<E> {
+    fn default() -> Self {
+        Self { local: Default::default(), remote: Default::default() }
+    }
+}
+
+impl<E: CollabEditor> Selections<E> {
+    fn get_local_mut(
+        &mut self,
+        id: E::SelectionId,
+    ) -> Option<&mut selection::Selection> {
+        self.local.get_mut(&id)
+    }
+
+    fn get_remote_mut(
+        &mut self,
+        owner: PeerId,
+        in_file: FileId,
+    ) -> Option<&mut selection::Selection> {
+        self.remote.get_mut(&owner).and_then(|map| map.get_mut(&in_file))
+    }
+
+    /// # Panics
+    ///
+    /// Panics if the given selection ID already exists.
+    #[track_caller]
+    fn insert_local(
+        &mut self,
+        id: E::SelectionId,
+        selection: selection::Selection,
+    ) {
+        if self.local.insert(id.clone(), selection).is_some() {
+            panic!("selection {id:?} already exists");
+        }
+    }
+
+    fn remove_local(
+        &mut self,
+        id: E::SelectionId,
+    ) -> Option<selection::Selection> {
         self.local.remove(&id)
     }
 }
