@@ -399,8 +399,40 @@ impl<E: CollabEditor> Session<E> {
 
     async fn integrate_moved_selection(
         &mut self,
-        _msg: actions::move_selection::MovedSelectionRemote,
+        msg: actions::move_selection::MovedSelectionRemote,
     ) -> Result<(), RunSessionError> {
+        let Some(move_selection) = self.project.integrate(msg) else {
+            return Ok(());
+        };
+
+        let selection = self
+            .selections
+            .get_remote_mut(move_selection.id())
+            .expect("already received selection creation");
+
+        selection
+            .move_to(move_selection)
+            .expect("move op was applied to the correct selection");
+
+        if let Some(highlight) =
+            self.selection_highlights.get_mut(&selection.id())
+        {
+            let file = self
+                .project
+                .file(selection.file_id())
+                .expect("move op was integrated, so file must still exist");
+
+            if let (Some(head), Some(tail)) = (
+                file.resolve_anchor(selection.head()).map(Into::into),
+                file.resolve_anchor(selection.tail()).map(Into::into),
+            ) {
+                let byte_range =
+                    if head < tail { head..tail } else { tail..head };
+
+                self.editor.move_highlight(&mut highlight.inner, byte_range);
+            }
+        }
+
         Ok(())
     }
 
@@ -440,7 +472,8 @@ impl<E: CollabEditor> Session<E> {
                 self.integrate_moved_file(msg).await
             },
             ProjectMessage::MovedSelection(msg) => {
-                self.integrate_moved_selection(msg).await
+                self.integrate_moved_selection(msg);
+                Ok(())
             },
             ProjectMessage::RemovedCursor(msg) => {
                 self.integrate_removed_cursor(msg);
