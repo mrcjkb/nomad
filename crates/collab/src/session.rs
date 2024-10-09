@@ -64,17 +64,20 @@ pub(crate) struct Session<E: CollabEditor> {
     cursors: Cursors<E>,
 
     /// TODO: docs.
+    cursor_tooltips: HashMap<cursor::CursorId, CursorTooltip<E>>,
+
+    /// TODO: docs.
     selections: Selections<E>,
 }
 
 struct Cursors<E: CollabEditor> {
     local: HashMap<E::CursorId, cursor::Cursor>,
-    remote: NoHashMap<PeerId, HashMap<FileId, cursor::Cursor>>,
+    remote: HashMap<cursor::CursorId, cursor::Cursor>,
 }
 
 struct Selections<E: CollabEditor> {
     local: HashMap<E::SelectionId, selection::Selection>,
-    remote: NoHashMap<PeerId, HashMap<FileId, selection::Selection>>,
+    remote: HashMap<selection::SelectionId, selection::Selection>,
 }
 
 impl<E: CollabEditor> Session<E> {
@@ -236,11 +239,34 @@ impl<E: CollabEditor> Session<E> {
         self.sender.send(outbound).await.map_err(Into::into)
     }
 
-    async fn integrate_created_cursor(
+    fn create_cursor_tooltip(
         &mut self,
-        _msg: actions::create_cursor::CreatedCursorRemote,
-    ) -> Result<(), RunSessionError> {
-        Ok(())
+        cursor: &cursor::Cursor,
+    ) -> Option<CursorTooltip<E>> {
+        let file_id = self.to_editor_file_id(cursor.file_id())?;
+        let file = self.project.file(cursor.file_id())?;
+        let offset = file.resolve_anchor(cursor.anchor())?;
+        let owner_id = PeerId::new(cursor.owner().as_u64());
+        let owner = self.peers.get(&owner_id)?;
+        Some(CursorTooltip {
+            cursor_id: cursor.id(),
+            inner: self.editor.create_tooltip(
+                &file_id,
+                offset.into(),
+                owner.into_u64(),
+            ),
+        })
+    }
+
+    fn integrate_created_cursor(
+        &mut self,
+        msg: actions::create_cursor::CreatedCursorRemote,
+    ) {
+        let Some(cursor) = self.project.integrate(msg) else { return };
+        if let Some(tooltip) = self.create_cursor_tooltip(&cursor) {
+            self.cursor_tooltips.insert(cursor.id(), tooltip);
+        }
+        self.cursors.insert_remote(cursor);
     }
 
     async fn integrate_created_directory(
@@ -331,7 +357,8 @@ impl<E: CollabEditor> Session<E> {
     ) -> Result<(), RunSessionError> {
         match msg {
             ProjectMessage::CreatedCursor(msg) => {
-                self.integrate_created_cursor(msg).await
+                self.integrate_created_cursor(msg);
+                Ok(())
             },
             ProjectMessage::CreatedDirectory(msg) => {
                 self.integrate_created_directory(msg).await
@@ -483,7 +510,7 @@ impl<E: CollabEditor> Session<E> {
         file_id: E::FileId,
         offset: ByteOffset,
     ) -> Result<(), RunSessionError> {
-        let file_id = self.to_file_id(file_id);
+        let file_id = self.to_project_file_id(file_id);
 
         let anchor = self
             .project
@@ -515,7 +542,7 @@ impl<E: CollabEditor> Session<E> {
         head: ByteOffset,
         tail: ByteOffset,
     ) -> Result<(), RunSessionError> {
-        let file_id = self.to_file_id(file_id);
+        let file_id = self.to_project_file_id(file_id);
         let file = self.project.file(file_id).expect("");
 
         let head_bias =
@@ -545,7 +572,7 @@ impl<E: CollabEditor> Session<E> {
         &mut self,
         edit: Edit<E>,
     ) -> Result<(), RunSessionError> {
-        let file_id = self.to_file_id(edit.file_id);
+        let file_id = self.to_project_file_id(edit.file_id);
 
         for hunk in edit.hunks {
             let byte_range = hunk.deleted_byte_range();
@@ -599,7 +626,7 @@ impl<E: CollabEditor> Session<E> {
         file_id: E::FileId,
         offset: ByteOffset,
     ) -> Result<(), RunSessionError> {
-        let file_id = self.to_file_id(file_id);
+        let file_id = self.to_project_file_id(file_id);
 
         let anchor = self
             .project
@@ -628,7 +655,7 @@ impl<E: CollabEditor> Session<E> {
         head: ByteOffset,
         tail: ByteOffset,
     ) -> Result<(), RunSessionError> {
-        let file_id = self.to_file_id(file_id);
+        let file_id = self.to_project_file_id(file_id);
         let file = self.project.file(file_id).expect("");
 
         let head_bias =
@@ -714,7 +741,11 @@ impl<E: CollabEditor> Session<E> {
         }
     }
 
-    fn to_file_id(&self, file_id: E::FileId) -> FileId {
+    fn to_editor_file_id(&self, _file_id: FileId) -> Option<E::FileId> {
+        todo!();
+    }
+
+    fn to_project_file_id(&self, _file_id: E::FileId) -> FileId {
         todo!();
     }
 }
@@ -735,10 +766,9 @@ impl<E: CollabEditor> Cursors<E> {
 
     fn get_remote_mut(
         &mut self,
-        owner: PeerId,
-        in_file: FileId,
+        id: cursor::CursorId,
     ) -> Option<&mut cursor::Cursor> {
-        self.remote.get_mut(&owner).and_then(|map| map.get_mut(&in_file))
+        self.remote.get_mut(&id)
     }
 
     /// # Panics
@@ -748,6 +778,12 @@ impl<E: CollabEditor> Cursors<E> {
     fn insert_local(&mut self, id: E::CursorId, cursor: cursor::Cursor) {
         if self.local.insert(id.clone(), cursor).is_some() {
             panic!("cursor {id:?} already exists");
+        }
+    }
+
+    fn insert_remote(&mut self, cursor: cursor::Cursor) {
+        if self.remote.insert(cursor.id(), cursor).is_some() {
+            panic!("cursor already exists");
         }
     }
 
@@ -772,10 +808,9 @@ impl<E: CollabEditor> Selections<E> {
 
     fn get_remote_mut(
         &mut self,
-        owner: PeerId,
-        in_file: FileId,
+        id: selection::SelectionId,
     ) -> Option<&mut selection::Selection> {
-        self.remote.get_mut(&owner).and_then(|map| map.get_mut(&in_file))
+        self.remote.get_mut(&id)
     }
 
     /// # Panics
@@ -867,6 +902,11 @@ impl<E: CollabEditor> Drop for Session<E> {
         //     })
         //     .detach();
     }
+}
+
+struct CursorTooltip<E: CollabEditor> {
+    cursor_id: cursor::CursorId,
+    inner: E::Tooltip,
 }
 
 struct ConfirmStart<'path>(&'path AbsUtf8Path);
