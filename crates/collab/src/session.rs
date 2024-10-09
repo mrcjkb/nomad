@@ -236,6 +236,62 @@ impl<E: CollabEditor> Session<E> {
         self.sender.send(outbound).await.map_err(Into::into)
     }
 
+    async fn integrate_created_cursor(
+        &mut self,
+        _msg: actions::create_cursor::CreatedCursorRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_created_directory(
+        &mut self,
+        _msg: actions::create_directory::CreatedDirectoryRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_created_file(
+        &mut self,
+        _msg: actions::create_file::CreatedFileRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_created_selection(
+        &mut self,
+        _msg: actions::create_selection::CreatedSelectionRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_deleted_text(
+        &mut self,
+        _msg: actions::delete_text::DeletedTextRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_inserted_text(
+        &mut self,
+        _msg: actions::insert_text::InsertedTextRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_moved_cursor(
+        &mut self,
+        _msg: actions::move_cursor::MovedCursorRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_moved_directory(
+        &mut self,
+        _msg: actions::move_directory::MovedDirectoryRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
     async fn integrate_message(
         &mut self,
         msg: Message,
@@ -255,13 +311,96 @@ impl<E: CollabEditor> Session<E> {
         }
     }
 
+    async fn integrate_moved_file(
+        &mut self,
+        _msg: actions::move_file::MovedFileRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_moved_selection(
+        &mut self,
+        _msg: actions::move_selection::MovedSelectionRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
     async fn integrate_project_message(
         &mut self,
         msg: ProjectMessage,
     ) -> Result<(), RunSessionError> {
         match msg {
-            _ => todo!(),
+            ProjectMessage::CreatedCursor(msg) => {
+                self.integrate_created_cursor(msg).await
+            },
+            ProjectMessage::CreatedDirectory(msg) => {
+                self.integrate_created_directory(msg).await
+            },
+            ProjectMessage::CreatedFile(msg) => {
+                self.integrate_created_file(msg).await
+            },
+            ProjectMessage::CreatedSelection(msg) => {
+                self.integrate_created_selection(msg).await
+            },
+            ProjectMessage::DeletedText(msg) => {
+                self.integrate_deleted_text(msg).await
+            },
+            ProjectMessage::InsertedText(msg) => {
+                self.integrate_inserted_text(msg).await
+            },
+            ProjectMessage::MovedCursor(msg) => {
+                self.integrate_moved_cursor(msg).await
+            },
+            ProjectMessage::MovedDirectory(msg) => {
+                self.integrate_moved_directory(msg).await
+            },
+            ProjectMessage::MovedFile(msg) => {
+                self.integrate_moved_file(msg).await
+            },
+            ProjectMessage::MovedSelection(msg) => {
+                self.integrate_moved_selection(msg).await
+            },
+            ProjectMessage::RemovedCursor(msg) => {
+                self.integrate_removed_cursor(msg).await
+            },
+            ProjectMessage::RemovedDirectory(msg) => {
+                self.integrate_removed_directory(msg).await
+            },
+            ProjectMessage::RemovedFile(msg) => {
+                self.integrate_removed_file(msg).await
+            },
+            ProjectMessage::RemovedSelection(msg) => {
+                self.integrate_removed_selection(msg).await
+            },
         }
+    }
+
+    async fn integrate_removed_cursor(
+        &mut self,
+        _msg: actions::remove_cursor::RemovedCursorRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_removed_directory(
+        &mut self,
+        _msg: actions::remove_directory::RemovedDirectoryRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_removed_file(
+        &mut self,
+        _msg: actions::remove_file::RemovedFileRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
+    }
+
+    async fn integrate_removed_selection(
+        &mut self,
+        _msg: actions::remove_selection::RemovedSelectionRemote,
+    ) -> Result<(), RunSessionError> {
+        Ok(())
     }
 
     fn is_ignored(&mut self, id: &E::FileId) -> bool {
