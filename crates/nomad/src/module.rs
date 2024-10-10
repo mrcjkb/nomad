@@ -10,7 +10,7 @@ pub trait Module<E: Editor>: 'static + Sized {
     const NAME: ModuleName;
 
     /// TODO: docs.
-    type Config: Default + DeserializeOwned;
+    type Config: Default + Clone + DeserializeOwned;
 
     /// TODO: docs.
     fn init(ctx: &Context<E>) -> (Self, E::ModuleApi);

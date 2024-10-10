@@ -1,7 +1,7 @@
 use core::pin::Pin;
 use core::task::Poll;
 
-use futures_util::Stream;
+use futures_util::{FutureExt, Stream};
 
 use crate::context::SubscriptionState;
 use crate::event::AnyEvent;
@@ -21,11 +21,6 @@ pub struct Subscription<T: Event<E>, E: Editor> {
 }
 
 impl<T: Event<E>, E: Editor> Subscription<T, E> {
-    /// TODO: docs.
-    pub async fn recv(&mut self) -> &T::Payload {
-        self.rx.recv().await
-    }
-
     pub(crate) fn new(
         event: AnyEvent,
         rx: Receiver<T::Payload>,
@@ -42,10 +37,10 @@ where
     type Item = T::Payload;
 
     fn poll_next(
-        self: Pin<&mut Self>,
-        _ctx: &mut core::task::Context,
+        mut self: Pin<&mut Self>,
+        ctx: &mut core::task::Context,
     ) -> Poll<Option<Self::Item>> {
-        todo!();
+        Pin::new(&mut self.rx.inner).poll_next(ctx)
     }
 }
 
@@ -69,65 +64,68 @@ impl<T: Event<E>, E: Editor> Drop for Subscription<T, E> {
 }
 
 pub(crate) fn channel<T>() -> (Emitter<T>, Receiver<T>) {
-    todo!();
+    let (tx, rx) = async_broadcast::broadcast(1024);
+    (Emitter { inner: tx }, Receiver { inner: rx })
 }
 
 /// TODO: docs.
 pub struct Emitter<T> {
-    item: T,
+    inner: async_broadcast::Sender<T>,
 }
 
 impl<T> Emitter<T> {
     /// TODO: docs.
-    pub fn send(&self, _: T) {
-        todo!();
+    pub fn send(&self, item: T)
+    where
+        T: Clone,
+    {
+        self.inner
+            .broadcast_direct(item)
+            .now_or_never()
+            .expect("channel is full");
     }
 }
 
 impl<T> Clone for Emitter<T> {
     fn clone(&self) -> Self {
-        todo!();
+        Self { inner: self.inner.clone() }
     }
 }
 
 /// TODO: docs.
 pub(crate) struct Receiver<T> {
-    inner: T,
+    inner: async_broadcast::Receiver<T>,
 }
 
 impl<T> Receiver<T> {
     pub(crate) fn deactivate(self) -> InactiveReceiver<T> {
-        todo!();
-    }
-
-    async fn recv(&mut self) -> &T {
-        todo!();
+        InactiveReceiver { inner: self.inner.deactivate() }
     }
 }
 
 impl<T> Clone for Receiver<T> {
     fn clone(&self) -> Self {
-        todo!();
+        Self { inner: self.inner.clone() }
     }
 }
 
 pub(crate) struct InactiveReceiver<T> {
-    inner: T,
+    inner: async_broadcast::InactiveReceiver<T>,
 }
 
 impl<T> InactiveReceiver<T> {
     pub(crate) fn reactivate(self) -> Receiver<T> {
-        todo!();
+        Receiver { inner: self.inner.activate() }
     }
 
     pub(crate) fn into_any(self) -> AnyReceiver {
-        todo!();
+        AnyReceiver { inner: unsafe { core::mem::transmute(self) } }
     }
 }
 
 impl<T> Clone for InactiveReceiver<T> {
     fn clone(&self) -> Self {
-        todo!();
+        Self { inner: self.inner.clone() }
     }
 }
 
@@ -139,6 +137,6 @@ impl AnyReceiver {
     pub(crate) unsafe fn downcast_ref_unchecked<T>(
         &self,
     ) -> &InactiveReceiver<T> {
-        todo!();
+        unsafe { core::mem::transmute(&self.inner) }
     }
 }

@@ -53,7 +53,7 @@ impl<T> EditEvent<T> {
     }
 }
 
-impl<T: Offset> Event<Neovim> for EditEvent<T> {
+impl<T: Offset + Clone> Event<Neovim> for EditEvent<T> {
     type Payload = Edit<T>;
     type SubscribeCtx = Shared<bool>;
 

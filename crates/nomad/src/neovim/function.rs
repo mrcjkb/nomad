@@ -33,7 +33,7 @@ pub trait Function: 'static {
     const NAME: &'static str;
 
     /// TODO: docs.
-    type Args: DeserializeOwned;
+    type Args: Clone + DeserializeOwned;
 
     /// TODO: docs.
     type Module: Module<Neovim>;

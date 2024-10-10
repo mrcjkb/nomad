@@ -12,6 +12,7 @@ neovim-nightly = []
 neovim = []
 
 [dependencies]
+async-broadcast = "0.7"
 collab-fs = { workspace = true }
 compact_str = { workspace = true }
 futures-util = { workspace = true }

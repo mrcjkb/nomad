@@ -44,10 +44,8 @@ pub trait Command: 'static {
     const NAME: &'static str;
 
     /// TODO: docs.
-    type Args: for<'a> TryFrom<
-        &'a mut CommandArgs,
-        Error: Into<DiagnosticMessage>,
-    >;
+    type Args: Clone
+        + for<'a> TryFrom<&'a mut CommandArgs, Error: Into<DiagnosticMessage>>;
 
     /// TODO: docs.
     type Module: Module<Neovim>;

@@ -41,7 +41,7 @@ impl Buffer {
     }
 
     /// TODO: docs.
-    pub fn edit_stream<T: Offset>(
+    pub fn edit_stream<T: Offset + Clone>(
         &mut self,
         ctx: &Context<Neovim>,
     ) -> Subscription<EditEvent<T>, Neovim> {

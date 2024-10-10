@@ -3,7 +3,6 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::collections::HashMap;
 
-use futures_util::stream::SelectAll;
 use futures_util::Stream;
 
 pub(crate) struct StreamMap<K, V> {
