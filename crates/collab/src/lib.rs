@@ -4,6 +4,7 @@ mod collab;
 mod collab_editor;
 mod config;
 mod events;
+mod mapped;
 mod neovim_collab;
 mod session;
 mod session_error;

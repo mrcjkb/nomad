@@ -2,7 +2,7 @@ use core::fmt::Display;
 use core::ops::Range;
 use std::borrow::Cow;
 
-use collab_fs::AbsUtf8Path;
+use collab_fs::{AbsUtf8Path, OsFs};
 use futures_util::stream::{select, Select};
 use nomad::neovim::events::{CommandEvent, ConfigEvent, FunctionEvent};
 use nomad::neovim::{self, command, function, module_api, ModuleApi, Neovim};
@@ -62,6 +62,7 @@ impl Module<Neovim> for NeovimCollab {
 }
 
 impl CollabEditor for Neovim {
+    type Fs = OsFs;
     type CursorId = ();
     type FileId = neovim::BufferId;
     type SelectionId = ();
@@ -71,6 +72,10 @@ impl CollabEditor for Neovim {
     type Cursors = events::cursor::NeovimCursors;
     type Edits = events::edit::NeovimEdits;
     type Selections = events::selection::NeovimSelections;
+
+    fn fs(&self) -> Self::Fs {
+        OsFs::new()
+    }
 
     fn open_files(&mut self) -> Self::OpenFiles {
         todo!();

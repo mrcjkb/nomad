@@ -4,26 +4,41 @@ use std::io;
 
 use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf, Fs};
 use collab_messaging::{Outbound, PeerId, Recipients};
+use collab_project::cursor::{self, CursorId};
 use collab_project::file::{AnchorBias, FileId};
-use collab_project::{actions, cursor, selection, Project};
+use collab_project::selection::{self, SelectionId};
+use collab_project::{actions, Project};
 use collab_server::JoinRequest;
 use futures_util::stream::select_all;
 use futures_util::{select, FutureExt, SinkExt, StreamExt};
 use nohash::IntMap as NoHashMap;
 use nomad::{ActorId, ByteOffset, Context};
-use nomad_server::client::{Joined, Receiver, Sender};
+use nomad_server::client::{
+    Joined,
+    Receiver as ServerReceiver,
+    Sender as ServerSender,
+};
 use nomad_server::{Io, Message, ProjectMessage};
 use root_finder::markers::Git;
 use root_finder::Finder;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::events::cursor::{Cursor, CursorAction};
 use crate::events::edit::{Edit, Hunk};
 use crate::events::selection::{Selection, SelectionAction};
+use crate::mapped::Mapped;
 use crate::{CollabEditor, Config, SessionId};
 
 pub(crate) struct Session<E: CollabEditor> {
-    /// TODO: docs.
+    inner: InnerSession<E>,
+    local_streams: LocalStreams<E>,
+    remote_sender: ServerSender,
+    remote_stream: ServerReceiver,
+    server_id: PeerId,
+}
+
+struct InnerSession<E: CollabEditor> {
+    /// This session's actor ID.
     actor_id: ActorId,
 
     /// TODO: docs.
@@ -45,46 +60,57 @@ pub(crate) struct Session<E: CollabEditor> {
     /// The path to the root of the project.
     project_root: AbsUtf8PathBuf,
 
-    /// A receiver for receiving messages from the server.
-    receiver: Receiver,
-
-    /// The server's ID.
-    server_id: PeerId,
-
-    /// A sender for sending messages to the server.
-    sender: Sender,
-
-    /// TODO: docs.
-    subs_edits: HashMap<E::FileId, E::Edits>,
-
-    /// TODO: docs.
-    subs_cursors: HashMap<E::FileId, E::Cursors>,
-
-    /// TODO: docs.
-    subs_selections: HashMap<E::FileId, E::Selections>,
-
-    /// TODO: docs.
     cursors: Cursors<E>,
-
-    /// TODO: docs.
-    cursor_tooltips: HashMap<cursor::CursorId, CursorTooltip<E>>,
-
-    /// TODO: docs.
     selections: Selections<E>,
-
-    /// TODO: docs.
-    selection_highlights:
-        HashMap<selection::SelectionId, SelectionHighlight<E>>,
 }
 
 struct Cursors<E: CollabEditor> {
+    /// Map from an editor's cursor ID to the corresponding cursor. All of
+    /// these are owned by the local peer.
     local: HashMap<E::CursorId, cursor::Cursor>,
-    remote: HashMap<cursor::CursorId, cursor::Cursor>,
+
+    /// Map from a project's cursor ID to the corresponding cursor. All of
+    /// these are owned by remote peers.
+    remote: HashMap<CursorId, cursor::Cursor>,
+
+    /// Map from a project's cursor ID to the corresponding tooltip displayed
+    /// in the editor.
+    tooltips: HashMap<CursorId, CursorTooltip<E>>,
 }
 
 struct Selections<E: CollabEditor> {
+    /// Map from an editor's selection ID to the corresponding selection. All
+    /// of these are owned by the local peer.
     local: HashMap<E::SelectionId, selection::Selection>,
-    remote: HashMap<selection::SelectionId, selection::Selection>,
+
+    /// Map from a project's selection ID to the corresponding selection. All
+    /// of these are owned by remote peers.
+    remote: HashMap<SelectionId, selection::Selection>,
+
+    /// Map from a project's selection ID to the corresponding highlight
+    /// displayed in the editor.
+    highlights: HashMap<SelectionId, SelectionHighlight<E>>,
+}
+
+struct LocalStreams<E: CollabEditor> {
+    /// A stream of editor file IDs for newly opened files, used to setup
+    /// file-level streams if the file is part of the project.
+    open_files: E::OpenFiles,
+
+    /// A stream of editor file IDs for newly opened files, used to drop the
+    /// file-level streams setup for that file.
+    close_files: E::CloseFiles,
+
+    /// Map from an editor's file ID to a stream of edit events for that file.
+    edits: Mapped<E::FileId, E::Edits>,
+
+    /// Map from an editor's file ID to a stream of cursor events for that
+    /// file.
+    cursors: Mapped<E::FileId, E::Cursors>,
+
+    /// Map from an editor's file ID to a stream of selection events for that
+    /// file.
+    selections: Mapped<E::FileId, E::Selections>,
 }
 
 impl<E: CollabEditor> Session<E> {
@@ -157,7 +183,8 @@ impl<E: CollabEditor> Session<E> {
     }
 
     fn peer_id(&self) -> PeerId {
-        self.sender.peer_id()
+        todo!();
+        // self.sender.peer_id()
     }
 
     fn new(
@@ -190,49 +217,91 @@ impl<E: CollabEditor> Session<E> {
 impl<E: CollabEditor> Session<E> {
     pub(crate) async fn run(mut self) -> Result<(), RunSessionError> {
         loop {
-            let mut cursors = select_all(self.subs_cursors.values_mut());
-            let mut edits = select_all(self.subs_edits.values_mut());
-            let mut selections = select_all(self.subs_selections.values_mut());
+            let maybe_msg = select! {
+                file_id = self.local_streams.open_files.next().fuse() => {
+                    let file_id = file_id.expect("never ends");
+                    self.on_opened_file(file_id);
+                    continue;
+                },
 
-            select! {
-                cursor = cursors.next().fuse() => {
+                file_id = self.local_streams.close_files.next().fuse() => {
+                    let file_id = file_id.expect("never ends");
+                    self.on_closed_file(file_id);
+                    continue;
+                },
+
+                cursor = self.local_streams.cursors.next().fuse() => {
                     let cursor = cursor.expect("never ends");
-                    drop(cursors);
-                    drop(edits);
-                    drop(selections);
-                    self.sync_cursor(cursor).await?;
+                    self.inner.sync_cursor(cursor).map(Into::into)
                 },
 
-                edit = edits.next().fuse() => {
+
+                edit = self.local_streams.edits.next().fuse() => {
                     let edit = edit.expect("never ends");
-                    drop(cursors);
-                    drop(edits);
-                    drop(selections);
-                    self.sync_edit(edit).await?;
+                    self.inner.sync_edit(edit).map(Into::into)
                 },
 
-                selection = selections.next().fuse() => {
+                selection = self.local_streams.selections.next().fuse() => {
                     let selection = selection.expect("never ends");
-                    drop(cursors);
-                    drop(edits);
-                    drop(selections);
-                    self.sync_selection(selection).await?;
+                    self.inner.sync_selection(selection).map(Into::into)
                 },
 
-                maybe_msg = self.receiver.next().fuse() => {
-                    drop(cursors);
-                    drop(edits);
-                    drop(selections);
+                maybe_msg = self.remote_stream.next().fuse() => {
                     match maybe_msg {
-                        Some(Ok(msg)) => self.integrate_message(msg).await?,
+                        Some(Ok(msg)) => {
+                            self.inner.integrate_message(msg).await?;
+                            continue;
+                        },
                         Some(Err(err)) => return Err(err.into()),
-                        None => todo!(),
+                        None => return Ok(()),
                     };
                 },
+            };
+
+            if let Some(msg) = maybe_msg {
+                let outbound = Outbound {
+                    message: Message::Project(msg),
+                    recipients: Recipients::except([self.server_id]),
+                    should_compress: false,
+                };
+                self.remote_sender.send(outbound).await?;
             }
         }
     }
 
+    fn editor_mut(&mut self) -> &mut E {
+        &mut self.inner.editor
+    }
+
+    fn is_tracked(&self, file_id: &E::FileId) -> bool {
+        self.local_streams.edits.contains_key(file_id)
+    }
+
+    fn on_closed_file(&mut self, file_id: E::FileId) {
+        if self.is_tracked(&file_id) {
+            self.local_streams.edits.remove(&file_id);
+            self.local_streams.cursors.remove(&file_id);
+            self.local_streams.selections.remove(&file_id);
+        }
+    }
+
+    fn on_opened_file(&mut self, file_id: E::FileId) {
+        assert!(!self.is_tracked(&file_id), "file already tracked");
+
+        if self.inner.is_in_project_tree(&file_id)
+            && !self.inner.is_ignored(&file_id)
+        {
+            let edits = self.editor_mut().edits(&file_id);
+            let cursors = self.editor_mut().cursors(&file_id);
+            let selections = self.editor_mut().selections(&file_id);
+            self.local_streams.edits.insert(file_id.clone(), edits);
+            self.local_streams.cursors.insert(file_id.clone(), cursors);
+            self.local_streams.selections.insert(file_id.clone(), selections);
+        }
+    }
+}
+
+impl<E: CollabEditor> InnerSession<E> {
     async fn apply_hunks<I>(
         &mut self,
         file_id: FileId,
@@ -244,24 +313,22 @@ impl<E: CollabEditor> Session<E> {
         if let Some(file_id) = self.to_editor_file_id(file_id) {
             self.editor.apply_hunks(&file_id, hunks, self.actor_id);
         } else if let Some(file) = self.project.file(file_id) {
-            let _file_path = file.path();
-            todo!("apply hunks via the fs");
+            let file_path = file.path();
+            let fs = self.editor.fs();
+            let mut file =
+                fs.open_file(&file_path).await.expect("couldn't open file");
+            for hunk in hunks {
+                fs.replace_file_range(
+                    &mut file,
+                    hunk.start.into()..hunk.end.into(),
+                    hunk.text.as_str().as_bytes(),
+                )
+                .await
+                .expect("couldn't replace range");
+            }
         }
 
         Ok(())
-    }
-
-    async fn broadcast(
-        &mut self,
-        message: impl Into<Message>,
-    ) -> Result<(), RunSessionError> {
-        let outbound = Outbound {
-            message: message.into(),
-            recipients: Recipients::except([self.server_id]),
-            should_compress: false,
-        };
-
-        self.sender.send(outbound).await.map_err(Into::into)
     }
 
     fn create_cursor_tooltip(
@@ -310,7 +377,7 @@ impl<E: CollabEditor> Session<E> {
     ) {
         let Some(cursor) = self.project.integrate(msg) else { return };
         if let Some(tooltip) = self.create_cursor_tooltip(&cursor) {
-            self.cursor_tooltips.insert(cursor.id(), tooltip);
+            self.cursors.tooltips.insert(cursor.id(), tooltip);
         }
         self.cursors.insert_remote(cursor);
     }
@@ -335,7 +402,7 @@ impl<E: CollabEditor> Session<E> {
     ) {
         let Some(selection) = self.project.integrate(msg) else { return };
         if let Some(highlight) = self.create_selection_highlight(&selection) {
-            self.selection_highlights.insert(selection.id(), highlight);
+            self.selections.highlights.insert(selection.id(), highlight);
         }
         self.selections.insert_remote(selection);
     }
@@ -408,14 +475,15 @@ impl<E: CollabEditor> Session<E> {
 
         let cursor = self
             .cursors
-            .get_remote_mut(move_cursor.id())
+            .remote
+            .get_mut(&move_cursor.id())
             .expect("already received cursor creation");
 
         cursor
             .move_to(move_cursor)
             .expect("move op was applied to the correct cursor");
 
-        if let Some(tooltip) = self.cursor_tooltips.get_mut(&cursor.id()) {
+        if let Some(tooltip) = self.cursors.tooltips.get_mut(&cursor.id()) {
             let new_offset = self
                 .project
                 .file(cursor.file_id())
@@ -472,7 +540,8 @@ impl<E: CollabEditor> Session<E> {
 
         let selection = self
             .selections
-            .get_remote_mut(move_selection.id())
+            .remote
+            .get_mut(&move_selection.id())
             .expect("already received selection creation");
 
         selection
@@ -480,7 +549,7 @@ impl<E: CollabEditor> Session<E> {
             .expect("move op was applied to the correct selection");
 
         if let Some(highlight) =
-            self.selection_highlights.get_mut(&selection.id())
+            self.selections.highlights.get_mut(&selection.id())
         {
             let file = self
                 .project
@@ -568,7 +637,7 @@ impl<E: CollabEditor> Session<E> {
             .remove_remote(remove_cursor.id())
             .expect("already received cursor creation");
 
-        if let Some(tooltip) = self.cursor_tooltips.remove(&cursor.id()) {
+        if let Some(tooltip) = self.cursors.tooltips.remove(&cursor.id()) {
             self.editor.remove_tooltip(tooltip.inner);
         }
 
@@ -605,7 +674,7 @@ impl<E: CollabEditor> Session<E> {
             .expect("already received selection creation");
 
         if let Some(highlight) =
-            self.selection_highlights.remove(&selection.id())
+            self.selections.highlights.remove(&selection.id())
         {
             self.editor.remove_highlight(highlight.inner);
         }
@@ -633,68 +702,32 @@ impl<E: CollabEditor> Session<E> {
         }
     }
 
-    fn is_tracked(&self, file_id: &E::FileId) -> bool {
-        self.subs_edits.contains_key(file_id)
-    }
-
-    fn on_closed_file(&mut self, file_id: E::FileId) {
-        if self.is_tracked(&file_id) {
-            self.subs_edits.remove(&file_id);
-            self.subs_cursors.remove(&file_id);
-            self.subs_selections.remove(&file_id);
-        }
-    }
-
-    fn on_opened_file(&mut self, file_id: E::FileId) {
-        assert!(!self.is_tracked(&file_id), "file already tracked");
-
-        if self.is_in_project_tree(&file_id) && !self.is_ignored(&file_id) {
-            let edits = self.editor.edits(&file_id);
-            let cursors = self.editor.cursors(&file_id);
-            let selections = self.editor.selections(&file_id);
-            self.subs_edits.insert(file_id.clone(), edits);
-            self.subs_cursors.insert(file_id.clone(), cursors);
-            self.subs_selections.insert(file_id.clone(), selections);
-        }
-    }
-
     fn on_peer_disconnected(&mut self, peer_id: PeerId) {
         todo!();
     }
 
-    async fn sync_cursor(
-        &mut self,
-        cursor: Cursor<E>,
-    ) -> Result<(), RunSessionError> {
+    fn sync_cursor(&mut self, cursor: Cursor<E>) -> Option<ProjectMessage> {
         match cursor.action {
-            CursorAction::Created(offset) => {
-                self.sync_created_cursor(
-                    cursor.cursor_id,
-                    cursor.file_id,
-                    offset,
-                )
-                .await
-            },
-            CursorAction::Moved(offset) => {
-                self.sync_moved_cursor(
-                    cursor.cursor_id,
-                    cursor.file_id,
-                    offset,
-                )
-                .await
-            },
-            CursorAction::Removed => {
-                self.sync_removed_cursor(cursor.cursor_id).await
-            },
+            CursorAction::Created(offset) => self
+                .sync_created_cursor(cursor.cursor_id, cursor.file_id, offset)
+                .map(ProjectMessage::CreatedCursor),
+
+            CursorAction::Moved(offset) => self
+                .sync_moved_cursor(cursor.cursor_id, cursor.file_id, offset)
+                .map(ProjectMessage::MovedCursor),
+
+            CursorAction::Removed => Some(ProjectMessage::RemovedCursor(
+                self.sync_removed_cursor(cursor.cursor_id),
+            )),
         }
     }
 
-    async fn sync_created_cursor(
+    fn sync_created_cursor(
         &mut self,
         cursor_id: E::CursorId,
         file_id: E::FileId,
         offset: ByteOffset,
-    ) -> Result<(), RunSessionError> {
+    ) -> Option<actions::create_cursor::CreatedCursorRemote> {
         let file_id = self.to_project_file_id(file_id);
 
         let anchor = self
@@ -705,28 +738,26 @@ impl<E: CollabEditor> Session<E> {
 
         let action = actions::create_cursor::CreatedCursor { file_id, anchor };
 
-        let (cursor, msg) = match self.project.synchronize(action) {
-            Ok(res) => res,
-            Err(err) => {
-                error!("moved cursor to a deleted file: {err}");
-                return Ok(());
+        match self.project.synchronize(action) {
+            Ok((cursor, msg)) => {
+                self.cursors.insert_local(cursor_id, cursor);
+                Some(msg)
             },
-        };
-
-        self.cursors.insert_local(cursor_id, cursor);
-
-        self.broadcast(Message::Project(ProjectMessage::CreatedCursor(msg)))
-            .await
+            Err(err) => {
+                warn!("moved cursor to a deleted file: {err}");
+                None
+            },
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn sync_created_selection(
+    fn sync_created_selection(
         &mut self,
         selection_id: E::SelectionId,
         file_id: E::FileId,
         head: ByteOffset,
         tail: ByteOffset,
-    ) -> Result<(), RunSessionError> {
+    ) -> Option<actions::create_selection::CreatedSelectionRemote> {
         let file_id = self.to_project_file_id(file_id);
         let file = self.project.file(file_id).expect("");
 
@@ -739,24 +770,19 @@ impl<E: CollabEditor> Session<E> {
             tail: file.create_anchor(tail.into(), !head_bias),
         };
 
-        let (selection, msg) = match self.project.synchronize(action) {
-            Ok(res) => res,
-            Err(err) => {
-                error!("moved selection to a deleted file: {err}");
-                return Ok(());
+        match self.project.synchronize(action) {
+            Ok((selection, msg)) => {
+                self.selections.insert_local(selection_id, selection);
+                Some(msg)
             },
-        };
-
-        self.selections.insert_local(selection_id, selection);
-
-        self.broadcast(Message::Project(ProjectMessage::CreatedSelection(msg)))
-            .await
+            Err(err) => {
+                warn!("moved selection to a deleted file: {err}");
+                None
+            },
+        }
     }
 
-    async fn sync_edit(
-        &mut self,
-        edit: Edit<E>,
-    ) -> Result<(), RunSessionError> {
+    fn sync_edit(&mut self, edit: Edit<E>) -> Option<ProjectMessage> {
         let file_id = self.to_project_file_id(edit.file_id);
 
         for hunk in edit.hunks {
@@ -774,10 +800,7 @@ impl<E: CollabEditor> Session<E> {
                     },
                 };
 
-                self.broadcast(Message::Project(ProjectMessage::DeletedText(
-                    msg,
-                )))
-                .await?;
+                // ProjectMessage::DeletedText(msg)
             }
 
             if !hunk.text.is_empty() {
@@ -795,28 +818,24 @@ impl<E: CollabEditor> Session<E> {
                     },
                 };
 
-                self.broadcast(Message::Project(
-                    ProjectMessage::InsertedText(msg),
-                ))
-                .await?;
+                // ProjectMessage::InsertedText(msg)
             }
         }
 
-        Ok(())
+        todo!();
     }
 
-    async fn sync_moved_cursor(
+    fn sync_moved_cursor(
         &mut self,
         cursor_id: E::CursorId,
         file_id: E::FileId,
         offset: ByteOffset,
-    ) -> Result<(), RunSessionError> {
+    ) -> Option<actions::move_cursor::MovedCursorRemote> {
         let file_id = self.to_project_file_id(file_id);
 
         let anchor = self
             .project
-            .file(file_id)
-            .expect("")
+            .file(file_id)?
             .create_anchor(offset.into(), AnchorBias::Right);
 
         let cursor = self
@@ -826,22 +845,19 @@ impl<E: CollabEditor> Session<E> {
 
         let action = actions::move_cursor::MovedCursor { anchor, cursor };
 
-        let msg = self.project.synchronize(action);
-
-        self.broadcast(Message::Project(ProjectMessage::MovedCursor(msg)))
-            .await
+        Some(self.project.synchronize(action))
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn sync_moved_selection(
+    fn sync_moved_selection(
         &mut self,
         selection_id: E::SelectionId,
         file_id: E::FileId,
         head: ByteOffset,
         tail: ByteOffset,
-    ) -> Result<(), RunSessionError> {
+    ) -> Option<actions::move_selection::MovedSelectionRemote> {
         let file_id = self.to_project_file_id(file_id);
-        let file = self.project.file(file_id).expect("");
+        let file = self.project.file(file_id)?;
 
         let head_bias =
             if head < tail { AnchorBias::Right } else { AnchorBias::Left };
@@ -857,16 +873,13 @@ impl<E: CollabEditor> Session<E> {
             tail: file.create_anchor(tail.into(), !head_bias),
         };
 
-        let msg = self.project.synchronize(action);
-
-        self.broadcast(Message::Project(ProjectMessage::MovedSelection(msg)))
-            .await
+        Some(self.project.synchronize(action))
     }
 
-    async fn sync_removed_selection(
+    fn sync_removed_selection(
         &mut self,
         selection_id: E::SelectionId,
-    ) -> Result<(), RunSessionError> {
+    ) -> actions::remove_selection::RemovedSelectionRemote {
         let selection = self
             .selections
             .remove_local(selection_id)
@@ -874,16 +887,13 @@ impl<E: CollabEditor> Session<E> {
 
         let action = actions::remove_selection::RemovedSelection { selection };
 
-        let msg = self.project.synchronize(action);
-
-        self.broadcast(Message::Project(ProjectMessage::RemovedSelection(msg)))
-            .await
+        self.project.synchronize(action)
     }
 
-    async fn sync_removed_cursor(
+    fn sync_removed_cursor(
         &mut self,
         cursor_id: E::CursorId,
-    ) -> Result<(), RunSessionError> {
+    ) -> actions::remove_cursor::RemovedCursorRemote {
         let cursor = self
             .cursors
             .remove_local(cursor_id)
@@ -891,37 +901,34 @@ impl<E: CollabEditor> Session<E> {
 
         let action = actions::remove_cursor::RemovedCursor { cursor };
 
-        let msg = self.project.synchronize(action);
-
-        self.broadcast(Message::Project(ProjectMessage::RemovedCursor(msg)))
-            .await
+        self.project.synchronize(action)
     }
 
-    async fn sync_selection(
+    fn sync_selection(
         &mut self,
         selection: Selection<E>,
-    ) -> Result<(), RunSessionError> {
+    ) -> Option<ProjectMessage> {
         match selection.action {
-            SelectionAction::Created { head, tail } => {
-                self.sync_created_selection(
+            SelectionAction::Created { head, tail } => self
+                .sync_created_selection(
                     selection.selection_id,
                     selection.file_id,
                     head,
                     tail,
                 )
-                .await
-            },
-            SelectionAction::Moved { head, tail } => {
-                self.sync_moved_selection(
+                .map(ProjectMessage::CreatedSelection),
+            SelectionAction::Moved { head, tail } => self
+                .sync_moved_selection(
                     selection.selection_id,
                     selection.file_id,
                     head,
                     tail,
                 )
-                .await
-            },
+                .map(ProjectMessage::MovedSelection),
             SelectionAction::Removed => {
-                self.sync_removed_selection(selection.selection_id).await
+                Some(ProjectMessage::RemovedSelection(
+                    self.sync_removed_selection(selection.selection_id),
+                ))
             },
         }
     }
@@ -937,7 +944,11 @@ impl<E: CollabEditor> Session<E> {
 
 impl<E: CollabEditor> Default for Cursors<E> {
     fn default() -> Self {
-        Self { local: Default::default(), remote: Default::default() }
+        Self {
+            local: Default::default(),
+            remote: Default::default(),
+            tooltips: Default::default(),
+        }
     }
 }
 
@@ -949,10 +960,7 @@ impl<E: CollabEditor> Cursors<E> {
         self.local.get_mut(&id)
     }
 
-    fn get_remote_mut(
-        &mut self,
-        id: cursor::CursorId,
-    ) -> Option<&mut cursor::Cursor> {
+    fn get_remote_mut(&mut self, id: CursorId) -> Option<&mut cursor::Cursor> {
         self.remote.get_mut(&id)
     }
 
@@ -976,17 +984,18 @@ impl<E: CollabEditor> Cursors<E> {
         self.local.remove(&id)
     }
 
-    fn remove_remote(
-        &mut self,
-        id: cursor::CursorId,
-    ) -> Option<cursor::Cursor> {
+    fn remove_remote(&mut self, id: CursorId) -> Option<cursor::Cursor> {
         self.remote.remove(&id)
     }
 }
 
 impl<E: CollabEditor> Default for Selections<E> {
     fn default() -> Self {
-        Self { local: Default::default(), remote: Default::default() }
+        Self {
+            local: Default::default(),
+            remote: Default::default(),
+            highlights: Default::default(),
+        }
     }
 }
 
@@ -1000,7 +1009,7 @@ impl<E: CollabEditor> Selections<E> {
 
     fn get_remote_mut(
         &mut self,
-        id: selection::SelectionId,
+        id: SelectionId,
     ) -> Option<&mut selection::Selection> {
         self.remote.get_mut(&id)
     }
@@ -1034,7 +1043,7 @@ impl<E: CollabEditor> Selections<E> {
 
     fn remove_remote(
         &mut self,
-        id: selection::SelectionId,
+        id: SelectionId,
     ) -> Option<selection::Selection> {
         self.remote.remove(&id)
     }
@@ -1110,12 +1119,12 @@ impl<E: CollabEditor> Drop for Session<E> {
 }
 
 struct CursorTooltip<E: CollabEditor> {
-    cursor_id: cursor::CursorId,
+    cursor_id: CursorId,
     inner: E::Tooltip,
 }
 
 struct SelectionHighlight<E: CollabEditor> {
-    selection_id: selection::SelectionId,
+    selection_id: SelectionId,
     inner: E::Highlight,
 }
 

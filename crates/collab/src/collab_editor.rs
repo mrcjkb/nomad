@@ -3,7 +3,7 @@ use core::hash::Hash;
 use core::ops::Range;
 use std::borrow::Cow;
 
-use collab_fs::AbsUtf8Path;
+use collab_fs::{AbsUtf8Path, Fs};
 use futures_util::Stream;
 use nomad::{ActorId, ByteOffset};
 
@@ -14,10 +14,13 @@ use crate::{Config, SessionId};
 
 pub(crate) trait CollabEditor: Sized {
     /// TODO: docs.
+    type Fs: Fs;
+
+    /// TODO: docs.
     type CursorId: Clone + Eq + Hash + Debug;
 
     /// TODO: docs.
-    type FileId: Clone + Eq + Hash;
+    type FileId: Clone + Eq + Hash + Unpin;
 
     /// TODO: docs.
     type SelectionId: Clone + Eq + Hash + Debug;
@@ -36,6 +39,9 @@ pub(crate) trait CollabEditor: Sized {
 
     /// TODO: docs.
     type Selections: Stream<Item = Selection<Self>> + Unpin;
+
+    /// TODO: docs.
+    fn fs(&self) -> Self::Fs;
 
     /// TODO: docs.
     fn open_files(&mut self) -> Self::OpenFiles;
