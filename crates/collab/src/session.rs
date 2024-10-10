@@ -26,7 +26,7 @@ use tracing::{error, warn};
 use crate::events::cursor::{Cursor, CursorAction};
 use crate::events::edit::{Edit, Hunk};
 use crate::events::selection::{Selection, SelectionAction};
-use crate::mapped::Mapped;
+use crate::stream_map::StreamMap;
 use crate::text_backlog::TextBacklog;
 use crate::{CollabEditor, Config, SessionId};
 
@@ -104,15 +104,15 @@ struct LocalStreams<E: CollabEditor> {
     close_files: E::CloseFiles,
 
     /// Map from an editor's file ID to a stream of edit events for that file.
-    edits: Mapped<E::FileId, E::Edits>,
+    edits: StreamMap<E::FileId, E::Edits>,
 
     /// Map from an editor's file ID to a stream of cursor events for that
     /// file.
-    cursors: Mapped<E::FileId, E::Cursors>,
+    cursors: StreamMap<E::FileId, E::Cursors>,
 
     /// Map from an editor's file ID to a stream of selection events for that
     /// file.
-    selections: Mapped<E::FileId, E::Selections>,
+    selections: StreamMap<E::FileId, E::Selections>,
 }
 
 impl<E: CollabEditor> Session<E> {
