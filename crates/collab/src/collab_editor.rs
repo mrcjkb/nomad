@@ -48,6 +48,9 @@ pub(crate) trait CollabEditor: Sized {
     fn open_files(&mut self) -> Self::OpenFiles;
 
     /// TODO: docs.
+    fn new_actor_id(&mut self) -> ActorId;
+
+    /// TODO: docs.
     fn close_files(&mut self) -> Self::CloseFiles;
 
     /// TODO: docs.

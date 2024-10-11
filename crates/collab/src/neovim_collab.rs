@@ -101,8 +101,16 @@ impl CollabEditor for Neovim {
         todo!();
     }
 
+    fn new_actor_id(&mut self) -> ActorId {
+        ActorId::new(1)
+    }
+
     fn selections(&mut self, _file_id: &Self::FileId) -> Self::Selections {
         todo!();
+    }
+
+    async fn ask_user<T: Display>(&self, _message: T) -> Option<bool> {
+        Some(true)
     }
 
     fn is_text_file(&self, _file_id: &Self::FileId) -> bool {

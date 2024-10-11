@@ -29,7 +29,7 @@ use crate::events::edit::{Edit, Hunk};
 use crate::events::selection::{Selection, SelectionAction};
 use crate::stream_map::StreamMap;
 use crate::text_backlog::TextBacklog;
-use crate::{CollabEditor, Config, SessionId};
+use crate::{CollabEditor, SessionId};
 
 pub(crate) struct Session<E: CollabEditor> {
     inner: InnerSession<E>,
@@ -42,9 +42,6 @@ pub(crate) struct Session<E: CollabEditor> {
 struct InnerSession<E: CollabEditor> {
     /// This session's actor ID.
     actor_id: ActorId,
-
-    /// TODO: docs.
-    config: Config,
 
     /// TODO: docs.
     editor: E,
@@ -118,17 +115,33 @@ struct LocalStreams<E: CollabEditor> {
 
 impl<E: CollabEditor> Session<E> {
     pub(crate) async fn join(
-        id: SessionId,
-        config: Config,
-        ctx: Context<E>,
+        editor: E,
+        session_id: SessionId,
     ) -> Result<Self, JoinSessionError> {
-        todo!();
+        Ok(Joiner::new()
+            .connect_to_server()?
+            .await
+            .authenticate(())
+            .await?
+            .join_session(session_id)
+            .await?
+            .ask_for_project()
+            .await?
+            .create_project_tree(&editor.fs())
+            .await?
+            .focus_busiest_file(&mut editor)
+            .await
+            .into_session())
+
         // let mut joined = Io::connect()
         //     .await?
         //     .authenticate(())
         //     .await?
         //     .join(JoinRequest::JoinExistingSession(id))
         //     .await?;
+        //
+        // todo!();
+
         //
         // let project = ask_for_project(&mut joined).await?;
         //
@@ -143,10 +156,7 @@ impl<E: CollabEditor> Session<E> {
         // Ok(Self::new(config, ctx, joined, project, project_root))
     }
 
-    pub(crate) async fn start(
-        config: Config,
-        editor: E,
-    ) -> Result<Self, StartSessionError> {
+    pub(crate) async fn start(editor: E) -> Result<Self, StartSessionError> {
         let Some(file_id) = editor.current_file() else {
             return Err(StartSessionError::NotInFile);
         };
@@ -194,7 +204,6 @@ impl<E: CollabEditor> Session<E> {
     }
 
     fn new(
-        config: Config,
         ctx: Context<E>,
         joined: Joined,
         project: Project,
@@ -308,6 +317,26 @@ impl<E: CollabEditor> Session<E> {
 }
 
 impl<E: CollabEditor> InnerSession<E> {
+    fn new(
+        mut editor: E,
+        id: SessionId,
+        peers: NoHashMap<PeerId, PeerId>,
+        project: Project,
+        project_root: AbsUtf8PathBuf,
+    ) -> Self {
+        Self {
+            actor_id: editor.new_actor_id(),
+            cursors: Default::default(),
+            editor,
+            id,
+            peers,
+            project,
+            project_root,
+            selections: Default::default(),
+            text_backlog: Default::default(),
+        }
+    }
+
     async fn apply_hunks<I>(
         &mut self,
         file_id: FileId,
@@ -1198,6 +1227,26 @@ impl<E: CollabEditor> Drop for Session<E> {
     }
 }
 
+impl<E: CollabEditor> Default for Cursors<E> {
+    fn default() -> Self {
+        Self {
+            local: Default::default(),
+            remote: Default::default(),
+            tooltips: Default::default(),
+        }
+    }
+}
+
+impl<E: CollabEditor> Default for Selections<E> {
+    fn default() -> Self {
+        Self {
+            local: Default::default(),
+            remote: Default::default(),
+            highlights: Default::default(),
+        }
+    }
+}
+
 struct CursorTooltip<E: CollabEditor> {
     cursor_id: CursorId,
     inner: E::Tooltip,
@@ -1217,7 +1266,29 @@ impl fmt::Display for ConfirmStart<'_> {
 }
 
 #[derive(Debug)]
-pub(crate) enum JoinSessionError {}
+pub(crate) enum JoinSessionError {
+    /// Authentication failed.
+    Auth(collab_server::client::AuthError<nomad_server::Auth>),
+
+    /// Joining the session failed.
+    Join(nomad_server::client::JoinError),
+}
+
+impl From<collab_server::client::AuthError<nomad_server::Auth>>
+    for JoinSessionError
+{
+    fn from(
+        err: collab_server::client::AuthError<nomad_server::Auth>,
+    ) -> Self {
+        Self::Auth(err)
+    }
+}
+
+impl From<nomad_server::client::JoinError> for JoinSessionError {
+    fn from(err: nomad_server::client::JoinError) -> Self {
+        Self::Join(err)
+    }
+}
 
 impl From<io::Error> for JoinSessionError {
     fn from(err: io::Error) -> Self {
