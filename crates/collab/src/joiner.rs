@@ -151,7 +151,10 @@ impl Starter<ConnectToServer> {
     pub(crate) async fn connect_to_server(
         self,
     ) -> Result<Starter<Authenticate>, ConnectToServerError> {
-        todo!();
+        match nomad_server::Io::connect().await {
+            Ok(io) => Ok(Authenticate { io }.into()),
+            Err(io_err) => Err(ConnectToServerError { inner: io_err }),
+        }
     }
 }
 
@@ -193,7 +196,9 @@ impl Starter<Done> {
 struct ConnectToServer;
 
 /// TODO: docs.
-struct Authenticate;
+struct Authenticate {
+    io: nomad_server::Io,
+}
 
 /// TODO: docs.
 struct JoinSession;
@@ -240,7 +245,9 @@ pub(crate) enum StartError {
 }
 
 /// TODO: docs.
-pub(crate) struct ConnectToServerError;
+pub(crate) struct ConnectToServerError {
+    inner: io::Error,
+}
 
 /// TODO: docs.
 pub(crate) struct AuthenticateError;
