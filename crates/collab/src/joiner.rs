@@ -1,3 +1,4 @@
+use core::fmt;
 use core::marker::PhantomData;
 use std::io;
 
@@ -124,9 +125,25 @@ impl Starter<FindProjectRoot> {
 impl Starter<ConfirmStart> {
     pub(crate) async fn confirm_start<E: CollabEditor>(
         self,
-        _editor: &E,
+        editor: &E,
     ) -> Result<Starter<ConnectToServer>, ConfirmStartError> {
-        todo!();
+        struct StartSessionPrompt<'a>(&'a collab_fs::AbsUtf8PathBuf);
+        impl fmt::Display for StartSessionPrompt<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(
+                    f,
+                    "found root of project at '{}'. Start session?",
+                    self.0
+                )
+            }
+        }
+
+        let Self { status: ConfirmStart(root_candidate) } = self;
+        match editor.ask_user(StartSessionPrompt(&root_candidate)).await {
+            Some(true) => Ok(ConnectToServer.into()),
+            Some(false) => Err(ConfirmStartError::UserCancelled),
+            None => Err(ConfirmStartError::UserDismissed),
+        }
     }
 }
 
@@ -248,7 +265,10 @@ pub(crate) enum FindProjectRootError {
 }
 
 /// Error returned when the user cancels the start session process.
-pub(crate) struct ConfirmStartError;
+pub(crate) enum ConfirmStartError {
+    UserCancelled,
+    UserDismissed,
+}
 
 /// TODO: docs.
 pub(crate) struct StartSessionError;

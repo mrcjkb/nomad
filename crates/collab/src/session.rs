@@ -1188,14 +1188,6 @@ struct SelectionHighlight<E: CollabEditor> {
     inner: E::Highlight,
 }
 
-struct ConfirmStart<'path>(&'path AbsUtf8Path);
-
-impl fmt::Display for ConfirmStart<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "found root of project at '{}'. Start session?", self.0)
-    }
-}
-
 #[derive(Debug)]
 pub(crate) enum RunSessionError {}
 
