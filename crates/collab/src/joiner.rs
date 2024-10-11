@@ -161,9 +161,13 @@ impl Starter<ConnectToServer> {
 impl Starter<Authenticate> {
     pub(crate) async fn authenticate(
         self,
-        _auth_infos: (),
+        auth_infos: (),
     ) -> Result<Starter<StartSession>, AuthenticateError> {
-        todo!();
+        let Self { status: Authenticate { io } } = self;
+        match io.authenticate(auth_infos).await {
+            Ok(authenticated) => Ok(StartSession { authenticated }.into()),
+            Err(auth_error) => Err(AuthenticateError { inner: auth_error }),
+        }
     }
 }
 
@@ -222,7 +226,9 @@ struct FocusBusiestFile;
 struct ConfirmStart(collab_fs::AbsUtf8PathBuf);
 
 /// TODO: docs.
-struct StartSession;
+struct StartSession {
+    authenticated: nomad_server::client::Authenticated,
+}
 
 /// TODO: docs.
 struct ReadProjectTree;
@@ -250,7 +256,9 @@ pub(crate) struct ConnectToServerError {
 }
 
 /// TODO: docs.
-pub(crate) struct AuthenticateError;
+pub(crate) struct AuthenticateError {
+    inner: collab_server::client::AuthError<nomad_server::Auth>,
+}
 
 /// TODO: docs.
 pub(crate) struct JoinSessionError;
@@ -278,7 +286,7 @@ pub(crate) enum ConfirmStartError {
 }
 
 /// TODO: docs.
-pub(crate) struct StartSessionError;
+pub(crate) struct StartSessionError {}
 
 /// TODO: docs.
 pub(crate) struct ReadProjectTreeError;
