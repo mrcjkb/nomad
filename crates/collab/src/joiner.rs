@@ -175,7 +175,12 @@ impl Starter<StartSession> {
     pub(crate) async fn start_session(
         self,
     ) -> Result<Starter<ReadProjectTree>, StartSessionError> {
-        todo!();
+        let Self { status: StartSession { authenticated } } = self;
+        let request = collab_server::JoinRequest::StartNewSession;
+        match authenticated.join(request).await {
+            Ok(joined) => Ok(ReadProjectTree { joined }.into()),
+            Err(err) => Err(StartSessionError { inner: err }),
+        }
     }
 }
 
@@ -231,7 +236,9 @@ struct StartSession {
 }
 
 /// TODO: docs.
-struct ReadProjectTree;
+struct ReadProjectTree {
+    joined: nomad_server::client::Joined,
+}
 
 /// TODO: docs.
 struct Done;
@@ -286,7 +293,9 @@ pub(crate) enum ConfirmStartError {
 }
 
 /// TODO: docs.
-pub(crate) struct StartSessionError {}
+pub(crate) struct StartSessionError {
+    inner: nomad_server::client::JoinError,
+}
 
 /// TODO: docs.
 pub(crate) struct ReadProjectTreeError;
