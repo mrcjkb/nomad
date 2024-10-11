@@ -1,4 +1,9 @@
 use core::marker::PhantomData;
+use std::io;
+
+use collab_fs::AbsUtf8PathBuf;
+use root_finder::markers::Git;
+use root_finder::Finder;
 
 use crate::{CollabEditor, Session, SessionId};
 
@@ -84,6 +89,12 @@ pub(crate) struct Starter<Status> {
     status: Status,
 }
 
+impl<Status> From<Status> for Starter<Status> {
+    fn from(status: Status) -> Self {
+        Self { status }
+    }
+}
+
 impl Starter<FindProjectRoot> {
     pub(crate) fn new() -> Self {
         Self { status: FindProjectRoot }
@@ -91,9 +102,22 @@ impl Starter<FindProjectRoot> {
 
     pub(crate) async fn find_project_root<E: CollabEditor>(
         self,
-        _editor: &E,
+        editor: &E,
     ) -> Result<Starter<ConfirmStart>, FindProjectRootError> {
-        todo!();
+        let file_path = match editor.current_file() {
+            Some(file_id) => editor.path(&file_id),
+            None => return Err(FindProjectRootError::NotInFile),
+        };
+
+        match Finder::find_root(file_path.as_ref(), &Git, &editor.fs()).await {
+            Ok(Some(candidate)) => Ok(ConfirmStart(candidate).into()),
+            Ok(None) => Err(FindProjectRootError::CouldntFindRoot(
+                file_path.into_owned(),
+            )),
+            Err(io_err) => {
+                Err(FindProjectRootError::FailedLookingForRoot(io_err))
+            },
+        }
     }
 }
 
@@ -173,7 +197,7 @@ struct CreateProjectTree;
 struct FocusBusiestFile;
 
 /// TODO: docs.
-struct ConfirmStart;
+struct ConfirmStart(collab_fs::AbsUtf8PathBuf);
 
 /// TODO: docs.
 struct StartSession;
@@ -217,7 +241,11 @@ pub(crate) struct AskForProjectError;
 pub(crate) struct CreateProjectTreeError;
 
 /// TODO: docs.
-pub(crate) struct FindProjectRootError;
+pub(crate) enum FindProjectRootError {
+    NotInFile,
+    CouldntFindRoot(AbsUtf8PathBuf),
+    FailedLookingForRoot(io::Error),
+}
 
 /// Error returned when the user cancels the start session process.
 pub(crate) struct ConfirmStartError;
