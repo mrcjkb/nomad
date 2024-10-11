@@ -27,6 +27,7 @@ use tracing::{error, warn};
 use crate::events::cursor::{Cursor, CursorAction};
 use crate::events::edit::{Edit, Hunk};
 use crate::events::selection::{Selection, SelectionAction};
+use crate::joiner::{JoinError, Joiner, StartError, Starter};
 use crate::stream_map::StreamMap;
 use crate::text_backlog::TextBacklog;
 use crate::{CollabEditor, SessionId};
@@ -37,6 +38,27 @@ pub(crate) struct Session<E: CollabEditor> {
     remote_sender: ServerSender,
     remote_stream: ServerReceiver,
     server_id: collab_messaging::PeerId,
+}
+
+struct LocalStreams<E: CollabEditor> {
+    /// A stream of editor file IDs for newly opened files, used to setup
+    /// file-level streams if the file is part of the project.
+    open_files: E::OpenFiles,
+
+    /// A stream of editor file IDs for newly opened files, used to drop the
+    /// file-level streams setup for that file.
+    close_files: E::CloseFiles,
+
+    /// Map from an editor's file ID to a stream of edit events for that file.
+    edits: StreamMap<E::FileId, E::Edits>,
+
+    /// Map from an editor's file ID to a stream of cursor events for that
+    /// file.
+    cursors: StreamMap<E::FileId, E::Cursors>,
+
+    /// Map from an editor's file ID to a stream of selection events for that
+    /// file.
+    selections: StreamMap<E::FileId, E::Selections>,
 }
 
 struct InnerSession<E: CollabEditor> {
@@ -92,106 +114,40 @@ struct Selections<E: CollabEditor> {
     highlights: HashMap<SelectionId, SelectionHighlight<E>>,
 }
 
-struct LocalStreams<E: CollabEditor> {
-    /// A stream of editor file IDs for newly opened files, used to setup
-    /// file-level streams if the file is part of the project.
-    open_files: E::OpenFiles,
-
-    /// A stream of editor file IDs for newly opened files, used to drop the
-    /// file-level streams setup for that file.
-    close_files: E::CloseFiles,
-
-    /// Map from an editor's file ID to a stream of edit events for that file.
-    edits: StreamMap<E::FileId, E::Edits>,
-
-    /// Map from an editor's file ID to a stream of cursor events for that
-    /// file.
-    cursors: StreamMap<E::FileId, E::Cursors>,
-
-    /// Map from an editor's file ID to a stream of selection events for that
-    /// file.
-    selections: StreamMap<E::FileId, E::Selections>,
-}
-
 impl<E: CollabEditor> Session<E> {
-    pub(crate) async fn join(
-        editor: E,
-        session_id: SessionId,
-    ) -> Result<Self, JoinSessionError> {
+    #[rustfmt::skip]
+    pub(crate) async fn join(editor: E, session_id: SessionId) -> Result<Self, JoinError> {
         Ok(Joiner::new()
-            .connect_to_server()?
-            .await
-            .authenticate(())
-            .await?
-            .join_session(session_id)
-            .await?
-            .ask_for_project()
-            .await?
-            .create_project_tree(&editor.fs())
-            .await?
-            .focus_busiest_file(&mut editor)
-            .await
-            .into_session())
-
-        // let mut joined = Io::connect()
-        //     .await?
-        //     .authenticate(())
-        //     .await?
-        //     .join(JoinRequest::JoinExistingSession(id))
-        //     .await?;
-        //
-        // todo!();
-
-        //
-        // let project = ask_for_project(&mut joined).await?;
-        //
-        // let project_root = config.nomad_dir().join(project.name());
-        //
-        // create_project_dir(&project, project_root, ctx.fs()).await?;
-        //
-        // // TODO: navigate to the project.
-        // //
-        // // focus_project_file(ctx, &project_root).await?;
-        //
-        // Ok(Self::new(config, ctx, joined, project, project_root))
+            .connect_to_server().await?
+            .authenticate(()).await?
+            .join_session(session_id).await?
+            .confirm_join(&editor).await?
+            .ask_for_project().await?
+            .create_project_tree(&editor).await?
+            .focus_busiest_file(&editor)
+            .into_session(editor))
     }
 
-    pub(crate) async fn start(editor: E) -> Result<Self, StartSessionError> {
-        let Some(file_id) = editor.current_file() else {
-            return Err(StartSessionError::NotInFile);
-        };
+    #[rustfmt::skip]
+    pub(crate) async fn start(editor: E) -> Result<Self, StartError> {
+        Ok(Starter::new()
+            .find_project_root(&editor).await?
+            .confirm_start(&editor).await?
+            .connect_to_server().await?
+            .authenticate(()).await?
+            .start_session().await?
+            .read_project_tree().await?
+            .into_session(editor))
+    }
 
-        let file_path = editor.path(&file_id);
-
-        let Some(root_candidate) =
-            Finder::find_root(file_path.as_ref(), &Git, &editor.fs()).await?
-        else {
-            return Err(StartSessionError::CouldntFindRoot(
-                file_path.into_owned(),
-            ));
-        };
-
-        let project_root =
-            match editor.ask_user(ConfirmStart(&root_candidate)).await {
-                Some(true) => root_candidate,
-                Some(false) => return Err(StartSessionError::UserCancelled),
-                None => todo!(),
-            };
-
-        let joined = Io::connect()
-            .await?
-            .authenticate(())
-            .await?
-            .join(JoinRequest::StartNewSession)
-            .await?;
-
-        let peer_id = PeerId::new(joined.join_response.client_id.into_u64());
-
-        let project = Project::from_fs(peer_id, &editor.fs()).await?;
-
-        todo!();
-
-        // Ok(Self::new(config, ctx, joined, project, project_root))
+    pub(crate) fn new(
+        inner: InnerSession<E>,
+        local_streams: LocalStreams<E>,
+        remote_sender: ServerSender,
+        remote_stream: ServerReceiver,
+        server_id: collab_messaging::PeerId,
+    ) -> Self {
+        Self { inner, local_streams, remote_sender, remote_stream, server_id }
     }
 
     fn is_host(&self) -> bool {
@@ -201,31 +157,6 @@ impl<E: CollabEditor> Session<E> {
     fn peer_id(&self) -> PeerId {
         todo!();
         // self.sender.peer_id()
-    }
-
-    fn new(
-        ctx: Context<E>,
-        joined: Joined,
-        project: Project,
-        project_root: AbsUtf8PathBuf,
-    ) -> Self {
-        let Joined { sender, receiver, join_response, peers } = joined;
-        todo!();
-        // Self {
-        //     config,
-        //     cursors: Default::default(),
-        //     // ctx,
-        //     id: SessionId(join_response.session_id),
-        //     peers,
-        //     project,
-        //     project_root,
-        //     receiver,
-        //     sender,
-        //     server_id: join_response.server_id,
-        //     subs_cursors: HashMap::new(),
-        //     subs_edits: HashMap::new(),
-        //     subs_selections: HashMap::new(),
-        // }
     }
 }
 
@@ -1266,37 +1197,6 @@ impl fmt::Display for ConfirmStart<'_> {
 }
 
 #[derive(Debug)]
-pub(crate) enum JoinSessionError {
-    /// Authentication failed.
-    Auth(collab_server::client::AuthError<nomad_server::Auth>),
-
-    /// Joining the session failed.
-    Join(nomad_server::client::JoinError),
-}
-
-impl From<collab_server::client::AuthError<nomad_server::Auth>>
-    for JoinSessionError
-{
-    fn from(
-        err: collab_server::client::AuthError<nomad_server::Auth>,
-    ) -> Self {
-        Self::Auth(err)
-    }
-}
-
-impl From<nomad_server::client::JoinError> for JoinSessionError {
-    fn from(err: nomad_server::client::JoinError) -> Self {
-        Self::Join(err)
-    }
-}
-
-impl From<io::Error> for JoinSessionError {
-    fn from(err: io::Error) -> Self {
-        todo!();
-    }
-}
-
-#[derive(Debug)]
 pub(crate) enum RunSessionError {}
 
 impl From<io::Error> for RunSessionError {
@@ -1305,44 +1205,75 @@ impl From<io::Error> for RunSessionError {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum StartSessionError {
-    /// The session was started in a non-file buffer.
-    NotInFile,
-
-    /// It was not possible to find the root of the project containing the
-    /// file at the given path.
-    CouldntFindRoot(AbsUtf8PathBuf),
-
-    /// We asked the user for confirmation to start the session, but they
-    /// cancelled.
-    UserCancelled,
-
-    /// Authentication failed.
-    Auth(collab_server::client::AuthError<nomad_server::Auth>),
-
-    /// Joining the session failed.
-    Join(nomad_server::client::JoinError),
-}
-
-impl From<collab_server::client::AuthError<nomad_server::Auth>>
-    for StartSessionError
-{
-    fn from(
-        err: collab_server::client::AuthError<nomad_server::Auth>,
-    ) -> Self {
-        Self::Auth(err)
-    }
-}
-
-impl From<nomad_server::client::JoinError> for StartSessionError {
-    fn from(err: nomad_server::client::JoinError) -> Self {
-        Self::Join(err)
-    }
-}
-
-impl From<io::Error> for StartSessionError {
-    fn from(err: io::Error) -> Self {
-        todo!();
-    }
-}
+// #[derive(Debug)]
+// pub(crate) enum JoinSessionError {
+//     /// Authentication failed.
+//     Auth(collab_server::client::AuthError<nomad_server::Auth>),
+//
+//     /// Joining the session failed.
+//     Join(nomad_server::client::JoinError),
+// }
+//
+// impl From<collab_server::client::AuthError<nomad_server::Auth>>
+//     for JoinSessionError
+// {
+//     fn from(
+//         err: collab_server::client::AuthError<nomad_server::Auth>,
+//     ) -> Self {
+//         Self::Auth(err)
+//     }
+// }
+//
+// impl From<nomad_server::client::JoinError> for JoinSessionError {
+//     fn from(err: nomad_server::client::JoinError) -> Self {
+//         Self::Join(err)
+//     }
+// }
+//
+// impl From<io::Error> for JoinSessionError {
+//     fn from(err: io::Error) -> Self {
+//         todo!();
+//     }
+// }
+//
+// #[derive(Debug)]
+// pub(crate) enum StartSessionError {
+//     /// The session was started in a non-file buffer.
+//     NotInFile,
+//
+//     /// It was not possible to find the root of the project containing the
+//     /// file at the given path.
+//     CouldntFindRoot(AbsUtf8PathBuf),
+//
+//     /// We asked the user for confirmation to start the session, but they
+//     /// cancelled.
+//     UserCancelled,
+//
+//     /// Authentication failed.
+//     Auth(collab_server::client::AuthError<nomad_server::Auth>),
+//
+//     /// Joining the session failed.
+//     Join(nomad_server::client::JoinError),
+// }
+//
+// impl From<collab_server::client::AuthError<nomad_server::Auth>>
+//     for StartSessionError
+// {
+//     fn from(
+//         err: collab_server::client::AuthError<nomad_server::Auth>,
+//     ) -> Self {
+//         Self::Auth(err)
+//     }
+// }
+//
+// impl From<nomad_server::client::JoinError> for StartSessionError {
+//     fn from(err: nomad_server::client::JoinError) -> Self {
+//         Self::Join(err)
+//     }
+// }
+//
+// impl From<io::Error> for StartSessionError {
+//     fn from(err: io::Error) -> Self {
+//         todo!();
+//     }
+// }

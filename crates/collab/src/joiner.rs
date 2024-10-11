@@ -1,0 +1,337 @@
+use core::marker::PhantomData;
+
+use crate::{CollabEditor, Session, SessionId};
+
+pub(crate) struct Joiner<Status> {
+    status: Status,
+}
+
+impl Joiner<ConnectToServer> {
+    pub(crate) fn new() -> Self {
+        Self { status: ConnectToServer }
+    }
+
+    pub(crate) async fn connect_to_server(
+        self,
+    ) -> Result<Joiner<Authenticate>, ConnectToServerError> {
+        todo!();
+    }
+}
+
+impl Joiner<Authenticate> {
+    pub(crate) async fn authenticate(
+        self,
+        _auth_infos: (),
+    ) -> Result<Joiner<JoinSession>, AuthenticateError> {
+        todo!();
+    }
+}
+
+impl Joiner<JoinSession> {
+    pub(crate) async fn join_session(
+        self,
+        _session_id: SessionId,
+    ) -> Result<Joiner<ConfirmJoin>, JoinSessionError> {
+        todo!();
+    }
+}
+
+impl Joiner<ConfirmJoin> {
+    pub(crate) async fn confirm_join<E: CollabEditor>(
+        self,
+        _editor: &E,
+    ) -> Result<Joiner<AskForProject>, ConfirmJoinError> {
+        todo!();
+    }
+}
+
+impl Joiner<AskForProject> {
+    pub(crate) async fn ask_for_project(
+        self,
+    ) -> Result<Joiner<CreateProjectTree>, AskForProjectError> {
+        todo!();
+    }
+}
+
+impl Joiner<CreateProjectTree> {
+    pub(crate) async fn create_project_tree<E: CollabEditor>(
+        self,
+        _editor: &E,
+    ) -> Result<Joiner<FocusBusiestFile>, CreateProjectTreeError> {
+        todo!();
+    }
+}
+
+impl Joiner<FocusBusiestFile> {
+    pub(crate) fn focus_busiest_file<E: CollabEditor>(
+        self,
+        _editor: &E,
+    ) -> Joiner<Done> {
+        todo!();
+    }
+}
+
+impl Joiner<Done> {
+    pub(crate) fn into_session<E: CollabEditor>(
+        self,
+        _editor: E,
+    ) -> Session<E> {
+        todo!();
+    }
+}
+
+pub(crate) struct Starter<Status> {
+    status: Status,
+}
+
+impl Starter<FindProjectRoot> {
+    pub(crate) fn new() -> Self {
+        Self { status: FindProjectRoot }
+    }
+
+    pub(crate) async fn find_project_root<E: CollabEditor>(
+        self,
+        _editor: &E,
+    ) -> Result<Starter<ConfirmStart>, FindProjectRootError> {
+        todo!();
+    }
+}
+
+impl Starter<ConfirmStart> {
+    pub(crate) async fn confirm_start<E: CollabEditor>(
+        self,
+        _editor: &E,
+    ) -> Result<Starter<ConnectToServer>, ConfirmStartError> {
+        todo!();
+    }
+}
+
+impl Starter<ConnectToServer> {
+    pub(crate) async fn connect_to_server(
+        self,
+    ) -> Result<Starter<Authenticate>, ConnectToServerError> {
+        todo!();
+    }
+}
+
+impl Starter<Authenticate> {
+    pub(crate) async fn authenticate(
+        self,
+        _auth_infos: (),
+    ) -> Result<Starter<StartSession>, AuthenticateError> {
+        todo!();
+    }
+}
+
+impl Starter<StartSession> {
+    pub(crate) async fn start_session(
+        self,
+    ) -> Result<Starter<ReadProjectTree>, StartSessionError> {
+        todo!();
+    }
+}
+
+impl Starter<ReadProjectTree> {
+    pub(crate) async fn read_project_tree(
+        self,
+    ) -> Result<Starter<Done>, ReadProjectTreeError> {
+        todo!();
+    }
+}
+
+impl Starter<Done> {
+    pub(crate) fn into_session<E: CollabEditor>(
+        self,
+        _editor: E,
+    ) -> Session<E> {
+        todo!();
+    }
+}
+
+/// TODO: docs.
+struct ConnectToServer;
+
+/// TODO: docs.
+struct Authenticate;
+
+/// TODO: docs.
+struct JoinSession;
+
+/// TODO: docs.
+struct FindProjectRoot;
+
+/// TODO: docs.
+struct ConfirmJoin;
+
+/// TODO: docs.
+struct AskForProject;
+
+/// TODO: docs.
+struct CreateProjectTree;
+
+/// TODO: docs.
+struct FocusBusiestFile;
+
+/// TODO: docs.
+struct ConfirmStart;
+
+/// TODO: docs.
+struct StartSession;
+
+/// TODO: docs.
+struct ReadProjectTree;
+
+/// TODO: docs.
+struct Done;
+
+/// TODO: docs.
+struct JoinExistingSession;
+
+/// TODO: docs.
+struct StartNewSession;
+
+pub(crate) enum JoinError {
+    ConnectToServer(ConnectToServerError),
+}
+
+pub(crate) enum StartError {
+    ConnectToServer(ConnectToServerError),
+}
+
+/// TODO: docs.
+pub(crate) struct ConnectToServerError;
+
+/// TODO: docs.
+pub(crate) struct AuthenticateError;
+
+/// TODO: docs.
+pub(crate) struct JoinSessionError;
+
+/// Error returned when the user cancels the join session process.
+pub(crate) struct ConfirmJoinError;
+
+/// TODO: docs.
+pub(crate) struct AskForProjectError;
+
+/// TODO: docs.
+pub(crate) struct CreateProjectTreeError;
+
+/// TODO: docs.
+pub(crate) struct FindProjectRootError;
+
+/// Error returned when the user cancels the start session process.
+pub(crate) struct ConfirmStartError;
+
+/// TODO: docs.
+pub(crate) struct StartSessionError;
+
+/// TODO: docs.
+pub(crate) struct ReadProjectTreeError;
+
+impl From<ConnectToServerError> for JoinError {
+    fn from(err: ConnectToServerError) -> Self {
+        JoinError::ConnectToServer(err)
+    }
+}
+
+impl From<AuthenticateError> for JoinError {
+    fn from(err: AuthenticateError) -> Self {
+        todo!();
+    }
+}
+
+impl From<JoinSessionError> for JoinError {
+    fn from(err: JoinSessionError) -> Self {
+        todo!();
+    }
+}
+
+impl From<ConfirmJoinError> for JoinError {
+    fn from(err: ConfirmJoinError) -> Self {
+        todo!();
+    }
+}
+
+impl From<AskForProjectError> for JoinError {
+    fn from(err: AskForProjectError) -> Self {
+        todo!();
+    }
+}
+
+impl From<CreateProjectTreeError> for JoinError {
+    fn from(err: CreateProjectTreeError) -> Self {
+        todo!();
+    }
+}
+
+impl From<FindProjectRootError> for StartError {
+    fn from(err: FindProjectRootError) -> Self {
+        todo!();
+    }
+}
+
+impl From<ConfirmStartError> for StartError {
+    fn from(err: ConfirmStartError) -> Self {
+        todo!();
+    }
+}
+
+impl From<ConnectToServerError> for StartError {
+    fn from(err: ConnectToServerError) -> Self {
+        StartError::ConnectToServer(err)
+    }
+}
+
+impl From<AuthenticateError> for StartError {
+    fn from(err: AuthenticateError) -> Self {
+        todo!();
+    }
+}
+
+impl From<StartSessionError> for StartError {
+    fn from(err: StartSessionError) -> Self {
+        todo!();
+    }
+}
+
+impl From<ReadProjectTreeError> for StartError {
+    fn from(err: ReadProjectTreeError) -> Self {
+        todo!();
+    }
+}
+
+// let Some(file_id) = editor.current_file() else {
+//     return Err(StartSessionError::NotInFile);
+// };
+//
+// let file_path = editor.path(&file_id);
+//
+// let Some(root_candidate) =
+//     Finder::find_root(file_path.as_ref(), &Git, &editor.fs()).await?
+// else {
+//     return Err(StartSessionError::CouldntFindRoot(
+//         file_path.into_owned(),
+//     ));
+// };
+//
+// let project_root =
+//     match editor.ask_user(ConfirmStart(&root_candidate)).await {
+//         Some(true) => root_candidate,
+//         Some(false) => return Err(StartSessionError::UserCancelled),
+//         None => todo!(),
+//     };
+//
+// let joined = Io::connect()
+//     .await?
+//     .authenticate(())
+//     .await?
+//     .join(JoinRequest::StartNewSession)
+//     .await?;
+//
+// let peer_id = PeerId::new(joined.join_response.client_id.into_u64());
+//
+// let project = Project::from_fs(peer_id, &editor.fs()).await?;
+//
+// todo!();
+
+// Ok(Self::new(config, ctx, joined, project, project_root))
