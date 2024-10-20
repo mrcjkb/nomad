@@ -1,6 +1,7 @@
 //! TODO: docs.
 
 mod api;
+mod autocmd;
 mod buffer;
 mod command;
 mod config;
