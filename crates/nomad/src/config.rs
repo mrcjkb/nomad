@@ -38,13 +38,15 @@ pub(crate) struct Setup {
 }
 
 /// TODO: docs.
-struct ConfigStream<T> {
-    inner: futures_util::stream::Pending<NvimObject>,
-    ty: PhantomData<T>,
+struct ConfigSender {
+    inner: flume::Sender<NvimObject>,
 }
 
 /// TODO: docs.
-struct ConfigSender {}
+struct ConfigStream<M> {
+    inner: flume::r#async::RecvStream<'static, NvimObject>,
+    ty: PhantomData<M>,
+}
 
 impl<M: Module> ConfigReceiver<M> {
     /// TODO: docs.
@@ -54,6 +56,15 @@ impl<M: Module> ConfigReceiver<M> {
             .next()
             .await
             .expect("sender never dropped, stream never ends")
+    }
+
+    fn new(inner: flume::Receiver<NvimObject>) -> Self {
+        Self {
+            stream: ConfigStream {
+                inner: inner.into_stream(),
+                ty: PhantomData,
+            },
+        }
     }
 }
 
@@ -68,7 +79,17 @@ impl Setup {
     /// previously added module.
     #[track_caller]
     pub(crate) fn add_module<M: Module>(&mut self) -> ConfigReceiver<M> {
-        todo!();
+        if self.config_senders.contains_key(M::NAME.as_str()) {
+            panic!("module '{}' already added", M::NAME.as_str());
+        }
+        if M::NAME.as_str() == Self::NAME {
+            panic!("module name cannot be '{}'", Self::NAME);
+        }
+        let (tx, rx) = flume::unbounded();
+        let tx = ConfigSender::new(tx);
+        let rx = ConfigReceiver::new(rx);
+        self.config_senders.insert(M::NAME.as_str(), tx);
+        rx
     }
 
     pub(crate) fn into_fn(self) -> impl Fn(NvimObject) + 'static {
@@ -122,8 +143,13 @@ impl Setup {
 }
 
 impl ConfigSender {
-    fn send(&self, _config: NvimObject) {
-        todo!();
+    fn new(inner: flume::Sender<NvimObject>) -> Self {
+        Self { inner }
+    }
+
+    fn send(&self, config: NvimObject) {
+        // We don't care if the receiver is dropped.
+        let _ = self.inner.send(config);
     }
 }
 
@@ -143,11 +169,13 @@ enum SetupError {
 }
 
 impl SetupError {
-    fn emit(&self) {
-        self.message().emit(Level::Error, self.source());
+    fn emit(self) {
+        let mut source = DiagnosticSource::new();
+        source.push_segment(Setup::NAME);
+        self.message().emit(Level::Error, source);
     }
 
-    fn message(&self) -> DiagnosticMessage {
+    fn message(self) -> DiagnosticMessage {
         let mut message = DiagnosticMessage::new();
         match self {
             SetupError::ConfigNotDict(kind) => {
@@ -168,7 +196,8 @@ impl SetupError {
                     )
                     .push_str("' is not a valid Unicode string");
             },
-            SetupError::UnknownModule { name, valid } => {
+            SetupError::UnknownModule { name, mut valid } => {
+                valid.sort_unstable();
                 message
                     .push_str("unknown module '")
                     .push_str_highlighted(name, HighlightGroup::special())
@@ -178,20 +207,11 @@ impl SetupError {
         }
         message
     }
-
-    fn source(&self) -> DiagnosticSource {
-        let mut source = DiagnosticSource::new();
-        source.push_segment(Setup::NAME);
-        source
-    }
 }
 
 impl<M: Module> Unpin for ConfigStream<M> {}
 
-impl<M> Stream for ConfigStream<M>
-where
-    M: Module,
-{
+impl<M: Module> Stream for ConfigStream<M> {
     type Item = M::Config;
 
     fn poll_next(
