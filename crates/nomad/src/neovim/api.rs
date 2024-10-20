@@ -134,6 +134,7 @@ impl lua::Pushable for Api {
 
 impl lua::Pushable for Nomad {
     unsafe fn push(mut self, state: *mut LuaState) -> Result<i32, lua::Error> {
+        crate::log::init(&self.log_dir());
         self.start_modules();
         self.into_api().push(state)
     }
