@@ -48,7 +48,7 @@ pub trait Command: 'static {
         + for<'a> TryFrom<&'a mut CommandArgs, Error: Into<DiagnosticMessage>>;
 
     /// TODO: docs.
-    type Module: Module<Neovim>;
+    type Module: Module;
 }
 
 /// TODO: docs.

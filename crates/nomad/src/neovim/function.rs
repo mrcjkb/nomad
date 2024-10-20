@@ -36,7 +36,7 @@ pub trait Function: 'static {
     type Args: Clone + DeserializeOwned;
 
     /// TODO: docs.
-    type Module: Module<Neovim>;
+    type Module: Module;
 }
 
 /// TODO: docs.

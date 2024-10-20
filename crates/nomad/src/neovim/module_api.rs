@@ -9,7 +9,7 @@ use super::{CommandHandle, FunctionHandle, Neovim};
 use crate::{Context, Module, Shared, Subscription};
 
 /// TODO: docs.
-pub fn module_api<M: Module<Neovim>>(
+pub fn module_api<M: Module>(
     ctx: &Context<Neovim>,
 ) -> (ModuleApi, Subscription<ConfigEvent<M>, Neovim>) {
     let buf = Shared::new(None);

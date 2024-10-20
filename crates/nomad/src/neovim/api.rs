@@ -132,7 +132,7 @@ impl lua::Pushable for Api {
     }
 }
 
-impl lua::Pushable for Nomad<Neovim> {
+impl lua::Pushable for Nomad {
     unsafe fn push(mut self, state: *mut LuaState) -> Result<i32, lua::Error> {
         self.start_modules();
         self.into_api().push(state)

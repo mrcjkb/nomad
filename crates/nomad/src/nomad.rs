@@ -1,27 +1,28 @@
 use core::future::Future;
 use core::pin::Pin;
 
+use crate::neovim::{Api, Neovim};
 use crate::{Context, Editor, JoinHandle, Module, Spawner};
 
 /// TODO: docs.
-pub struct Nomad<E: Editor> {
-    api: E::Api,
-    ctx: Context<E>,
+pub struct Nomad {
+    api: Api,
+    ctx: Context<Neovim>,
     run: Vec<Pin<Box<dyn Future<Output = ()>>>>,
 }
 
-impl<E: Editor> Nomad<E> {
+impl Nomad {
     /// TODO: docs.
-    pub fn into_api(self) -> E::Api {
+    pub fn into_api(self) -> Api {
         self.api
     }
 
     /// TODO: docs.
-    pub fn new(editor: E) -> Self {
-        crate::log::init(&editor.log_dir());
+    pub fn new(neovim: Neovim) -> Self {
+        crate::log::init(&neovim.log_dir());
         Self {
-            api: E::Api::default(),
-            ctx: Context::new(editor),
+            api: Api::default(),
+            ctx: Context::new(neovim),
             run: Vec::default(),
         }
     }
@@ -35,7 +36,7 @@ impl<E: Editor> Nomad<E> {
 
     /// TODO: docs.
     #[track_caller]
-    pub fn with_module<M: Module<E>>(mut self) -> Self {
+    pub fn with_module<M: Module>(mut self) -> Self {
         let (mut module, module_api) = M::init(&self.ctx);
         self.api += module_api;
         self.run.push({

@@ -19,13 +19,13 @@ pub struct ConfigEvent<T> {
     pub(in crate::neovim) ty: PhantomData<T>,
 }
 
-impl<T: Module<Neovim>> ConfigEvent<T> {
+impl<T: Module> ConfigEvent<T> {
     pub(in crate::neovim) fn new(buf: Shared<Option<OnConfigChange>>) -> Self {
         Self { module_name: T::NAME.as_str(), buf, ty: PhantomData }
     }
 }
 
-impl<T: Module<Neovim>> Event<Neovim> for ConfigEvent<T> {
+impl<T: Module> Event<Neovim> for ConfigEvent<T> {
     type Payload = T::Config;
     type SubscribeCtx = ();
 

@@ -178,6 +178,12 @@ impl HighlightGroup {
     }
 }
 
+impl From<core::convert::Infallible> for DiagnosticMessage {
+    fn from(_: core::convert::Infallible) -> Self {
+        unreachable!()
+    }
+}
+
 impl From<HighlightGroup> for NvimString {
     fn from(group: HighlightGroup) -> Self {
         group.as_str().into()
