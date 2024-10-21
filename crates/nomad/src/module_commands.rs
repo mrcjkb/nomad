@@ -1,6 +1,6 @@
 use fxhash::FxHashMap;
 
-use crate::action::ActionName;
+use crate::action::ActionNameStr;
 use crate::{Command, CommandArgs, Module, ModuleName};
 
 pub(super) struct ModuleCommands {
@@ -11,7 +11,7 @@ pub(super) struct ModuleCommands {
     pub(super) default_command: Option<Box<dyn Fn(CommandArgs)>>,
 
     /// Map from command name to the corresponding [`Command`].
-    pub(super) commands: FxHashMap<ActionName, Box<dyn Fn(CommandArgs)>>,
+    pub(super) commands: FxHashMap<ActionNameStr, Box<dyn Fn(CommandArgs)>>,
 }
 
 impl ModuleCommands {
@@ -25,7 +25,7 @@ impl ModuleCommands {
                 self.module_name
             );
         }
-        if self.commands.contains_key(&T::NAME) {
+        if self.commands.contains_key(&T::NAME.as_str()) {
             panic!(
                 "a command with the name '{}' already exists in the API for \
                  module '{}'",
@@ -33,11 +33,11 @@ impl ModuleCommands {
                 self.module_name
             );
         }
-        self.commands.insert(T::NAME, command.into_function());
+        self.commands.insert(T::NAME.as_str(), command.into_function());
     }
 
     #[track_caller]
-    fn add_default_command<T: Command>(&mut self, command: T) {
+    pub(crate) fn add_default_command<T: Command>(&mut self, command: T) {
         if self.module_name != T::Module::NAME {
             panic!(
                 "trying to register a command for module '{}' in the API for \
@@ -63,9 +63,15 @@ impl ModuleCommands {
 
     pub(crate) fn command(
         &self,
-        command_name: ActionName,
+        command_name: &str,
     ) -> Option<&impl Fn(CommandArgs)> {
         self.commands.get(&command_name)
+    }
+
+    pub(crate) fn command_names(
+        &self,
+    ) -> impl Iterator<Item = ActionNameStr> + '_ {
+        self.commands.keys().copied()
     }
 
     pub(crate) fn new<M: Module>() -> Self {

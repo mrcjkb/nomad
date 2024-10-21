@@ -19,11 +19,8 @@ use crate::diagnostics::{
     HighlightGroup,
     Level,
 };
+use crate::module_name::ModuleNameStr;
 use crate::Module;
-
-/// The output of calling [`as_str`](crate::ModuleName::as_str) on a
-/// [`ModuleName`](crate::ModuleName).
-type ModuleNameStr = &'static str;
 
 /// TODO: docs.
 pub struct ConfigReceiver<M> {
@@ -153,6 +150,35 @@ impl ConfigSender {
     }
 }
 
+impl<M: Module> Unpin for ConfigStream<M> {}
+
+impl<M: Module> Stream for ConfigStream<M> {
+    type Item = M::Config;
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        ctx: &mut Context,
+    ) -> Poll<Option<Self::Item>> {
+        let obj = match self.get_mut().inner.poll_next_unpin(ctx) {
+            Poll::Ready(Some(obj)) => obj,
+            Poll::Ready(None) => return Poll::Ready(None),
+            Poll::Pending => unreachable!(),
+        };
+
+        match crate::serde::deserialize::<M::Config>(obj) {
+            Ok(config) => Poll::Ready(Some(config)),
+            Err(err) => {
+                let mut source = DiagnosticSource::new();
+                source
+                    .push_segment(Setup::NAME)
+                    .push_segment(M::NAME.as_str());
+                err.into_msg().emit(Level::Warning, source);
+                Poll::Pending
+            },
+        }
+    }
+}
+
 /// The type of error that can occur when [`call`](Setup::call)ing the
 /// [`Setup`] function.
 enum SetupError {
@@ -206,34 +232,5 @@ impl SetupError {
             },
         }
         message
-    }
-}
-
-impl<M: Module> Unpin for ConfigStream<M> {}
-
-impl<M: Module> Stream for ConfigStream<M> {
-    type Item = M::Config;
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        ctx: &mut Context,
-    ) -> Poll<Option<Self::Item>> {
-        let obj = match self.get_mut().inner.poll_next_unpin(ctx) {
-            Poll::Ready(Some(obj)) => obj,
-            Poll::Ready(None) => return Poll::Ready(None),
-            Poll::Pending => unreachable!(),
-        };
-
-        match crate::serde::deserialize::<M::Config>(obj) {
-            Ok(config) => Poll::Ready(Some(config)),
-            Err(err) => {
-                let mut source = DiagnosticSource::new();
-                source
-                    .push_segment(Setup::NAME)
-                    .push_segment(M::NAME.as_str());
-                err.into_msg().emit(Level::Warning, source);
-                Poll::Pending
-            },
-        }
     }
 }

@@ -3,6 +3,9 @@ use std::hash::{Hash, Hasher};
 use crate::maybe_result::MaybeResult;
 use crate::Module;
 
+/// The output of calling [`as_str`](ActionName::as_str) on an [`ActionName`].
+pub(crate) type ActionNameStr = &'static str;
+
 /// TODO: docs
 pub trait Action: 'static {
     /// TODO: docs
@@ -60,12 +63,12 @@ impl AsRef<str> for ActionName {
 impl ActionName {
     /// TODO: docs
     #[inline]
-    pub(crate) fn as_str(&self) -> &'static str {
+    pub(crate) fn as_str(&self) -> ActionNameStr {
         self.name
     }
 
     #[doc(hidden)]
-    pub const fn from_str(name: &'static str) -> Self {
+    pub const fn from_str(name: ActionNameStr) -> Self {
         Self { name }
     }
 
