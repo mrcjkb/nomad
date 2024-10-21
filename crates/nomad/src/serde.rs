@@ -3,9 +3,11 @@ use core::fmt;
 use nvim_oxi::serde::{
     DeserializeError as NvimDeserializeError,
     Deserializer as NvimDeserializer,
+    Serializer as NvimSerializer,
 };
 use nvim_oxi::Object as NvimObject;
 use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
 
 use crate::diagnostics::{DiagnosticMessage, HighlightGroup};
 
@@ -15,6 +17,26 @@ where
 {
     serde_path_to_error::deserialize(NvimDeserializer::new(obj))
         .map_err(|inner| DeserializeError { inner })
+}
+
+/// # Panics
+///
+/// Panics if the [`Serialize`] implementation for `T` returns an error.
+#[track_caller]
+pub(super) fn serialize<T>(item: &T) -> NvimObject
+where
+    T: Serialize,
+{
+    match item.serialize(NvimSerializer::new()) {
+        Ok(obj) => obj,
+        Err(err) => {
+            panic!(
+                "couldn't serialize value of type '{}': {}",
+                std::any::type_name::<T>(),
+                err
+            );
+        },
+    }
 }
 
 pub(super) struct DeserializeError {

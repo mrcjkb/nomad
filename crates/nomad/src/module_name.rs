@@ -1,7 +1,7 @@
 use core::fmt;
 
 /// TODO: docs
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleName {
     name: &'static str,
 }

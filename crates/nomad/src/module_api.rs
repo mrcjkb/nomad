@@ -1,31 +1,16 @@
-use fxhash::FxHashMap;
-use nvim_oxi::{api, Dictionary};
-use serde::de::DeserializeOwned;
+use core::marker::PhantomData;
 
-use crate::neovim::{Autocmd, DiagnosticMessage};
-use crate::{Action, CommandArgs, Module};
+use nvim_oxi::Dictionary as NvimDictionary;
 
-pub(super) type OnExecute = Box<
-    dyn Fn(api::types::CommandArgs) -> Result<(), DiagnosticMessage> + 'static,
->;
+use crate::module_commands::ModuleCommands;
+use crate::neovim::Autocmd;
+use crate::{Command, Function, Module};
 
 /// TODO: docs.
 pub struct ModuleApi<M: Module> {
-    module: M,
-    dictionary: Dictionary,
+    dictionary: NvimDictionary,
     commands: ModuleCommands,
-}
-
-pub(super) struct ModuleCommands {
-    /// The name of the module these commands belong to.
-    pub(super) module_name: &'static str,
-
-    /// The command to run when no command is specified.
-    pub(super) default_command: Option<OnExecute>,
-
-    /// Map from command name to the function to run when the command is
-    /// executed.
-    pub(super) map: FxHashMap<&'static str, OnExecute>,
+    ty: PhantomData<M>,
 }
 
 impl<M: Module> ModuleApi<M> {
@@ -36,84 +21,31 @@ impl<M: Module> ModuleApi<M> {
     }
 
     #[inline]
-    pub fn command<T>(self, command: T) -> Self
-    where
-        T: Action<Module = M>,
-        T::Args: Clone
-            + for<'a> TryFrom<
-                &'a mut CommandArgs,
-                Error: Into<DiagnosticMessage>,
-            >,
-    {
+    pub fn command<T: Command<Module = M>>(mut self, command: T) -> Self {
+        self.commands.add_command(command);
         self
     }
 
     #[inline]
-    pub fn function<T>(self, function: T) -> Self
-    where
-        T: Action<Module = M>,
-        T::Args: Clone + DeserializeOwned,
-    {
+    pub fn function<T: Function<Module = M>>(mut self, function: T) -> Self {
+        if self.dictionary.get(T::NAME.as_str()).is_some() {
+            panic!(
+                "a function with the name '{}' has already been added to the \
+                 API for module '{}'",
+                T::NAME,
+                M::NAME,
+            );
+        }
+        self.dictionary.insert(T::NAME.as_str(), function.into_function());
         self
     }
 
     #[inline]
-    pub fn new(module: M) -> Self {
+    pub fn new() -> Self {
         Self {
-            module,
-            dictionary: Dictionary::default(),
-            commands: ModuleCommands::new(M::NAME.as_str()),
+            dictionary: NvimDictionary::default(),
+            commands: ModuleCommands::new::<M>(),
+            ty: PhantomData,
         }
-    }
-}
-
-impl ModuleCommands {
-    pub(super) fn default_command(&self) -> Option<&OnExecute> {
-        self.default_command.as_ref()
-    }
-
-    #[track_caller]
-    fn add_command(&mut self, command: CommandHandle) {
-        if self.module_name != command.module_name {
-            panic!(
-                "trying to register a command for module '{}' in the API for \
-                 module '{}'",
-                command.module_name, self.module_name
-            );
-        }
-
-        if self.map.contains_key(command.name) {
-            panic!(
-                "a command with the name '{}' already exists in the API for \
-                 module '{}'",
-                command.name, self.module_name
-            );
-        }
-
-        self.map.insert(command.name, command.on_execute);
-    }
-
-    #[track_caller]
-    fn add_default_command(&mut self, command: CommandHandle) {
-        if self.module_name != command.module_name {
-            panic!(
-                "trying to register a command for module '{}' in the API for \
-                 module '{}'",
-                command.module_name, self.module_name
-            );
-        }
-
-        if self.default_command.is_some() {
-            panic!(
-                "a default command has already been set for module '{}'",
-                self.module_name
-            );
-        }
-
-        self.default_command = Some(command.on_execute);
-    }
-
-    fn new(module_name: &'static str) -> Self {
-        Self { module_name, default_command: None, map: FxHashMap::new() }
     }
 }

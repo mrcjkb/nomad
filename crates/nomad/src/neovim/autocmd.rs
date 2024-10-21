@@ -3,9 +3,9 @@ use core::fmt;
 use nvim_oxi::api::{self, opts, types};
 
 use crate::action::{Action, ActionName};
+use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::module::Module;
-use crate::neovim::diagnostic::{DiagnosticSource, Level};
 use crate::ModuleName;
 
 /// TODO: docs.

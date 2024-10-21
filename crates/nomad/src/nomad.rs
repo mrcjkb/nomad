@@ -5,7 +5,7 @@ use crate::config::Setup;
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::neovim::{Api, Neovim};
-use crate::{Context, Editor, JoinHandle, Module, Spawner};
+use crate::{Context, JoinHandle, Module, Spawner};
 
 /// TODO: docs.
 pub struct Nomad {
