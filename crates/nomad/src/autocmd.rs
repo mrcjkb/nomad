@@ -28,6 +28,8 @@ pub trait AutoCommand: Sized {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AutoCommandEvent {
     BufAdd,
+    BufEnter,
+    BufUnload,
 }
 
 /// TODO: docs.
@@ -148,10 +150,14 @@ impl AutoCommandMap {
 
 impl AutoCommandEvent {
     const BUF_ADD: &'static str = "BufAdd";
+    const BUF_ENTER: &'static str = "BufEnter";
+    const BUF_UNLOAD: &'static str = "BufUnload";
 
     fn as_str(&self) -> &'static str {
         match self {
             Self::BufAdd => Self::BUF_ADD,
+            Self::BufEnter => Self::BUF_ENTER,
+            Self::BufUnload => Self::BUF_UNLOAD,
         }
     }
 }

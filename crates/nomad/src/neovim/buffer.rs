@@ -124,6 +124,10 @@ impl BufferId {
             .and_then(|name| AbsUtf8PathBuf::from_path_buf(name).ok())
     }
 
+    pub(crate) fn current() -> Self {
+        Self::new(NvimBuffer::current())
+    }
+
     pub(super) fn as_nvim(&self) -> &NvimBuffer {
         &self.inner
     }
