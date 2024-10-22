@@ -14,6 +14,7 @@ mod command;
 mod command_args;
 pub mod config;
 mod context;
+pub mod ctx;
 pub mod diagnostics;
 mod editor;
 mod event;

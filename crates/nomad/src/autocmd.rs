@@ -3,6 +3,7 @@ use core::fmt;
 use nvim_oxi::api::{self, opts, types};
 
 use crate::action::{Action, ActionName};
+use crate::ctx::{AutocmdCtx, NeovimCtx};
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::module::Module;
@@ -13,7 +14,7 @@ pub trait Autocmd<M: Module>: Sized {
     /// TODO: docs.
     type Action: Action<
         Module = M,
-        Args: From<types::AutocmdCallbackArgs>,
+        Args: for<'a> From<AutocmdCtx<'a>>,
         Docs: fmt::Display,
         Return: Into<ShouldDetach>,
     >;
@@ -25,7 +26,7 @@ pub trait Autocmd<M: Module>: Sized {
     fn on_events(&self) -> impl IntoIterator<Item = &str>;
 
     /// TODO: docs.
-    fn register(self) -> AutocmdId {
+    fn register(self, ctx: NeovimCtx<'static>) -> AutocmdId {
         let module_name = M::NAME;
         let action_name = Self::Action::NAME;
 
@@ -47,22 +48,25 @@ pub trait Autocmd<M: Module>: Sized {
             .group(augroup_id)
             .desc(action.docs().to_string())
             .callback(nvim_oxi::Function::from_fn_mut(
-                move |args: types::AutocmdCallbackArgs| match action
-                    .execute(args.into())
-                    .into_result()
-                    .map(Into::into)
-                    .map_err(Into::into)
-                {
-                    Ok(ShouldDetach::Yes) => true,
-                    Ok(ShouldDetach::No) => false,
-                    Err(diagnostic_msg) => {
-                        let mut source = DiagnosticSource::new();
-                        source
-                            .push_segment(module_name.as_str())
-                            .push_segment(action_name.as_str());
-                        diagnostic_msg.emit(Level::Error, source);
-                        false
-                    },
+                move |args: types::AutocmdCallbackArgs| {
+                    let ctx = AutocmdCtx::new(args, ctx);
+                    match action
+                        .execute(ctx.into())
+                        .into_result()
+                        .map(Into::into)
+                        .map_err(Into::into)
+                    {
+                        Ok(ShouldDetach::Yes) => true,
+                        Ok(ShouldDetach::No) => false,
+                        Err(diagnostic_msg) => {
+                            let mut source = DiagnosticSource::new();
+                            source
+                                .push_segment(module_name.as_str())
+                                .push_segment(action_name.as_str());
+                            diagnostic_msg.emit(Level::Error, source);
+                            false
+                        },
+                    }
                 },
             ))
             .build();

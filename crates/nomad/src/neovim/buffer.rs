@@ -186,7 +186,7 @@ impl BufferId {
                 .unwrap_or(false)
     }
 
-    pub(super) fn new(inner: NvimBuffer) -> Self {
+    pub(crate) fn new(inner: NvimBuffer) -> Self {
         Self { inner }
     }
 
