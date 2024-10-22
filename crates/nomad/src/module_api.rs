@@ -13,7 +13,7 @@ pub struct ModuleApi<M: Module> {
 }
 
 impl<M: Module> ModuleApi<M> {
-    pub fn autocmd<T: Autocmd<M>>(self, autocmd: T) -> Self {
+    pub fn autocmd<T: Autocmd>(self, autocmd: T) -> Self {
         let _ = autocmd.register();
         self
     }

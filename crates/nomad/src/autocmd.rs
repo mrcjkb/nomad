@@ -1,83 +1,47 @@
-use core::fmt;
-
+use fxhash::FxHashMap;
 use nvim_oxi::api::{self, opts, types};
+use smallvec::SmallVec;
 
-use crate::action::{Action, ActionName};
 use crate::ctx::{AutocmdCtx, NeovimCtx};
-use crate::diagnostics::{DiagnosticSource, Level};
-use crate::maybe_result::MaybeResult;
-use crate::module::Module;
-use crate::ModuleName;
+use crate::diagnostics::{DiagnosticMessage, DiagnosticSource, Level};
+use crate::{ActorId, Shared};
 
-/// TODO: docs.
-pub trait Autocmd<M: Module>: Sized {
-    /// TODO: docs.
-    type Action: Action<
-        Module = M,
-        Args: for<'a> From<AutocmdCtx<'a>>,
-        Docs: fmt::Display,
-        Return: Into<ShouldDetach>,
-    >;
+pub trait AutocmdCallback:
+    for<'a> FnMut(
+    ActorId,
+    &'a AutocmdCtx<'a>,
+) -> Result<ShouldDetach, DiagnosticMessage>
+{
+}
 
-    /// TODO: docs.
-    fn into_action(self) -> Self::Action;
-
-    /// TODO: docs.
-    fn on_events(&self) -> impl IntoIterator<Item = &str>;
-
-    /// TODO: docs.
-    fn register(self, ctx: NeovimCtx<'static>) -> AutocmdId {
-        let module_name = M::NAME;
-        let action_name = Self::Action::NAME;
-
-        let augroup_name =
-            AugroupName { module_name, action_name }.to_string();
-
-        let opts = opts::CreateAugroupOpts::builder().clear(true).build();
-        let augroup_id = api::create_augroup(&augroup_name, &opts)
-            .expect("all arguments are valid");
-
-        let events = self
-            .on_events()
-            .into_iter()
-            .map(ToOwned::to_owned)
-            .collect::<Vec<_>>();
-
-        let mut action = self.into_action();
-        let opts = opts::CreateAutocmdOpts::builder()
-            .group(augroup_id)
-            .desc(action.docs().to_string())
-            .callback(nvim_oxi::Function::from_fn_mut(
-                move |args: types::AutocmdCallbackArgs| {
-                    let ctx = AutocmdCtx::new(args, ctx);
-                    match action
-                        .execute(ctx.into())
-                        .into_result()
-                        .map(Into::into)
-                        .map_err(Into::into)
-                    {
-                        Ok(ShouldDetach::Yes) => true,
-                        Ok(ShouldDetach::No) => false,
-                        Err(diagnostic_msg) => {
-                            let mut source = DiagnosticSource::new();
-                            source
-                                .push_segment(module_name.as_str())
-                                .push_segment(action_name.as_str());
-                            diagnostic_msg.emit(Level::Error, source);
-                            false
-                        },
-                    }
-                },
-            ))
-            .build();
-        let events = &events;
-        api::create_autocmd(events.iter().map(AsRef::as_ref), &opts)
-            .expect("all arguments are valid")
-            .into()
-    }
+impl<F> AutocmdCallback for F where
+    F: for<'a> FnMut(
+        ActorId,
+        &'a AutocmdCtx<'a>,
+    ) -> Result<ShouldDetach, DiagnosticMessage>
+{
 }
 
 /// TODO: docs.
+pub trait Autocmd: Sized {
+    /// TODO: docs.
+    fn into_callback(self) -> impl AutocmdCallback + Clone + 'static;
+
+    /// TODO: docs.
+    fn on_events(&self) -> impl IntoIterator<Item = AutocmdEvent>;
+
+    /// TODO: docs.
+    fn take_actor_id(ctx: &AutocmdCtx<'_>) -> ActorId;
+}
+
+/// TODO: docs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AutocmdEvent {
+    BufAdd,
+}
+
+/// TODO: docs.
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum ShouldDetach {
     /// TODO: docs.
     Yes,
@@ -87,11 +51,113 @@ pub enum ShouldDetach {
 
 /// TODO: docs.
 #[derive(Debug, Clone, Copy)]
-pub struct AutocmdId(u32);
+pub(crate) struct AugroupId(u32);
 
-struct AugroupName {
-    module_name: ModuleName,
-    action_name: ActionName,
+/// TODO: docs.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AutocmdId(u32);
+
+#[derive(Clone)]
+pub(crate) struct AutocmdMap {
+    map: Shared<FxHashMap<AutocmdEvent, Vec<Box<dyn AutocmdCallback>>>>,
+}
+
+impl AutocmdMap {
+    pub(crate) fn register<A: Autocmd>(
+        &mut self,
+        autocmd: A,
+        ctx: NeovimCtx<'_>,
+    ) {
+        let mut events = autocmd
+            .on_events()
+            .into_iter()
+            .map(|event| (event, true))
+            .collect::<SmallVec<[_; 4]>>();
+        let events_len = events.len();
+        let callback = autocmd.into_callback();
+
+        self.map.with_mut(|map| {
+            for (event, has_event_been_registered) in events.iter_mut() {
+                let callbacks = map.entry(*event).or_insert_with(|| {
+                    *has_event_been_registered = false;
+                    Vec::with_capacity(events_len)
+                });
+                callbacks.push(Box::new(callback.clone()));
+            }
+        });
+
+        for (event, has_event_been_registered) in events {
+            if !has_event_been_registered {
+                self.register_autocmd::<A>(event, ctx.to_static());
+            }
+        }
+    }
+
+    fn register_autocmd<A: Autocmd>(
+        &self,
+        event: AutocmdEvent,
+        ctx: NeovimCtx<'static>,
+    ) {
+        let this = self.clone();
+
+        let augroup_id = ctx.augroup_id();
+
+        let callback = move |args: types::AutocmdCallbackArgs| {
+            debug_assert_eq!(args.event, event.as_str());
+            let ctx = AutocmdCtx::new(args, event, ctx.as_ref());
+            let actor_id = ActorId::unknown();
+            this.map.with_mut(|map| {
+                let Some(callbacks) = map.get_mut(&event) else {
+                    panic!(
+                        "Neovim executed callback for unregistered event \
+                         {event:?}"
+                    )
+                };
+                let mut idx = 0;
+                loop {
+                    let Some(callback) = callbacks.get_mut(idx) else {
+                        break;
+                    };
+                    let should_detach = match callback(actor_id, &ctx) {
+                        Ok(res) => res,
+                        Err(err) => {
+                            let source = DiagnosticSource::new();
+                            err.emit(Level::Error, source);
+                            ShouldDetach::Yes
+                        },
+                    };
+                    if should_detach.into() {
+                        callbacks.remove(idx);
+                    } else {
+                        idx += 1;
+                    }
+                }
+                let should_detach = callbacks.is_empty();
+                if should_detach {
+                    map.remove(&event);
+                }
+                should_detach
+            })
+        };
+
+        let opts = opts::CreateAutocmdOpts::builder()
+            .group(augroup_id)
+            .callback(nvim_oxi::Function::from_fn_mut(callback))
+            .build();
+
+        let _ = api::create_autocmd([event.as_str()], &opts)
+            .expect("all arguments are valid");
+    }
+}
+
+impl AutocmdEvent {
+    const BUF_ADD: &'static str = "BufAdd";
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::BufAdd => Self::BUF_ADD,
+        }
+    }
 }
 
 impl From<()> for ShouldDetach {
@@ -110,14 +176,20 @@ impl From<bool> for ShouldDetach {
     }
 }
 
+impl From<ShouldDetach> for bool {
+    fn from(should_detach: ShouldDetach) -> bool {
+        matches!(should_detach, ShouldDetach::Yes)
+    }
+}
+
 impl From<u32> for AutocmdId {
     fn from(id: u32) -> Self {
         Self(id)
     }
 }
 
-impl fmt::Display for AugroupName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "nomad-{}/{}", self.module_name, self.action_name)
+impl api::StringOrInt for AugroupId {
+    fn to_object(self) -> nvim_oxi::Object {
+        self.0.to_object()
     }
 }

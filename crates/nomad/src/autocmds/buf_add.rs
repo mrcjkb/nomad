@@ -1,7 +1,6 @@
-use core::fmt;
-
-use crate::autocmd::{Autocmd, ShouldDetach};
+use crate::autocmd::{Autocmd, AutocmdCallback, AutocmdEvent, ShouldDetach};
 use crate::ctx::AutocmdCtx;
+use crate::maybe_result::MaybeResult;
 use crate::neovim::BufferId;
 use crate::{Action, ActorId};
 
@@ -17,27 +16,30 @@ pub struct BufAddArgs {
     pub buffer_id: BufferId,
 }
 
-impl<A> Autocmd<A::Module> for BufAdd<A>
+impl<A> Autocmd for BufAdd<A>
 where
-    A: Action<Args = BufAddArgs>,
-    A::Docs: fmt::Display,
+    A: Action<Args = BufAddArgs> + Clone,
     A::Return: Into<ShouldDetach>,
 {
-    type Action = A;
-
-    fn into_action(self) -> A {
-        self.0
+    fn into_callback(self) -> impl AutocmdCallback + Clone + 'static {
+        let mut action = self.0;
+        move |actor_id, ctx| {
+            let buffer_id = BufferId::new(ctx.args().buffer.clone());
+            let args = BufAddArgs { actor_id, buffer_id };
+            action
+                .execute(args)
+                .into_result()
+                .map(Into::into)
+                .map_err(Into::into)
+        }
     }
 
-    fn on_events(&self) -> impl IntoIterator<Item = &str> {
-        ["BufAdd"]
+    fn on_events(&self) -> impl IntoIterator<Item = AutocmdEvent> {
+        [AutocmdEvent::BufAdd]
     }
-}
 
-impl From<AutocmdCtx<'_>> for BufAddArgs {
-    fn from(ctx: AutocmdCtx<'_>) -> Self {
+    fn take_actor_id(ctx: &AutocmdCtx<'_>) -> ActorId {
         let buffer_id = BufferId::new(ctx.args().buffer.clone());
-        let actor_id = ctx.with_actor_map(|m| m.take_added_buffer(&buffer_id));
-        Self { actor_id, buffer_id }
+        ctx.with_actor_map(|m| m.take_added_buffer(&buffer_id))
     }
 }

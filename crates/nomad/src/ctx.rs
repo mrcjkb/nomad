@@ -3,11 +3,14 @@
 use nvim_oxi::api::types;
 
 use crate::actor_map::ActorMap;
-use crate::{Boo, Shared};
+use crate::autocmd::{AugroupId, AutocmdEvent};
+use crate::neovim::BufferId;
+use crate::{ActorId, Boo, Shared};
 
 /// TODO: docs.
 pub struct AutocmdCtx<'ctx> {
     args: types::AutocmdCallbackArgs,
+    event: AutocmdEvent,
     ctx: Boo<'ctx, Ctx>,
 }
 
@@ -16,10 +19,39 @@ pub struct NeovimCtx<'ctx> {
     ctx: Boo<'ctx, Ctx>,
 }
 
+/// TODO: docs.
+pub struct BufferCtx<'ctx> {
+    buffer_id: BufferId,
+    ctx: Boo<'ctx, Ctx>,
+}
+
+/// TODO: docs.
+pub struct FileCtx<'ctx> {
+    ctx: BufferCtx<'ctx>,
+}
+
+/// TODO: docs.
+pub struct TextBufferCtx<'ctx> {
+    ctx: BufferCtx<'ctx>,
+}
+
+/// TODO: docs.
+pub struct TextFileCtx<'ctx> {
+    ctx: BufferCtx<'ctx>,
+}
+
 impl<'ctx> AutocmdCtx<'ctx> {
     /// Returns a shared reference to the autocmd's args.
     pub fn args(&self) -> &types::AutocmdCallbackArgs {
         &self.args
+    }
+
+    pub fn as_ref(&self) -> AutocmdCtx<'_> {
+        AutocmdCtx {
+            args: self.args.clone(),
+            event: self.event,
+            ctx: self.ctx.clone(),
+        }
     }
 
     /// Consumes `self` and returns the arguments passed to the autocmd.
@@ -36,13 +68,28 @@ impl<'ctx> AutocmdCtx<'ctx> {
 
     pub(crate) fn new(
         args: types::AutocmdCallbackArgs,
+        event: AutocmdEvent,
         neovim_ctx: NeovimCtx<'ctx>,
     ) -> Self {
-        Self { args, ctx: neovim_ctx.ctx }
+        Self { args, event, ctx: neovim_ctx.ctx }
     }
 }
 
-#[derive(Default)]
+impl NeovimCtx<'_> {
+    pub(crate) fn augroup_id(&self) -> AugroupId {
+        todo!();
+    }
+
+    pub(crate) fn as_ref(&self) -> NeovimCtx<'_> {
+        Self { ctx: self.ctx.as_ref() }
+    }
+
+    pub(crate) fn to_static(&self) -> NeovimCtx<'static> {
+        NeovimCtx { ctx: self.ctx.clone().into_owned() }
+    }
+}
+
+#[derive(Default, Clone)]
 pub(crate) struct Ctx {
     inner: Shared<CtxInner>,
 }
@@ -59,4 +106,10 @@ impl Ctx {
 #[derive(Default)]
 struct CtxInner {
     actor_map: ActorMap,
+}
+
+impl Clone for NeovimCtx<'_> {
+    fn clone(&self) -> Self {
+        Self { ctx: self.ctx.clone() }
+    }
 }

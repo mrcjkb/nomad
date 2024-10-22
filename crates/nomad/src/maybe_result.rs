@@ -2,7 +2,7 @@
 
 use core::convert::Infallible;
 
-use crate::neovim::DiagnosticMessage;
+use crate::diagnostics::DiagnosticMessage;
 
 /// TODO: docs
 pub trait MaybeResult<T> {

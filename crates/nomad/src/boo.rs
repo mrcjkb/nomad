@@ -10,6 +10,13 @@ pub enum Boo<'a, T> {
 }
 
 impl<'a, T> Boo<'a, T> {
+    pub fn as_ref(&self) -> Boo<'_, T> {
+        match self {
+            Boo::Borrowed(inner) => Boo::Borrowed(inner),
+            Boo::Owned(inner) => Boo::Borrowed(inner),
+        }
+    }
+
     /// TODO: docs..
     pub fn into_owned(self) -> Boo<'static, T>
     where
