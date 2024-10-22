@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use nvim_oxi::Dictionary as NvimDictionary;
 
 use crate::module_commands::ModuleCommands;
-use crate::{Action, Autocmd, Command, Function, Module};
+use crate::{Action, AutoCommand, Command, Function, Module};
 
 /// TODO: docs.
 pub struct ModuleApi<M: Module> {
@@ -15,7 +15,7 @@ pub struct ModuleApi<M: Module> {
 impl<M: Module> ModuleApi<M> {
     pub fn autocmd<T>(self, autocmd: T) -> Self
     where
-        T: Autocmd<Action: Action<Module = M>>,
+        T: AutoCommand<Action: Action<Module = M>>,
     {
         // let _ = autocmd.register();
         self

@@ -1,5 +1,5 @@
-use crate::autocmd::{Autocmd, AutocmdEvent, ShouldDetach};
-use crate::ctx::AutocmdCtx;
+use crate::autocmd::{AutoCommand, AutoCommandEvent, ShouldDetach};
+use crate::ctx::AutoCommandCtx;
 use crate::neovim::BufferId;
 use crate::{Action, ActorId};
 
@@ -24,7 +24,7 @@ impl<A> BufAdd<A> {
     }
 }
 
-impl<A> Autocmd for BufAdd<A>
+impl<A> AutoCommand for BufAdd<A>
 where
     A: Action<Args = BufAddArgs> + Clone,
     A::Return: Into<ShouldDetach>,
@@ -35,18 +35,18 @@ where
         self.action
     }
 
-    fn on_events(&self) -> impl IntoIterator<Item = AutocmdEvent> {
-        [AutocmdEvent::BufAdd]
+    fn on_events(&self) -> impl IntoIterator<Item = AutoCommandEvent> {
+        [AutoCommandEvent::BufAdd]
     }
 
-    fn take_actor_id(ctx: &AutocmdCtx<'_>) -> ActorId {
+    fn take_actor_id(ctx: &AutoCommandCtx<'_>) -> ActorId {
         let buffer_id = BufferId::new(ctx.args().buffer.clone());
         ctx.with_actor_map(|m| m.take_added_buffer(&buffer_id))
     }
 }
 
-impl From<(ActorId, &AutocmdCtx<'_>)> for BufAddArgs {
-    fn from((actor_id, ctx): (ActorId, &AutocmdCtx<'_>)) -> Self {
+impl From<(ActorId, &AutoCommandCtx<'_>)> for BufAddArgs {
+    fn from((actor_id, ctx): (ActorId, &AutoCommandCtx<'_>)) -> Self {
         Self { actor_id, buffer_id: BufferId::new(ctx.args().buffer.clone()) }
     }
 }

@@ -40,7 +40,7 @@ mod text;
 
 pub use action::Action;
 pub use actor_id::ActorId;
-pub use autocmd::{Autocmd, AutocmdId, ShouldDetach};
+pub use autocmd::{AutoCommand, ShouldDetach};
 pub use boo::Boo;
 pub use buffer::Buffer;
 pub use byte_offset::ByteOffset;

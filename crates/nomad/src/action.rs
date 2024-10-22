@@ -22,7 +22,7 @@ pub trait Action: 'static {
 
     /// TODO: docs
     //
-    // NOTE: this can be removed entirely once we have RTN
+    // NOTE: remove once we have RTN
     // (https://github.com/rust-lang/rust/issues/109417).
     type Return;
 

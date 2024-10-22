@@ -2,15 +2,15 @@ use fxhash::FxHashMap;
 use nvim_oxi::api::{self, opts, types};
 use smallvec::SmallVec;
 
-use crate::ctx::{AutocmdCtx, NeovimCtx};
+use crate::ctx::{AutoCommandCtx, NeovimCtx};
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::{Action, ActorId, Module, Shared};
 
 /// TODO: docs.
-pub trait Autocmd: Sized {
+pub trait AutoCommand: Sized {
     type Action: Action<
-            Args: for<'a> From<(ActorId, &'a AutocmdCtx<'a>)>,
+            Args: for<'a> From<(ActorId, &'a AutoCommandCtx<'a>)>,
             Return: Into<ShouldDetach>,
         > + Clone;
 
@@ -18,15 +18,15 @@ pub trait Autocmd: Sized {
     fn into_action(self) -> Self::Action;
 
     /// TODO: docs.
-    fn on_events(&self) -> impl IntoIterator<Item = AutocmdEvent>;
+    fn on_events(&self) -> impl IntoIterator<Item = AutoCommandEvent>;
 
     /// TODO: docs.
-    fn take_actor_id(ctx: &AutocmdCtx<'_>) -> ActorId;
+    fn take_actor_id(ctx: &AutoCommandCtx<'_>) -> ActorId;
 }
 
 /// TODO: docs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AutocmdEvent {
+pub enum AutoCommandEvent {
     BufAdd,
 }
 
@@ -43,20 +43,16 @@ pub enum ShouldDetach {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AugroupId(u32);
 
-/// TODO: docs.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct AutocmdId(u32);
-
-type AutocmdCallback =
-    Box<dyn for<'a> FnMut(ActorId, &'a AutocmdCtx<'a>) -> ShouldDetach>;
+type AutoCommandCallback =
+    Box<dyn for<'a> FnMut(ActorId, &'a AutoCommandCtx<'a>) -> ShouldDetach>;
 
 #[derive(Clone)]
-pub(crate) struct AutocmdMap {
-    map: Shared<FxHashMap<AutocmdEvent, Vec<AutocmdCallback>>>,
+pub(crate) struct AutoCommandMap {
+    map: Shared<FxHashMap<AutoCommandEvent, Vec<AutoCommandCallback>>>,
 }
 
-impl AutocmdMap {
-    pub(crate) fn register<A: Autocmd>(
+impl AutoCommandMap {
+    pub(crate) fn register<A: AutoCommand>(
         &mut self,
         autocmd: A,
         ctx: NeovimCtx<'_>,
@@ -76,7 +72,7 @@ impl AutocmdMap {
                     Vec::with_capacity(events_len)
                 });
                 let mut action = action.clone();
-                let callback = move |actor_id, ctx: &AutocmdCtx| {
+                let callback = move |actor_id, ctx: &AutoCommandCtx| {
                     let args = (actor_id, ctx).into();
                     match action.execute(args).into_result() {
                         Ok(res) => res.into(),
@@ -101,9 +97,9 @@ impl AutocmdMap {
         }
     }
 
-    fn register_autocmd<A: Autocmd>(
+    fn register_autocmd<A: AutoCommand>(
         &self,
-        event: AutocmdEvent,
+        event: AutoCommandEvent,
         ctx: NeovimCtx<'static>,
     ) {
         let this = self.clone();
@@ -112,12 +108,12 @@ impl AutocmdMap {
 
         let callback = move |args: types::AutocmdCallbackArgs| {
             debug_assert_eq!(args.event, event.as_str());
-            let ctx = AutocmdCtx::new(args, event, ctx.as_ref());
+            let ctx = AutoCommandCtx::new(args, event, ctx.as_ref());
             let actor_id = ActorId::unknown();
             this.map.with_mut(|map| {
                 let Some(callbacks) = map.get_mut(&event) else {
                     panic!(
-                        "Neovim executed callback for unregistered event \
+                        "Neovim executed an unregistered autocommand: \
                          {event:?}"
                     )
                 };
@@ -150,7 +146,7 @@ impl AutocmdMap {
     }
 }
 
-impl AutocmdEvent {
+impl AutoCommandEvent {
     const BUF_ADD: &'static str = "BufAdd";
 
     fn as_str(&self) -> &'static str {
@@ -166,25 +162,9 @@ impl From<()> for ShouldDetach {
     }
 }
 
-impl From<bool> for ShouldDetach {
-    fn from(b: bool) -> Self {
-        if b {
-            Self::Yes
-        } else {
-            Self::No
-        }
-    }
-}
-
 impl From<ShouldDetach> for bool {
     fn from(should_detach: ShouldDetach) -> bool {
         matches!(should_detach, ShouldDetach::Yes)
-    }
-}
-
-impl From<u32> for AutocmdId {
-    fn from(id: u32) -> Self {
-        Self(id)
     }
 }
 

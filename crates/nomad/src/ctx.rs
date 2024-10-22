@@ -3,14 +3,14 @@
 use nvim_oxi::api::types;
 
 use crate::actor_map::ActorMap;
-use crate::autocmd::{AugroupId, AutocmdEvent};
+use crate::autocmd::{AugroupId, AutoCommandEvent};
 use crate::neovim::BufferId;
-use crate::{ActorId, Boo, Shared};
+use crate::{Boo, Shared};
 
 /// TODO: docs.
-pub struct AutocmdCtx<'ctx> {
+pub struct AutoCommandCtx<'ctx> {
     args: types::AutocmdCallbackArgs,
-    event: AutocmdEvent,
+    event: AutoCommandEvent,
     ctx: Boo<'ctx, Ctx>,
 }
 
@@ -40,14 +40,14 @@ pub struct TextFileCtx<'ctx> {
     ctx: BufferCtx<'ctx>,
 }
 
-impl<'ctx> AutocmdCtx<'ctx> {
+impl<'ctx> AutoCommandCtx<'ctx> {
     /// Returns a shared reference to the autocmd's args.
     pub fn args(&self) -> &types::AutocmdCallbackArgs {
         &self.args
     }
 
-    pub fn as_ref(&self) -> AutocmdCtx<'_> {
-        AutocmdCtx {
+    pub fn as_ref(&self) -> AutoCommandCtx<'_> {
+        AutoCommandCtx {
             args: self.args.clone(),
             event: self.event,
             ctx: self.ctx.clone(),
@@ -68,7 +68,7 @@ impl<'ctx> AutocmdCtx<'ctx> {
 
     pub(crate) fn new(
         args: types::AutocmdCallbackArgs,
-        event: AutocmdEvent,
+        event: AutoCommandEvent,
         neovim_ctx: NeovimCtx<'ctx>,
     ) -> Self {
         Self { args, event, ctx: neovim_ctx.ctx }
@@ -81,7 +81,7 @@ impl NeovimCtx<'_> {
     }
 
     pub(crate) fn as_ref(&self) -> NeovimCtx<'_> {
-        Self { ctx: self.ctx.as_ref() }
+        NeovimCtx { ctx: self.ctx.as_ref() }
     }
 
     pub(crate) fn to_static(&self) -> NeovimCtx<'static> {
