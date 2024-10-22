@@ -4,6 +4,7 @@ extern crate alloc;
 
 mod action;
 mod actor_id;
+mod actor_map;
 mod api;
 mod autocmd;
 pub mod autocmds;

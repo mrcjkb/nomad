@@ -1,0 +1,51 @@
+use nohash::IntMap as NoHashMap;
+
+use crate::neovim::BufferId;
+use crate::ActorId;
+
+#[derive(Default)]
+pub(crate) struct ActorMap {
+    /// Map from [`BufferId`] to the [`ActorId`] that last added it.
+    buffer_addition: NoHashMap<BufferId, ActorId>,
+
+    /// Map from [`BufferId`] to the [`ActorId`] that last edited it.
+    edit: NoHashMap<BufferId, ActorId>,
+}
+
+impl ActorMap {
+    /// Registers the given [`ActorId`] as the last one to add the given
+    /// buffer.
+    pub(crate) fn added_buffer(
+        &mut self,
+        buffer_id: BufferId,
+        actor_id: ActorId,
+    ) {
+        self.buffer_addition.insert(buffer_id, actor_id);
+    }
+
+    /// Registers the given [`ActorId`] as the last one to edit the given
+    /// buffer.
+    pub(crate) fn edited_buffer(
+        &mut self,
+        buffer_id: BufferId,
+        actor_id: ActorId,
+    ) {
+        self.edit.insert(buffer_id, actor_id);
+    }
+
+    /// Removes the [`ActorId`] that last added the given buffer.
+    pub(crate) fn take_added_buffer(
+        &mut self,
+        buffer_id: &BufferId,
+    ) -> ActorId {
+        self.buffer_addition.remove(buffer_id).unwrap_or(ActorId::unknown())
+    }
+
+    /// Removes the [`ActorId`] that last edited the given buffer.
+    pub(crate) fn take_edited_buffer(
+        &mut self,
+        buffer_id: &BufferId,
+    ) -> ActorId {
+        self.edit.remove(buffer_id).unwrap_or(ActorId::unknown())
+    }
+}

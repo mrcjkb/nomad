@@ -5,9 +5,6 @@ use crate::ctx::AutocmdCtx;
 use crate::neovim::BufferId;
 use crate::{Action, ActorId};
 
-// AutocmdCtx
-//
-
 /// TODO: docs.
 pub struct BufAdd<A>(pub A);
 
@@ -40,9 +37,7 @@ where
 impl From<AutocmdCtx<'_>> for BufAddArgs {
     fn from(ctx: AutocmdCtx<'_>) -> Self {
         let buffer_id = BufferId::new(ctx.args().buffer.clone());
-        let actor_id = ctx
-            .with_action_map(|map| map.take_added_buffer(&buffer_id))
-            .unwrap_or(ActorId::unknown());
+        let actor_id = ctx.with_actor_map(|m| m.take_added_buffer(&buffer_id));
         Self { actor_id, buffer_id }
     }
 }

@@ -2,7 +2,7 @@
 
 use nvim_oxi::api::types;
 
-use crate::action_map::ActionMap;
+use crate::actor_map::ActorMap;
 use crate::{Boo, Shared};
 
 /// TODO: docs.
@@ -27,11 +27,11 @@ impl<'ctx> AutocmdCtx<'ctx> {
         self.args
     }
 
-    pub fn with_action_map<F, R>(&self, fun: F) -> R
+    pub fn with_actor_map<F, R>(&self, fun: F) -> R
     where
-        F: FnOnce(&mut ActionMap) -> R,
+        F: FnOnce(&mut ActorMap) -> R,
     {
-        self.ctx.with_inner(|inner| fun(&mut inner.action_map))
+        self.ctx.with_inner(|inner| fun(&mut inner.actor_map))
     }
 
     pub(crate) fn new(
@@ -58,5 +58,5 @@ impl Ctx {
 
 #[derive(Default)]
 struct CtxInner {
-    action_map: ActionMap,
+    actor_map: ActorMap,
 }
