@@ -13,8 +13,6 @@ pub(crate) struct NomadCommand {
 }
 
 impl NomadCommand {
-    const NAME: &'static str = "Mad";
-
     #[track_caller]
     pub(crate) fn add_module(&mut self, module_commands: ModuleCommands) {
         let module_name = module_commands.module_name.as_str();
@@ -33,7 +31,7 @@ impl NomadCommand {
             .build();
 
         api::create_user_command(
-            Self::NAME,
+            crate::Nomad::COMMAND_NAME,
             move |args| {
                 let args = CommandArgs::from(args);
                 if let Err(err) = self.call(args) {

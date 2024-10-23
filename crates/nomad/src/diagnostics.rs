@@ -5,8 +5,6 @@ use core::{fmt, iter};
 use nvim_oxi::{api, String as NvimString};
 use smol_str::SmolStr;
 
-const NOMAD_SEGMENT_NAME: &str = "mad";
-
 pub(super) fn emit(
     level: Level,
     source: DiagnosticSource,
@@ -53,7 +51,7 @@ impl DiagnosticSource {
 
 impl fmt::Display for DiagnosticSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{NOMAD_SEGMENT_NAME}")?;
+        write!(f, "[{}", crate::Nomad::DIAGNOSTICS_SEGMENT_NAME)?;
 
         for (idx, segment) in self.segments.iter().enumerate() {
             let is_last = idx + 1 == self.segments.len();

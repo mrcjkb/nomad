@@ -19,6 +19,15 @@ pub struct Nomad {
 
 impl Nomad {
     /// TODO: docs.
+    pub(crate) const COMMAND_NAME: &'static str = "Mad";
+
+    /// TODO: docs.
+    pub(crate) const DIAGNOSTICS_SEGMENT_NAME: &'static str = "nomad";
+
+    /// TODO: docs.
+    pub(crate) const NAME: &'static str = "nomad";
+
+    /// TODO: docs.
     pub fn new() -> Self {
         Self {
             api: NvimDictionary::default(),
