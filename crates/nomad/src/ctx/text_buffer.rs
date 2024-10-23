@@ -2,9 +2,11 @@ use core::ops::{Bound, Deref, Range, RangeBounds};
 
 use nvim_oxi::api::{self, opts};
 
+use crate::autocmd::ShouldDetach;
+use crate::buf_attach::BufAttachArgs;
 use crate::ctx::{BufferCtx, TextFileCtx};
 use crate::neovim::BufferId;
-use crate::{ActorId, ByteOffset, Text};
+use crate::{Action, ActorId, ByteOffset, Text};
 
 /// TODO: docs.
 #[derive(Clone)]
@@ -24,6 +26,15 @@ struct Point {
 }
 
 impl<'ctx> TextBufferCtx<'ctx> {
+    /// TODO: docs.
+    pub fn attach<A>(&self, action: A)
+    where
+        A: Action<Args = BufAttachArgs>,
+        A::Return: Into<ShouldDetach>,
+    {
+        todo!();
+    }
+
     /// Returns the text in the given byte range.
     ///
     /// # Panics
