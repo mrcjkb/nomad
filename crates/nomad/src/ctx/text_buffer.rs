@@ -4,7 +4,7 @@ use nvim_oxi::api::{self, opts};
 
 use crate::ctx::{BufferCtx, TextFileCtx};
 use crate::neovim::BufferId;
-use crate::{ByteOffset, Text};
+use crate::{ActorId, ByteOffset, Text};
 
 /// TODO: docs.
 #[derive(Clone)]
@@ -35,6 +35,26 @@ impl<'ctx> TextBufferCtx<'ctx> {
     {
         let point_range = self.point_range_of_byte_range(byte_range);
         self.get_text_in_point_range(point_range)
+    }
+
+    /// Replaces the text in the given byte range with the given text.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the byte range is out of bounds.
+    pub fn replace_text<R>(
+        &self,
+        delete_range: R,
+        insert_text: Text,
+        actor_id: ActorId,
+    ) where
+        R: RangeBounds<ByteOffset>,
+    {
+        let point_range = self.point_range_of_byte_range(delete_range);
+        self.replace_text_in_point_range(point_range, insert_text.as_str());
+        self.with_actor_map(|map| {
+            map.edited_buffer(self.buffer_id(), actor_id);
+        });
     }
 
     /// Consumes `self`, returning the underlying [`BufferCtx`].
@@ -182,6 +202,30 @@ impl<'ctx> TextBufferCtx<'ctx> {
         };
 
         start..end
+    }
+
+    /// Replaces the text in the given point range with the given text.
+    #[track_caller]
+    fn replace_text_in_point_range(
+        &self,
+        delete_range: Range<Point>,
+        insert_text: &str,
+    ) {
+        // If the text has a trailing newline, Neovim expects an additional
+        // empty line to be included.
+        let lines = insert_text
+            .lines()
+            .chain(insert_text.ends_with('\n').then_some(""));
+
+        self.buffer_id()
+            .as_nvim()
+            .set_text(
+                delete_range.start.line_idx..delete_range.end.line_idx,
+                delete_range.start.byte_offset.into(),
+                delete_range.end.byte_offset.into(),
+                lines,
+            )
+            .expect("replacing text failed");
     }
 }
 

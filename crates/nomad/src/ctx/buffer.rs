@@ -1,3 +1,5 @@
+use core::ops::Deref;
+
 use crate::ctx::{FileCtx, NeovimCtx, TextBufferCtx};
 use crate::neovim::BufferId;
 
@@ -44,5 +46,13 @@ impl<'ctx> BufferCtx<'ctx> {
             .as_nvim()
             .is_valid()
             .then_some(Self { buffer_id, neovim_ctx })
+    }
+}
+
+impl<'ctx> Deref for BufferCtx<'ctx> {
+    type Target = NeovimCtx<'ctx>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.neovim_ctx
     }
 }
