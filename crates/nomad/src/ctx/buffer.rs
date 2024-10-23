@@ -17,6 +17,9 @@ impl<'ctx> BufferCtx<'ctx> {
         buffer_id: BufferId,
         neovim_ctx: NeovimCtx<'ctx>,
     ) -> Option<Self> {
-        todo!();
+        buffer_id
+            .as_nvim()
+            .is_valid()
+            .then_some(Self { buffer_id, neovim_ctx })
     }
 }
