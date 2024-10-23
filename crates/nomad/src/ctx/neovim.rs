@@ -1,7 +1,8 @@
 use nvim_oxi::api;
 
 use crate::actor_map::ActorMap;
-use crate::autocmd::AugroupId;
+use crate::autocmd::{AugroupId, AutoCommandMap};
+use crate::buf_attach::BufAttachMap;
 use crate::{Boo, Shared};
 
 /// TODO: docs.
@@ -15,14 +16,20 @@ struct Ctx {
     inner: Shared<CtxInner>,
 }
 
+#[derive(Default)]
 struct CtxInner {
     actor_map: ActorMap,
-    augroup_id: AugroupId,
+    augroup_id: NomadAugroupId,
+    autocmd_map: AutoCommandMap,
+    buf_attach_map: BufAttachMap,
 }
+
+#[derive(Copy, Clone)]
+struct NomadAugroupId(AugroupId);
 
 impl NeovimCtx<'_> {
     pub(crate) fn augroup_id(&self) -> AugroupId {
-        self.ctx.with_inner(|inner| inner.augroup_id)
+        self.ctx.with_inner(|inner| inner.augroup_id.into())
     }
 
     pub(crate) fn as_ref(&self) -> NeovimCtx<'_> {
@@ -39,6 +46,20 @@ impl NeovimCtx<'_> {
     {
         self.ctx.with_inner(|inner| fun(&mut inner.actor_map))
     }
+
+    pub(in crate::ctx) fn with_autocmd_map<F, R>(&self, fun: F) -> R
+    where
+        F: FnOnce(&mut AutoCommandMap) -> R,
+    {
+        self.ctx.with_inner(|inner| fun(&mut inner.autocmd_map))
+    }
+
+    pub(in crate::ctx) fn with_buf_attach_map<F, R>(&self, fun: F) -> R
+    where
+        F: FnOnce(&mut BufAttachMap) -> R,
+    {
+        self.ctx.with_inner(|inner| fun(&mut inner.buf_attach_map))
+    }
 }
 
 impl Ctx {
@@ -50,14 +71,19 @@ impl Ctx {
     }
 }
 
-impl Default for CtxInner {
+impl Default for NomadAugroupId {
     fn default() -> Self {
         let opts = api::opts::CreateAugroupOpts::builder().clear(true).build();
-        Self {
-            actor_map: ActorMap::default(),
-            augroup_id: api::create_augroup(crate::Nomad::AUGROUP_NAME, &opts)
+        let augroup_id =
+            api::create_augroup(crate::Nomad::AUGROUP_NAME, &opts)
                 .expect("all the arguments are valid")
-                .into(),
-        }
+                .into();
+        Self(augroup_id)
+    }
+}
+
+impl From<NomadAugroupId> for AugroupId {
+    fn from(NomadAugroupId(id): NomadAugroupId) -> Self {
+        id
     }
 }

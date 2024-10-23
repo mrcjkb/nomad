@@ -48,7 +48,7 @@ pub(crate) struct AugroupId(u32);
 type AutoCommandCallback =
     Box<dyn for<'a> FnMut(ActorId, &'a AutoCommandCtx<'a>) -> ShouldDetach>;
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub(crate) struct AutoCommandMap {
     map: Shared<FxHashMap<AutoCommandEvent, Vec<AutoCommandCallback>>>,
 }
@@ -57,7 +57,7 @@ impl AutoCommandMap {
     pub(crate) fn register<A: AutoCommand>(
         &mut self,
         autocmd: A,
-        ctx: NeovimCtx<'_>,
+        ctx: NeovimCtx<'static>,
     ) {
         let mut events = autocmd
             .on_events()
@@ -65,7 +65,25 @@ impl AutoCommandMap {
             .map(|event| (event, true))
             .collect::<SmallVec<[_; 4]>>();
         let events_len = events.len();
-        let action = autocmd.into_action();
+
+        let mut action = autocmd.into_action();
+        let callback = move |actor_id, ctx: &AutoCommandCtx| {
+            let args = (actor_id, ctx).into();
+            match action.execute(args).into_result() {
+                Ok(res) => res.into(),
+                Err(err) => {
+                    let mut source = DiagnosticSource::new();
+                    source
+                        .push_segment(
+                            <<A::Action as Action>::Module as Module>::NAME
+                                .as_str(),
+                        )
+                        .push_segment(A::Action::NAME.as_str());
+                    err.into().emit(Level::Error, source);
+                    ShouldDetach::Yes
+                },
+            }
+        };
 
         self.map.with_mut(|map| {
             for (event, has_event_been_registered) in events.iter_mut() {
@@ -73,28 +91,13 @@ impl AutoCommandMap {
                     *has_event_been_registered = false;
                     Vec::with_capacity(events_len)
                 });
-                let mut action = action.clone();
-                let callback = move |actor_id, ctx: &AutoCommandCtx| {
-                    let args = (actor_id, ctx).into();
-                    match action.execute(args).into_result() {
-                        Ok(res) => res.into(),
-                        Err(err) => {
-                            let mut source = DiagnosticSource::new();
-                            source
-                                .push_segment(<<A::Action as Action>::Module as Module>::NAME.as_str())
-                                .push_segment(A::Action::NAME.as_str());
-                            err.into().emit(Level::Error, source);
-                            ShouldDetach::Yes
-                        },
-                    }
-                };
-                callbacks.push(Box::new(callback));
+                callbacks.push(Box::new(callback.clone()));
             }
         });
 
         for (event, has_event_been_registered) in events {
             if !has_event_been_registered {
-                self.register_autocmd::<A>(event, ctx.to_static());
+                self.register_autocmd::<A>(event, ctx.clone());
             }
         }
     }

@@ -17,7 +17,7 @@ impl<'ctx> TextFileCtx<'ctx> {
     }
 
     pub fn as_text_buffer(&self) -> &TextBufferCtx<'ctx> {
-        TextBufferCtx::new_ref(&*self.file_ctx)
+        TextBufferCtx::new_ref_unchecked(&*self.file_ctx)
     }
 
     pub(crate) fn from_file(file_ctx: FileCtx<'ctx>) -> Option<Self> {

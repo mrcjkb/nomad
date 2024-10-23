@@ -29,10 +29,14 @@ impl<'ctx> TextBufferCtx<'ctx> {
     /// TODO: docs.
     pub fn attach<A>(&self, action: A)
     where
-        A: Action<Args = BufAttachArgs>,
+        A: Action,
+        A::Args: From<BufAttachArgs>,
         A::Return: Into<ShouldDetach>,
     {
-        todo!();
+        self.with_buf_attach_map(|map| {
+            let neovim_ctx = (&*self.buffer_ctx).to_static();
+            map.attach(self.buffer_id(), action, neovim_ctx);
+        });
     }
 
     /// Returns the text in the given byte range.
@@ -105,7 +109,12 @@ impl<'ctx> TextBufferCtx<'ctx> {
         is_text_file.then_some(Self { buffer_ctx: ctx })
     }
 
-    pub(super) fn new_ref<'a>(ctx: &'a BufferCtx<'ctx>) -> &'a Self {
+    pub(crate) fn new_unchecked(buffer_ctx: BufferCtx<'ctx>) -> Self {
+        debug_assert!(Self::from_buffer(buffer_ctx.clone()).is_some());
+        Self { buffer_ctx }
+    }
+
+    pub(super) fn new_ref_unchecked<'a>(ctx: &'a BufferCtx<'ctx>) -> &'a Self {
         debug_assert!(Self::from_buffer(ctx.clone()).is_some());
         // SAFETY: `TextBufferCtx` is a `repr(transparent)` newtype over
         // `BufferCtx`.
