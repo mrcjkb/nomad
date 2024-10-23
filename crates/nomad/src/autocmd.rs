@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use crate::ctx::{AutoCommandCtx, NeovimCtx};
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
-use crate::{Action, ActorId, Module, Shared};
+use crate::{Action, ActorId, Module};
 
 /// TODO: docs.
 pub trait AutoCommand: Sized {
@@ -45,9 +45,9 @@ pub enum ShouldDetach {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AugroupId(u32);
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub(crate) struct AutoCommandMap {
-    map: Shared<FxHashMap<AutoCommandEvent, Vec<AutoCommandCallback>>>,
+    inner: FxHashMap<AutoCommandEvent, Vec<AutoCommandCallback>>,
 }
 
 type AutoCommandCallback =
@@ -85,70 +85,64 @@ impl AutoCommandMap {
             }
         };
 
-        self.map.with_mut(|map| {
-            for (event, has_event_been_registered) in events.iter_mut() {
-                let callbacks = map.entry(*event).or_insert_with(|| {
-                    *has_event_been_registered = false;
-                    Vec::with_capacity(events_len)
-                });
-                callbacks.push(Box::new(callback.clone()));
-            }
-        });
+        for (event, has_event_been_registered) in events.iter_mut() {
+            let callbacks = self.inner.entry(*event).or_insert_with(|| {
+                *has_event_been_registered = false;
+                Vec::with_capacity(events_len)
+            });
+            callbacks.push(Box::new(callback.clone()));
+        }
 
         for (event, has_event_been_registered) in events {
             if !has_event_been_registered {
-                self.register_autocmd::<A>(event, ctx.clone());
+                register_autocmd::<A>(event, ctx.clone());
             }
         }
     }
+}
 
-    fn register_autocmd<A: AutoCommand>(
-        &self,
-        event: AutoCommandEvent,
-        ctx: NeovimCtx<'static>,
-    ) {
-        let this = self.clone();
+fn register_autocmd<A: AutoCommand>(
+    event: AutoCommandEvent,
+    ctx: NeovimCtx<'static>,
+) {
+    let augroup_id = ctx.augroup_id();
 
-        let augroup_id = ctx.augroup_id();
-
-        let callback = move |args: types::AutocmdCallbackArgs| {
-            debug_assert_eq!(args.event, event.as_str());
-            let ctx = AutoCommandCtx::new(args, event, ctx.as_ref());
-            let actor_id = ActorId::unknown();
-            this.map.with_mut(|map| {
-                let Some(callbacks) = map.get_mut(&event) else {
-                    panic!(
-                        "Neovim executed an unregistered autocommand: \
-                         {event:?}"
-                    );
+    let callback = move |args: types::AutocmdCallbackArgs| {
+        debug_assert_eq!(args.event, event.as_str());
+        let autocmd_ctx = AutoCommandCtx::new(args, event, ctx.as_ref());
+        let actor_id = ActorId::unknown();
+        ctx.with_autocmd_map(|m| {
+            let Some(callbacks) = m.inner.get_mut(&event) else {
+                panic!(
+                    "Neovim executed an unregistered autocommand: {event:?}"
+                );
+            };
+            let mut idx = 0;
+            loop {
+                let Some(callback) = callbacks.get_mut(idx) else {
+                    break;
                 };
-                let mut idx = 0;
-                loop {
-                    let Some(callback) = callbacks.get_mut(idx) else {
-                        break;
-                    };
-                    if callback(actor_id, &ctx).into() {
-                        callbacks.remove(idx);
-                    } else {
-                        idx += 1;
-                    }
+                if callback(actor_id, &autocmd_ctx).into() {
+                    callbacks.remove(idx);
+                } else {
+                    idx += 1;
                 }
-                let should_detach = callbacks.is_empty();
-                if should_detach {
-                    map.remove(&event);
-                }
-                should_detach
-            })
-        };
+            }
+            let should_detach = callbacks.is_empty();
+            if should_detach {
+                m.inner.remove(&event);
+            }
+            should_detach
+        })
+    };
 
-        let opts = opts::CreateAutocmdOpts::builder()
-            .group(augroup_id)
-            .callback(nvim_oxi::Function::from_fn_mut(callback))
-            .build();
+    let opts = opts::CreateAutocmdOpts::builder()
+        .group(augroup_id)
+        .callback(nvim_oxi::Function::from_fn_mut(callback))
+        .build();
 
-        let _ = api::create_autocmd([event.as_str()], &opts)
-            .expect("all arguments are valid");
-    }
+    let _autocmd_id = api::create_autocmd([event.as_str()], &opts)
+        .expect("all arguments are valid");
 }
 
 impl AutoCommandEvent {

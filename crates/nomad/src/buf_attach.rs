@@ -126,6 +126,7 @@ fn attach_to(buffer_id: BufferId, ctx: NeovimCtx<'static>) {
     };
 
     let opts = opts::BufAttachOpts::builder().on_bytes(callback).build();
+
     buffer_id
         .as_nvim()
         .attach(false, &opts)
