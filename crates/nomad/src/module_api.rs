@@ -2,13 +2,15 @@ use core::marker::PhantomData;
 
 use nvim_oxi::Dictionary as NvimDictionary;
 
+use crate::ctx::NeovimCtx;
 use crate::module_commands::ModuleCommands;
-use crate::{Action, AutoCommand, Command, Function, Module};
+use crate::{Action, AutoCommand, Command, Event, Function, Module};
 
 /// TODO: docs.
 pub struct ModuleApi<M: Module> {
     pub(crate) dictionary: NvimDictionary,
     pub(crate) commands: ModuleCommands,
+    neovim_ctx: NeovimCtx<'static>,
     ty: PhantomData<M>,
 }
 
@@ -17,7 +19,7 @@ impl<M: Module> ModuleApi<M> {
     where
         T: AutoCommand<Action: Action<Module = M>>,
     {
-        // let _ = autocmd.register();
+        autocmd.register(self.neovim_ctx.reborrow());
         self
     }
 
@@ -45,10 +47,11 @@ impl<M: Module> ModuleApi<M> {
         self
     }
 
-    pub fn new() -> Self {
+    pub fn new(neovim_ctx: NeovimCtx<'static>) -> Self {
         Self {
             dictionary: NvimDictionary::default(),
             commands: ModuleCommands::new::<M>(),
+            neovim_ctx,
             ty: PhantomData,
         }
     }

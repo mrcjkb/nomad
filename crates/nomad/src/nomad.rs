@@ -5,6 +5,7 @@ use collab_fs::AbsUtf8PathBuf;
 use nvim_oxi::{lua, Dictionary as NvimDictionary, Function as NvimFunction};
 
 use crate::config::Setup;
+use crate::ctx::NeovimCtx;
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::nomad_command::NomadCommand;
@@ -14,6 +15,7 @@ use crate::Module;
 pub struct Nomad {
     api: NvimDictionary,
     command: NomadCommand,
+    neovim_ctx: NeovimCtx<'static>,
     run: Vec<Pin<Box<dyn Future<Output = ()>>>>,
     setup: Setup,
 }
@@ -33,6 +35,7 @@ impl Nomad {
         Self {
             api: NvimDictionary::default(),
             command: NomadCommand::default(),
+            neovim_ctx: NeovimCtx::default(),
             run: Vec::default(),
             setup: Setup::default(),
         }
@@ -43,12 +46,13 @@ impl Nomad {
     pub fn with_module<M: Module>(mut self) -> Self {
         let config_rx = self.setup.add_module::<M>();
         let module = M::from(config_rx);
-        let module_api = module.init();
+        let module_api = module.init(self.neovim_ctx.reborrow());
         self.api.insert(M::NAME.as_str(), module_api.dictionary);
         self.command.add_module(module_api.commands);
         self.run.push({
+            let neovim_ctx = self.neovim_ctx.clone();
             Box::pin(async move {
-                if let Err(err) = module.run().await.into_result() {
+                if let Err(err) = module.run(neovim_ctx).await.into_result() {
                     let mut source = DiagnosticSource::new();
                     source.push_segment(M::NAME.as_str());
                     err.into().emit(Level::Error, source);

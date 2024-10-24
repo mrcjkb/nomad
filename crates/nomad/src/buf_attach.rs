@@ -106,7 +106,7 @@ fn attach_to(buffer_id: BufferId, ctx: NeovimCtx<'static>) {
         let buffer_id = buffer_id.clone();
         move |args: opts::OnBytesArgs| {
             let text_buffer_ctx = ctx
-                .as_ref()
+                .reborrow()
                 .into_buffer(buffer_id.clone())
                 .clone()
                 .expect(
