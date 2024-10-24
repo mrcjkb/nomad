@@ -42,7 +42,7 @@ mod spawner;
 mod subscription;
 mod text;
 
-pub use action::Action;
+pub use action::{Action, ActionName, FnAction};
 pub use actor_id::ActorId;
 pub use autocmd::{AutoCommand, ShouldDetach};
 pub use boo::Boo;

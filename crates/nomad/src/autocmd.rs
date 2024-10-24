@@ -10,9 +10,9 @@ use crate::{Action, ActorId, Module};
 /// TODO: docs.
 pub trait AutoCommand: Sized {
     type Action: Action<
-            Args: for<'a> From<(ActorId, &'a AutoCommandCtx<'a>)>,
-            Return: Into<ShouldDetach>,
-        > + Clone;
+        Args: for<'a> From<(ActorId, &'a AutoCommandCtx<'a>)>,
+        Return: Into<ShouldDetach>,
+    >;
 
     /// TODO: docs.
     fn into_action(self) -> Self::Action;

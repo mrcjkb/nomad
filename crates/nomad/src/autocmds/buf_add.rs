@@ -33,7 +33,7 @@ impl<A> BufAdd<A> {
 
 impl<A> AutoCommand for BufAdd<A>
 where
-    A: Action<Args = BufAddArgs> + Clone,
+    A: Action<Args = BufAddArgs>,
     A::Return: Into<ShouldDetach>,
 {
     type Action = A;

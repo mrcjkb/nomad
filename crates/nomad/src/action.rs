@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use std::hash::{Hash, Hasher};
 
 use crate::maybe_result::MaybeResult;
@@ -31,6 +32,38 @@ pub trait Action: 'static {
 
     /// TODO: docs
     fn docs(&self) -> Self::Docs;
+}
+
+/// TODO: docs.
+pub struct FnAction<Fn, Args, Mod> {
+    fun: Fn,
+    args: PhantomData<Args>,
+    module: PhantomData<Mod>,
+}
+
+impl<Fun, Args, Mod> FnAction<Fun, Args, Mod> {
+    pub fn new(fun: Fun) -> Self {
+        Self { fun, args: PhantomData, module: PhantomData }
+    }
+}
+
+impl<Fun, Args, Ret, Mod> Action for FnAction<Fun, Args, Mod>
+where
+    Fun: FnMut(Args) -> Ret + 'static,
+    Args: 'static,
+    Mod: Module,
+{
+    // FIXME: use `type_name()` once it's const-stable.
+    const NAME: ActionName = ActionName::from_str("{closure}");
+    type Args = Args;
+    type Docs = ();
+    type Module = Mod;
+    type Return = Fun::Output;
+
+    fn execute(&mut self, args: Self::Args) -> impl MaybeResult<Self::Return> {
+        (self.fun)(args)
+    }
+    fn docs(&self) {}
 }
 
 /// TODO: docs

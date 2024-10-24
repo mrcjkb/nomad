@@ -1,11 +1,19 @@
 use nvim_oxi::api;
 
-use crate::autocmds::BufEnter;
+use crate::autocmds::{BufEnter, BufEnterArgs};
 use crate::buffer_id::BufferId;
 use crate::ctx::BufferCtx;
 use crate::maybe_result::MaybeResult;
 use crate::point::Point;
-use crate::{Action, ActorId, ByteOffset, Event, Shared, ShouldDetach};
+use crate::{
+    Action,
+    ActorId,
+    ByteOffset,
+    Event,
+    FnAction,
+    Shared,
+    ShouldDetach,
+};
 
 /// TODO: docs.
 #[derive(Clone)]
@@ -68,10 +76,12 @@ where
         let should_detach = Shared::new(ShouldDetach::No);
         let just_entered_buf = Shared::new(false);
 
-        BufEnter::new(move |_| {
-            just_entered_buf.set(true);
-            should_detach
-        })
+        BufEnter::new(FnAction::<_, _, A::Module>::new(
+            move |_: BufEnterArgs| {
+                just_entered_buf.set(true);
+                should_detach.get()
+            },
+        ))
         .buffer_id(ctx.buffer_id())
         .register((&*ctx).reborrow());
     }

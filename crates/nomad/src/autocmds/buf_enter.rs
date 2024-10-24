@@ -36,7 +36,7 @@ impl<A> BufEnter<A> {
 
 impl<A> AutoCommand for BufEnter<A>
 where
-    A: Action<Args = BufEnterArgs> + Clone,
+    A: Action<Args = BufEnterArgs>,
     A::Return: Into<ShouldDetach>,
 {
     type Action = A;
