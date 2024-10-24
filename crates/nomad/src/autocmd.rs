@@ -1,14 +1,14 @@
 use fxhash::FxHashMap;
 use nvim_oxi::api::{self, opts, types};
-use smallvec::SmallVec;
 
+use crate::buffer_id::BufferId;
 use crate::ctx::{AutoCommandCtx, NeovimCtx};
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::{Action, ActorId, Module};
 
 /// TODO: docs.
-pub trait AutoCommand {
+pub trait AutoCommand: Sized {
     type Action: Action<
             Args: for<'a> From<(ActorId, &'a AutoCommandCtx<'a>)>,
             Return: Into<ShouldDetach>,
@@ -18,10 +18,44 @@ pub trait AutoCommand {
     fn into_action(self) -> Self::Action;
 
     /// TODO: docs.
-    fn on_events(&self) -> impl IntoIterator<Item = AutoCommandEvent>;
+    fn on_event(&self) -> AutoCommandEvent;
+
+    /// TODO: docs.
+    fn on_buffer(&self) -> Option<BufferId>;
 
     /// TODO: docs.
     fn take_actor_id(ctx: &AutoCommandCtx<'_>) -> ActorId;
+
+    /// TODO: docs.
+    fn into_callback(
+        self,
+    ) -> impl for<'a> FnMut(ActorId, &'a AutoCommandCtx<'a>) -> ShouldDetach + 'static
+    {
+        let on_buffer = self.on_buffer();
+        let mut action = self.into_action();
+        move |actor_id, ctx: &AutoCommandCtx| {
+            if let Some(buffer_id) = on_buffer {
+                if BufferId::new(ctx.args().buffer.clone()) != buffer_id {
+                    return ShouldDetach::No;
+                }
+            }
+            let args = (actor_id, ctx).into();
+            match action.execute(args).into_result() {
+                Ok(res) => res.into(),
+                Err(err) => {
+                    let mut source = DiagnosticSource::new();
+                    source
+                        .push_segment(
+                            <<Self::Action as Action>::Module as Module>::NAME
+                                .as_str(),
+                        )
+                        .push_segment(Self::Action::NAME.as_str());
+                    err.into().emit(Level::Error, source);
+                    ShouldDetach::Yes
+                },
+            }
+        }
+    }
 }
 
 /// TODO: docs.
@@ -59,44 +93,15 @@ impl AutoCommandMap {
         autocmd: A,
         ctx: NeovimCtx<'static>,
     ) {
-        let mut events = autocmd
-            .on_events()
-            .into_iter()
-            .map(|event| (event, true))
-            .collect::<SmallVec<[_; 4]>>();
-        let events_len = events.len();
-
-        let mut action = autocmd.into_action();
-        let callback = move |actor_id, ctx: &AutoCommandCtx| {
-            let args = (actor_id, ctx).into();
-            match action.execute(args).into_result() {
-                Ok(res) => res.into(),
-                Err(err) => {
-                    let mut source = DiagnosticSource::new();
-                    source
-                        .push_segment(
-                            <<A::Action as Action>::Module as Module>::NAME
-                                .as_str(),
-                        )
-                        .push_segment(A::Action::NAME.as_str());
-                    err.into().emit(Level::Error, source);
-                    ShouldDetach::Yes
-                },
-            }
-        };
-
-        for (event, has_event_been_registered) in events.iter_mut() {
-            let callbacks = self.inner.entry(*event).or_insert_with(|| {
-                *has_event_been_registered = false;
-                Vec::with_capacity(events_len)
-            });
-            callbacks.push(Box::new(callback.clone()));
-        }
-
-        for (event, has_event_been_registered) in events {
-            if !has_event_been_registered {
-                register_autocmd::<A>(event, ctx.clone());
-            }
+        let event = autocmd.on_event();
+        let mut has_event_been_registered = true;
+        let callbacks = self.inner.entry(event).or_insert_with(|| {
+            has_event_been_registered = false;
+            Vec::new()
+        });
+        callbacks.push(Box::new(autocmd.into_callback()));
+        if !has_event_been_registered {
+            register_autocmd::<A>(event, ctx.clone());
         }
     }
 }

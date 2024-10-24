@@ -1,11 +1,12 @@
 use crate::autocmd::{AutoCommand, AutoCommandEvent, ShouldDetach};
+use crate::buffer_id::BufferId;
 use crate::ctx::AutoCommandCtx;
-use crate::neovim::BufferId;
 use crate::{Action, ActorId};
 
 /// TODO: docs.
 pub struct BufUnload<A> {
     action: A,
+    buffer_id: Option<BufferId>,
 }
 
 /// TODO: docs.
@@ -20,7 +21,7 @@ pub struct BufUnloadArgs {
 impl<A> BufUnload<A> {
     /// Creates a new [`BufUnload`] with the given action.
     pub fn new(action: A) -> Self {
-        Self { action }
+        Self { action, buffer_id: None }
     }
 }
 
@@ -35,8 +36,12 @@ where
         self.action
     }
 
-    fn on_events(&self) -> impl IntoIterator<Item = AutoCommandEvent> {
-        [AutoCommandEvent::BufUnload]
+    fn on_event(&self) -> AutoCommandEvent {
+        AutoCommandEvent::BufUnload
+    }
+
+    fn on_buffer(&self) -> Option<BufferId> {
+        self.buffer_id
     }
 
     fn take_actor_id(_: &AutoCommandCtx<'_>) -> ActorId {

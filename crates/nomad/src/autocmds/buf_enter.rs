@@ -1,11 +1,12 @@
 use crate::autocmd::{AutoCommand, AutoCommandEvent, ShouldDetach};
+use crate::buffer_id::BufferId;
 use crate::ctx::AutoCommandCtx;
-use crate::neovim::BufferId;
 use crate::{Action, ActorId};
 
 /// TODO: docs.
 pub struct BufEnter<A> {
     action: A,
+    buffer_id: Option<BufferId>,
 }
 
 /// TODO: docs.
@@ -23,7 +24,7 @@ pub struct BufEnterArgs {
 impl<A> BufEnter<A> {
     /// Creates a new [`BufEnter`] with the given action.
     pub fn new(action: A) -> Self {
-        Self { action }
+        Self { action, buffer_id: None }
     }
 }
 
@@ -38,8 +39,12 @@ where
         self.action
     }
 
-    fn on_events(&self) -> impl IntoIterator<Item = AutoCommandEvent> {
-        [AutoCommandEvent::BufEnter]
+    fn on_event(&self) -> AutoCommandEvent {
+        AutoCommandEvent::BufEnter
+    }
+
+    fn on_buffer(&self) -> Option<BufferId> {
+        self.buffer_id
     }
 
     fn take_actor_id(ctx: &AutoCommandCtx<'_>) -> ActorId {
