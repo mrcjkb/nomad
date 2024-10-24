@@ -114,8 +114,8 @@ fn register_autocmd<A: AutoCommand>(
 
     let callback = move |args: types::AutocmdCallbackArgs| {
         debug_assert_eq!(args.event, event.as_str());
-        let autocmd_ctx = AutoCommandCtx::new(args, event, ctx.as_ref());
-        let actor_id = ActorId::unknown();
+        let autocmd_ctx = AutoCommandCtx::new(args, event, ctx.reborrow());
+        let actor_id = A::take_actor_id(&autocmd_ctx);
         ctx.with_autocmd_map(|m| {
             let Some(callbacks) = m.inner.get_mut(&event) else {
                 panic!(
