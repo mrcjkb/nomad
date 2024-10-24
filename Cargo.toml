@@ -16,6 +16,7 @@ cola = "0.4"
 collab-fs = { git = "ssh://git@github.com/nomad/collab.git", package = "collab-fs" }
 compact_str = "0.8"
 crop = "0.4"
+e31e = { git = "ssh://git@github.com/nomad/e31e.git" }
 futures = "0.3"
 futures-util = "0.3"
 nohash = "0.2"

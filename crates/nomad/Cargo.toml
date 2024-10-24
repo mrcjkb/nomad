@@ -13,8 +13,8 @@ neovim = []
 
 [dependencies]
 async-broadcast = "0.7"
-collab-fs = { workspace = true }
 compact_str = { workspace = true }
+e31e = { workspace = true }
 flume = { version = "0.11", features = ["async"] }
 futures-util = { workspace = true }
 fxhash = "0.2"

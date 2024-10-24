@@ -1,7 +1,7 @@
 use core::future::Future;
 use core::pin::Pin;
 
-use collab_fs::AbsUtf8PathBuf;
+use e31e::fs::AbsPathBuf;
 use nvim_oxi::{lua, Dictionary as NvimDictionary, Function as NvimFunction};
 
 use crate::config::Setup;
@@ -62,21 +62,21 @@ impl Nomad {
         self
     }
 
-    pub(crate) fn log_dir(&self) -> AbsUtf8PathBuf {
+    pub(crate) fn log_dir(&self) -> AbsPathBuf {
         #[cfg(target_family = "unix")]
         {
-            let mut home = match home::home_dir() {
+            let mut home: AbsPathBuf = match home::home_dir() {
                 Some(home) if !home.as_os_str().is_empty() => {
-                    AbsUtf8PathBuf::from_path_buf(home)
-                        .expect("home is absolute")
+                    AbsPathBuf::root()
+                    // AbsPathBuf::from_path_buf(home).expect("home is absolute")
                 },
                 _ => panic!("failed to get the home directory"),
             };
-            home.push(".local");
-            home.push("share");
-            home.push("nvim");
-            home.push("nomad");
-            home.push("logs");
+            home.push(".local".try_into().expect("it's valid"))
+                .push("share".try_into().expect("it's valid"))
+                .push("nvim".try_into().expect("it's valid"))
+                .push("nomad".try_into().expect("it's valid"))
+                .push("logs".try_into().expect("it's valid"));
             home
         }
         #[cfg(not(target_family = "unix"))]

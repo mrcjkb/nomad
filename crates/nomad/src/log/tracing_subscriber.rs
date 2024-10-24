@@ -1,4 +1,4 @@
-use collab_fs::AbsUtf8Path;
+use e31e::fs::AbsPath;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -13,7 +13,7 @@ use tracing_subscriber::{filter, fmt as fmt_builder};
 /// log files will be named like `nomad.log.2020-01-01`.
 const LOG_FILE_NAME: &str = "nomad.log";
 
-pub(super) fn init(log_dir: &AbsUtf8Path) {
+pub(super) fn init(log_dir: &AbsPath) {
     let subscriber = NomadTracingSubscriber::new(log_dir);
 
     tracing::subscriber::set_global_default(subscriber)
@@ -40,9 +40,9 @@ struct NomadTracingSubscriber {
 }
 
 impl NomadTracingSubscriber {
-    fn new(log_dir: &AbsUtf8Path) -> Self {
+    fn new(log_dir: &AbsPath) -> Self {
         let file_appender =
-            tracing_appender::rolling::daily(log_dir, LOG_FILE_NAME);
+            tracing_appender::rolling::daily(log_dir.as_str(), LOG_FILE_NAME);
 
         let (non_blocking, _guard) =
             tracing_appender::non_blocking(file_appender);

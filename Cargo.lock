@@ -458,6 +458,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
+name = "e31e"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/e31e.git#26af0d6db6e3223a4cd7ad414f242cfdc96891e1"
+dependencies = [
+ "cola",
+ "compact_str",
+ "fxhash",
+ "nohash",
+ "serde",
+ "smallvec",
+ "smol_str",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -795,9 +809,9 @@ version = "0.1.0"
 dependencies = [
  "async-broadcast",
  "async-task",
- "collab-fs",
  "compact_str",
  "concurrent-queue",
+ "e31e",
  "flume",
  "futures-util",
  "fxhash",
@@ -1284,6 +1298,9 @@ name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smithay-client-toolkit"
