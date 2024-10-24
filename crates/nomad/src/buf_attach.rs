@@ -2,10 +2,10 @@ use nohash::IntMap as NoHashMap;
 use nvim_oxi::api::opts;
 
 use crate::autocmd::ShouldDetach;
+use crate::buffer_id::BufferId;
 use crate::ctx::NeovimCtx;
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
-use crate::neovim::BufferId;
 use crate::{Action, ActorId, Module, Replacement};
 
 /// TODO: docs.

@@ -4,8 +4,8 @@ use nvim_oxi::api::{self, opts};
 
 use crate::autocmd::ShouldDetach;
 use crate::buf_attach::BufAttachArgs;
+use crate::buffer_id::BufferId;
 use crate::ctx::{BufferCtx, TextFileCtx};
-use crate::neovim::BufferId;
 use crate::point::Point;
 use crate::{Action, ActorId, ByteOffset, Text};
 

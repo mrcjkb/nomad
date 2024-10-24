@@ -1,11 +1,12 @@
 use std::vec::IntoIter;
 
-use crate::neovim::{
+use crate::diagnostics::{
     DiagnosticMessage,
     DiagnosticSource,
     HighlightGroup,
     Level,
 };
+use crate::module_commands::ModuleCommands;
 
 /// TODO: docs.
 pub struct CommandArgs {

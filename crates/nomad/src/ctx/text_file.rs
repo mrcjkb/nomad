@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use nvim_oxi::api::types;
 
+use crate::buffer_id::BufferId;
 use crate::ctx::{BufferCtx, FileCtx, TextBufferCtx};
-use crate::neovim::BufferId;
 
 /// TODO: docs.
 #[derive(Clone)]

@@ -1,7 +1,7 @@
 use core::ops::Deref;
 
+use crate::buffer_id::BufferId;
 use crate::ctx::{FileCtx, NeovimCtx, TextBufferCtx};
-use crate::neovim::BufferId;
 
 /// TODO: docs.
 #[derive(Clone)]

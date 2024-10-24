@@ -3,8 +3,8 @@ use nvim_oxi::api;
 use crate::actor_map::ActorMap;
 use crate::autocmd::{AugroupId, AutoCommandMap};
 use crate::buf_attach::BufAttachMap;
+use crate::buffer_id::BufferId;
 use crate::ctx::BufferCtx;
-use crate::neovim::BufferId;
 use crate::{Boo, Shared};
 
 /// TODO: docs.

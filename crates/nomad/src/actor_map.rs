@@ -1,6 +1,6 @@
 use nohash::IntMap as NoHashMap;
 
-use crate::neovim::BufferId;
+use crate::buffer_id::BufferId;
 use crate::ActorId;
 
 #[derive(Default)]
@@ -70,4 +70,3 @@ impl ActorMap {
         self.buffer_focus.remove(buffer_id).unwrap_or(ActorId::unknown())
     }
 }
-
