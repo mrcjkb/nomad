@@ -1,5 +1,5 @@
 use nomad::autocmds::BufUnloadArgs;
-use nomad::{action_name, Action, ActionName, Shared};
+use nomad::{action_name, Action, ActionName, BufferId, Shared, ShouldDetach};
 use nomad_server::Message;
 
 use super::SessionCtx;
@@ -10,6 +10,18 @@ pub(super) struct DetachBufferActions {
     pub(super) session_ctx: Shared<SessionCtx>,
 }
 
+impl DetachBufferActions {
+    fn detach_actions(&mut self, buffer_id: BufferId) {
+        self.session_ctx.with_mut(|session_ctx| {
+            if let Some(should_detach) =
+                session_ctx.buffer_actions.get(&buffer_id)
+            {
+                should_detach.set(ShouldDetach::Yes);
+            }
+        });
+    }
+}
+
 impl Action for DetachBufferActions {
     const NAME: ActionName = action_name!("detach-buffer-actions");
     type Args = BufUnloadArgs;
@@ -17,8 +29,8 @@ impl Action for DetachBufferActions {
     type Module = Collab;
     type Return = ();
 
-    fn execute(&mut self, _args: Self::Args) {
-        todo!();
+    fn execute(&mut self, args: Self::Args) {
+        self.detach_actions(args.buffer_id);
     }
 
     fn docs(&self) {}

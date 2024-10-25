@@ -54,8 +54,8 @@ impl RegisterBufferActions {
                 },
                 Entry::Occupied(_) => {
                     error!(
-                        "trying to register actions on buffer that's already \
-                         tracked"
+                        "trying to register actions on a buffer that's \
+                         already tracked"
                     );
                     return;
                 },
