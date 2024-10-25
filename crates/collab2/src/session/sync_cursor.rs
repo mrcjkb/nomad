@@ -19,8 +19,8 @@ impl Action for SyncCursor {
     type Module = Collab;
     type Return = ShouldDetach;
 
-    fn execute(&mut self, _args: Self::Args) {
-        todo!();
+    fn execute(&mut self, _args: Self::Args) -> Self::Return {
+        self.should_detach.get()
     }
 
     fn docs(&self) {}

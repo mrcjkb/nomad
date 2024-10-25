@@ -1,3 +1,5 @@
+//! TODO: docs.
+
 use nohash::IntMap as NoHashMap;
 use nvim_oxi::api::opts;
 
@@ -8,6 +10,7 @@ use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::{Action, ActorId, Event, Module, Replacement};
 
+/// TODO: docs.
 pub struct BufAttach<A> {
     action: A,
 }
@@ -38,7 +41,8 @@ where
     A::Args: From<BufAttachArgs>,
     A::Return: Into<ShouldDetach>,
 {
-    pub(crate) fn new(action: A) -> Self {
+    /// Creates a new [`BufAttach`] event with the given action.
+    pub fn new(action: A) -> Self {
         Self { action }
     }
 }

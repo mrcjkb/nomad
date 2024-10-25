@@ -478,7 +478,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "e31e"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/e31e.git#26af0d6db6e3223a4cd7ad414f242cfdc96891e1"
+source = "git+ssh://git@github.com/nomad/e31e.git#5c02e0970112df1fd8f55ce9568dad58076d2f78"
 dependencies = [
  "cola",
  "compact_str",

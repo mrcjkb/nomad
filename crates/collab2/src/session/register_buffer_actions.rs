@@ -75,7 +75,7 @@ impl RegisterBufferActions {
                 session_ctx: self.session_ctx.clone(),
                 should_detach: should_detach.clone(),
             })
-            .register(text_buffer_ctx.reborrow());
+            .register((&**text_buffer_ctx).reborrow());
         });
     }
 }
