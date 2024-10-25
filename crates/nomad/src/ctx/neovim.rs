@@ -40,12 +40,13 @@ impl<'ctx> NeovimCtx<'ctx> {
         NeovimCtx { ctx: self.ctx.as_ref() }
     }
 
-    pub(crate) fn augroup_id(&self) -> AugroupId {
-        self.ctx.with_inner(|inner| inner.augroup_id.into())
+    /// TODO: docs.
+    pub fn to_static(&self) -> NeovimCtx<'static> {
+        NeovimCtx { ctx: self.ctx.clone().into_owned() }
     }
 
-    pub(crate) fn to_static(&self) -> NeovimCtx<'static> {
-        NeovimCtx { ctx: self.ctx.clone().into_owned() }
+    pub(crate) fn augroup_id(&self) -> AugroupId {
+        self.ctx.with_inner(|inner| inner.augroup_id.into())
     }
 
     pub(crate) fn with_actor_map<F, R>(&self, fun: F) -> R
