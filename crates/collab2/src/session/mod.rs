@@ -1,6 +1,8 @@
 mod detach_buffer_actions;
 mod register_buffer_actions;
 mod session_ctx;
+mod sync_cursor;
+mod sync_replacement;
 
 use detach_buffer_actions::DetachBufferActions;
 use futures_util::{
@@ -18,6 +20,8 @@ use nomad::{Action, BufferId, Event, Shared};
 use nomad_server::Message;
 use register_buffer_actions::RegisterBufferActions;
 use session_ctx::SessionCtx;
+use sync_cursor::SyncCursor;
+use sync_replacement::SyncReplacement;
 
 /// TODO: docs.
 pub(crate) struct Session {
@@ -37,22 +41,18 @@ impl Session {
     {
         let (local_tx, local_rx) = flume::unbounded();
 
-        let mut register_buffer_actions = RegisterBufferActions::new(
-            local_tx.clone(),
-            self.session_ctx.clone(),
-        );
+        let mut register_buffer_actions = RegisterBufferActions {
+            message_tx: local_tx.clone(),
+            session_ctx: self.session_ctx.clone(),
+        };
 
-        let detach_buffer_actions = DetachBufferActions::new(
-            local_tx.clone(),
-            self.session_ctx.clone(),
-        );
+        let detach_buffer_actions = DetachBufferActions {
+            message_tx: local_tx,
+            session_ctx: self.session_ctx.clone(),
+        };
 
         for buffer_id in BufferId::opened() {
-            let args = nomad::autocmds::BufAddArgs {
-                actor_id: nomad::ActorId::unknown(),
-                buffer_id,
-            };
-            register_buffer_actions.execute(args);
+            register_buffer_actions.register_actions(buffer_id);
         }
 
         BufAdd::new(register_buffer_actions)

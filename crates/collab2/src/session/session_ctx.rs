@@ -1,6 +1,7 @@
 use e31e::fs::AbsPathBuf;
 use nohash::IntMap as NoHashMap;
-use nomad::{Action, ActorId, BufferId, Event, Shared, ShouldDetach};
+use nomad::ctx::NeovimCtx;
+use nomad::{ActorId, BufferId, Shared, ShouldDetach};
 
 #[derive(Clone)]
 pub(super) struct SessionCtx {
@@ -12,4 +13,6 @@ pub(super) struct SessionCtx {
 
     /// Map from [`BufferId`]
     pub(super) buffer_actions: NoHashMap<BufferId, Shared<ShouldDetach>>,
+
+    pub(super) neovim_ctx: NeovimCtx<'static>,
 }

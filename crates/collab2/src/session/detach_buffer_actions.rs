@@ -6,17 +6,8 @@ use super::SessionCtx;
 use crate::Collab;
 
 pub(super) struct DetachBufferActions {
-    message_tx: flume::Sender<Message>,
-    session_ctx: Shared<SessionCtx>,
-}
-
-impl DetachBufferActions {
-    pub(super) fn new(
-        message_tx: flume::Sender<Message>,
-        session_ctx: Shared<SessionCtx>,
-    ) -> Self {
-        Self { message_tx, session_ctx }
-    }
+    pub(super) message_tx: flume::Sender<Message>,
+    pub(super) session_ctx: Shared<SessionCtx>,
 }
 
 impl Action for DetachBufferActions {
