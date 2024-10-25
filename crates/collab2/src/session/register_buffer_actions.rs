@@ -83,12 +83,15 @@ impl RegisterBufferActions {
                 .cursors()
                 .filter_map(|cursor| {
                     let file_id = cursor.file().id();
-                    let buffer = session_ctx.buffer_of_file_id(file_id)?;
+                    let buffer_ctx = session_ctx.buffer_of_file_id(file_id)?;
+                    if buffer_ctx.buffer_id() != buffer_id {
+                        return None;
+                    }
                     let peer = String::from("TODO: get peer");
                     let peer_tooltip = PeerTooltip::create(
                         peer,
                         cursor.byte_offset().into(),
-                        buffer,
+                        buffer_ctx,
                     );
                     Some((cursor.id(), peer_tooltip))
                 })
