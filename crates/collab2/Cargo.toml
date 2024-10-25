@@ -10,6 +10,7 @@ publish.workspace = true
 e31e = { workspace = true }
 flume = { workspace = true }
 futures-util = { workspace = true }
+fxhash = { workspace = true }
 nohash = { workspace = true }
 nomad = { workspace = true }
 nomad-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = ["client"] }

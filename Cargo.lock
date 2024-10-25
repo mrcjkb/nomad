@@ -275,6 +275,7 @@ dependencies = [
  "e31e",
  "flume",
  "futures-util",
+ "fxhash",
  "nohash",
  "nomad",
  "nomad-server",

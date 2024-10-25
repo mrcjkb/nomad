@@ -1,7 +1,16 @@
 use core::ops::Deref;
 
 use e31e::fs::AbsPathBuf;
-use e31e::{CursorCreation, CursorId, CursorRefMut, Edit, FileId, FileRef};
+use e31e::{
+    CursorCreation,
+    CursorId,
+    CursorRefMut,
+    Edit,
+    FileId,
+    FileRef,
+    PeerId,
+};
+use fxhash::FxHashMap;
 use nohash::IntMap as NoHashMap;
 use nomad::ctx::{BufferCtx, NeovimCtx};
 use nomad::{
@@ -12,6 +21,8 @@ use nomad::{
     Shared,
     ShouldDetach,
 };
+
+use super::PeerTooltip;
 
 #[derive(Clone)]
 pub(super) struct SessionCtx {
@@ -24,6 +35,10 @@ pub(super) struct SessionCtx {
     /// The [`CursorId`] of the cursor owned by the local peer, or `None` if
     /// it's in a buffer that's not in the project.
     pub(super) local_cursor_id: Option<CursorId>,
+
+    /// Map from [`PeerId`] to the [`PeerTooltip`] displayed in the editor for
+    /// that peer, if any.
+    pub(super) remote_tooltips: FxHashMap<CursorId, Option<PeerTooltip>>,
 
     /// An instance of the [`NeovimCtx`].
     pub(super) neovim_ctx: NeovimCtx<'static>,
@@ -85,8 +100,13 @@ impl SessionCtx {
         let Some(buffer) = self.buffer_of_file_id(cursor.file().id()) else {
             return;
         };
-
-        todo!();
+        let remote_peer = String::from("TODO: get peer");
+        let peer_tooltip = PeerTooltip::create(
+            remote_peer,
+            cursor.byte_offset().into(),
+            buffer,
+        );
+        self.remote_tooltips.insert(cursor.id(), Some(peer_tooltip));
     }
 
     pub(super) fn local_cursor_mut(&mut self) -> Option<CursorRefMut<'_>> {

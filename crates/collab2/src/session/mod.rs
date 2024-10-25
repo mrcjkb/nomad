@@ -19,6 +19,7 @@ use nomad::autocmds::{BufAdd, BufUnload};
 use nomad::ctx::NeovimCtx;
 use nomad::{Action, BufferId, Event, Shared};
 use nomad_server::Message;
+use peer_tooltip::PeerTooltip;
 use register_buffer_actions::RegisterBufferActions;
 use session_ctx::SessionCtx;
 use sync_cursor::SyncCursor;
