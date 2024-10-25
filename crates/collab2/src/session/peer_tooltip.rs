@@ -11,6 +11,11 @@ pub(super) struct PeerTooltip {
 }
 
 impl PeerTooltip {
+    /// The [`BufferId`] this tooltip is in.
+    pub(super) fn buffer_id(&self) -> BufferId {
+        self.in_buffer
+    }
+
     pub(super) fn create(
         peer: Peer,
         at_offset: ByteOffset,
