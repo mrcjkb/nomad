@@ -1,7 +1,11 @@
-use core::ops::Deref;
+use core::ops::{Bound, Deref, Range, RangeBounds};
+
+use nvim_oxi::api;
 
 use crate::buffer_id::BufferId;
+use crate::byte_offset::ByteOffset;
 use crate::ctx::{FileCtx, NeovimCtx, TextBufferCtx};
+use crate::point::Point;
 
 /// TODO: docs.
 #[derive(Clone)]
@@ -26,6 +30,80 @@ impl<'ctx> BufferCtx<'ctx> {
     /// is text, or `None` otherwise.
     pub fn into_text_buffer(self) -> Option<TextBufferCtx<'ctx>> {
         TextBufferCtx::from_buffer(self)
+    }
+
+    /// Converts the given [`ByteOffset`] to the corresponding [`Point`] in the
+    /// buffer.
+    #[track_caller]
+    pub fn point_of_byte_offset(&self, byte_offset: ByteOffset) -> Point {
+        let nvim_buf = self.buffer_id().as_nvim();
+
+        let line_idx = nvim_buf
+            .call(move |_| {
+                api::call_function::<_, usize>("byte2line", (byte_offset,))
+                    .expect("args are valid")
+            })
+            .expect("todo");
+
+        let line_byte_offset = nvim_buf.get_offset(line_idx).expect("todo");
+
+        Point { line_idx, byte_offset: byte_offset - line_byte_offset }
+    }
+
+    /// Returns the [`Point`] at the end of the buffer.
+    pub fn point_of_eof(&self) -> Point {
+        fn point_of_eof(buffer: &BufferId) -> Result<Point, api::Error> {
+            let nvim_buf = buffer.as_nvim();
+
+            let num_lines = nvim_buf.line_count()?;
+
+            if num_lines == 0 {
+                return Ok(Point::zero());
+            }
+
+            let last_line_len = nvim_buf.get_offset(num_lines)?
+            // `get_offset(line_count)` seems to always include the trailing
+            // newline, even when `eol` is turned off.
+            //
+            // TODO: shouldn't we only correct this is `eol` is turned off?
+            - 1
+            - nvim_buf.get_offset(num_lines - 1)?;
+
+            Ok(Point {
+                line_idx: num_lines - 1,
+                byte_offset: ByteOffset::new(last_line_len),
+            })
+        }
+
+        let buffer_id = self.buffer_id();
+
+        match point_of_eof(&buffer_id) {
+            Ok(point) => point,
+            Err(_) => panic!("{buffer_id:?} has been deleted"),
+        }
+    }
+
+    /// Converts the given byte range into the corresponding point range in the
+    /// buffer.
+    #[track_caller]
+    pub fn point_range_of_byte_range<R>(&self, byte_range: R) -> Range<Point>
+    where
+        R: RangeBounds<ByteOffset>,
+    {
+        let start = match byte_range.start_bound() {
+            Bound::Excluded(&start) | Bound::Included(&start) => {
+                self.point_of_byte_offset(start)
+            },
+            Bound::Unbounded => Point::zero(),
+        };
+
+        let end = match byte_range.end_bound() {
+            Bound::Excluded(&end) => self.point_of_byte_offset(end),
+            Bound::Included(&end) => self.point_of_byte_offset(end + 1),
+            Bound::Unbounded => self.point_of_eof(),
+        };
+
+        start..end
     }
 
     /// TODO: docs.
