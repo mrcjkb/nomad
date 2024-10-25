@@ -19,7 +19,25 @@ impl Action for SyncCursor {
     type Module = Collab;
     type Return = ShouldDetach;
 
-    fn execute(&mut self, _args: Self::Args) -> Self::Return {
+    fn execute(&mut self, cursor: Self::Args) -> Self::Return {
+        let message = self.session_ctx.with_mut(|session_ctx| {
+            if cursor.moved_by() == session_ctx.actor_id {
+                return None;
+            }
+
+            // 1: get the `CursorId` associated with the `BufferId`;
+            // 2: get the corresponding `CursorRefMut`;
+            // 3: synchronize either its movement, creation, or deletion;
+            // 4: return `Message`
+            todo!();
+        });
+
+        if let Some(message) = message {
+            if self.message_tx.send(message).is_err() {
+                self.should_detach.set(ShouldDetach::Yes);
+            }
+        }
+
         self.should_detach.get()
     }
 
