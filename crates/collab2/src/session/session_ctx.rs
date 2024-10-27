@@ -15,6 +15,7 @@ use e31e::{
     SelectionCreation,
     SelectionId,
     SelectionRelocation,
+    SelectionRemoval,
 };
 use fxhash::FxHashMap;
 use nohash::IntMap as NoHashMap;
@@ -262,6 +263,18 @@ impl SessionCtx {
             r.start.into()..r.end.into()
         };
         peer_selection.relocate(new_range);
+    }
+
+    pub(super) fn integrate_selection_removal(
+        &mut self,
+        selection_removal: SelectionRemoval,
+    ) {
+        let Some(selection_id) =
+            self.replica.integrate_selection_removal(selection_removal)
+        else {
+            return;
+        };
+        let _ = self.remote_selections.remove(&selection_id);
     }
 
     pub(super) fn local_cursor_mut(&mut self) -> Option<CursorRefMut<'_>> {
