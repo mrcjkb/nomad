@@ -16,6 +16,7 @@ mod command;
 mod command_args;
 pub mod config;
 pub mod ctx;
+mod decoration_provider;
 pub mod diagnostics;
 mod event;
 pub mod events;

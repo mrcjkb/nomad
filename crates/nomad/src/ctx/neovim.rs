@@ -5,6 +5,7 @@ use crate::autocmd::{AugroupId, AutoCommandMap};
 use crate::buf_attach::BufAttachMap;
 use crate::buffer_id::BufferId;
 use crate::ctx::BufferCtx;
+use crate::decoration_provider::{DecorationProvider, NamespaceId};
 use crate::{Boo, Shared};
 
 /// TODO: docs.
@@ -24,6 +25,7 @@ struct CtxInner {
     augroup_id: NomadAugroupId,
     autocmd_map: AutoCommandMap,
     buf_attach_map: BufAttachMap,
+    decoration_provider: Option<DecorationProvider>,
     namespace_id: NomadNamespaceId,
 }
 
@@ -31,7 +33,7 @@ struct CtxInner {
 struct NomadAugroupId(AugroupId);
 
 #[derive(Copy, Clone)]
-struct NomadNamespaceId(u32);
+struct NomadNamespaceId(NamespaceId);
 
 impl<'ctx> NeovimCtx<'ctx> {
     /// TODO: docs.
@@ -53,6 +55,10 @@ impl<'ctx> NeovimCtx<'ctx> {
         self.ctx.with_inner(|inner| inner.augroup_id.into())
     }
 
+    pub(crate) fn namespace_id(&self) -> NamespaceId {
+        self.ctx.with_inner(|inner| inner.namespace_id.into())
+    }
+
     pub(crate) fn with_actor_map<F, R>(&self, fun: F) -> R
     where
         F: FnOnce(&mut ActorMap) -> R,
@@ -72,6 +78,19 @@ impl<'ctx> NeovimCtx<'ctx> {
         F: FnOnce(&mut BufAttachMap) -> R,
     {
         self.ctx.with_inner(|inner| fun(&mut inner.buf_attach_map))
+    }
+
+    pub(crate) fn with_decoration_provider<F, R>(&self, fun: F) -> R
+    where
+        F: FnOnce(&mut DecorationProvider) -> R,
+    {
+        self.ctx.with_inner(|inner| {
+            let provider =
+                inner.decoration_provider.get_or_insert_with(|| {
+                    DecorationProvider::new(self.to_static())
+                });
+            fun(provider)
+        })
     }
 }
 
@@ -97,12 +116,18 @@ impl Default for NomadAugroupId {
 
 impl Default for NomadNamespaceId {
     fn default() -> Self {
-        Self(api::create_namespace(crate::Nomad::NAMESPACE_NAME))
+        Self(NamespaceId::new(crate::Nomad::NAMESPACE_NAME))
     }
 }
 
 impl From<NomadAugroupId> for AugroupId {
     fn from(NomadAugroupId(id): NomadAugroupId) -> Self {
+        id
+    }
+}
+
+impl From<NomadNamespaceId> for NamespaceId {
+    fn from(NomadNamespaceId(id): NomadNamespaceId) -> Self {
         id
     }
 }
