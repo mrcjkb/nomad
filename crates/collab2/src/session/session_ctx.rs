@@ -12,6 +12,7 @@ use e31e::{
     FileRef,
     Hunks,
     PeerId,
+    SelectionId,
 };
 use fxhash::FxHashMap;
 use nohash::IntMap as NoHashMap;
@@ -25,7 +26,7 @@ use nomad::{
     ShouldDetach,
 };
 
-use super::PeerTooltip;
+use super::{PeerSelection, PeerTooltip};
 
 pub(super) struct SessionCtx {
     /// The [`ActorId`] of the [`Session`].
@@ -38,15 +39,19 @@ pub(super) struct SessionCtx {
     /// it's in a buffer that's not in the project.
     pub(super) local_cursor_id: Option<CursorId>,
 
-    /// Map from the [`PeerId`] of a remote peer to the corresponding
-    /// [`PeerTooltip`] displayed in the editor, if any.
-    pub(super) remote_tooltips: FxHashMap<CursorId, PeerTooltip>,
-
     /// An instance of the [`NeovimCtx`].
     pub(super) neovim_ctx: NeovimCtx<'static>,
 
     /// The absolute path to the root of the project.
     pub(super) project_root: AbsPathBuf,
+
+    /// Map from the [`SelectionId`] of a selection owned by a remote peer to
+    /// the corresponding [`PeerTooltip`] displayed in the editor, if any.
+    pub(super) remote_selections: FxHashMap<SelectionId, PeerSelection>,
+
+    /// Map from the [`CursorId`] of a cursor owned by a remote peer to the
+    /// corresponding [`PeerTooltip`] displayed in the editor, if any.
+    pub(super) remote_tooltips: FxHashMap<CursorId, PeerTooltip>,
 
     /// The [`Replica`](e31e::Replica) used to integrate remote messages on the
     /// project at [`project_root`](Self::project_root).
@@ -181,6 +186,35 @@ impl SessionCtx {
                 replacement.inserted_text(),
                 self.actor_id,
             );
+        }
+        for cursor in self
+            .replica
+            .cursors()
+            .filter(|c| c.file().id() == file_id)
+            .filter(|c| c.owner() != self.replica.id())
+        {
+            let tooltip = self.remote_tooltips.get_mut(&cursor.id()).expect(
+                "the cursor is in this file and owned by a remote peer, so \
+                 it must have a tooltip",
+            );
+            tooltip.relocate(cursor.byte_offset().into());
+        }
+        for selection in self
+            .replica
+            .selections()
+            .filter(|s| s.file().id() == file_id)
+            .filter(|s| s.owner() != self.replica.id())
+        {
+            let peer_selection =
+                self.remote_selections.get_mut(&selection.id()).expect(
+                    "the selection is in this file and owned by a remote \
+                     peer, so it must have a peer selection",
+                );
+            let selection_range = {
+                let r = selection.byte_range();
+                r.start.into()..r.end.into()
+            };
+            peer_selection.relocate(selection_range);
         }
         None
     }

@@ -17,10 +17,12 @@ impl DetachBufferActions {
                 session_ctx.buffer_actions.get(&buffer_id)
             {
                 should_detach.set(ShouldDetach::Yes);
-
                 session_ctx
                     .remote_tooltips
                     .retain(|_, tooltip| tooltip.buffer_id() != buffer_id);
+                session_ctx
+                    .remote_selections
+                    .retain(|_, selection| selection.buffer_id() != buffer_id);
             }
         });
     }

@@ -8,6 +8,7 @@ use nomad::{
     Action,
     ActionName,
     BufferId,
+    ByteOffset,
     Event,
     Shared,
     ShouldDetach,
@@ -16,7 +17,13 @@ use nomad_server::Message;
 use smallvec::SmallVec;
 use tracing::error;
 
-use super::{PeerTooltip, SessionCtx, SyncCursor, SyncReplacement};
+use super::{
+    PeerSelection,
+    PeerTooltip,
+    SessionCtx,
+    SyncCursor,
+    SyncReplacement,
+};
 use crate::Collab;
 
 pub(super) struct RegisterBufferActions {
@@ -102,6 +109,31 @@ impl RegisterBufferActions {
 
             for (cursor_id, tooltip) in new_tooltips {
                 session_ctx.remote_tooltips.insert(cursor_id, tooltip);
+            }
+
+            let new_selections = session_ctx
+                .replica
+                .selections()
+                .filter_map(|selection| {
+                    if selection.owner() == session_ctx.replica.id() {
+                        return None;
+                    }
+                    let file_id = selection.file().id();
+                    let buffer_ctx = session_ctx.buffer_of_file_id(file_id)?;
+                    if buffer_ctx.buffer_id() != buffer_id {
+                        return None;
+                    }
+                    let byte_range = selection.byte_range();
+                    let peer_selection = PeerSelection::create(
+                        byte_range.start.into()..byte_range.end.into(),
+                        buffer_ctx,
+                    );
+                    Some((selection.id(), peer_selection))
+                })
+                .collect::<SmallVec<[_; 4]>>();
+
+            for (selection_id, selection) in new_selections {
+                session_ctx.remote_selections.insert(selection_id, selection);
             }
         });
     }

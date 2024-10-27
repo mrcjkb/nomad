@@ -6,7 +6,6 @@ pub struct ByteOffset(usize);
 
 impl ByteOffset {
     /// Converts the [`ByteOffset`] into a `u64`.
-    #[inline]
     pub fn into_u64(self) -> u64 {
         self.0.try_into().expect("too big to fail")
     }

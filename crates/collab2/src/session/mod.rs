@@ -1,4 +1,5 @@
 mod detach_buffer_actions;
+mod peer_selection;
 mod peer_tooltip;
 mod register_buffer_actions;
 mod session_ctx;
@@ -19,6 +20,7 @@ use nomad::autocmds::{BufAdd, BufUnload};
 use nomad::ctx::NeovimCtx;
 use nomad::{Action, BufferId, Event, Shared};
 use nomad_server::Message;
+use peer_selection::PeerSelection;
 use peer_tooltip::PeerTooltip;
 use register_buffer_actions::RegisterBufferActions;
 use session_ctx::SessionCtx;
