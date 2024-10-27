@@ -10,6 +10,7 @@ use e31e::{
     Edit,
     FileId,
     FileRef,
+    FileRefMut,
     Hunks,
     PeerId,
     SelectionCreation,
@@ -102,11 +103,14 @@ impl SessionCtx {
         buffer_id: BufferId,
     ) -> Option<FileRefMut<'_>> {
         match self.file_of_buffer_id(buffer_id) {
-            Some(file) => Some(FileRefMut {
-                file_id: file.id(),
-                buffer_id,
-                session_ctx: self,
-            }),
+            Some(file) => {
+                let file_id = file.id();
+                Some(
+                    self.replica
+                        .file_mut(file_id)
+                        .expect("we just had a FileRef"),
+                )
+            },
             None => None,
         }
     }
@@ -190,35 +194,8 @@ impl SessionCtx {
                 self.actor_id,
             );
         }
-        for cursor in self
-            .replica
-            .cursors()
-            .filter(|c| c.file().id() == file_id)
-            .filter(|c| c.owner() != self.replica.id())
-        {
-            let tooltip = self.remote_tooltips.get_mut(&cursor.id()).expect(
-                "the cursor is in this file and owned by a remote peer, so \
-                 it must have a tooltip",
-            );
-            tooltip.relocate(cursor.byte_offset().into());
-        }
-        for selection in self
-            .replica
-            .selections()
-            .filter(|s| s.file().id() == file_id)
-            .filter(|s| s.owner() != self.replica.id())
-        {
-            let peer_selection =
-                self.remote_selections.get_mut(&selection.id()).expect(
-                    "the selection is in this file and owned by a remote \
-                     peer, so it must have a peer selection",
-                );
-            let selection_range = {
-                let r = selection.byte_range();
-                r.start.into()..r.end.into()
-            };
-            peer_selection.relocate(selection_range);
-        }
+        self.refresh_cursors(file_id);
+        self.refresh_selections(file_id);
         None
     }
 
@@ -280,44 +257,39 @@ impl SessionCtx {
     pub(super) fn local_cursor_mut(&mut self) -> Option<CursorRefMut<'_>> {
         self.local_cursor_id.and_then(|id| self.replica.cursor_mut(id))
     }
-}
 
-pub(super) struct FileRefMut<'ctx> {
-    file_id: FileId,
-    buffer_id: BufferId,
-    session_ctx: &'ctx mut SessionCtx,
-}
-
-impl FileRefMut<'_> {
-    pub(super) fn sync_created_cursor(
-        &mut self,
-        byte_offset: ByteOffset,
-    ) -> CursorCreation {
-        assert!(
-            self.session_ctx.local_cursor_id.is_none(),
-            "creating a new cursor when another already exists, but Neovim \
-             only supports a single cursor"
-        );
-        let (cursor_id, cursor_creation) =
-            self.as_inner_mut().sync_created_cursor(byte_offset.into_u64());
-        self.session_ctx.local_cursor_id = Some(cursor_id);
-        cursor_creation
-    }
-
-    pub(super) fn sync_edited_text(
-        &mut self,
-        replacement: Replacement,
-    ) -> Edit {
-        let edit = self.as_inner_mut().sync_edited_text([replacement.into()]);
-        // TODO: for all windows displaying the buffer, update tooltips of all
-        // remote cursors and selections on the buffer.
-        edit
-    }
-
-    fn as_inner_mut(&mut self) -> e31e::FileRefMut<'_> {
-        self.session_ctx
+    pub(super) fn refresh_cursors(&mut self, file_id: FileId) {
+        for cursor in self
             .replica
-            .file_mut(self.file_id)
-            .expect("we have a FileRefMut")
+            .cursors()
+            .filter(|c| c.file().id() == file_id)
+            .filter(|c| c.owner() != self.replica.id())
+        {
+            let tooltip = self.remote_tooltips.get_mut(&cursor.id()).expect(
+                "the cursor is in this file and owned by a remote peer, so \
+                 it must have a tooltip",
+            );
+            tooltip.relocate(cursor.byte_offset().into());
+        }
+    }
+
+    pub(super) fn refresh_selections(&mut self, file_id: FileId) {
+        for selection in self
+            .replica
+            .selections()
+            .filter(|s| s.file().id() == file_id)
+            .filter(|s| s.owner() != self.replica.id())
+        {
+            let peer_selection =
+                self.remote_selections.get_mut(&selection.id()).expect(
+                    "the selection is in this file and owned by a remote \
+                     peer, so it must have a peer selection",
+                );
+            let selection_range = {
+                let r = selection.byte_range();
+                r.start.into()..r.end.into()
+            };
+            peer_selection.relocate(selection_range);
+        }
     }
 }

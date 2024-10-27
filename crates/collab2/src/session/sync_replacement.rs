@@ -35,7 +35,11 @@ impl Action for SyncReplacement {
                 );
             };
 
-            let edit = file.sync_edited_text(args.replacement);
+            let edit = file.sync_edited_text([args.replacement.into()]);
+
+            let file_id = file.id();
+            session_ctx.refresh_cursors(file_id);
+            session_ctx.refresh_selections(file_id);
 
             todo!();
         });

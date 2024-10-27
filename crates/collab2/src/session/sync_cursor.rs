@@ -38,7 +38,14 @@ impl Action for SyncCursor {
 
             Some(match cursor.action {
                 CursorAction::Created(byte_offset) => {
-                    file.sync_created_cursor(byte_offset);
+                    let (cursor_id, cursor_creation) =
+                        file.sync_created_cursor(byte_offset.into_u64());
+                    assert!(
+                        session_ctx.local_cursor_id.is_none(),
+                        "creating a new cursor when another already exists, \
+                         but Neovim only supports a single cursor"
+                    );
+                    session_ctx.local_cursor_id = Some(cursor_id);
                     todo!();
                 },
                 CursorAction::Moved(byte_offset) => {
