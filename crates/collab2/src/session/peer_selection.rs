@@ -1,11 +1,12 @@
 use core::ops::Range;
 
 use nomad::ctx::BufferCtx;
-use nomad::{BufferId, ByteOffset};
+use nomad::diagnostics::HighlightGroup;
+use nomad::{BufferId, ByteOffset, Selection};
 
 /// TODO: docs.
 pub(super) struct PeerSelection {
-    offset_range: Range<ByteOffset>,
+    selection: Selection,
     in_buffer: BufferId,
 }
 
@@ -16,16 +17,17 @@ impl PeerSelection {
     }
 
     pub(super) fn create(
-        offset_range: Range<ByteOffset>,
+        byte_range: Range<ByteOffset>,
         ctx: BufferCtx<'_>,
     ) -> Self {
-        Self { offset_range, in_buffer: ctx.buffer_id() }
+        let hl_group = HighlightGroup::special();
+        Self {
+            selection: ctx.create_selection(byte_range, hl_group),
+            in_buffer: ctx.buffer_id(),
+        }
     }
 
-    pub(super) fn relocate(&mut self, new_offset_range: Range<ByteOffset>) {
-        if self.offset_range == new_offset_range {
-            return;
-        }
-        todo!();
+    pub(super) fn relocate(&mut self, new_byte_range: Range<ByteOffset>) {
+        self.selection.set_byte_range(new_byte_range);
     }
 }

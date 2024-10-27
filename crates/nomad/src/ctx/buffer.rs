@@ -35,6 +35,11 @@ impl<'ctx> BufferCtx<'ctx> {
         line_offset + point.byte_offset
     }
 
+    /// Returns the byte length of the buffer.
+    pub fn byte_len(&self) -> ByteOffset {
+        self.byte_offset_of_point(self.point_of_eof())
+    }
+
     /// TODO: docs.
     pub fn create_selection(
         &self,

@@ -1,11 +1,15 @@
 use nomad::ctx::BufferCtx;
-use nomad::{BufferId, ByteOffset};
+use nomad::diagnostics::HighlightGroup;
+use nomad::{BufferId, ByteOffset, Selection};
 
 type Peer = String;
 
 /// TODO: docs.
 pub(super) struct PeerTooltip {
-    at_offset: ByteOffset,
+    /// TUIs can only display a single line cursor at a time, so we select the
+    /// character immediately to the right of the cursor offset to fake a block
+    /// cursor.
+    selection: Selection,
     in_buffer: BufferId,
     peer: Peer,
 }
@@ -18,10 +22,16 @@ impl PeerTooltip {
 
     pub(super) fn create(
         peer: Peer,
-        at_offset: ByteOffset,
+        byte_offset: ByteOffset,
         ctx: BufferCtx<'_>,
     ) -> Self {
-        Self { at_offset, in_buffer: ctx.buffer_id(), peer }
+        let hl_group = HighlightGroup::special();
+        let byte_range = byte_offset..(byte_offset + 1).min(ctx.byte_len());
+        Self {
+            selection: ctx.create_selection(byte_range, hl_group),
+            in_buffer: ctx.buffer_id(),
+            peer,
+        }
     }
 
     /// The [`Peer`] this tooltip is for.
@@ -30,9 +40,9 @@ impl PeerTooltip {
     }
 
     pub(super) fn relocate(&mut self, new_offset: ByteOffset) {
-        if self.at_offset == new_offset {
-            return;
-        }
-        todo!();
+        // TODO: bound the offset to the buffer length.
+        // TODO: does Neovim already snap the end of the selection to the
+        // correct char boundary if it falls within a multi-byte character?
+        self.selection.set_byte_range(new_offset..(new_offset + 1));
     }
 }

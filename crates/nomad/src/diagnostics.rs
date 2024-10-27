@@ -157,6 +157,11 @@ impl DiagnosticMessage {
 pub struct HighlightGroup(SmolStr);
 
 impl HighlightGroup {
+    /// TODO: docs.
+    pub fn special() -> Self {
+        Self::new("Special")
+    }
+
     pub(super) fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -167,10 +172,6 @@ impl HighlightGroup {
 
     pub(super) fn new(group: &str) -> Self {
         Self(SmolStr::new(group))
-    }
-
-    pub(super) fn special() -> Self {
-        Self::new("Special")
     }
 
     pub(super) fn warning() -> Self {
