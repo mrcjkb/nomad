@@ -1,6 +1,6 @@
+use collab_server::message::Message;
 use nomad::autocmds::BufUnloadArgs;
 use nomad::{action_name, Action, ActionName, BufferId, Shared, ShouldDetach};
-use nomad_server::Message;
 
 use super::Project;
 use crate::Collab;

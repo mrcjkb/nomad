@@ -1,8 +1,8 @@
 use core::any::type_name;
 
+use collab_server::message::Message;
 use nomad::events::{Cursor, CursorAction};
 use nomad::{action_name, Action, ActionName, Shared, ShouldDetach};
-use nomad_server::Message;
 
 use super::Project;
 use crate::Collab;

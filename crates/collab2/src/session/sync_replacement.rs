@@ -1,8 +1,8 @@
 use core::any::type_name;
 
+use collab_server::message::Message;
 use nomad::buf_attach::BufAttachArgs;
 use nomad::{action_name, Action, ActionName, BufferId, Shared, ShouldDetach};
-use nomad_server::Message;
 
 use super::Project;
 use crate::Collab;

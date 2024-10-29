@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
 
+use collab_server::message::Message;
 use nomad::autocmds::BufAddArgs;
 use nomad::buf_attach::BufAttach;
 use nomad::events::CursorEvent;
@@ -8,12 +9,10 @@ use nomad::{
     Action,
     ActionName,
     BufferId,
-    ByteOffset,
     Event,
     Shared,
     ShouldDetach,
 };
-use nomad_server::Message;
 use smallvec::SmallVec;
 use tracing::error;
 
@@ -32,6 +31,7 @@ pub(super) struct RegisterBufferActions {
 }
 
 impl RegisterBufferActions {
+    #[allow(clippy::too_many_lines)]
     pub(super) fn register_actions(&mut self, buffer_id: BufferId) {
         self.project.with_mut(|project| {
             let neovim_ctx = project.neovim_ctx.reborrow();
@@ -83,7 +83,7 @@ impl RegisterBufferActions {
                 project: self.project.clone(),
                 should_detach: should_detach.clone(),
             })
-            .register((&**text_buffer_ctx).reborrow());
+            .register((**text_buffer_ctx).reborrow());
 
             let new_tooltips = project
                 .replica

@@ -6,6 +6,7 @@ mod register_buffer_actions;
 mod sync_cursor;
 mod sync_replacement;
 
+use collab_server::message::Message;
 use detach_buffer_actions::DetachBufferActions;
 use futures_util::{
     pin_mut,
@@ -19,7 +20,6 @@ use futures_util::{
 use nomad::autocmds::{BufAdd, BufUnload};
 use nomad::ctx::NeovimCtx;
 use nomad::{Action, BufferId, Event, Shared};
-use nomad_server::Message;
 use peer_selection::PeerSelection;
 use peer_tooltip::PeerTooltip;
 use project::Project;

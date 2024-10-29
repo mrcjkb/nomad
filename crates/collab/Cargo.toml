@@ -7,10 +7,6 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-collab-fs = { git = "ssh://git@github.com/nomad/collab.git" }
-collab-messaging = { git = "ssh://git@github.com/nomad/collab.git" }
-collab-project = { git = "ssh://git@github.com/nomad/collab.git" }
-collab-server = { git = "ssh://git@github.com/nomad/collab.git" }
 futures-util = { workspace = true }
 nohash = { workspace = true }
 nomad = { workspace = true }
