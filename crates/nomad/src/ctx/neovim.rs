@@ -1,4 +1,5 @@
 use core::future::Future;
+use core::ops::{Deref, DerefMut};
 
 use nvim_oxi::api;
 
@@ -8,7 +9,7 @@ use crate::buf_attach::BufAttachMap;
 use crate::buffer_id::BufferId;
 use crate::ctx::BufferCtx;
 use crate::decoration_provider::{DecorationProvider, NamespaceId};
-use crate::{Boo, JoinHandle, Shared};
+use crate::{ActorId, Boo, JoinHandle, Shared};
 
 /// TODO: docs.
 #[derive(Default, Clone)]
@@ -29,7 +30,11 @@ struct CtxInner {
     buf_attach_map: BufAttachMap,
     decoration_provider: Option<DecorationProvider>,
     namespace_id: NomadNamespaceId,
+    next_actor_id: NomadActorId,
 }
+
+#[derive(Copy, Clone)]
+struct NomadActorId(ActorId);
 
 #[derive(Copy, Clone)]
 struct NomadAugroupId(AugroupId);
@@ -41,6 +46,11 @@ impl<'ctx> NeovimCtx<'ctx> {
     /// TODO: docs.
     pub fn into_buffer(self, buffer_id: BufferId) -> Option<BufferCtx<'ctx>> {
         BufferCtx::from_neovim(buffer_id, self)
+    }
+
+    /// TODO: docs.
+    pub fn next_actor_id(&self) -> ActorId {
+        self.ctx.with_inner(|inner| inner.next_actor_id.post_inc())
     }
 
     /// TODO: docs.
@@ -114,6 +124,12 @@ impl Ctx {
     }
 }
 
+impl Default for NomadActorId {
+    fn default() -> Self {
+        Self(ActorId::new(1))
+    }
+}
+
 impl Default for NomadAugroupId {
     fn default() -> Self {
         let opts = api::opts::CreateAugroupOpts::builder().clear(true).build();
@@ -128,6 +144,20 @@ impl Default for NomadAugroupId {
 impl Default for NomadNamespaceId {
     fn default() -> Self {
         Self(NamespaceId::new(crate::Nomad::NAMESPACE_NAME))
+    }
+}
+
+impl Deref for NomadActorId {
+    type Target = ActorId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for NomadActorId {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

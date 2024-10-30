@@ -29,6 +29,12 @@ impl ActorId {
     pub fn unknown() -> Self {
         Self(Self::UNKNOWN)
     }
+
+    pub(crate) fn post_inc(&mut self) -> Self {
+        let id = self.0;
+        self.0 += 1;
+        Self(id)
+    }
 }
 
 impl PartialEq for ActorId {

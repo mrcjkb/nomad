@@ -1,3 +1,5 @@
+use std::io;
+
 use collab_server::message::Peer;
 use e31e::fs::{AbsPath, AbsPathBuf};
 use e31e::{
@@ -69,6 +71,27 @@ impl Project {
     /// it be, use [`remote_peers`](Self::remote_peers) instead.
     pub(crate) fn all_peers(&self) -> impl Iterator<Item = &Peer> {
         self.remote_peers.values().chain(core::iter::once(&self.local_peer))
+    }
+
+    /// TODO: docs.
+    pub(crate) async fn local_from_fs(
+        local_peer: Peer,
+        project_root: AbsPathBuf,
+        neovim_ctx: NeovimCtx<'static>,
+    ) -> io::Result<Self> {
+        let mut replica = e31e::Replica::new(local_peer.id());
+        Ok(Self {
+            actor_id: neovim_ctx.next_actor_id(),
+            buffer_actions: NoHashMap::default(),
+            local_cursor_id: None,
+            local_peer,
+            neovim_ctx,
+            project_root,
+            remote_peers: NoHashMap::default(),
+            remote_selections: FxHashMap::default(),
+            remote_tooltips: FxHashMap::default(),
+            replica,
+        })
     }
 
     /// Returns an iterator over the remote [`Peer`]s.
