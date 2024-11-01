@@ -379,7 +379,7 @@ async fn read_replica(
     project_root: AbsPathBuf,
     ctx: NeovimCtx<'_>,
 ) -> Result<Replica, ProjectFromFsError> {
-    let (node_tx, mut node_rx) = flume::unbounded();
+    let (node_tx, node_rx) = flume::unbounded();
     recurse(project_root, node_tx, ctx);
 
     let mut builder = ReplicaBuilder::new(local_id);

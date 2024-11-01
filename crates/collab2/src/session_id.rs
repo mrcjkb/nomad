@@ -5,7 +5,13 @@ use nomad::diagnostics::DiagnosticMessage;
 use nomad::CommandArgs;
 
 #[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub(crate) struct SessionId(pub(crate) collab_server::SessionId);
+pub(crate) struct SessionId(collab_server::SessionId);
+
+impl SessionId {
+    pub(crate) fn into_inner(self) -> collab_server::SessionId {
+        self.0
+    }
+}
 
 impl fmt::Display for SessionId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
