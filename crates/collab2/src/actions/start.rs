@@ -1,6 +1,8 @@
-use collab_server::message::Message;
+use collab_server::message::{GitHubHandle, Message};
+use collab_server::AuthInfos;
 use futures_util::StreamExt;
 use nomad::ctx::NeovimCtx;
+use nomad::diagnostics::DiagnosticMessage;
 use nomad::{action_name, ActionName, AsyncAction, Shared};
 
 use super::UserBusyError;
@@ -29,14 +31,20 @@ impl AsyncAction for Start {
         &mut self,
         _: Self::Args,
         ctx: NeovimCtx<'_>,
-    ) -> Result<(), UserBusyError<true>> {
+    ) -> Result<(), StartError> {
+        let auth_infos = AuthInfos {
+            github_handle: "noib3"
+                .parse::<GitHubHandle>()
+                .expect("it's valid"),
+        };
+
         #[rustfmt::skip]
         Starter::new(self.session_status.clone(), ctx.to_static())?
             .find_project_root().await?
             .confirm_start().await?
             .read_project().await?
             .connect_to_server().await?
-            .authenticate(()).await?
+            .authenticate(auth_infos).await?
             .start_session().await?
             .run_session().await?;
 
@@ -47,20 +55,156 @@ impl AsyncAction for Start {
 }
 
 struct Starter<State> {
+    session_status: Shared<SessionStatus>,
     state: State,
 }
 
+struct FindProjectRoot {
+    ctx: NeovimCtx<'static>,
+}
+
+struct ConfirmStart;
+struct ReadProject;
+struct ConnectToServer;
+struct Authenticate;
+struct StartSession;
+struct RunSession;
+
+#[derive(Debug, thiserror::Error)]
+enum StartError {
+    #[error(transparent)]
+    ConfirmStart(#[from] ConfirmStartError),
+
+    #[error(transparent)]
+    ReadProject(#[from] ReadProjectError),
+
+    #[error(transparent)]
+    ConnectToServer(#[from] ConnectToServerError),
+
+    #[error(transparent)]
+    Authenticate(#[from] AuthenticateError),
+
+    #[error(transparent)]
+    StartSession(#[from] StartSessionError),
+
+    #[error(transparent)]
+    RunSession(#[from] RunSessionError),
+
+    #[error(transparent)]
+    FindProjectRoot(#[from] FindProjectRootError),
+
+    #[error(transparent)]
+    UserBusy(#[from] UserBusyError<true>),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed to find project root")]
+struct FindProjectRootError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("")]
+struct ConfirmStartError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("")]
+struct ReadProjectError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("")]
+struct ConnectToServerError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("")]
+struct AuthenticateError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("")]
+struct StartSessionError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("")]
+struct RunSessionError;
+
 impl<State> From<State> for Starter<State> {
-    fn from(state: State) -> Self {
-        Self { state }
+    fn from(_state: State) -> Self {
+        todo!();
     }
 }
 
-// match self.session_status.with(|s| UserBusyError::try_from(s)).ok() {
-//     Some(err) => return Err(err),
-//     _ => self.session_status.set(SessionStatus::Starting),
-// }
-//
+impl Starter<FindProjectRoot> {
+    fn new(
+        session_status: Shared<SessionStatus>,
+        ctx: NeovimCtx<'static>,
+    ) -> Result<Self, UserBusyError<true>> {
+        match session_status.with(|s| UserBusyError::try_from(s)).ok() {
+            Some(err) => Err(err),
+            None => {
+                session_status.set(SessionStatus::Starting);
+                Ok(Self { session_status, state: FindProjectRoot { ctx } })
+            },
+        }
+    }
+
+    async fn find_project_root(
+        self,
+    ) -> Result<Starter<ConfirmStart>, FindProjectRootError> {
+        todo!();
+    }
+}
+
+impl Starter<ConfirmStart> {
+    async fn confirm_start(
+        self,
+    ) -> Result<Starter<ReadProject>, ConfirmStartError> {
+        todo!();
+    }
+}
+
+impl Starter<ReadProject> {
+    async fn read_project(
+        self,
+    ) -> Result<Starter<ConnectToServer>, ReadProjectError> {
+        todo!();
+    }
+}
+
+impl Starter<ConnectToServer> {
+    async fn connect_to_server(
+        self,
+    ) -> Result<Starter<Authenticate>, ConnectToServerError> {
+        todo!();
+    }
+}
+
+impl Starter<Authenticate> {
+    async fn authenticate(
+        self,
+        _auth_infos: AuthInfos,
+    ) -> Result<Starter<StartSession>, AuthenticateError> {
+        todo!();
+    }
+}
+
+impl Starter<StartSession> {
+    async fn start_session(
+        self,
+    ) -> Result<Starter<RunSession>, StartSessionError> {
+        todo!();
+    }
+}
+
+impl Starter<RunSession> {
+    async fn run_session(self) -> Result<(), RunSessionError> {
+        todo!();
+    }
+}
+
+impl From<StartError> for DiagnosticMessage {
+    fn from(_err: StartError) -> Self {
+        todo!();
+    }
+}
+
 // let mut session = Session::start().await;
 // self.session_status.set(SessionStatus::InSession(session.project()));
 // ctx.spawn(async move {
