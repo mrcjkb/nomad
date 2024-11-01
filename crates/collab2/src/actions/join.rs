@@ -118,8 +118,9 @@ struct JumpToHost {
     buffered: Vec<Message>,
     joined: collab_server::client::Joined,
     local_peer: Peer,
-    project: collab_server::message::Project,
     project_root: AbsPathBuf,
+    remote_peers: Peers,
+    replica: Replica,
     joiner: Joiner,
 }
 
@@ -356,7 +357,15 @@ impl FlushProject {
 
 impl JumpToHost {
     fn jump_to_host(self) -> RunSession {
-        todo!();
+        RunSession {
+            buffered: self.buffered,
+            joined: self.joined,
+            local_peer: self.local_peer,
+            project_root: self.project_root,
+            remote_peers: self.remote_peers,
+            replica: self.replica,
+            joiner: self.joiner,
+        }
     }
 }
 
