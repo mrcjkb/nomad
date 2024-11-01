@@ -274,7 +274,7 @@ impl ReadReplica {
         let (node_tx, node_rx) = flume::unbounded();
         recurse(
             self.project_root.clone(),
-            node_tx,
+            NodeTx { inner: node_tx },
             self.starter.ctx.reborrow(),
         );
 
@@ -340,11 +340,19 @@ enum Node {
     File { path: AbsPathBuf, len: u64 },
 }
 
-fn recurse(
-    mut dir_path: AbsPathBuf,
-    node_tx: flume::Sender<Result<Node, ReadReplicaError>>,
-    ctx: NeovimCtx<'_>,
-) {
+#[derive(Clone)]
+struct NodeTx {
+    inner: flume::Sender<Result<Node, ReadReplicaError>>,
+}
+
+impl NodeTx {
+    fn send(&self, node: Result<Node, ReadReplicaError>) {
+        self.inner.send(node).expect("receiver hasn't been dropped");
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
     let ctx_static = ctx.to_static();
     ctx.spawn(async move {
         let read_dir = async {
