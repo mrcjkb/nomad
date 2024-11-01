@@ -1,12 +1,22 @@
-use collab_server::message::{GitHubHandle, Message};
+use std::io;
+
+use collab_server::message::{
+    GitHubHandle,
+    Message,
+    Peer,
+    Peers,
+    ProjectRequest,
+};
 use collab_server::AuthInfos;
-use futures_util::StreamExt;
+use e31e::fs::AbsPathBuf;
+use e31e::Replica;
+use futures_util::{SinkExt, StreamExt};
 use nomad::ctx::NeovimCtx;
 use nomad::diagnostics::DiagnosticMessage;
 use nomad::{action_name, ActionName, AsyncAction, Shared};
 
 use super::UserBusyError;
-use crate::session::Session;
+use crate::session::{NewSessionArgs, Session};
 use crate::session_id::SessionId;
 use crate::session_status::SessionStatus;
 use crate::Collab;
@@ -43,7 +53,7 @@ impl AsyncAction for Join {
         Joiner::new(self.session_status.clone(), session_id, ctx.to_static())?
             .connect_to_server().await?
             .authenticate(auth_infos).await?
-            .join_session(session_id).await?
+            .join_session(session_id.into_inner()).await?
             .confirm_join().await?
             .request_project().await?
             .find_project_root().await?
@@ -57,23 +67,70 @@ impl AsyncAction for Join {
     fn docs(&self) {}
 }
 
-struct Joiner<State> {
-    session_status: Shared<SessionStatus>,
-    state: State,
-}
-
-struct ConnectToServer {
+struct Joiner {
     ctx: NeovimCtx<'static>,
+    session_id: SessionId,
+    session_status: Shared<SessionStatus>,
 }
 
-struct Authenticate;
-struct JoinSession;
-struct ConfirmJoin;
-struct RequestProject;
-struct FindProjectRoot;
-struct FlushProject;
-struct JumpToHost;
-struct RunSession;
+struct Authenticate {
+    io: collab_server::Io,
+    joiner: Joiner,
+}
+
+struct JoinSession {
+    authenticated: collab_server::client::Authenticated,
+    auth_infos: AuthInfos,
+    joiner: Joiner,
+}
+
+struct ConfirmJoin {
+    joined: collab_server::client::Joined,
+    local_peer: Peer,
+    joiner: Joiner,
+}
+
+struct RequestProject {
+    joined: collab_server::client::Joined,
+    local_peer: Peer,
+    joiner: Joiner,
+}
+
+struct FindProjectRoot {
+    buffered: Vec<Message>,
+    local_peer: Peer,
+    joined: collab_server::client::Joined,
+    project: collab_server::message::Project,
+    joiner: Joiner,
+}
+
+struct FlushProject {
+    buffered: Vec<Message>,
+    local_peer: Peer,
+    joined: collab_server::client::Joined,
+    project: collab_server::message::Project,
+    project_root: AbsPathBuf,
+    joiner: Joiner,
+}
+
+struct JumpToHost {
+    buffered: Vec<Message>,
+    joined: collab_server::client::Joined,
+    local_peer: Peer,
+    project: collab_server::message::Project,
+    project_root: AbsPathBuf,
+    joiner: Joiner,
+}
+
+struct RunSession {
+    buffered: Vec<Message>,
+    joined: collab_server::client::Joined,
+    local_peer: Peer,
+    project_root: AbsPathBuf,
+    remote_peers: Peers,
+    replica: Replica,
+    joiner: Joiner,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum JoinError {
@@ -110,15 +167,23 @@ pub(crate) enum JoinError {
 
 #[derive(Debug, thiserror::Error)]
 #[error("")]
-pub(crate) struct ConnectToServerError;
+pub(crate) struct ConnectToServerError {
+    #[from]
+    inner: io::Error,
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("")]
-pub(crate) struct AuthenticateError;
+pub(crate) struct AuthenticateError {
+    inner: (),
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("")]
-pub(crate) struct JoinSessionError;
+pub(crate) struct JoinSessionError {
+    #[from]
+    inner: collab_server::client::JoinError,
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("")]
@@ -126,7 +191,13 @@ pub(crate) struct ConfirmJoinError;
 
 #[derive(Debug, thiserror::Error)]
 #[error("")]
-pub(crate) struct RequestProjectError;
+pub(crate) enum RequestProjectError {
+    #[error("")]
+    SendRequest(io::Error),
+
+    #[error("")]
+    ReadResponse(io::Error),
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("")]
@@ -144,7 +215,7 @@ pub(crate) struct JumpToHostError;
 #[error("")]
 pub(crate) struct RunSessionError;
 
-impl Joiner<ConnectToServer> {
+impl Joiner {
     fn new(
         session_status: Shared<SessionStatus>,
         session_id: SessionId,
@@ -154,79 +225,163 @@ impl Joiner<ConnectToServer> {
             Some(err) => Err(err),
             None => {
                 session_status.set(SessionStatus::Joining(session_id));
-                Ok(Self { session_status, state: ConnectToServer { ctx } })
+                Ok(Self { ctx, session_id, session_status })
             },
         }
     }
 
     async fn connect_to_server(
         self,
-    ) -> Result<Joiner<Authenticate>, JoinError> {
-        todo!();
+    ) -> Result<Authenticate, ConnectToServerError> {
+        collab_server::Io::connect()
+            .await
+            .map(|io| Authenticate { io, joiner: self })
+            .map_err(Into::into)
     }
 }
 
-impl Joiner<Authenticate> {
+impl Authenticate {
     async fn authenticate(
         self,
-        _auth_infos: AuthInfos,
-    ) -> Result<Joiner<JoinSession>, JoinError> {
-        todo!();
+        auth_infos: AuthInfos,
+    ) -> Result<JoinSession, AuthenticateError> {
+        self.io
+            .authenticate(auth_infos.clone())
+            .await
+            .map(|authenticated| JoinSession {
+                authenticated,
+                auth_infos,
+                joiner: self.joiner,
+            })
+            .map_err(|_err| todo!())
     }
 }
 
-impl Joiner<JoinSession> {
+impl JoinSession {
     async fn join_session(
         self,
-        _session_id: SessionId,
-    ) -> Result<Joiner<ConfirmJoin>, JoinError> {
+        session_id: collab_server::SessionId,
+    ) -> Result<ConfirmJoin, JoinSessionError> {
+        self.authenticated
+            .join(collab_server::client::JoinRequest::JoinExistingSession(
+                session_id,
+            ))
+            .await
+            .map(|joined| ConfirmJoin {
+                local_peer: Peer::new(
+                    joined.sender.peer_id(),
+                    self.auth_infos.github_handle,
+                ),
+                joined,
+                joiner: self.joiner,
+            })
+            .map_err(Into::into)
+    }
+}
+
+impl ConfirmJoin {
+    async fn confirm_join(self) -> Result<RequestProject, ConfirmJoinError> {
         todo!();
     }
 }
 
-impl Joiner<ConfirmJoin> {
-    async fn confirm_join(self) -> Result<Joiner<RequestProject>, JoinError> {
-        todo!();
-    }
-}
-
-impl Joiner<RequestProject> {
+impl RequestProject {
     async fn request_project(
-        self,
-    ) -> Result<Joiner<FindProjectRoot>, JoinError> {
-        todo!();
+        mut self,
+    ) -> Result<FindProjectRoot, RequestProjectError> {
+        let request_from = self
+            .joined
+            .peers
+            .as_slice()
+            .first()
+            .expect("can't be empty")
+            .clone();
+
+        self.joined
+            .sender
+            .send(Message::ProjectRequest(ProjectRequest { request_from }))
+            .await
+            .map_err(RequestProjectError::SendRequest)?;
+
+        let mut buffered = Vec::new();
+
+        let project = loop {
+            let res = self.joined.receiver.next().await.expect("never ends");
+            let message = res.map_err(RequestProjectError::ReadResponse)?;
+            match message {
+                Message::ProjectResponse(response) => break response.project,
+                other => buffered.push(other),
+            };
+        };
+
+        Ok(FindProjectRoot {
+            buffered,
+            joined: self.joined,
+            joiner: self.joiner,
+            local_peer: self.local_peer,
+            project,
+        })
     }
 }
 
-impl Joiner<FindProjectRoot> {
+impl FindProjectRoot {
     async fn find_project_root(
         self,
-    ) -> Result<Joiner<FlushProject>, JoinError> {
+    ) -> Result<FlushProject, FindProjectRootError> {
+        let project_root = "/home/noib3/.local/share/nvim/collab/nomad.nvim"
+            .parse()
+            .expect("it's valid");
+
+        Ok(FlushProject {
+            buffered: self.buffered,
+            joined: self.joined,
+            local_peer: self.local_peer,
+            joiner: self.joiner,
+            project: self.project,
+            project_root,
+        })
+    }
+}
+
+impl FlushProject {
+    async fn flush_project(self) -> Result<JumpToHost, FlushProjectError> {
         todo!();
     }
 }
 
-impl Joiner<FlushProject> {
-    async fn flush_project(self) -> Result<Joiner<JumpToHost>, JoinError> {
+impl JumpToHost {
+    async fn jump_to_host(self) -> Result<RunSession, JumpToHostError> {
         todo!();
     }
 }
 
-impl Joiner<JumpToHost> {
-    async fn jump_to_host(self) -> Result<Joiner<RunSession>, JoinError> {
-        todo!();
-    }
-}
+impl RunSession {
+    async fn run_session(self) -> Result<(), RunSessionError> {
+        let collab_server::client::Joined {
+            sender,
+            receiver,
+            session_id,
+            peers: _,
+        } = self.joined;
 
-impl Joiner<RunSession> {
-    async fn run_session(self) -> Result<(), JoinError> {
-        todo!();
-    }
-}
+        let session = Session::new(NewSessionArgs {
+            is_host: false,
+            local_peer: self.local_peer,
+            remote_peers: self.remote_peers,
+            project_root: self.project_root,
+            replica: self.replica,
+            session_id,
+            neovim_ctx: self.joiner.ctx.clone(),
+        });
 
-impl<State> From<State> for Joiner<State> {
-    fn from(_state: State) -> Self {
-        todo!();
+        let status = SessionStatus::InSession(session.project());
+        self.joiner.session_status.set(status);
+
+        if let Err(_err) = session.run(sender, receiver).await {
+            todo!();
+        }
+
+        Ok(())
     }
 }
 
@@ -235,14 +390,3 @@ impl From<JoinError> for DiagnosticMessage {
         todo!();
     }
 }
-
-// let mut session = Session::join().await;
-// self.session_status.set(SessionStatus::InSession(session.project()));
-// ctx.spawn(async move {
-//     let (tx, rx) = flume::unbounded::<Message>();
-//     let tx = tx.into_sink::<'static>();
-//     let rx = rx
-//         .into_stream::<'static>()
-//         .map(Ok::<_, core::convert::Infallible>);
-//     let _err = session.run(tx, rx).await;
-// });

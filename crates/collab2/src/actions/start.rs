@@ -79,10 +79,6 @@ struct ConnectToServer {
     starter: Starter,
 }
 
-struct FindProjectRoot {
-    starter: Starter,
-}
-
 struct ReadReplica {
     joined: collab_server::client::Joined,
     local_peer: Peer,
@@ -275,7 +271,6 @@ impl StartSession {
 
 impl ReadReplica {
     async fn read_replica(self) -> Result<RunSession, ReadReplicaError> {
-        let local_id = self.joined.sender.peer_id();
         let (node_tx, node_rx) = flume::unbounded();
         recurse(
             self.project_root.clone(),
@@ -283,7 +278,7 @@ impl ReadReplica {
             self.starter.ctx.reborrow(),
         );
 
-        let mut builder = ReplicaBuilder::new(local_id);
+        let mut builder = ReplicaBuilder::new(self.local_peer.id());
         while let Ok(res) = node_rx.recv_async().await {
             let maybe_duplicate_path = match res? {
                 Node::Dir { path } => {
@@ -319,7 +314,7 @@ impl RunSession {
             peers,
         } = self.joined;
 
-        let args = NewSessionArgs {
+        let session = Session::new(NewSessionArgs {
             is_host: true,
             local_peer: self.local_peer,
             remote_peers: peers,
@@ -327,9 +322,7 @@ impl RunSession {
             replica: self.replica,
             session_id,
             neovim_ctx: self.starter.ctx.clone(),
-        };
-
-        let session = Session::new(args);
+        });
 
         let status = SessionStatus::InSession(session.project());
         self.starter.session_status.set(status);
@@ -339,12 +332,6 @@ impl RunSession {
         }
 
         Ok(())
-    }
-}
-
-impl From<StartError> for DiagnosticMessage {
-    fn from(_err: StartError) -> Self {
-        todo!();
     }
 }
 
@@ -441,4 +428,10 @@ fn recurse(
         }
     })
     .detach();
+}
+
+impl From<StartError> for DiagnosticMessage {
+    fn from(_err: StartError) -> Self {
+        todo!();
+    }
 }
