@@ -1,7 +1,7 @@
 use std::ffi::OsString;
 use std::io;
 
-use collab_server::message::{GitHubHandle, Peer};
+use collab_server::message::{GitHubHandle, Peer, Peers};
 use collab_server::AuthInfos;
 use e31e::fs::{AbsPathBuf, FsNodeName};
 use e31e::{Replica, ReplicaBuilder};
@@ -311,17 +311,17 @@ impl RunSession {
             sender,
             receiver,
             session_id,
-            peers,
+            peers: _,
         } = self.joined;
 
         let session = Session::new(NewSessionArgs {
             is_host: true,
             local_peer: self.local_peer,
-            remote_peers: peers,
+            remote_peers: Peers::default(),
             project_root: self.project_root,
             replica: self.replica,
             session_id,
-            neovim_ctx: self.starter.ctx.clone(),
+            neovim_ctx: self.starter.ctx,
         });
 
         let status = SessionStatus::InSession(session.project());

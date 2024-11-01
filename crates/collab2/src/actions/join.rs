@@ -371,7 +371,7 @@ impl RunSession {
             project_root: self.project_root,
             replica: self.replica,
             session_id,
-            neovim_ctx: self.joiner.ctx.clone(),
+            neovim_ctx: self.joiner.ctx,
         });
 
         let status = SessionStatus::InSession(session.project());
