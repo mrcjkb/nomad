@@ -1,10 +1,9 @@
 use core::error::Error;
 use core::future::Future;
 
-use e31e::fs::AbsPath;
 use futures_util::Stream;
 
-use crate::DirEntry;
+use crate::{AbsPath, DirEntry};
 
 /// TODO: docs.
 pub trait Fs {

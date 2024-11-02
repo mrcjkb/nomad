@@ -2,9 +2,7 @@ use alloc::borrow::Cow;
 use core::error::Error;
 use core::future::Future;
 
-use e31e::fs::FsNodeName;
-
-use crate::FsNodeKind;
+use crate::{FsNodeKind, FsNodeName};
 
 /// TODO: docs.
 pub trait DirEntry {
