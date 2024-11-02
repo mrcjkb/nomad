@@ -6,7 +6,7 @@ use core::task::{Context, Poll};
 use std::ffi::OsString;
 use std::io;
 
-use futures_util::Stream;
+use futures_util::{ready, Stream};
 
 use crate::{
     AbsPath,
@@ -20,8 +20,13 @@ use crate::{
 /// TODO: docs.
 pub struct OsFs {}
 
-/// TODO: docs.
-pub struct OsReadDir {}
+pin_project_lite::pin_project! {
+    /// TODO: docs.
+    pub struct OsReadDir {
+        #[pin]
+        inner: async_fs::ReadDir,
+    }
+}
 
 /// TODO: docs.
 pub struct OsDirEntry {
@@ -61,7 +66,13 @@ impl Stream for OsReadDir {
         self: Pin<&mut Self>,
         ctx: &mut Context,
     ) -> Poll<Option<Self::Item>> {
-        todo!();
+        match ready!(self.project().inner.poll_next(ctx)) {
+            Some(Ok(entry)) => {
+                Poll::Ready(Some(Ok(OsDirEntry { inner: entry })))
+            },
+            Some(Err(err)) => Poll::Ready(Some(Err(err))),
+            None => Poll::Ready(None),
+        }
     }
 }
 
