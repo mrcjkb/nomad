@@ -18,7 +18,8 @@ use crate::{
 };
 
 /// TODO: docs.
-pub struct OsFs {}
+#[derive(Debug, Default, Copy, Clone)]
+pub struct OsFs;
 
 pin_project_lite::pin_project! {
     /// TODO: docs.
@@ -55,7 +56,9 @@ impl Fs for OsFs {
         &self,
         dir_path: P,
     ) -> Result<Self::ReadDir, Self::ReadDirError> {
-        todo!();
+        async_fs::read_dir(dir_path.as_ref())
+            .await
+            .map(|inner| OsReadDir { inner })
     }
 }
 
