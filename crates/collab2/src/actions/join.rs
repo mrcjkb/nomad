@@ -2,6 +2,7 @@ use std::io;
 use std::rc::Rc;
 
 use collab_server::message::{
+    DirectoryRef,
     FileRef,
     GitHubHandle,
     Message,
@@ -13,7 +14,7 @@ use collab_server::message::{
 use collab_server::AuthInfos;
 use e31e::fs::{AbsPath, AbsPathBuf};
 use e31e::{DirectoryId, Replica};
-use futures_util::{stream, AsyncWriteExt, SinkExt, StreamExt};
+use futures_util::{future, stream, AsyncWriteExt, SinkExt, StreamExt};
 use nomad::ctx::NeovimCtx;
 use nomad::diagnostics::DiagnosticMessage;
 use nomad::{action_name, ActionName, AsyncAction, Shared};
@@ -500,29 +501,25 @@ fn recurse(
     ctx.spawn(|ctx| async move {
         let parent = tree.directory(parent_id);
 
-        // The directories are created sequentially to allow recursion.
-        for dir in parent.directory_children() {
+        let create_directories = parent.directory_children().map(|dir| {
             let mut dir_path = parent_path.clone();
             dir_path.push(dir.name().expect("can't be root"));
-            if let Err(err) = create_directory(&dir_path).await {
-                err_tx.send(err);
-                return;
-            }
-            let tree = Rc::clone(&tree);
-            recurse(tree, dir.id(), dir_path, err_tx.clone(), ctx.reborrow());
-        }
+            let err_tx = err_tx.clone();
+            create_directory(&tree, dir, dir_path, err_tx, ctx.reborrow())
+        });
 
-        // Within a directory, all the files are created concurrently.
-        let mut create_files = parent
-            .file_children()
-            .map(|file| {
-                let mut file_path = parent_path.clone();
-                file_path.push(file.name());
-                create_file(file, file_path)
-            })
+        let create_files = parent.file_children().map(|file| {
+            let mut file_path = parent_path.clone();
+            file_path.push(file.name());
+            create_file(file, file_path)
+        });
+
+        let mut create_children = create_directories
+            .map(future::Either::Left)
+            .chain(create_files.map(future::Either::Right))
             .collect::<stream::FuturesUnordered<_>>();
 
-        while let Some(res) = create_files.next().await {
+        while let Some(res) = create_children.next().await {
             if let Err(err) = res {
                 err_tx.send(err);
                 return;
@@ -551,12 +548,25 @@ async fn create_file(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn create_directory(
-    dir_path: &AbsPath,
+    tree: &Rc<ProjectTree>,
+    dir: DirectoryRef<'_>,
+    dir_path: AbsPathBuf,
+    err_tx: ErrTx,
+    ctx: NeovimCtx<'_>,
 ) -> Result<(), FlushProjectError> {
-    async_fs::create_dir(&dir_path).await.map_err(|err| {
-        FlushProjectError::CreateDir { dir_path: dir_path.to_owned(), err }
-    })
+    match async_fs::create_dir(&dir_path).await {
+        Ok(()) => {
+            recurse(Rc::clone(tree), dir.id(), dir_path, err_tx, ctx);
+            Ok(())
+        },
+
+        Err(err) => Err(FlushProjectError::CreateDir {
+            dir_path: dir_path.to_owned(),
+            err,
+        }),
+    }
 }
 
 impl From<JoinError> for DiagnosticMessage {
