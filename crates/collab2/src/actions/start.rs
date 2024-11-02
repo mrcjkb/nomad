@@ -348,8 +348,7 @@ impl NodeTx {
 
 #[allow(clippy::too_many_lines)]
 fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
-    let ctx_static = ctx.to_static();
-    ctx.spawn(async move {
+    ctx.spawn(|ctx| async move {
         let read_dir = async {
             let mut entries = match async_fs::read_dir(&dir_path).await {
                 Ok(entries) => entries,
@@ -412,11 +411,7 @@ fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
                         len: metadata.len(),
                     }));
                 } else if node_type.is_dir() {
-                    recurse(
-                        dir_path.clone(),
-                        node_tx.clone(),
-                        ctx_static.clone(),
-                    );
+                    recurse(dir_path.clone(), node_tx.clone(), ctx.clone());
                 }
                 dir_path.pop();
             }

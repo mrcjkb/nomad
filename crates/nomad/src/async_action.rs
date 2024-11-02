@@ -40,9 +40,7 @@ impl<'a, T: AsyncAction + Clone> Action<NeovimCtx<'a>> for T {
 
     fn execute(&mut self, args: Self::Args, ctx: NeovimCtx<'a>) {
         let mut this = self.clone();
-        let ctx_static = ctx.to_static();
-        ctx.spawn(async move {
-            let ctx = ctx_static.reborrow();
+        ctx.spawn(|ctx| async move {
             if let Err(message) =
                 this.execute(args, ctx).await.into_result().map_err(Into::into)
             {

@@ -59,12 +59,13 @@ impl<'ctx> NeovimCtx<'ctx> {
     }
 
     /// TODO: docs.
-    pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
+    pub fn spawn<F, Fut>(&self, callback: F) -> JoinHandle<Fut::Output>
     where
-        F: Future + 'static,
-        F::Output: 'static,
+        F: FnOnce(NeovimCtx<'static>) -> Fut,
+        Fut: Future + 'static,
+        Fut::Output: 'static,
     {
-        crate::executor::spawn(future)
+        crate::executor::spawn(callback(self.to_static()))
     }
 
     /// TODO: docs.

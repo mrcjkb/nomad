@@ -323,7 +323,7 @@ impl Session {
         project_request: ProjectRequest,
         message_tx: flume::Sender<Message>,
     ) {
-        self.neovim_ctx.spawn({
+        self.neovim_ctx.spawn(|_| {
             let this = self.clone();
             let respond_to = project_request.request_from;
             async move {
