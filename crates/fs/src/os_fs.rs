@@ -79,6 +79,6 @@ impl DirEntry for OsDirEntry {
     }
 
     async fn node_kind(&self) -> Result<FsNodeKind, Self::NodeKindError> {
-        todo!();
+        self.inner.file_type().await.map(Into::into)
     }
 }

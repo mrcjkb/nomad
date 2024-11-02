@@ -27,3 +27,17 @@ impl FsNodeKind {
         matches!(self, Self::Symlink)
     }
 }
+
+impl From<std::fs::FileType> for FsNodeKind {
+    fn from(file_type: std::fs::FileType) -> Self {
+        if file_type.is_file() {
+            Self::File
+        } else if file_type.is_dir() {
+            Self::Directory
+        } else if file_type.is_symlink() {
+            Self::Symlink
+        } else {
+            unreachable!("unknown file type {file_type:?}")
+        }
+    }
+}
