@@ -107,7 +107,7 @@ struct StartSession {
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum StartError {
     #[error(transparent)]
-    Authenticate(#[from] AuthenticateError),
+    Authenticate(#[from] collab_server::client::AuthError),
 
     #[error(transparent)]
     ConfirmStart(#[from] ConfirmStartError),
@@ -129,12 +129,6 @@ pub(crate) enum StartError {
 
     #[error(transparent)]
     UserBusy(#[from] UserBusyError<true>),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("")]
-pub(crate) struct AuthenticateError {
-    inner: (),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -254,17 +248,15 @@ impl Authenticate {
     async fn authenticate(
         self,
         auth_infos: AuthInfos,
-    ) -> Result<StartSession, AuthenticateError> {
-        self.io
-            .authenticate(auth_infos.clone())
-            .await
-            .map(|authenticated| StartSession {
+    ) -> Result<StartSession, collab_server::client::AuthError> {
+        self.io.authenticate(auth_infos.clone()).await.map(|authenticated| {
+            StartSession {
                 authenticated,
                 auth_infos,
                 project_root: self.project_root,
                 starter: self.starter,
-            })
-            .map_err(|_err| todo!())
+            }
+        })
     }
 }
 

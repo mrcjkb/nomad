@@ -148,7 +148,7 @@ pub(crate) enum JoinError {
     ConnectToServer(#[from] ConnectToServerError),
 
     #[error(transparent)]
-    Authenticate(#[from] AuthenticateError),
+    Authenticate(#[from] collab_server::client::AuthError),
 
     #[error(transparent)]
     JoinSession(#[from] JoinSessionError),
@@ -180,12 +180,6 @@ pub(crate) enum JoinError {
 pub(crate) struct ConnectToServerError {
     #[from]
     inner: io::Error,
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("")]
-pub(crate) struct AuthenticateError {
-    inner: (),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -264,16 +258,10 @@ impl Authenticate {
     async fn authenticate(
         self,
         auth_infos: AuthInfos,
-    ) -> Result<JoinSession, AuthenticateError> {
-        self.io
-            .authenticate(auth_infos.clone())
-            .await
-            .map(|authenticated| JoinSession {
-                authenticated,
-                auth_infos,
-                joiner: self.joiner,
-            })
-            .map_err(|_err| todo!())
+    ) -> Result<JoinSession, collab_server::client::AuthError> {
+        self.io.authenticate(auth_infos.clone()).await.map(|authenticated| {
+            JoinSession { authenticated, auth_infos, joiner: self.joiner }
+        })
     }
 }
 
