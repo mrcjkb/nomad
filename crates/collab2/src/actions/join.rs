@@ -20,7 +20,7 @@ use nomad::diagnostics::DiagnosticMessage;
 use nomad::{action_name, ActionName, AsyncAction, Shared};
 
 use super::UserBusyError;
-use crate::session::{NewSessionArgs, Session};
+use crate::session::{NewSessionArgs, RunSessionError, Session};
 use crate::session_id::SessionId;
 use crate::session_status::SessionStatus;
 use crate::Collab;
@@ -169,7 +169,7 @@ pub(crate) enum JoinError {
     JumpToHost(#[from] JumpToHostError),
 
     #[error(transparent)]
-    RunSession(#[from] RunSessionError),
+    RunSession(#[from] RunSessionError<io::Error, io::Error>),
 
     #[error(transparent)]
     UserBusy(#[from] UserBusyError<false>),
@@ -234,10 +234,6 @@ pub(crate) enum FlushProjectError {
 #[derive(Debug, thiserror::Error)]
 #[error("")]
 pub(crate) struct JumpToHostError;
-
-#[derive(Debug, thiserror::Error)]
-#[error("")]
-pub(crate) struct RunSessionError;
 
 impl Joiner {
     fn new(
@@ -441,7 +437,9 @@ impl JumpToHost {
 }
 
 impl RunSession {
-    async fn run_session(self) -> Result<RemoveProjectRoot, RunSessionError> {
+    async fn run_session(
+        self,
+    ) -> Result<RemoveProjectRoot, RunSessionError<io::Error, io::Error>> {
         let collab_server::client::Joined {
             sender: tx,
             receiver: rx,
@@ -463,7 +461,7 @@ impl RunSession {
         self.joiner.session_status.set(status);
 
         let rx = stream::iter(self.buffered.into_iter().map(Ok)).chain(rx);
-        session.run(tx, rx).await.map_err(|_err| todo!())?;
+        session.run(tx, rx).await?;
 
         Ok(RemoveProjectRoot { project_root: self.project_root })
     }
@@ -576,7 +574,9 @@ async fn create_directory(
 }
 
 impl From<JoinError> for DiagnosticMessage {
-    fn from(_err: JoinError) -> Self {
-        todo!();
+    fn from(err: JoinError) -> Self {
+        let mut message = Self::new();
+        message.push_str(err.to_string());
+        message
     }
 }

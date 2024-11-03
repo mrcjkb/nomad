@@ -365,8 +365,11 @@ impl Session {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum RunSessionError<TxErr, RxErr> {
+    #[error("failed to send message: {0}")]
     Send(TxErr),
+    #[error("failed to receive message: {0}")]
     Receive(RxErr),
 }
 

@@ -13,7 +13,7 @@ use nomad::{action_name, ActionName, AsyncAction, Shared};
 use root_finder::markers;
 
 use super::UserBusyError;
-use crate::session::{NewSessionArgs, Session};
+use crate::session::{NewSessionArgs, RunSessionError, Session};
 use crate::session_status::SessionStatus;
 use crate::Collab;
 
@@ -122,7 +122,7 @@ pub(crate) enum StartError {
     ReadReplica(#[from] ReadReplicaError),
 
     #[error(transparent)]
-    RunSession(#[from] RunSessionError),
+    RunSession(#[from] RunSessionError<io::Error, io::Error>),
 
     #[error(transparent)]
     StartSession(#[from] StartSessionError),
@@ -189,10 +189,6 @@ pub(crate) struct StartSessionError {
     #[from]
     inner: collab_server::client::JoinError,
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error("")]
-pub(crate) struct RunSessionError;
 
 impl Starter {
     fn new(
@@ -337,7 +333,9 @@ impl ReadReplica {
 }
 
 impl RunSession {
-    async fn run_session(self) -> Result<(), RunSessionError> {
+    async fn run_session(
+        self,
+    ) -> Result<(), RunSessionError<io::Error, io::Error>> {
         let collab_server::client::Joined {
             sender,
             receiver,
@@ -357,7 +355,7 @@ impl RunSession {
 
         let status = SessionStatus::InSession(session.project());
         self.starter.session_status.set(status);
-        session.run(sender, receiver).await.map_err(|_err| todo!())
+        session.run(sender, receiver).await
     }
 }
 
@@ -460,7 +458,9 @@ fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
 }
 
 impl From<StartError> for DiagnosticMessage {
-    fn from(_err: StartError) -> Self {
-        todo!();
+    fn from(err: StartError) -> Self {
+        let mut message = Self::new();
+        message.push_str(err.to_string());
+        message
     }
 }
