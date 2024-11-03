@@ -5,6 +5,11 @@ use core::ops::{Add, AddAssign, Sub, SubAssign};
 pub struct ByteOffset(usize);
 
 impl ByteOffset {
+    /// Converts the [`ByteOffset`] into a `u64`.
+    pub fn into_u64(self) -> u64 {
+        self.0.try_into().expect("too big to fail")
+    }
+
     #[inline]
     pub(crate) fn new(offset: usize) -> Self {
         Self(offset)
@@ -65,6 +70,13 @@ impl From<usize> for ByteOffset {
     #[inline]
     fn from(offset: usize) -> Self {
         Self::new(offset)
+    }
+}
+
+impl From<u64> for ByteOffset {
+    #[inline]
+    fn from(offset: u64) -> Self {
+        Self::new(offset.try_into().expect("too big to fail"))
     }
 }
 

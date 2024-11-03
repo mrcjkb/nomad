@@ -1,13 +1,16 @@
+//! TODO: docs.
+
 use nohash::IntMap as NoHashMap;
 use nvim_oxi::api::opts;
 
 use crate::autocmd::ShouldDetach;
 use crate::buffer_id::BufferId;
-use crate::ctx::{NeovimCtx, TextBufferCtx};
+use crate::ctx::{BufferCtx, NeovimCtx, TextBufferCtx};
 use crate::diagnostics::{DiagnosticSource, Level};
 use crate::maybe_result::MaybeResult;
 use crate::{Action, ActorId, Event, Module, Replacement};
 
+/// TODO: docs.
 pub struct BufAttach<A> {
     action: A,
 }
@@ -34,20 +37,25 @@ type BufAttachCallback = Box<dyn FnMut(BufAttachArgs) -> ShouldDetach>;
 
 impl<A> BufAttach<A>
 where
-    A: Action,
-    A::Args: From<BufAttachArgs>,
-    A::Return: Into<ShouldDetach>,
+    A: for<'ctx> Action<
+        BufferCtx<'ctx>,
+        Args: From<BufAttachArgs>,
+        Return: Into<ShouldDetach>,
+    >,
 {
-    pub(crate) fn new(action: A) -> Self {
+    /// Creates a new [`BufAttach`] event with the given action.
+    pub fn new(action: A) -> Self {
         Self { action }
     }
 }
 
 impl<A> Event for BufAttach<A>
 where
-    A: Action,
-    A::Args: From<BufAttachArgs>,
-    A::Return: Into<ShouldDetach>,
+    A: for<'ctx> Action<
+        BufferCtx<'ctx>,
+        Args: From<BufAttachArgs>,
+        Return: Into<ShouldDetach>,
+    >,
 {
     type Ctx<'a> = TextBufferCtx<'a>;
 
@@ -66,22 +74,31 @@ impl BufAttachMap {
         mut action: A,
         ctx: NeovimCtx<'static>,
     ) where
-        A: Action,
-        A::Args: From<BufAttachArgs>,
-        A::Return: Into<ShouldDetach>,
+        A: for<'ctx> Action<
+            BufferCtx<'ctx>,
+            Args: From<BufAttachArgs>,
+            Return: Into<ShouldDetach>,
+        >,
     {
-        let callback = move |buf_attach_args: BufAttachArgs| {
-            let args = buf_attach_args.into();
-            match action.execute(args).into_result() {
-                Ok(res) => res.into(),
-                Err(err) => {
-                    let mut source = DiagnosticSource::new();
-                    source
-                        .push_segment(<A::Module as Module>::NAME.as_str())
-                        .push_segment(A::NAME.as_str());
-                    err.into().emit(Level::Error, source);
-                    ShouldDetach::Yes
-                },
+        let callback = {
+            let ctx = ctx.clone();
+            move |buf_attach_args: BufAttachArgs| {
+                let buffer_ctx = ctx
+                    .reborrow()
+                    .into_buffer(buf_attach_args.buffer_id)
+                    .expect("`buffer_id` is valid");
+                let args = buf_attach_args.into();
+                match action.execute(args, buffer_ctx).into_result() {
+                    Ok(res) => res.into(),
+                    Err(err) => {
+                        let mut source = DiagnosticSource::new();
+                        source
+                            .push_segment(<A::Module as Module>::NAME.as_str())
+                            .push_segment(A::NAME.as_str());
+                        err.into().emit(Level::Error, source);
+                        ShouldDetach::Yes
+                    },
+                }
             }
         };
 

@@ -1,11 +1,4 @@
-use collab_fs::AbsUtf8PathBuf;
-
-#[derive(Debug, Default, Clone, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct Config {}
-
-impl Config {
-    pub(crate) fn nomad_dir(&self) -> AbsUtf8PathBuf {
-        todo!();
-    }
-}

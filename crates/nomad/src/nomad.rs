@@ -1,7 +1,7 @@
 use core::future::Future;
 use core::pin::Pin;
 
-use collab_fs::AbsUtf8PathBuf;
+use e31e::fs::{AbsPathBuf, FsNodeName};
 use nvim_oxi::{lua, Dictionary as NvimDictionary, Function as NvimFunction};
 
 use crate::config::Setup;
@@ -29,6 +29,9 @@ impl Nomad {
 
     /// TODO: docs.
     pub(crate) const DIAGNOSTICS_SEGMENT_NAME: &'static str = "nomad";
+
+    /// TODO: docs.
+    pub(crate) const NAMESPACE_NAME: &'static str = "nomad-namespace";
 
     /// TODO: docs.
     pub fn new() -> Self {
@@ -62,21 +65,21 @@ impl Nomad {
         self
     }
 
-    pub(crate) fn log_dir(&self) -> AbsUtf8PathBuf {
+    pub(crate) fn log_dir(&self) -> AbsPathBuf {
         #[cfg(target_family = "unix")]
         {
-            let mut home = match home::home_dir() {
+            let mut home: AbsPathBuf = match home::home_dir() {
                 Some(home) if !home.as_os_str().is_empty() => {
-                    AbsUtf8PathBuf::from_path_buf(home)
-                        .expect("home is absolute")
+                    AbsPathBuf::root()
+                    // AbsPathBuf::from_path_buf(home).expect("home is absolute")
                 },
                 _ => panic!("failed to get the home directory"),
             };
-            home.push(".local");
-            home.push("share");
-            home.push("nvim");
-            home.push("nomad");
-            home.push("logs");
+            home.push(<&FsNodeName>::try_from(".local").expect("it's valid"))
+                .push(<&FsNodeName>::try_from("share").expect("it's valid"))
+                .push(<&FsNodeName>::try_from("nvim").expect("it's valid"))
+                .push(<&FsNodeName>::try_from("nomad").expect("it's valid"))
+                .push(<&FsNodeName>::try_from("logs").expect("it's valid"));
             home
         }
         #[cfg(not(target_family = "unix"))]

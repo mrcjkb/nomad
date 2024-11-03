@@ -1,6 +1,4 @@
-use std::io;
-
-use collab_fs::{AbsUtf8Path, Fs};
+use fs::{FsNodeKind, FsNodeName};
 
 use crate::Marker;
 
@@ -12,14 +10,11 @@ impl Git {
 }
 
 impl Marker for Git {
-    async fn matches<F: Fs>(
+    fn matches(
         &self,
-        path: &AbsUtf8Path,
-        metadata: &F::Metadata,
-        fs: &F,
-    ) -> io::Result<bool> {
-        let is_dir = fs.is_dir(&metadata).await?;
-        let file_name = path.file_name().expect("matches called on root dir");
-        Ok(is_dir && file_name == Self::GIT_DIR)
+        fs_node_name: &FsNodeName,
+        fs_node_kind: FsNodeKind,
+    ) -> bool {
+        fs_node_kind.is_directory() && fs_node_name.as_str() == Self::GIT_DIR
     }
 }

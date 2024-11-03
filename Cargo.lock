@@ -204,12 +204,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "camino"
-version = "1.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b96ec4966b5813e2c0507c1f86115c8c5abaadc3980879c3424042a02fd1ad3"
-
-[[package]]
 name = "castaway"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -260,23 +254,26 @@ dependencies = [
 
 [[package]]
 name = "cola"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfcfa9fc043c91fca3d7859d82ec683762037c500f029740e53849e5a1e80841"
+checksum = "b5c84fcb0382e4312b48cf9d07fe4280fc162a2bb25def79af73634971deeac3"
 dependencies = [
  "serde",
  "sha2",
+ "varint-simd",
 ]
 
 [[package]]
 name = "collab"
 version = "0.1.0"
 dependencies = [
- "collab-fs",
- "collab-messaging",
- "collab-project",
- "collab-server",
+ "async-fs",
+ "async-recursion",
+ "e31e",
+ "flume",
+ "fs",
  "futures-util",
+ "fxhash",
  "nohash",
  "nomad",
  "nomad-server",
@@ -285,26 +282,27 @@ dependencies = [
  "serde",
  "smallvec",
  "smol_str",
+ "thiserror",
  "tracing",
 ]
 
 [[package]]
-name = "collab-fs"
+name = "collab-message"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#68ecf61504d6ae5d8684824f90b827ccafdb7f19"
+source = "git+ssh://git@github.com/nomad/collab.git#20f6d89645b0388bbdecb6caec5673c249531ffc"
 dependencies = [
- "async-fs",
- "camino",
+ "e31e",
  "futures-util",
+ "fxhash",
  "serde",
+ "smallvec",
  "smol_str",
- "time",
 ]
 
 [[package]]
-name = "collab-messaging"
+name = "collab-protocol"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#68ecf61504d6ae5d8684824f90b827ccafdb7f19"
+source = "git+ssh://git@github.com/nomad/collab.git#20f6d89645b0388bbdecb6caec5673c249531ffc"
 dependencies = [
  "bincode",
  "bytes",
@@ -318,28 +316,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "collab-project"
-version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#68ecf61504d6ae5d8684824f90b827ccafdb7f19"
-dependencies = [
- "async-recursion",
- "cola",
- "collab-fs",
- "futures-util",
- "fxhash",
- "nohash",
- "serde",
- "smallvec",
- "smol_str",
-]
-
-[[package]]
 name = "collab-server"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#68ecf61504d6ae5d8684824f90b827ccafdb7f19"
+source = "git+ssh://git@github.com/nomad/collab.git#20f6d89645b0388bbdecb6caec5673c249531ffc"
 dependencies = [
  "async-channel",
- "collab-messaging",
+ "collab-protocol",
  "futures",
  "nohash",
  "pin-project-lite",
@@ -458,6 +440,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
+name = "e31e"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/e31e.git#c982ef4f392ed9c0c3e8e86351a9bed0f44635f4"
+dependencies = [
+ "cola",
+ "compact_str",
+ "fxhash",
+ "nohash",
+ "serde",
+ "smallvec",
+ "smol_str",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -504,6 +500,17 @@ dependencies = [
  "futures-sink",
  "nanorand",
  "spin",
+]
+
+[[package]]
+name = "fs"
+version = "0.1.0"
+dependencies = [
+ "async-fs",
+ "e31e",
+ "futures-util",
+ "pin-project-lite",
+ "thiserror",
 ]
 
 [[package]]
@@ -725,7 +732,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -795,9 +802,9 @@ version = "0.1.0"
 dependencies = [
  "async-broadcast",
  "async-task",
- "collab-fs",
  "compact_str",
  "concurrent-queue",
+ "e31e",
  "flume",
  "futures-util",
  "fxhash",
@@ -837,11 +844,11 @@ dependencies = [
 [[package]]
 name = "nomad-server"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#68ecf61504d6ae5d8684824f90b827ccafdb7f19"
+source = "git+ssh://git@github.com/nomad/collab.git#20f6d89645b0388bbdecb6caec5673c249531ffc"
 dependencies = [
  "async-net",
- "collab-messaging",
- "collab-project",
+ "collab-message",
+ "collab-protocol",
  "collab-server",
  "futures-rustls",
  "futures-util",
@@ -1116,7 +1123,7 @@ dependencies = [
 name = "root-finder"
 version = "0.1.0"
 dependencies = [
- "collab-fs",
+ "fs",
  "futures-util",
 ]
 
@@ -1284,6 +1291,9 @@ name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smithay-client-toolkit"

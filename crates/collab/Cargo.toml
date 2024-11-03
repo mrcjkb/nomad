@@ -7,19 +7,22 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-collab-fs = { git = "ssh://git@github.com/nomad/collab.git" }
-collab-messaging = { git = "ssh://git@github.com/nomad/collab.git" }
-collab-project = { git = "ssh://git@github.com/nomad/collab.git" }
-collab-server = { git = "ssh://git@github.com/nomad/collab.git" }
+async-fs = { workspace = true }
+async-recursion = "1"
+collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = ["client"], package = "nomad-server" }
+e31e = { workspace = true }
+flume = { workspace = true }
+fs = { workspace = true }
 futures-util = { workspace = true }
+fxhash = { workspace = true }
 nohash = { workspace = true }
 nomad = { workspace = true }
-nomad-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = ["client"] }
 pin-project-lite = { workspace = true }
 root-finder = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 smallvec = { workspace = true }
 smol_str = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [lints]

@@ -14,7 +14,7 @@ pub trait Module: 'static + From<ConfigReceiver<Self>> {
     const NAME: ModuleName;
 
     /// TODO: docs.
-    type Config: Default + Clone + DeserializeOwned;
+    type Config: Default + DeserializeOwned;
 
     /// TODO: docs.
     fn init(&self, ctx: NeovimCtx<'_>) -> ModuleApi<Self>;

@@ -1,79 +1,47 @@
-use futures_util::{select, FutureExt, Stream, StreamExt};
-use nomad::{
-    module_name,
-    Context,
-    Editor,
-    Event,
-    JoinHandle,
-    Module,
-    ModuleName,
-    Spawner,
-    Subscription,
-};
+use nomad::config::ConfigReceiver;
+use nomad::ctx::NeovimCtx;
+use nomad::{module_name, Module, ModuleApi, ModuleName, Shared};
 
-use crate::{CollabEditor, Config, Session, SessionId};
+use crate::actions::{Join, Start};
+use crate::config::Config;
+use crate::session_status::SessionStatus;
 
 /// TODO: docs.
-pub(crate) struct Collab<E: CollabEditor> {
-    pub(crate) ctx: Context<E>,
-    pub(crate) config: Config,
-    pub(crate) config_stream: E::ConfigStream,
-    pub(crate) join_stream: E::JoinStream,
-    pub(crate) start_stream: E::StartStream,
+pub struct Collab {
+    config: Config,
+    config_rx: ConfigReceiver<Self>,
+    session_status: Shared<SessionStatus>,
 }
 
-impl<E: CollabEditor> Collab<E> {
-    pub(crate) async fn run(&mut self) {
+impl Module for Collab {
+    const NAME: ModuleName = module_name!("collab");
+
+    type Config = Config;
+
+    fn init(&self, ctx: NeovimCtx<'_>) -> ModuleApi<Self> {
+        let join = Join::new(self.session_status.clone());
+        let start = Start::new(self.session_status.clone());
+
+        ModuleApi::new(ctx.to_static())
+            .command(join.clone())
+            .command(start.clone())
+            .function(join)
+            .function(start)
+    }
+
+    async fn run(mut self, _: NeovimCtx<'static>) {
         loop {
-            select! {
-                _ = self.start_stream.next().fuse() => self.start_session(),
-                session_id = self.join_stream.next().fuse() => {
-                    let session_id = session_id.expect("never ends");
-                    self.join_session(session_id)
-                },
-            }
+            self.config = self.config_rx.recv().await;
         }
     }
+}
 
-    fn join_session(&self, id: SessionId) {
-        let ctx = self.ctx.clone();
-        let config = self.config.clone();
-
-        let fut = async move {
-            let session = match Session::join(id, config, ctx).await {
-                Ok(session) => session,
-                Err(err) => {
-                    println!("{err:?}");
-                    return;
-                },
-            };
-
-            if let Err(err) = session.run().await {
-                println!("{err:?}");
-            }
-        };
-
-        // self.ctx.spawner().spawn(fut).detach();
-    }
-
-    fn start_session(&self) {
-        let ctx = self.ctx.clone();
-        let config = self.config.clone();
-
-        let fut = async move {
-            let session = match Session::start(config, ctx).await {
-                Ok(session) => session,
-                Err(err) => {
-                    println!("{err:?}");
-                    return;
-                },
-            };
-
-            if let Err(err) = session.run().await {
-                println!("{err:?}");
-            }
-        };
-
-        // self.ctx.spawner().spawn(fut).detach();
+impl From<ConfigReceiver<Self>> for Collab {
+    fn from(config_rx: ConfigReceiver<Self>) -> Self {
+        Self {
+            config: Config::default(),
+            config_rx,
+            session_status: Shared::default(),
+        }
     }
 }

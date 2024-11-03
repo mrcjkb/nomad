@@ -1,3 +1,5 @@
+use core::ops::Deref;
+
 use nvim_oxi::api::types;
 
 use crate::actor_map::ActorMap;
@@ -17,14 +19,9 @@ impl<'ctx> AutoCommandCtx<'ctx> {
         &self.args
     }
 
-    /// Re-borrows `self`, returning a new [`AutoCommandCtx`] with a shorter
-    /// lifetime.
-    pub fn as_ref(&self) -> AutoCommandCtx<'_> {
-        AutoCommandCtx {
-            args: self.args.clone(),
-            event: self.event,
-            neovim_ctx: self.neovim_ctx.clone(),
-        }
+    /// TODO: docs.
+    pub fn as_neovim(&self) -> &NeovimCtx<'_> {
+        &self.neovim_ctx
     }
 
     /// Returns the event that triggered the autocmd.
@@ -52,5 +49,13 @@ impl<'ctx> AutoCommandCtx<'ctx> {
         neovim_ctx: NeovimCtx<'ctx>,
     ) -> Self {
         Self { args, event, neovim_ctx }
+    }
+}
+
+impl<'ctx> Deref for AutoCommandCtx<'ctx> {
+    type Target = NeovimCtx<'ctx>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.neovim_ctx
     }
 }

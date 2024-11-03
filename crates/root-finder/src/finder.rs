@@ -1,33 +1,37 @@
-use std::io;
-
-use collab_fs::{AbsUtf8Path, AbsUtf8PathBuf, Fs};
+use fs::{AbsPath, AbsPathBuf, DirEntry};
 use futures_util::{pin_mut, StreamExt};
 
-use crate::Marker;
+use crate::{FindRootError, Marker};
 
 /// TODO: docs.
-pub struct Finder;
+pub struct Finder<Fs> {
+    fs: Fs,
+}
 
-impl Finder {
+impl<Fs: fs::Fs> Finder<Fs> {
     /// TODO: docs.
-    pub async fn find_root<T: Marker, F: Fs>(
-        start_from: &AbsUtf8Path,
-        marker: &T,
-        fs: &F,
-    ) -> io::Result<Option<AbsUtf8PathBuf>> {
+    pub async fn find_root<P, M>(
+        &self,
+        start_from: P,
+        marker: M,
+    ) -> Result<Option<AbsPathBuf>, FindRootError<Fs>>
+    where
+        P: AsRef<AbsPath>,
+        M: Marker,
+    {
+        let start_from = start_from.as_ref();
+
         let mut dir = match start_from.parent() {
             Some(dir) => dir.to_owned(),
             None => {
-                let root = AbsUtf8PathBuf::root();
-                debug_assert_eq!(start_from, &*root);
-                return contains_marker(&root, marker, fs)
+                return contains_marker(AbsPath::root(), &marker, &self.fs)
                     .await
-                    .map(|contains| contains.then_some(root));
+                    .map(|contains| contains.then(AbsPathBuf::root));
             },
         };
 
         loop {
-            if contains_marker(&dir, marker, fs).await? {
+            if contains_marker(&dir, &marker, &self.fs).await? {
                 return Ok(Some(dir));
             }
             if !dir.pop() {
@@ -35,25 +39,44 @@ impl Finder {
             }
         }
     }
+
+    /// TODO: docs.
+    pub fn new(fs: Fs) -> Self {
+        Self { fs }
+    }
 }
 
-async fn contains_marker(
-    dir: &AbsUtf8Path,
+async fn contains_marker<Fs: fs::Fs>(
+    dir_path: &AbsPath,
     marker: &impl Marker,
-    fs: &impl Fs,
-) -> io::Result<bool> {
-    let entries = fs.read_dir(dir).await?;
+    fs: &Fs,
+) -> Result<bool, FindRootError<Fs>> {
+    let entries = fs.read_dir(dir_path).await.map_err(|err| {
+        FindRootError::ReadDir { dir_path: dir_path.to_owned(), err }
+    })?;
     pin_mut!(entries);
 
-    let mut path = dir.to_owned();
-    while let Some(entry) = entries.next().await {
-        let file_name = fs.file_name(&entry).await?;
-        path.push(file_name.as_str());
-        let metadata = fs.metadata(&entry).await?;
-        if marker.matches(&path, &metadata, fs).await? {
+    while let Some(res) = entries.next().await {
+        let entry = res.map_err(|err| FindRootError::DirEntry {
+            parent_path: dir_path.to_owned(),
+            err,
+        })?;
+
+        let fs_node_name =
+            entry.name().await.map_err(|err| FindRootError::DirEntryName {
+                parent_path: dir_path.to_owned(),
+                err,
+            })?;
+
+        let fs_node_kind = entry.node_kind().await.map_err(|err| {
+            let mut entry_path = dir_path.to_owned();
+            entry_path.push(&*fs_node_name);
+            FindRootError::DirEntryNodeKind { entry_path, err }
+        })?;
+
+        if marker.matches(&*fs_node_name, fs_node_kind) {
             return Ok(true);
         }
-        path.pop();
     }
 
     Ok(false)

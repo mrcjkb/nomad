@@ -1,10 +1,9 @@
-use core::ops::{Bound, Deref, Range, RangeBounds};
+use core::ops::{Deref, Range, RangeBounds};
 
 use nvim_oxi::api::{self, opts};
 
 use crate::autocmd::ShouldDetach;
 use crate::buf_attach::{BufAttach, BufAttachArgs};
-use crate::buffer_id::BufferId;
 use crate::ctx::{BufferCtx, TextFileCtx};
 use crate::point::Point;
 use crate::{Action, ActorId, ByteOffset, Event, Text};
@@ -20,9 +19,11 @@ impl<'ctx> TextBufferCtx<'ctx> {
     /// TODO: docs.
     pub fn attach<A>(&self, action: A)
     where
-        A: Action,
-        A::Args: From<BufAttachArgs>,
-        A::Return: Into<ShouldDetach>,
+        A: for<'a> Action<
+            BufferCtx<'a>,
+            Args: From<BufAttachArgs>,
+            Return: Into<ShouldDetach>,
+        >,
     {
         BufAttach::new(action).register(self.reborrow());
     }
@@ -36,7 +37,7 @@ impl<'ctx> TextBufferCtx<'ctx> {
     where
         R: RangeBounds<ByteOffset>,
     {
-        let point_range = self.point_range_of_byte_range(byte_range);
+        let point_range = self.point_range_of_byte_range(&byte_range);
         self.get_text_in_point_range(point_range)
     }
 
@@ -64,12 +65,12 @@ impl<'ctx> TextBufferCtx<'ctx> {
     pub fn replace_text<R>(
         &self,
         delete_range: R,
-        insert_text: Text,
+        insert_text: &Text,
         actor_id: ActorId,
     ) where
         R: RangeBounds<ByteOffset>,
     {
-        let point_range = self.point_range_of_byte_range(delete_range);
+        let point_range = self.point_range_of_byte_range(&delete_range);
         self.replace_text_in_point_range(point_range, insert_text.as_str());
         self.with_actor_map(|map| {
             map.edited_buffer(self.buffer_id(), actor_id);
@@ -144,80 +145,6 @@ impl<'ctx> TextBufferCtx<'ctx> {
         // SAFETY: `TextBufferCtx` is a `repr(transparent)` newtype over
         // `BufferCtx`.
         unsafe { &*(ctx as *const BufferCtx<'ctx> as *const Self) }
-    }
-
-    /// Converts the given [`ByteOffset`] to the corresponding [`Point`] in the
-    /// buffer.
-    #[track_caller]
-    fn point_of_byte_offset(&self, byte_offset: ByteOffset) -> Point {
-        let nvim_buf = self.buffer_id().as_nvim();
-
-        let line_idx = nvim_buf
-            .call(move |_| {
-                api::call_function::<_, usize>("byte2line", (byte_offset,))
-                    .expect("args are valid")
-            })
-            .expect("todo");
-
-        let line_byte_offset = nvim_buf.get_offset(line_idx).expect("todo");
-
-        Point { line_idx, byte_offset: byte_offset - line_byte_offset }
-    }
-
-    /// Returns the [`Point`] at the end of the buffer.
-    fn point_of_eof(&self) -> Point {
-        fn point_of_eof(buffer: &BufferId) -> Result<Point, api::Error> {
-            let nvim_buf = buffer.as_nvim();
-
-            let num_lines = nvim_buf.line_count()?;
-
-            if num_lines == 0 {
-                return Ok(Point::zero());
-            }
-
-            let last_line_len = nvim_buf.get_offset(num_lines)?
-            // `get_offset(line_count)` seems to always include the trailing
-            // newline, even when `eol` is turned off.
-            //
-            // TODO: shouldn't we only correct this is `eol` is turned off?
-            - 1
-            - nvim_buf.get_offset(num_lines - 1)?;
-
-            Ok(Point {
-                line_idx: num_lines - 1,
-                byte_offset: ByteOffset::new(last_line_len),
-            })
-        }
-
-        let buffer_id = self.buffer_id();
-
-        match point_of_eof(&buffer_id) {
-            Ok(point) => point,
-            Err(_) => panic!("{buffer_id:?} has been deleted"),
-        }
-    }
-
-    /// Converts the given byte range into the corresponding point range in the
-    /// buffer.
-    #[track_caller]
-    fn point_range_of_byte_range<R>(&self, byte_range: R) -> Range<Point>
-    where
-        R: RangeBounds<ByteOffset>,
-    {
-        let start = match byte_range.start_bound() {
-            Bound::Excluded(&start) | Bound::Included(&start) => {
-                self.point_of_byte_offset(start)
-            },
-            Bound::Unbounded => Point::zero(),
-        };
-
-        let end = match byte_range.end_bound() {
-            Bound::Excluded(&end) => self.point_of_byte_offset(end),
-            Bound::Included(&end) => self.point_of_byte_offset(end + 1),
-            Bound::Unbounded => self.point_of_eof(),
-        };
-
-        start..end
     }
 
     /// Replaces the text in the given point range with the given text.

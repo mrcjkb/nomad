@@ -10,7 +10,6 @@ use crate::{Command, Event, Function, Module};
 pub struct ModuleApi<M: Module> {
     pub(crate) dictionary: NvimDictionary,
     pub(crate) commands: ModuleCommands,
-    neovim_ctx: NeovimCtx<'static>,
     ty: PhantomData<M>,
 }
 
@@ -25,11 +24,20 @@ impl<M: Module> ModuleApi<M> {
     }
 
     /// TODO: docs.
+    pub fn default_command<T>(mut self, command: T) -> Self
+    where
+        T: Command<Module = M>,
+    {
+        self.commands.add_default_command(command);
+        self
+    }
+
+    /// TODO: docs.
     pub fn event<T>(self, event: T) -> Self
     where
         T: for<'a> Event<Ctx<'a> = NeovimCtx<'a>>,
     {
-        event.register(self.neovim_ctx.reborrow());
+        event.register(self.neovim_ctx());
         self
     }
 
@@ -46,9 +54,13 @@ impl<M: Module> ModuleApi<M> {
                 M::NAME,
             );
         }
+        let ctx = self.neovim_ctx().to_static();
+        let mut callback = function.into_callback();
         self.dictionary.insert(
             T::NAME.as_str(),
-            NvimFunction::from_fn_mut(function.into_callback()),
+            NvimFunction::from_fn_mut(move |obj| {
+                callback(obj, ctx.reborrow())
+            }),
         );
         self
     }
@@ -57,9 +69,12 @@ impl<M: Module> ModuleApi<M> {
     pub fn new(neovim_ctx: NeovimCtx<'static>) -> Self {
         Self {
             dictionary: NvimDictionary::default(),
-            commands: ModuleCommands::new::<M>(),
-            neovim_ctx,
+            commands: ModuleCommands::new::<M>(neovim_ctx),
             ty: PhantomData,
         }
+    }
+
+    fn neovim_ctx(&self) -> NeovimCtx<'_> {
+        self.commands.neovim_ctx.reborrow()
     }
 }

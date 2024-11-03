@@ -1,12 +1,13 @@
 use core::ops::Deref;
-use std::path::PathBuf;
+
+use e31e::fs::{AbsPath, AbsPathBuf};
 
 use crate::ctx::{BufferCtx, TextFileCtx};
 
 /// TODO: docs.
 #[derive(Clone)]
 pub struct FileCtx<'ctx> {
-    pub(super) file_path: PathBuf,
+    pub(super) file_path: AbsPathBuf,
     pub(super) buffer_ctx: BufferCtx<'ctx>,
 }
 
@@ -22,10 +23,17 @@ impl<'ctx> FileCtx<'ctx> {
         TextFileCtx::from_file(self)
     }
 
+    /// Returns the absolute path to the file.
+    pub fn path(&self) -> &AbsPath {
+        &self.file_path
+    }
+
     pub(crate) fn from_buffer(buffer_ctx: BufferCtx<'ctx>) -> Option<Self> {
         let buffer_name = buffer_ctx.name();
-        let file_path = buffer_name.parse::<PathBuf>().ok()?;
-        file_path.exists().then_some(Self { file_path, buffer_ctx })
+        let file_path = buffer_name.parse::<AbsPathBuf>().ok()?;
+        std::fs::metadata(&file_path)
+            .is_ok()
+            .then_some(Self { file_path, buffer_ctx })
     }
 }
 
