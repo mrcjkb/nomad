@@ -227,23 +227,45 @@ impl Project {
     }
 
     pub(super) fn integrate_peer_joined(&mut self, peer: Peer) {
+        let peer_ref = self.replica.peer(peer.id());
+
+        for cursor in peer_ref.cursors() {
+            if let Some(buffer) = self.buffer_of_file_id(cursor.file().id()) {
+                let tooltip = PeerTooltip::create(
+                    peer.clone(),
+                    cursor.byte_offset().into(),
+                    buffer,
+                );
+                self.remote_tooltips.insert(cursor.id(), tooltip);
+            };
+        }
+
+        for selection in peer_ref.selections() {
+            if let Some(buffer) = self.buffer_of_file_id(selection.file().id())
+            {
+                let selection_range = {
+                    let r = selection.byte_range();
+                    r.start.into()..r.end.into()
+                };
+                let peer_selection =
+                    PeerSelection::create(selection_range, buffer);
+                self.remote_selections.insert(selection.id(), peer_selection);
+            }
+        }
+
         assert_ne!(peer.id(), self.replica.id());
         assert!(self.remote_peers.insert(peer.id(), peer).is_none());
-        // TODO: display backlogged cursors and selections.
-        //
-        // let peer = self.replica.peer();
-        //
-        // for cursor in peer.cursors() {
-        //     let Some(buffer) = self.buffer_of_file_id(cursor.file().id());
-        //     let tooltip = PeerTooltip::create(peer.clone() cursor.offset(), buffer);
-        //     self.remote_tooltips.insert(cursor_id, peer_tooltip);
-        // }
     }
 
     pub(super) fn integrate_peer_left(&mut self, peer_id: PeerId) {
-        // TODO: allow the Replica to remove all cursors and selections owned by
-        // the peer.
-        todo!();
+        let annotations = self.replica.integrate_peer_disconnection(peer_id);
+
+        for cursor_id in annotations.cursors() {
+            let _ = self.remote_tooltips.remove(cursor_id);
+        }
+        for selection_id in annotations.selections() {
+            let _ = self.remote_selections.remove(selection_id);
+        }
     }
 
     pub(super) fn integrate_selection_creation(
