@@ -87,8 +87,24 @@ pub(crate) struct NewSessionArgs {
 }
 
 impl Session {
-    pub(crate) fn new(_args: NewSessionArgs) -> Self {
-        todo!();
+    pub(crate) fn new(args: NewSessionArgs) -> Self {
+        let project = Project {
+            actor_id: args.neovim_ctx.next_actor_id(),
+            buffer_actions: Default::default(),
+            local_cursor_id: None,
+            local_peer: args.local_peer,
+            neovim_ctx: args.neovim_ctx.clone(),
+            project_root: args.project_root,
+            remote_peers: args
+                .remote_peers
+                .into_iter()
+                .map(|peer| (peer.id(), peer))
+                .collect(),
+            remote_selections: Default::default(),
+            remote_tooltips: Default::default(),
+            replica: args.replica,
+        };
+        Self { neovim_ctx: args.neovim_ctx, project: Shared::new(project) }
     }
 
     pub(crate) fn project(&self) -> Shared<Project> {
