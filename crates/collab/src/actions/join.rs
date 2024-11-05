@@ -375,7 +375,7 @@ impl FlushProject {
         })?;
 
         let (err_tx, err_rx) = flume::unbounded();
-        let tree = self.project.tree;
+        let tree = self.project.tree.decode(self.local_peer.id());
         let root_id = tree.root().id();
         let tree = Rc::new(tree);
         recurse(
@@ -395,15 +395,13 @@ impl FlushProject {
             },
         };
 
-        let local_peer_id = self.local_peer.id();
-
         Ok(JumpToHost {
             buffered: self.buffered,
             joined: self.joined,
             local_peer: self.local_peer,
             project_root: self.project_root,
             remote_peers: self.project.peers,
-            replica: tree.into_replica(local_peer_id),
+            replica: tree.into_replica(),
             joiner: self.joiner,
         })
     }
@@ -490,7 +488,7 @@ fn recurse(
     }
 
     ctx.spawn(|ctx| async move {
-        let parent = tree.directory(parent_id);
+        let parent = tree.directory(parent_id).expect("ID is valid");
 
         let create_directories = parent.directory_children().map(|dir| {
             let mut dir_path = parent_path.clone();

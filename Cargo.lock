@@ -254,9 +254,9 @@ dependencies = [
 
 [[package]]
 name = "cola"
-version = "0.4.6"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5c84fcb0382e4312b48cf9d07fe4280fc162a2bb25def79af73634971deeac3"
+checksum = "9ce4b9283c6193d2ab7ee39f6a3f25099a4b860ada4d4d156de7f3ac35f83141"
 dependencies = [
  "serde",
  "sha2",
@@ -290,7 +290,7 @@ dependencies = [
 [[package]]
 name = "collab-message"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#f3cc744259bd27db74f8a4b127d8757270fa44c1"
+source = "git+ssh://git@github.com/nomad/collab.git#5516c52a0fb8313d9c64bd77a7d4450afb8742cf"
 dependencies = [
  "e31e",
  "futures-util",
@@ -303,7 +303,7 @@ dependencies = [
 [[package]]
 name = "collab-protocol"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#f3cc744259bd27db74f8a4b127d8757270fa44c1"
+source = "git+ssh://git@github.com/nomad/collab.git#5516c52a0fb8313d9c64bd77a7d4450afb8742cf"
 dependencies = [
  "bincode",
  "bytes",
@@ -319,7 +319,7 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#f3cc744259bd27db74f8a4b127d8757270fa44c1"
+source = "git+ssh://git@github.com/nomad/collab.git#5516c52a0fb8313d9c64bd77a7d4450afb8742cf"
 dependencies = [
  "async-channel",
  "collab-protocol",
@@ -443,7 +443,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "e31e"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/e31e.git#c982ef4f392ed9c0c3e8e86351a9bed0f44635f4"
+source = "git+ssh://git@github.com/nomad/e31e.git#4048af74f3cb4d68b9e56c371ae5f6c3fc133a72"
 dependencies = [
  "cola",
  "compact_str",
@@ -845,7 +845,7 @@ dependencies = [
 [[package]]
 name = "nomad-server"
 version = "0.0.8"
-source = "git+ssh://git@github.com/nomad/collab.git#f3cc744259bd27db74f8a4b127d8757270fa44c1"
+source = "git+ssh://git@github.com/nomad/collab.git#5516c52a0fb8313d9c64bd77a7d4450afb8742cf"
 dependencies = [
  "async-net",
  "collab-message",

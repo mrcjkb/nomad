@@ -367,7 +367,7 @@ impl Session {
         match ProjectTree::new(replica, |file_path| self.read_file(file_path))
             .await
         {
-            Ok(tree) => Ok(CollabProject { peers, tree }),
+            Ok(tree) => Ok(CollabProject { peers, tree: tree.encode() }),
             Err((err, _)) => Err(err),
         }
     }
