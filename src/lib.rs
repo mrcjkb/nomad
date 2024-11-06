@@ -1,11 +1,11 @@
-use nomad::neovim::{nvim_oxi, Neovim};
-use nomad::Nomad;
+use nomad::{nvim_oxi, Nomad};
 
-#[nvim_oxi::plugin]
+#[nvim_oxi::plugin(nvim_oxi = nvim_oxi)]
 fn nomad() -> Nomad {
+    nvim_oxi::print!("Returning a Nomad!");
     Nomad::new()
-        .with_module::<auth::Auth>()
-        .with_module::<collab::Collab>()
-        .with_module::<status::Status>()
-        .with_module::<version::Version>()
+    // .with_module::<auth::Auth>()
+    // .with_module::<collab::Collab>()
+    // .with_module::<status::Status>()
+    // .with_module::<version::Version>()
 }

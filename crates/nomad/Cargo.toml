@@ -7,9 +7,9 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-default = ["neovim"]
-neovim-nightly = []
-neovim = []
+default = ["neovim-0-10"]
+neovim-0-10 = ["nvim-oxi/neovim-nightly"]
+neovim-nightly = ["nvim-oxi/neovim-nightly"]
 
 [dependencies]
 async-broadcast = "0.7"
@@ -34,10 +34,9 @@ tracing-subscriber = { version = "0.3", features = ["time"] }
 # Neovim-specific dependencies.
 async-task = "4.7"
 concurrent-queue = "2.4"
-nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv", "neovim-0-10" ] }
+nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv"] }
 pin-project-lite = { workspace = true }
 serde_path_to_error = "0.1"
-
 
 [lints]
 workspace = true

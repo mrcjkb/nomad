@@ -87,7 +87,6 @@ impl From<ByteOffset> for usize {
     }
 }
 
-#[cfg(feature = "neovim")]
 impl From<ByteOffset> for nvim_oxi::Object {
     #[inline]
     fn from(offset: ByteOffset) -> Self {
