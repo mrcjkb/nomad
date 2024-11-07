@@ -23,7 +23,7 @@ enum Command {
 }
 
 /// The entrypoint of the `xtask` binary.
-pub fn run() {
+pub fn run() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {

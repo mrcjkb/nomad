@@ -1,5 +1,5 @@
 //! .
 
-fn main() {
-    xtask::run();
+fn main() -> anyhow::Result<()> {
+    xtask::run()
 }
