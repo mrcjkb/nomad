@@ -1,8 +1,11 @@
-use anyhow::anyhow;
+use core::{fmt, str};
+
+use anyhow::{anyhow, Context};
 use fs::os_fs::OsFs;
 use fs::{AbsPath, AbsPathBuf, FsNodeName};
 use futures_executor::block_on;
 use root_finder::markers;
+use xshell::cmd;
 
 pub(crate) fn build(_release: bool) -> anyhow::Result<()> {
     let sh = xshell::Shell::new()?;
@@ -41,7 +44,16 @@ fn parse_package_name(project_root: &AbsPath) -> anyhow::Result<String> {
 }
 
 fn detect_nvim_version(sh: &xshell::Shell) -> anyhow::Result<NeovimVersion> {
-    todo!();
+    let version = "--version";
+    let stdout = cmd!(sh, "nvim {version}").read()?;
+    stdout
+        .lines()
+        .next()
+        .ok_or_else(|| anyhow!("Couldn't get Neovim version"))?
+        .split_once("NVIM v")
+        .map(|(_, rest)| rest.parse::<NeovimVersion>())
+        .transpose()?
+        .ok_or_else(|| anyhow!("Failed to parse Neovim version"))
 }
 
 fn build_plugin(
@@ -50,6 +62,9 @@ fn build_plugin(
     nvim_version: NeovimVersion,
     sh: &xshell::Shell,
 ) -> anyhow::Result<()> {
+    println!("project_root: {:?}", project_root);
+    println!("package_name: {:?}", package_name);
+    println!("nvim_version: {:?}", nvim_version);
     todo!();
 }
 
@@ -62,10 +77,68 @@ fn fix_library_name(
 }
 
 /// The possible Neovim versions the Nomad plugin can be built for.
+#[derive(Debug)]
 enum NeovimVersion {
     /// The latest stable version.
     ZeroDotTen,
 
     /// The latest nightly version.
     Nightly,
+}
+
+struct SemanticVersion {
+    major: u8,
+    minor: u8,
+    patch: u8,
+}
+
+impl str::FromStr for NeovimVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let nightly_suffix = "-dev";
+        let is_nightly = s.ends_with(nightly_suffix);
+        let version = s
+            [..s.len() - (is_nightly as usize) * nightly_suffix.len()]
+            .parse::<SemanticVersion>()
+            .context("Failed to parse Neovim version")?;
+        if version.major == 0 && version.minor == 10 {
+            Ok(Self::ZeroDotTen)
+        } else if version.major == 0 && version.minor == 11 && is_nightly {
+            Ok(Self::Nightly)
+        } else {
+            Err(anyhow!(
+                "Unsupported Neovim version: {version}{}",
+                if is_nightly { nightly_suffix } else { "" }
+            ))
+        }
+    }
+}
+
+impl fmt::Display for SemanticVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl str::FromStr for SemanticVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.split('.');
+        let major =
+            parts.next().ok_or_else(|| anyhow!("major version is missing"))?;
+        let minor =
+            parts.next().ok_or_else(|| anyhow!("minor version is missing"))?;
+        let patch =
+            parts.next().ok_or_else(|| anyhow!("patch version is missing"))?;
+        if parts.next().is_some() {
+            return Err(anyhow!("too many version parts"));
+        }
+        Ok(Self {
+            major: major.parse()?,
+            minor: minor.parse()?,
+            patch: patch.parse()?,
+        })
+    }
 }
