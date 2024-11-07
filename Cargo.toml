@@ -64,7 +64,6 @@ edition.workspace = true
 authors.workspace = true
 
 [lib]
-name = "nomad"
 crate-type = ["cdylib"]
 
 [features]

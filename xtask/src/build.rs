@@ -1,9 +1,10 @@
 use core::{fmt, iter, str};
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
+use std::env;
 
 use anyhow::{anyhow, Context};
 use fs::os_fs::OsFs;
-use fs::{AbsPath, AbsPathBuf, FsNodeName};
+use fs::{AbsPath, AbsPathBuf, FsNodeName, FsNodeNameBuf};
 use futures_executor::block_on;
 use root_finder::markers;
 use xshell::cmd;
@@ -11,10 +12,10 @@ use xshell::cmd;
 pub(crate) fn build(release: bool) -> anyhow::Result<()> {
     let sh = xshell::Shell::new()?;
     let project_root = find_project_root(&sh)?;
-    let package_name = parse_package_name(&project_root)?;
+    let package = parse_package(&project_root)?;
     let nvim_version = detect_nvim_version(&sh)?;
-    build_plugin(&project_root, &package_name, nvim_version, release, &sh)?;
-    fix_library_name(&project_root, &package_name, &sh)?;
+    build_plugin(&project_root, &package.name, nvim_version, release, &sh)?;
+    fix_library_name(&project_root, &package)?;
     Ok(())
 }
 
@@ -26,7 +27,9 @@ fn find_project_root(sh: &xshell::Shell) -> anyhow::Result<AbsPathBuf> {
         .ok_or_else(|| anyhow!("Could not find the project root"))
 }
 
-fn parse_package_name(project_root: &AbsPath) -> anyhow::Result<String> {
+fn parse_package(
+    project_root: &AbsPath,
+) -> anyhow::Result<cargo_metadata::Package> {
     let cargo_dot_toml = {
         let mut root = project_root.to_owned();
         #[allow(clippy::unwrap_used)]
@@ -36,7 +39,7 @@ fn parse_package_name(project_root: &AbsPath) -> anyhow::Result<String> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .manifest_path(cargo_dot_toml.clone())
         .exec()?;
-    metadata.root_package().map(|p| p.name.to_owned()).ok_or_else(|| {
+    metadata.root_package().cloned().ok_or_else(|| {
         anyhow!(
             "Could not find the root package for manifest at \
              {cargo_dot_toml:?}"
@@ -106,12 +109,46 @@ fn build_plugin(
     Ok(())
 }
 
+#[allow(clippy::unwrap_used)]
 fn fix_library_name(
     project_root: &AbsPathBuf,
-    package_name: &str,
-    sh: &xshell::Shell,
+    package: &cargo_metadata::Package,
 ) -> anyhow::Result<()> {
-    todo!();
+    let mut cdylib_targets = package
+        .targets
+        .iter()
+        .filter(|target| target.kind.iter().any(|kind| kind == "cdylib"));
+    let cdylib_target = cdylib_targets.next().ok_or_else(|| {
+        anyhow!(
+            "Could not find a cdylib target in manifest of package {:?}",
+            package.name
+        )
+    })?;
+    if cdylib_targets.next().is_some() {
+        return Err(anyhow!(
+            "Found multiple cdylib targets in manifest of package {:?}",
+            package.name
+        ));
+    }
+    let source = format!(
+        "{prefix}{library_name}{suffix}",
+        prefix = env::consts::DLL_PREFIX,
+        library_name = &cdylib_target.name,
+        suffix = env::consts::DLL_SUFFIX
+    )
+    .parse::<FsNodeNameBuf>()
+    .unwrap();
+    let dest = format!(
+        "nomad{suffix}",
+        suffix = if cfg!(target_os = "windows") { ".dll" } else { ".so" }
+    )
+    .parse::<FsNodeNameBuf>()
+    .unwrap();
+    std::fs::rename(
+        artifact_dir(project_root).push(source),
+        artifact_dir(project_root).push(dest),
+    )
+    .context("Failed to rename the library")
 }
 
 fn artifact_dir(project_root: &AbsPath) -> AbsPathBuf {
