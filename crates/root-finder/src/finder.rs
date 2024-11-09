@@ -1,4 +1,4 @@
-use fs::{AbsPath, AbsPathBuf, DirEntry};
+use fs::{AbsPath, AbsPathBuf, DirEntry, FsNodeKind};
 use futures_util::{pin_mut, StreamExt};
 
 use crate::{FindRootError, Marker};
@@ -19,16 +19,23 @@ impl<Fs: fs::Fs> Finder<Fs> {
         P: AsRef<AbsPath>,
         M: Marker,
     {
-        let start_from = start_from.as_ref();
+        let node_kind = self
+            .fs
+            .node_at_path(start_from.as_ref())
+            .await
+            .map_err(FindRootError::NodeAtStartPath)?
+            .ok_or(FindRootError::StartPathNotFound)?
+            .kind();
 
-        let mut dir = match start_from.parent() {
-            Some(dir) => dir.to_owned(),
-            None => {
-                return contains_marker(AbsPath::root(), &marker, &self.fs)
-                    .await
-                    .map(|contains| contains.then(AbsPathBuf::root));
-            },
-        };
+        let mut dir = match node_kind {
+            FsNodeKind::Directory => start_from.as_ref(),
+            FsNodeKind::File => start_from
+                .as_ref()
+                .parent()
+                .expect("path is of file, so it must have a parent"),
+            FsNodeKind::Symlink => todo!("can't handle symlinks yet"),
+        }
+        .to_owned();
 
         loop {
             if contains_marker(&dir, &marker, &self.fs).await? {

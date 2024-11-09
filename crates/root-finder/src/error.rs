@@ -30,12 +30,18 @@ pub enum FindRootError<Fs: fs::Fs> {
     },
 
     /// TODO: docs.
+    NodeAtStartPath(Fs::NodeAtPathError),
+
+    /// TODO: docs.
     ReadDir {
         /// TODO: docs.
         dir_path: AbsPathBuf,
         /// TODO: docs.
         err: Fs::ReadDirError,
     },
+
+    /// TODO: docs.
+    StartPathNotFound,
 }
 
 impl<Fs: fs::Fs> fmt::Debug for FindRootError<Fs> {
@@ -56,11 +62,15 @@ impl<Fs: fs::Fs> fmt::Debug for FindRootError<Fs> {
                 .field("entry_path", entry_path)
                 .field("err", err)
                 .finish(),
+            Self::NodeAtStartPath(err) => {
+                f.debug_struct("NodeAtStartPath").field("err", err).finish()
+            },
             Self::ReadDir { dir_path, err } => f
                 .debug_struct("ReadDir")
                 .field("dir_path", dir_path)
                 .field("err", err)
                 .finish(),
+            Self::StartPathNotFound => f.write_str("StartPathNotFound"),
         }
     }
 }
@@ -89,8 +99,14 @@ impl<Fs: fs::Fs> fmt::Display for FindRootError<Fs> {
                      {entry_path:?}: {err}",
                 )
             },
+            Self::NodeAtStartPath(err) => {
+                write!(f, "failed to get node at starting path: {err}")
+            },
             Self::ReadDir { dir_path, err } => {
                 write!(f, "failed to read directory at {dir_path:?}: {err}")
+            },
+            Self::StartPathNotFound => {
+                write!(f, "the starting path does not exist")
             },
         }
     }
