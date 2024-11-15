@@ -10,14 +10,17 @@ use crate::buffer_id::BufferId;
 use crate::neovim_ctx::NeovimCtx;
 
 /// TODO: docs.
-pub trait AutoCommand<M: IntoModuleName>: Sized {
+pub trait AutoCommand: Sized {
     /// TODO: docs.
     type Action: for<'ctx> Action<
-        M,
+        Self::OnModule,
         Args: From<ActorId>,
         Ctx<'ctx> = &'ctx AutoCommandCtx<'ctx>,
         Return: Into<ShouldDetach>,
     >;
+
+    /// TODO: docs.
+    type OnModule: IntoModuleName;
 
     /// TODO: docs.
     fn into_action(self) -> Self::Action;
@@ -37,6 +40,7 @@ pub trait AutoCommand<M: IntoModuleName>: Sized {
     ) -> impl for<'ctx> FnMut(ActorId, &'ctx AutoCommandCtx<'ctx>) -> ShouldDetach
            + 'static {
         let on_buffer = self.on_buffer();
+        let on_event = self.on_event();
         let mut action = self.into_action();
         move |actor_id, ctx: &AutoCommandCtx| {
             if let Some(buffer_id) = on_buffer {
@@ -48,8 +52,11 @@ pub trait AutoCommand<M: IntoModuleName>: Sized {
                 Ok(res) => res.into(),
                 Err(err) => {
                     let mut source = DiagnosticSource::new();
+                    if let Some(module_name) = Self::OnModule::NAME {
+                        source.push_segment(module_name);
+                    }
                     source
-                        .push_segment(M::NAME)
+                        .push_segment(on_event.as_str())
                         .push_segment(Self::Action::NAME.as_str());
                     err.into().emit(Level::Error, source);
                     ShouldDetach::Yes
@@ -62,11 +69,17 @@ pub trait AutoCommand<M: IntoModuleName>: Sized {
 /// TODO: docs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AutoCommandEvent {
+    /// TODO: docs.
     BufAdd,
+    /// TODO: docs.
     BufEnter,
+    /// TODO: docs.
     BufLeave,
+    /// TODO: docs.
     BufUnload,
+    /// TODO: docs.
     CursorMoved,
+    /// TODO: docs.
     CursorMovedI,
 }
 
@@ -92,7 +105,7 @@ type AutoCommandCallback =
     Box<dyn for<'a> FnMut(ActorId, &'a AutoCommandCtx<'a>) -> ShouldDetach>;
 
 impl AutoCommandMap {
-    pub(crate) fn register<M: IntoModuleName, A: AutoCommand<M>>(
+    pub(crate) fn register<A: AutoCommand>(
         &mut self,
         autocmd: A,
         ctx: NeovimCtx<'static>,
@@ -105,12 +118,12 @@ impl AutoCommandMap {
         });
         callbacks.push(Box::new(autocmd.into_callback()));
         if !has_event_been_registered {
-            register_autocmd::<M, A>(event, ctx.clone());
+            register_autocmd::<A>(event, ctx.clone());
         }
     }
 }
 
-fn register_autocmd<M: IntoModuleName, A: AutoCommand<M>>(
+fn register_autocmd<A: AutoCommand>(
     event: AutoCommandEvent,
     ctx: NeovimCtx<'static>,
 ) {

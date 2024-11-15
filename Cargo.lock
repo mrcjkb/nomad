@@ -1171,6 +1171,11 @@ dependencies = [
 [[package]]
 name = "nvimx-event"
 version = "0.1.0"
+dependencies = [
+ "nvimx-action",
+ "nvimx-common",
+ "nvimx-ctx",
+]
 
 [[package]]
 name = "nvimx-executor"

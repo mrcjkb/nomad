@@ -19,11 +19,6 @@ impl<'ctx> AutoCommandCtx<'ctx> {
         &self.args
     }
 
-    /// TODO: docs.
-    pub fn as_neovim(&self) -> &NeovimCtx<'_> {
-        &self.neovim_ctx
-    }
-
     /// Returns the event that triggered the autocmd.
     pub fn event(&self) -> AutoCommandEvent {
         self.event
@@ -36,7 +31,7 @@ impl<'ctx> AutoCommandCtx<'ctx> {
 
     /// Calls the given clousure with an exlusive reference to the
     /// [`ActorMap`].
-    pub(crate) fn with_actor_map<F, R>(&self, fun: F) -> R
+    pub fn with_actor_map<F, R>(&self, fun: F) -> R
     where
         F: FnOnce(&mut ActorMap) -> R,
     {

@@ -4,7 +4,7 @@ use crate::action_name::ActionName;
 use crate::into_module_name::IntoModuleName;
 
 /// TODO: docs
-pub trait Action<M: IntoModuleName>: 'static {
+pub trait Action<M: IntoModuleName = ()>: 'static {
     /// TODO: docs
     const NAME: ActionName;
 

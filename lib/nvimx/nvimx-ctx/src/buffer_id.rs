@@ -17,6 +17,11 @@ impl BufferId {
         Self::new(NvimBuffer::current())
     }
 
+    /// Creates a new [`BufferId`] from the given [`NvimBuffer`].
+    pub fn new(nvim_buffer: NvimBuffer) -> Self {
+        Self { handle: nvim_buffer.handle() }
+    }
+
     /// Returns the [`BufferId`] of the buffer with the given name.
     pub fn of_name<T: AsRef<str>>(name: T) -> Option<Self> {
         api::call_function::<_, i32>("bufnr", (name.as_ref(),))
@@ -32,10 +37,6 @@ impl BufferId {
 
     pub(crate) fn as_nvim(&self) -> NvimBuffer {
         self.handle.into()
-    }
-
-    pub(crate) fn new(nvim_buffer: NvimBuffer) -> Self {
-        Self { handle: nvim_buffer.handle() }
     }
 }
 

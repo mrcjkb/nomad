@@ -51,14 +51,17 @@ impl BufAttachMap {
                 let buffer_ctx = ctx
                     .reborrow()
                     .into_buffer(buf_attach_args.buffer_id)
-                    .expect("`buffer_id` is valid");
+                    .expect("buffer ID is valid");
                 let args = buf_attach_args.into();
                 match action.execute(args, buffer_ctx).into_result() {
                     Ok(res) => res.into(),
                     Err(err) => {
                         let mut source = DiagnosticSource::new();
+                        if let Some(module_name) = M::NAME {
+                            source.push_segment(module_name);
+                        }
                         source
-                            .push_segment(M::NAME)
+                            .push_segment("BufAttach")
                             .push_segment(A::NAME.as_str());
                         err.into().emit(Level::Error, source);
                         ShouldDetach::Yes

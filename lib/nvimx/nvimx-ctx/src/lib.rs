@@ -15,6 +15,8 @@ mod text_buffer_ctx;
 mod text_file_ctx;
 
 pub use actor_id::ActorId;
+pub use autocmd::{AutoCommand, AutoCommandEvent, ShouldDetach};
+pub use autocmd_ctx::AutoCommandCtx;
 pub use buffer_ctx::BufferCtx;
 pub use buffer_id::BufferId;
 pub use file_ctx::FileCtx;
