@@ -1186,6 +1186,7 @@ dependencies = [
  "nvimx-ctx",
  "nvimx-diagnostics",
  "nvimx-fs",
+ "nvimx-plugin-macros",
  "serde",
  "serde_path_to_error",
  "smol_str",
@@ -1193,6 +1194,16 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "nvimx-plugin-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+ "syn-derive-args",
 ]
 
 [[package]]
@@ -1940,6 +1951,7 @@ name = "version"
 version = "0.1.0"
 dependencies = [
  "nomad",
+ "nvimx",
 ]
 
 [[package]]

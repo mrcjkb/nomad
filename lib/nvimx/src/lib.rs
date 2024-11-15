@@ -2,7 +2,7 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use nvim_oxi as oxi;
+pub use nvim_oxi::print;
 #[doc(inline)]
 pub use nvimx_ctx as ctx;
 #[doc(inline)]

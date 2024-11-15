@@ -13,6 +13,7 @@ nvimx-common = { workspace = true }
 nvimx-ctx = { workspace = true }
 nvimx-diagnostics = { workspace = true }
 nvimx-fs = { workspace = true }
+nvimx-plugin-macros = { path = "./macros" }
 serde = { workspace = true }
 serde_path_to_error = "0.1"
 smol_str = { workspace = true }

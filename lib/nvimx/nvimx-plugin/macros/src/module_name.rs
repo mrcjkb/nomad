@@ -37,7 +37,7 @@ pub fn module_name(name: LitStr) -> Result<TokenStream, Error> {
         }
     }
 
-    Ok(quote! { ::nomad::ModuleName::from_str(#name) })
+    Ok(quote! { ::nvimx::plugin::ModuleName::from_str(#name) })
 }
 
 struct ContainsOther;

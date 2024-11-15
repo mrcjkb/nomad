@@ -1,10 +1,10 @@
-use nomad::config::ConfigReceiver;
-use nomad::ctx::NeovimCtx;
-use nomad::{
+use nvimx::ctx::NeovimCtx;
+use nvimx::plugin::{
     action_name,
     module_name,
     Action,
     ActionName,
+    ConfigReceiver,
     Module,
     ModuleApi,
     ModuleName,
@@ -20,6 +20,7 @@ impl Module for Version {
     const NAME: ModuleName = module_name!("version");
 
     type Config = ();
+    type Plugin = nomad::Nomad;
 
     fn init(&self, ctx: NeovimCtx<'_>) -> ModuleApi<Self> {
         ModuleApi::new(ctx.to_static()).default_command(Self)
@@ -28,16 +29,15 @@ impl Module for Version {
     async fn run(self, _: NeovimCtx<'static>) {}
 }
 
-impl<'a> Action<NeovimCtx<'a>> for Version {
+impl Action<Self> for Version {
     const NAME: ActionName = action_name!("version");
-
     type Args = ();
+    type Ctx<'a> = NeovimCtx<'a>;
     type Docs = ();
-    type Module = Self;
     type Return = ();
 
-    fn execute(&mut self, _: Self::Args, _: NeovimCtx<'a>) {
-        nomad::nvim_oxi::print!("Nomad v{VERSION}");
+    fn execute<'a>(&'a mut self, _: Self::Args, _: NeovimCtx<'a>) {
+        nvimx::print!("Nomad v{VERSION}");
     }
 
     fn docs(&self) -> Self::Docs {}
