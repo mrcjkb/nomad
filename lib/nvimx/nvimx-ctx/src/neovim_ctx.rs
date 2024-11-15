@@ -37,6 +37,11 @@ impl<'ctx> NeovimCtx<'ctx> {
     }
 
     /// TODO: docs.
+    pub fn into_current_buffer(self) -> BufferCtx<'ctx> {
+        BufferCtx::current(self)
+    }
+
+    /// TODO: docs.
     pub fn next_actor_id(&self) -> ActorId {
         self.ctx.with_mut(|ctx| ctx.next_actor_id.post_inc())
     }

@@ -8,54 +8,52 @@ use nvimx_ctx::{
     AutoCommand,
     AutoCommandCtx,
     AutoCommandEvent,
-    BufferCtx,
     BufferId,
+    NeovimCtx,
     ShouldDetach,
 };
 
 /// TODO: docs.
-pub struct BufEnter<A, M> {
-    action: BufEnterAction<A, M>,
+pub struct BufLeave<A, M> {
+    action: BufLeaveAction<A, M>,
     buffer_id: Option<BufferId>,
 }
 
 /// TODO: docs.
-pub struct BufEnterArgs {
+#[derive(Debug, Copy, Clone)]
+pub struct BufLeaveArgs {
     /// The [`ActorId`] that focused the buffer.
     pub actor_id: ActorId,
 
-    /// The [`BufferId`] of the old buffer.
+    /// The [`BufferId`] of the buffer that was left.
     pub old_buffer_id: BufferId,
 }
 
-pub struct BufEnterAction<A, M> {
+pub struct BufLeaveAction<A, M> {
     action: A,
     module_name: PhantomData<M>,
 }
 
-impl<A, M> BufEnter<A, M> {
+impl<A, M> BufLeave<A, M> {
     /// TODO: docs.
     pub fn buffer_id(mut self, buffer_id: BufferId) -> Self {
         self.buffer_id = Some(buffer_id);
         self
     }
 
-    /// Creates a new [`BufEnter`] with the given action.
+    /// Creates a new [`BufLeave`] with the given action.
     pub fn new(action: A) -> Self {
-        Self {
-            action: BufEnterAction { action, module_name: PhantomData },
-            buffer_id: None,
-        }
+        Self { action, buffer_id: None }
     }
 }
 
-impl<A, M> AutoCommand for BufEnter<A, M>
+impl<A, M> AutoCommand for BufLeave<A, M>
 where
-    A: for<'ctx> Action<M, Args = BufEnterArgs, Ctx<'ctx> = BufferCtx<'ctx>>,
+    A: for<'ctx> Action<M, Args = BufLeaveArgs, Ctx<'ctx> = NeovimCtx<'ctx>>,
     A::Return: Into<ShouldDetach>,
     M: IntoModuleName + 'static,
 {
-    type Action = BufEnterAction<A, M>;
+    type Action = BufLeaveAction<A, M>;
     type OnModule = M;
 
     fn into_action(self) -> Self::Action {
@@ -63,22 +61,22 @@ where
     }
 
     fn on_event(&self) -> AutoCommandEvent {
-        AutoCommandEvent::BufEnter
+        AutoCommandEvent::BufLeave
     }
 
     fn on_buffer(&self) -> Option<BufferId> {
         self.buffer_id
     }
 
-    fn take_actor_id(ctx: &AutoCommandCtx<'_>) -> ActorId {
-        let buffer_id = BufferId::new(ctx.args().buffer.clone());
-        ctx.with_actor_map(|m| m.take_focused_buffer(&buffer_id))
+    fn take_actor_id(_: &AutoCommandCtx<'_>) -> ActorId {
+        // TODO: Implement this.
+        ActorId::unknown()
     }
 }
 
-impl<A, M> Action<M> for BufEnterAction<A, M>
+impl<A, M> Action<M> for BufLeaveAction<A, M>
 where
-    A: for<'ctx> Action<M, Args = BufEnterArgs, Ctx<'ctx> = BufferCtx<'ctx>>,
+    A: for<'ctx> Action<M, Args = BufLeaveArgs, Ctx<'ctx> = NeovimCtx<'ctx>>,
     A::Return: Into<ShouldDetach>,
     M: IntoModuleName + 'static,
 {
@@ -94,13 +92,8 @@ where
         ctx: Self::Ctx<'a>,
     ) -> impl MaybeResult<Self::Return> {
         let old_buffer_id = BufferId::new(ctx.args().buffer.clone());
-        let buffer_ctx = ctx
-            .deref()
-            .clone()
-            .into_buffer(BufferId::current())
-            .expect("autocmd was triggered, so buffer must exist");
-        let args = BufEnterArgs { actor_id, old_buffer_id };
-        self.action.execute(args, buffer_ctx)
+        let args = BufLeaveArgs { actor_id, old_buffer_id };
+        self.action.execute(args, ctx.deref().clone())
     }
 
     fn docs(&self) -> Self::Docs {

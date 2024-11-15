@@ -2,9 +2,11 @@
 
 mod buf_add;
 mod buf_enter;
+mod buf_leave;
 
 pub use buf_add::BufAdd;
 pub use buf_enter::BufEnter;
+pub use buf_leave::BufLeave;
 
 /// TODO: docs.
 pub trait Event: Sized {
