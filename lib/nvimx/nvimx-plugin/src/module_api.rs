@@ -16,16 +16,7 @@ pub struct ModuleApi<M: Module> {
 
 impl<M: Module> ModuleApi<M> {
     /// TODO: docs.
-    pub fn subcommand<T>(mut self, command: T) -> Self
-    where
-        T: SubCommand<M>,
-    {
-        self.commands.add_subcommand(command);
-        self
-    }
-
-    /// TODO: docs.
-    pub fn default_command<T>(mut self, command: T) -> Self
+    pub fn default_subcommand<T>(mut self, command: T) -> Self
     where
         T: SubCommand<M>,
     {
@@ -64,6 +55,15 @@ impl<M: Module> ModuleApi<M> {
             commands: ModuleSubCommands::new::<M>(neovim_ctx),
             ty: PhantomData,
         }
+    }
+
+    /// TODO: docs.
+    pub fn subcommand<T>(mut self, command: T) -> Self
+    where
+        T: SubCommand<M>,
+    {
+        self.commands.add_subcommand(command);
+        self
     }
 
     fn neovim_ctx(&self) -> NeovimCtx<'_> {

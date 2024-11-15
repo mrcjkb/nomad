@@ -1,5 +1,5 @@
-use nomad::ctx::NeovimCtx;
-use nomad::{action_name, ActionName, AsyncAction};
+use nvimx::ctx::NeovimCtx;
+use nvimx::plugin::{action_name, ActionName, AsyncAction};
 
 use crate::Auth;
 
@@ -12,11 +12,10 @@ impl Login {
     }
 }
 
-impl AsyncAction for Login {
+impl AsyncAction<Auth> for Login {
     const NAME: ActionName = action_name!("login");
     type Args = ();
     type Docs = ();
-    type Module = Auth;
 
     async fn execute(&mut self, _: Self::Args, _: NeovimCtx<'_>) {}
 

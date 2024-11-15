@@ -23,7 +23,7 @@ impl Module for Version {
     type Plugin = nomad::Nomad;
 
     fn init(&self, ctx: NeovimCtx<'_>) -> ModuleApi<Self> {
-        ModuleApi::new(ctx.to_static()).default_command(Self)
+        ModuleApi::new(ctx.to_static()).default_subcommand(Self)
     }
 
     async fn run(self, _: NeovimCtx<'static>) {}

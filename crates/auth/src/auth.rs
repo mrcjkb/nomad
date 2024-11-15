@@ -1,6 +1,11 @@
-use nomad::config::ConfigReceiver;
-use nomad::ctx::NeovimCtx;
-use nomad::{module_name, Module, ModuleApi, ModuleName};
+use nvimx::ctx::NeovimCtx;
+use nvimx::plugin::{
+    module_name,
+    ConfigReceiver,
+    Module,
+    ModuleApi,
+    ModuleName,
+};
 
 use crate::actions::{Login, Logout};
 
@@ -9,16 +14,16 @@ pub struct Auth {}
 
 impl Module for Auth {
     const NAME: ModuleName = module_name!("auth");
-
     type Config = ();
+    type Plugin = nomad::Nomad;
 
     fn init(&self, ctx: NeovimCtx<'_>) -> ModuleApi<Self> {
         let login = Login::new();
         let logout = Logout::new();
 
         ModuleApi::new(ctx.to_static())
-            .command(login.clone())
-            .command(logout.clone())
+            .subcommand(login.clone())
+            .subcommand(logout.clone())
             .function(login)
             .function(logout)
     }
