@@ -15,7 +15,13 @@ pub struct DiagnosticMessage {
 impl DiagnosticMessage {
     /// TODO: docs.
     pub fn emit(self, level: Level, source: DiagnosticSource) {
-        emit(level, source, self);
+        let source_chunk = (source.to_string().into(), Some(level.into()));
+        let space_chunk = (" ".into(), None);
+        let chunks = iter::once(source_chunk)
+            .chain(iter::once(space_chunk))
+            .chain(self.chunks);
+        let opts = api::opts::EchoOpts::default();
+        api::echo(chunks, true, &opts).expect("all parameters are valid");
     }
 
     /// Creates a new, empty [`DiagnosticMessage`].
@@ -96,16 +102,6 @@ impl DiagnosticMessage {
         }
         self
     }
-}
-
-fn emit(level: Level, source: DiagnosticSource, msg: DiagnosticMessage) {
-    let source_chunk = (source.to_string().into(), Some(level.into()));
-    let space_chunk = (" ".into(), None);
-    let chunks = iter::once(source_chunk)
-        .chain(iter::once(space_chunk))
-        .chain(msg.chunks);
-    let opts = api::opts::EchoOpts::default();
-    api::echo(chunks, true, &opts).expect("all parameters are valid");
 }
 
 impl From<core::convert::Infallible> for DiagnosticMessage {
