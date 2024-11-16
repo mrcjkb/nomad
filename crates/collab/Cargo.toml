@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 async-fs = { workspace = true }
+async-stream = "0.3"
 async-recursion = "1"
 clipboard = { workspace = true }
 collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = ["client"], package = "nomad-server" }

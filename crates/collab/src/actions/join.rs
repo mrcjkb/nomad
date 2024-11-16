@@ -1,3 +1,4 @@
+use core::time::Duration;
 use std::io;
 use std::rc::Rc;
 
@@ -23,6 +24,7 @@ use futures_util::{
 };
 use nvimx::ctx::NeovimCtx;
 use nvimx::diagnostics::DiagnosticMessage;
+use nvimx::emit::{Emit, EmitExt, EmitMessage, Severity};
 use nvimx::plugin::{action_name, ActionName, AsyncAction};
 use nvimx::Shared;
 
@@ -62,31 +64,29 @@ impl AsyncAction for Join {
 
         let guard = JoinGuard::new(self.session_status.clone(), session_id)?;
 
-        todo!();
-        // #[rustfmt::skip]
-        // let (step, maybe_err) = ConnectToServer { guard }
-        //     .connect_to_server().emitting(spin::<ConnectToServer>()).await?
-        //     .authenticate(auth_infos).emitting(spin::<Authenticate>()).await?
-        //     .join_session(session_id).emitting(spin::<JoinSession>()).await?
-        //     .confirm_join().await?
-        //     .request_project().emitting(spin::<RequestProject>()).await?
-        //     .find_project_root().emitting(spin::<FindProjectRoot>()).await?
-        //     .flush_project(ctx).emitting(spin::<FlushProject>()).await?
-        //     .jump_to_host().map_emit_by_ref(JoinedProject)
-        //     .run_session(ctx.to_static()).await;
-        //
-        // step.remove_project_root()
-        //     .await
-        //     .map_err(Into::into)
-        //     .map_err(|err| maybe_err.map(Into::into).unwrap_or(err))
+        #[rustfmt::skip]
+        let step = ConnectToServer { guard }
+            .connect_to_server().emitting(spin::<ConnectToServer>()).await?
+            .authenticate(auth_infos).emitting(spin::<Authenticate>()).await?
+            .join_session(session_id).emitting(spin::<JoinSession>()).await?
+            .confirm_join().await?
+            .request_project().emitting(spin::<RequestProject>()).await?
+            .find_project_root().emitting(spin::<FindProjectRoot>()).await?
+            .flush_project(ctx.reborrow()).emitting(spin::<FlushProject>()).await?
+            .jump_to_host();
+
+        JoinedProject(&step).clear_after(Duration::from_secs(4)).emit();
+
+        let (step, maybe_err) = step.run_session(ctx.to_static()).await;
+
+        step.remove_project_root()
+            .await
+            .map_err(Into::into)
+            .map_err(|err| maybe_err.map(Into::into).unwrap_or(err))
     }
 
     fn docs(&self) {}
 }
-
-// 1: add a new crate that defines Emit and EmitExt traits;
-// 2: crate depends on Action and DiagnosticMessage;
-// 3:
 
 struct JoinGuard {
     session_status: Shared<SessionStatus>,
@@ -611,8 +611,93 @@ trait JoinStep {
     const MESSAGE: &'static str;
 }
 
-fn spin<T: JoinStep>() -> impl Stream<Item = DiagnosticMessage> {
-    stream::empty()
+struct SpinFrame {
+    spinner: Spinner,
+    step_message: &'static str,
+}
+
+#[derive(Copy, Clone)]
+#[repr(u8)]
+#[allow(dead_code)]
+enum Spinner {
+    Iter1 = 0,
+    Iter2,
+    Iter3,
+}
+
+fn spin<T: JoinStep>() -> impl Stream<Item = SpinFrame> {
+    async_stream::stream! {
+        let mut spinner = Spinner::Iter1;
+        loop {
+            yield SpinFrame::new(spinner, T::MESSAGE);
+            spinner.advance();
+            nvimx::executor::sleep(SpinFrame::DURATION).await;
+        }
+    }
+}
+
+impl SpinFrame {
+    const DURATION: Duration = Duration::from_millis(300);
+
+    fn new(spinner: Spinner, step_message: &'static str) -> Self {
+        Self { spinner, step_message }
+    }
+}
+
+impl Spinner {
+    const NUM_FRAMES: u8 = 3;
+
+    fn advance(&mut self) {
+        // SAFETY: `Self` is `repr(u8)`.
+        *self = unsafe {
+            core::mem::transmute::<u8, Self>(
+                *self as u8 + 1 % Self::NUM_FRAMES,
+            )
+        };
+    }
+
+    fn into_char(self) -> char {
+        match self {
+            Self::Iter1 => '🌍',
+            Self::Iter2 => '🌎',
+            Self::Iter3 => '🌏',
+        }
+    }
+}
+
+impl Emit for SpinFrame {
+    const ADD_TO_MESSAGE_HISTORY: bool = false;
+
+    type Action = Join;
+
+    fn message(&self) -> EmitMessage {
+        let mut msg = EmitMessage::new();
+        msg.push(self.spinner.into_char())
+            .push_str(" ")
+            .push_str(self.step_message);
+        msg
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Info
+    }
+}
+
+impl Emit for JoinedProject<'_> {
+    const ADD_TO_MESSAGE_HISTORY: bool = true;
+
+    type Action = Join;
+
+    fn message(&self) -> EmitMessage {
+        let Self(run) = self;
+        let mut msg = EmitMessage::new();
+        msg.push_str("joined project at ").push_str(&run.project_root);
+        msg
+    }
+
+    fn severity(&self) -> Severity {
+        Severity::Info
+    }
 }
 
 impl JoinStep for ConnectToServer {

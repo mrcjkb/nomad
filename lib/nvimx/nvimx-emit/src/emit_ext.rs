@@ -20,12 +20,6 @@ pub trait EmitExt {
         Self: Future + Sized,
         T: Stream,
         T::Item: Emit;
-
-    /// TODO: docs.
-    fn map_emit_by_ref<F, T>(self, fun: F) -> Self
-    where
-        F: FnOnce(&Self) -> T,
-        T: Emit;
 }
 
 impl<T> EmitExt for T {
@@ -72,14 +66,5 @@ impl<T> EmitExt for T {
             Clear.emit();
             output
         }
-    }
-
-    fn map_emit_by_ref<F, U>(self, fun: F) -> Self
-    where
-        F: FnOnce(&Self) -> U,
-        U: Emit,
-    {
-        fun(&self).emit();
-        self
     }
 }

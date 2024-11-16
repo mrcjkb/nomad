@@ -31,6 +31,11 @@ impl DiagnosticMessage {
     }
 
     /// TODO: docs.
+    pub fn push(&mut self, c: char) -> &mut Self {
+        self.push_chunk(c.into(), None)
+    }
+
+    /// TODO: docs.
     pub fn push_comma_separated<T, I>(
         &mut self,
         iter: I,
@@ -60,7 +65,7 @@ impl DiagnosticMessage {
 
     /// TODO: docs.
     pub fn push_str<T: AsRef<str>>(&mut self, s: T) -> &mut Self {
-        self.push_chunk(s.as_ref(), None)
+        self.push_chunk(s.as_ref().into(), None)
     }
 
     /// TODO: docs.
@@ -69,15 +74,15 @@ impl DiagnosticMessage {
         s: T,
         hl: HighlightGroup,
     ) -> &mut Self {
-        self.push_chunk(s.as_ref(), Some(hl))
+        self.push_chunk(s.as_ref().into(), Some(hl))
     }
 
     fn push_chunk(
         &mut self,
-        s: &str,
+        s: nvim_oxi::String,
         hl: Option<HighlightGroup>,
     ) -> &mut Self {
-        self.chunks.push((nvim_oxi::String::from(s), hl));
+        self.chunks.push((s, hl));
         self
     }
 
