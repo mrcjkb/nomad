@@ -12,11 +12,10 @@ pub trait SubCommand: 'static {
     const NAME: ActionName;
 
     /// TODO: docs
-    type Args: Clone
-        + for<'args> TryFrom<
-            SubCommandArgs<'args>,
-            Error: Into<DiagnosticMessage>,
-        >;
+    type Args: for<'args> TryFrom<
+        SubCommandArgs<'args>,
+        Error: Into<DiagnosticMessage>,
+    >;
 
     /// TODO: docs
     type Docs;
@@ -38,11 +37,10 @@ pub trait SubCommand: 'static {
 impl<A> SubCommand for A
 where
     A: for<'a> Action<Ctx<'a> = NeovimCtx<'a>, Return = ()>,
-    A::Args: Clone
-        + for<'args> TryFrom<
-            SubCommandArgs<'args>,
-            Error: Into<DiagnosticMessage>,
-        >,
+    A::Args: for<'args> TryFrom<
+        SubCommandArgs<'args>,
+        Error: Into<DiagnosticMessage>,
+    >,
 {
     const NAME: ActionName = A::NAME;
     type Args = A::Args;

@@ -145,15 +145,11 @@ impl CommandError<'_> {
                     .push_comma_separated(valid, HighlightGroup::special());
             },
 
-            Self::UnknownSubCommand {
-                subcommand_name: command_name,
-                valid,
-                ..
-            } => {
+            Self::UnknownSubCommand { subcommand_name, valid, .. } => {
                 message
                     .push_str("unknown subcommand '")
                     .push_str_highlighted(
-                        command_name,
+                        subcommand_name,
                         HighlightGroup::warning(),
                     )
                     .push_str("', the valid subcommands are: ")
