@@ -6,7 +6,7 @@ use nvimx_common::ByteOffset;
 use nvimx_diagnostics::{DiagnosticMessage, HighlightGroup};
 
 /// TODO: docs.
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct SubCommandArgs<'a> {
     /// Starts at the first non-whitespace character after the subcommand name,
     /// and includes all characters up to the end of the command line,
@@ -29,12 +29,14 @@ pub struct SubCommandArgIdx {
 }
 
 /// An iterator over the [`SubCommandArg`]s of a [`SubCommandArgs`].
+#[derive(Clone)]
 pub struct SubCommandArgsIter<'a> {
     args: &'a str,
     last_idx_end: ByteOffset,
 }
 
 /// TODO: docs.
+#[derive(Debug, Copy, Clone)]
 pub enum SubCommandCursor<'a> {
     /// TODO: docs.
     InArg {
@@ -140,6 +142,27 @@ impl<'a> SubCommandCursor<'a> {
     }
 }
 
+struct ArgsList<'a>(SubCommandArgsIter<'a>);
+
+impl fmt::Debug for ArgsList<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        struct DebugAsStr<'a>(SubCommandArg<'a>);
+        impl fmt::Debug for DebugAsStr<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                fmt::Debug::fmt(self.0.as_ref(), f)
+            }
+        }
+
+        f.debug_list().entries(self.0.clone().map(DebugAsStr)).finish()
+    }
+}
+
+impl fmt::Debug for SubCommandArgs<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("SubCommandArgs").field(&ArgsList(self.iter())).finish()
+    }
+}
+
 impl fmt::Debug for SubCommandArg<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("SubCommandArg").field(&self.arg).finish()
@@ -181,6 +204,14 @@ impl PartialEq<SubCommandArg<'_>> for str {
 impl PartialEq<SubCommandArg<'_>> for &str {
     fn eq(&self, arg: &SubCommandArg<'_>) -> bool {
         *self == arg
+    }
+}
+
+impl fmt::Debug for SubCommandArgsIter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("SubCommandArgsIter")
+            .field(&ArgsList(self.clone()))
+            .finish()
     }
 }
 
