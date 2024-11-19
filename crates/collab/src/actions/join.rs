@@ -201,14 +201,14 @@ pub(crate) enum JoinError {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("")]
+#[error("couldn't connect to server: {inner}")]
 pub(crate) struct ConnectToServerError {
     #[from]
     inner: io::Error,
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("")]
+#[error("couldn't join session: {inner}")]
 pub(crate) struct JoinSessionError {
     #[from]
     inner: collab_server::client::JoinError,
@@ -219,34 +219,33 @@ pub(crate) struct JoinSessionError {
 pub(crate) struct ConfirmJoinError;
 
 #[derive(Debug, thiserror::Error)]
-#[error("")]
 pub(crate) enum RequestProjectError {
-    #[error("")]
+    #[error("couldn't send project request: {0}")]
     SendRequest(io::Error),
 
-    #[error("")]
+    #[error("couldn't read project response: {0}")]
     ReadResponse(io::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("")]
+#[error("couldn't find project root")]
 pub(crate) struct FindProjectRootError;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FlushProjectError {
-    #[error("")]
+    #[error("couldn't remove project root at `{project_root}`: {err}")]
     CleanProjectRoot { project_root: AbsPathBuf, err: io::Error },
 
-    #[error("")]
+    #[error("couldn't create project root at `{project_root}`: {err}")]
     CreateProjectRoot { project_root: AbsPathBuf, err: io::Error },
 
-    #[error("")]
+    #[error("couldn't create project directory at `{dir_path}`: {err}")]
     CreateDir { dir_path: AbsPathBuf, err: io::Error },
 
-    #[error("")]
+    #[error("couldn't create project file at `{file_path}`: {err}")]
     CreateFile { file_path: AbsPathBuf, err: io::Error },
 
-    #[error("")]
+    #[error("couldn't write to project file at `{file_path}`: {err}")]
     WriteFile { file_path: AbsPathBuf, err: io::Error },
 }
 
@@ -255,7 +254,7 @@ pub(crate) enum FlushProjectError {
 pub(crate) struct JumpToHostError;
 
 #[derive(Debug, thiserror::Error)]
-#[error("")]
+#[error("couldn't remove project root: {inner:?}")]
 pub(crate) struct RemoveProjectRootError {
     #[from]
     inner: io::Error,

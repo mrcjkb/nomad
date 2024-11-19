@@ -7,10 +7,10 @@ use crate::{EmitMessage, Severity};
 
 /// TODO: docs.
 pub trait Emit: Sized {
-    /// TODO: docs.
+    /// Whether to add the emitted message to the message history.
     const ADD_TO_MESSAGE_HISTORY: bool;
 
-    /// TODO: docs.
+    /// The action this message is about.
     type Action: Action;
 
     /// TODO: docs.
