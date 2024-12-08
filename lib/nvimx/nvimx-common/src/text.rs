@@ -1,3 +1,5 @@
+use core::fmt;
+
 use compact_str::CompactString;
 
 /// TODO: docs.
@@ -31,5 +33,11 @@ impl Text {
 impl AsRef<str> for Text {
     fn as_ref(&self) -> &str {
         self.as_str()
+    }
+}
+
+impl fmt::Debug for Text {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Text").field(&self.as_str()).finish()
     }
 }

@@ -4,7 +4,7 @@ use crate::byte_offset::ByteOffset;
 use crate::text::Text;
 
 /// TODO: docs.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Replacement {
     deleted_range: Range<ByteOffset>,
     inserted_text: Text,
