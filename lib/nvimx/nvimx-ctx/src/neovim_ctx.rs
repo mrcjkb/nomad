@@ -56,9 +56,10 @@ impl<'ctx> NeovimCtx<'ctx> {
     where
         A: AutoCommand,
     {
+        let augroup_id = self.augroup_id();
         let ctx = self.to_static();
         self.with_autocmd_map(move |map| {
-            map.register(auto_command, ctx);
+            map.register(auto_command, augroup_id, ctx);
         });
     }
 
@@ -79,11 +80,11 @@ impl<'ctx> NeovimCtx<'ctx> {
     }
 
     pub(crate) fn augroup_id(&self) -> AugroupId {
-        self.ctx.with_mut(|ctx| ctx.augroup_id)
+        self.ctx.with(|ctx| ctx.augroup_id)
     }
 
     pub(crate) fn namespace_id(&self) -> NamespaceId {
-        self.ctx.with_mut(|ctx| ctx.namespace_id)
+        self.ctx.with(|ctx| ctx.namespace_id)
     }
 
     pub(crate) fn with_actor_map<F, R>(&self, fun: F) -> R

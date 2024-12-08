@@ -77,6 +77,7 @@ impl AutoCommandMap {
     pub(crate) fn register<A: AutoCommand>(
         &mut self,
         autocmd: A,
+        augroup_id: AugroupId,
         ctx: NeovimCtx<'static>,
     ) {
         let event = autocmd.on_event();
@@ -115,17 +116,16 @@ impl AutoCommandMap {
         };
         callbacks.push(Box::new(callback));
         if !has_event_been_registered {
-            register_autocmd::<A>(event, ctx.clone());
+            register_autocmd::<A>(event, augroup_id, ctx.clone());
         }
     }
 }
 
 fn register_autocmd<A: AutoCommand>(
     event: AutoCommandEvent,
+    augroup_id: AugroupId,
     ctx: NeovimCtx<'static>,
 ) {
-    let augroup_id = ctx.augroup_id();
-
     let callback = move |args: types::AutocmdCallbackArgs| {
         debug_assert_eq!(args.event, event.as_str());
         let autocmd_ctx = AutoCommandCtx::new(args, event, ctx.reborrow());
