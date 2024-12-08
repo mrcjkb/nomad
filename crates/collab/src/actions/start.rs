@@ -224,7 +224,7 @@ impl ConnectToServer {
         config: &Shared<Config>,
     ) -> Result<Knock, ConnectToServerError> {
         let socket = config.with(|c| c.server_socket.clone());
-        let tcp_stream = TcpStream::connect(&*socket.as_deref_str()).await?;
+        let tcp_stream = TcpStream::connect(&*socket).await?;
         Ok(Knock {
             io: tcp_stream,
             project_root: self.project_root,
