@@ -1,7 +1,7 @@
 use crate::ByteOffset;
 
 /// The 2D equivalent of a `ByteOffset`.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point {
     /// The index of the line in the buffer.
     pub line_idx: usize,

@@ -183,7 +183,7 @@ impl<'ctx> TextBufferCtx<'ctx> {
             (start_offset).into()..(start_offset + old_end_len).into();
 
         let start =
-            Point { line_idx: start_row, byte_offset: start_offset.into() };
+            Point { line_idx: start_row, byte_offset: start_col.into() };
 
         let end = Point {
             line_idx: start_row + new_end_row,
