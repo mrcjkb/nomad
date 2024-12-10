@@ -19,6 +19,7 @@ use collab_server::message::{
 use collab_server::SessionId;
 use detach_buffer_actions::DetachBufferActions;
 use eerie::fs::AbsPathBuf;
+use futures_util::stream::FusedStream;
 use futures_util::{
     pin_mut,
     select,
@@ -119,7 +120,7 @@ impl Session {
     ) -> Result<(), RunSessionError<Tx::Error, RxError>>
     where
         Tx: Sink<Message>,
-        Rx: Stream<Item = Result<Message, RxError>>,
+        Rx: FusedStream<Item = Result<Message, RxError>>,
     {
         let (local_tx, local_rx) = flume::unbounded();
 
@@ -146,12 +147,12 @@ impl Session {
 
         loop {
             select! {
-                msg = remote_rx.next().fuse() => {
+                msg = remote_rx.next() => {
                     let Some(msg_res) = msg else { continue };
                     let remote_message = msg_res.map_err(RunSessionError::Receive)?;
                     self.integrate_message(remote_message, &local_tx);
                 },
-                msg = local_rx.recv_async().fuse() => {
+                msg = local_rx.recv_async() => {
                     if let Ok(local_message) = msg {
                         remote_tx
                             .send(local_message)
