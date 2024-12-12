@@ -148,7 +148,7 @@ impl Session {
         loop {
             select! {
                 msg = remote_rx.next() => {
-                    let Some(msg_res) = msg else { continue };
+                    let Some(msg_res) = msg else { return Ok(()) };
                     let remote_message = msg_res.map_err(RunSessionError::Receive)?;
                     self.integrate_message(remote_message, &local_tx);
                 },
