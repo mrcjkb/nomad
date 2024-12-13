@@ -11,6 +11,8 @@ mod decoration_provider;
 mod file_ctx;
 mod neovim_ctx;
 mod on_bytes;
+mod pane_ctx;
+mod pane_id;
 mod text_buffer_ctx;
 mod text_file_ctx;
 
@@ -23,5 +25,7 @@ pub use decoration_provider::Selection;
 pub use file_ctx::FileCtx;
 pub use neovim_ctx::NeovimCtx;
 pub use on_bytes::{OnBytesArgs, RegisterOnBytesArgs};
+pub use pane_ctx::PaneCtx;
+pub use pane_id::PaneId;
 pub use text_buffer_ctx::TextBufferCtx;
 pub use text_file_ctx::TextFileCtx;
