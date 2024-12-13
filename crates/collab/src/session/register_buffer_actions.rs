@@ -26,7 +26,7 @@ impl RegisterBufferActions {
     #[allow(clippy::too_many_lines)]
     pub(super) fn register_actions(&mut self, buffer_id: BufferId) {
         self.project.with_mut(|project| {
-            let neovim_ctx = project.neovim_ctx.reborrow();
+            let neovim_ctx = project.neovim_ctx.clone();
 
             // Check if the buffer is a text file.
             let Some(text_file_ctx) = neovim_ctx
@@ -38,12 +38,22 @@ impl RegisterBufferActions {
             };
 
             // Check if the buffer is in the project root.
-            if !text_file_ctx
-                .as_file()
-                .path()
-                .starts_with(project.project_root.as_str())
-            {
+            let Some(mut file) = project.file_mut_of_buffer_id(buffer_id)
+            else {
                 return;
+            };
+
+            if let Some(byte_offset) = text_file_ctx.as_text_buffer().cursor()
+            {
+                let (cursor_id, creation) =
+                    file.sync_created_cursor(byte_offset.into_u64());
+                assert!(
+                    project.local_cursor_id.is_none(),
+                    "creating a new cursor when another already exists, but \
+                     Neovim only supports a single cursor"
+                );
+                project.local_cursor_id = Some(cursor_id);
+                let _ = self.message_tx.send(Message::CreatedCursor(creation));
             }
 
             let should_detach = Shared::new(ShouldDetach::No);
