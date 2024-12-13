@@ -37,7 +37,7 @@ impl Action for SyncCursor {
             let Some(mut file) =
                 project.file_mut_of_buffer_id(cursor.buffer_id)
             else {
-                unreachable!(
+                panic!(
                     "couldn't convert BufferId to file in {}",
                     type_name::<Self>()
                 );

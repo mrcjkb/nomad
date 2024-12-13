@@ -105,7 +105,7 @@ impl Project {
         let file = self.replica.file(file_id)?;
         let file_path_in_project = file.path();
         let file_path = (*self.project_root).concat(&file_path_in_project);
-        let buffer_id = BufferId::of_name(&*file_path)?;
+        let buffer_id = BufferId::of_file_at(&*file_path)?;
         self.neovim_ctx.reborrow().into_buffer(buffer_id)
     }
 

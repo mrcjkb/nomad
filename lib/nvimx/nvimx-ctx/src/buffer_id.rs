@@ -23,10 +23,14 @@ impl BufferId {
     }
 
     /// Returns the [`BufferId`] of the buffer with the given name.
-    pub fn of_name<T: AsRef<str>>(name: T) -> Option<Self> {
-        api::call_function::<_, i32>("bufnr", (name.as_ref(),))
-            .ok()
-            .and_then(|handle| (handle != -1).then_some(Self { handle }))
+    pub fn of_file_at<T: AsRef<str>>(name: T) -> Option<Self> {
+        api::list_bufs()
+            .find(|buf| {
+                buf.get_name()
+                    .map(|n| n.as_os_str().to_str() == Some(name.as_ref()))
+                    .unwrap_or(false)
+            })
+            .map(Self::new)
     }
 
     /// Returns an iterator of the [`BufferId`]s of all the currently opened
