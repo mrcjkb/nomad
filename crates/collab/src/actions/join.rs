@@ -474,7 +474,7 @@ impl RunSession {
 
 impl RemoveProjectRoot {
     async fn remove_project_root(self) -> Result<(), RemoveProjectRootError> {
-        async_fs::remove_dir(self.project_root).await.map_err(Into::into)
+        async_fs::remove_dir_all(self.project_root).await.map_err(Into::into)
     }
 }
 
