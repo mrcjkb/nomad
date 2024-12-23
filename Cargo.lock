@@ -1264,6 +1264,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvimx2"
+version = "0.1.0"
+dependencies = [
+ "nvimx2-macros",
+]
+
+[[package]]
+name = "nvimx2-macros"
+version = "0.1.0"
+
+[[package]]
 name = "objc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
