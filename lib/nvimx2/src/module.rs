@@ -36,4 +36,22 @@ pub struct ModuleCtx<'a, B> {
 }
 
 /// TODO: docs.
+#[repr(transparent)]
 pub struct ModuleName(str);
+
+impl ModuleName {
+    /// TODO: docs.
+    #[inline]
+    pub const fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub const fn new(name: &str) -> &Self {
+        assert!(!name.is_empty());
+        assert!(name.len() <= 24);
+        // SAFETY: `ModuleName` is a `repr(transparent)` newtype around `str`.
+        unsafe { &*(name as *const str as *const Self) }
+    }
+}

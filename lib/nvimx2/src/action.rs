@@ -29,4 +29,22 @@ pub trait Action<B: Backend>: 'static {
 }
 
 /// TODO: docs.
+#[repr(transparent)]
 pub struct ActionName(str);
+
+impl ActionName {
+    /// TODO: docs.
+    #[inline]
+    pub const fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub const fn new(name: &str) -> &Self {
+        assert!(!name.is_empty());
+        assert!(name.len() <= 24);
+        // SAFETY: `ActionName` is a `repr(transparent)` newtype around `str`.
+        unsafe { &*(name as *const str as *const Self) }
+    }
+}
