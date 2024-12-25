@@ -7,4 +7,7 @@ pub trait Backend: 'static {
 
     /// TODO: docs.
     type BackgroundExecutor: BackgroundExecutor;
+
+    /// TODO: docs.
+    fn init() -> Self;
 }

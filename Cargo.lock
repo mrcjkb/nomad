@@ -194,6 +194,7 @@ name = "backend-neovim"
 version = "0.1.0"
 dependencies = [
  "nvim-oxi",
+ "nvimx-core",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 /// TODO: docs.
-pub trait NeovimVersion {}
+pub trait NeovimVersion: 'static {}
 
 /// TODO: docs.
 #[cfg(feature = "neovim-0-10")]
