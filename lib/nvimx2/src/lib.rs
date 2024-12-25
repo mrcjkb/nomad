@@ -3,6 +3,7 @@
 mod action;
 mod async_ctx;
 mod backend;
+pub mod backends;
 mod command;
 mod command_args;
 pub mod executor;

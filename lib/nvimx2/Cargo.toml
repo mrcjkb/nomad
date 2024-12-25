@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 nvimx2-macros = { path = "./macros/" }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
 [lints]
 workspace = true

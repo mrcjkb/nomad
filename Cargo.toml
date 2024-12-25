@@ -92,4 +92,5 @@ auth = { workspace = true }
 collab = { workspace = true }
 nomad = { workspace = true }
 nvimx = { workspace = true }
+nvimx2 = { workspace = true }
 version = { workspace = true }
