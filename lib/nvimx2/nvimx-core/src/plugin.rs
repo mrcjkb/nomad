@@ -17,12 +17,20 @@ pub trait Plugin<B: Backend>: 'static + Sized {
 
 /// TODO: docs.
 pub struct PluginCtx<'a, B> {
-    neovim_ctx: NeovimCtx<'a, B>,
+    backend: &'a mut B,
 }
 
 /// TODO: docs.
 #[repr(transparent)]
 pub struct PluginName(str);
+
+impl<'a, B: Backend> PluginCtx<'a, B> {
+    #[doc(hidden)]
+    #[inline]
+    pub fn new(backend: &'a mut B) -> Self {
+        Self { backend }
+    }
+}
 
 impl PluginName {
     /// TODO: docs.

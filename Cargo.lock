@@ -1032,8 +1032,6 @@ version = "0.1.0"
 dependencies = [
  "auth",
  "collab",
- "nomad",
- "nvimx",
  "nvimx2",
  "version",
 ]
@@ -1292,6 +1290,11 @@ dependencies = [
 [[package]]
 name = "nvimx2-macros"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
+]
 
 [[package]]
 name = "objc"
