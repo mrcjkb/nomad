@@ -1148,6 +1148,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvimx-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.4",
+]
+
+[[package]]
 name = "nvimx-ctx"
 version = "0.1.0"
 dependencies = [
@@ -1276,9 +1284,8 @@ name = "nvimx2"
 version = "0.1.0"
 dependencies = [
  "backend-neovim",
+ "nvimx-core",
  "nvimx2-macros",
- "serde",
- "thiserror 2.0.4",
 ]
 
 [[package]]

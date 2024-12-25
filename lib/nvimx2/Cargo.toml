@@ -12,10 +12,8 @@ neovim-nightly = ["__neovim", "backend-neovim/neovim-nightly"]
 __neovim = ["dep:backend-neovim", "nvimx2-macros/plugin"]
 
 [dependencies]
+nvimx-core = { path = "./nvimx-core" }
 nvimx2-macros = { path = "./nvimx-macros" }
-serde = { workspace = true }
-thiserror = { workspace = true }
-
 backend-neovim = { path = "./backend-neovim", optional = true }
 
 [lints]
