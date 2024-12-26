@@ -76,7 +76,7 @@ broken_intra_doc_links = "deny"
 private_intra_doc_links = "deny"
 
 [package]
-name = "nomad-neovim"
+name = "mad"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
