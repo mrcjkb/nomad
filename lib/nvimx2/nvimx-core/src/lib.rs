@@ -11,6 +11,7 @@ mod maybe_result;
 mod module;
 mod module_api;
 mod neovim_ctx;
+pub mod notify;
 mod plugin;
 mod plugin_api;
 mod shared;

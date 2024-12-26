@@ -29,6 +29,7 @@ pub trait Action<B: Backend>: 'static {
 }
 
 /// TODO: docs.
+#[derive(Debug, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct ActionName(str);
 

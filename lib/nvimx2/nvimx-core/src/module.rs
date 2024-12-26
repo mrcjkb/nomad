@@ -36,6 +36,7 @@ pub struct ModuleCtx<'a, B> {
 }
 
 /// TODO: docs.
+#[derive(Debug, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct ModuleName(str);
 

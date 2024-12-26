@@ -21,6 +21,7 @@ pub struct PluginCtx<'a, B> {
 }
 
 /// TODO: docs.
+#[derive(Debug, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct PluginName(str);
 
