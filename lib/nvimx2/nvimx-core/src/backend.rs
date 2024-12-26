@@ -1,5 +1,5 @@
 use crate::executor::{BackgroundExecutor, LocalExecutor};
-use crate::{Plugin, PluginApi};
+use crate::{Plugin, PluginApi, notify};
 
 /// TODO: docs.
 pub trait Backend: 'static + Sized {
@@ -13,7 +13,13 @@ pub trait Backend: 'static + Sized {
     type BackgroundExecutor: BackgroundExecutor;
 
     /// TODO: docs.
+    type Emitter<'a>: notify::Emitter;
+
+    /// TODO: docs.
     fn init() -> Self;
+
+    /// TODO: docs.
+    fn emitter(&mut self) -> Self::Emitter<'_>;
 
     /// TODO: docs.
     fn to_backend_api<P>(

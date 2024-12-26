@@ -24,6 +24,4 @@ pub use nvimx_macros::test;
 #[doc(inline)]
 pub use nvimx_plugin as plugin;
 #[doc(inline)]
-pub use nvimx_tests as tests;
-#[doc(inline)]
 pub use nvimx_ui as ui;

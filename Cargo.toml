@@ -41,7 +41,6 @@ nvimx-executor = { path = "./lib/nvimx/nvimx-executor" }
 nvimx-fs = { path = "./lib/nvimx/nvimx-fs" }
 nvimx-macros = { path = "./lib/nvimx/nvimx-macros" }
 nvimx-plugin = { path = "./lib/nvimx/nvimx-plugin" }
-nvimx-tests = { path = "./lib/nvimx/nvimx-tests" }
 nvimx-ui = { path = "./lib/nvimx/nvimx-ui" }
 
 auth = { path = "./crates/auth" }

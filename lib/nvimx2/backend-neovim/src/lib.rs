@@ -1,8 +1,10 @@
 //! TODO: docs.
 
 mod background_executor;
+mod convert;
 mod local_executor;
 mod neovim;
+pub mod notify;
 mod version;
 
 pub use background_executor::NeovimBackgroundExecutor;

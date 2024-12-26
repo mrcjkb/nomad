@@ -13,7 +13,6 @@ neovim-0-10 = [
   "nvimx-ctx/neovim-0-10",
   "nvimx-diagnostics/neovim-0-10",
   "nvimx-executor/neovim-0-10",
-  "nvimx-tests/neovim-0-10",
   "nvimx-ui/neovim-0-10",
 ]
 neovim-nightly = [
@@ -22,7 +21,6 @@ neovim-nightly = [
   "nvimx-ctx/neovim-nightly",
   "nvimx-diagnostics/neovim-nightly",
   "nvimx-executor/neovim-nightly",
-  "nvimx-tests/neovim-nightly",
   "nvimx-ui/neovim-nightly",
 ]
 
@@ -37,7 +35,6 @@ nvimx-executor = { workspace = true }
 nvimx-fs = { workspace = true }
 nvimx-macros = { workspace = true }
 nvimx-plugin = { workspace = true }
-nvimx-tests = { workspace = true }
 nvimx-ui = { workspace = true }
 
 [lints]
