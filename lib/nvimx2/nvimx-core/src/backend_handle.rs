@@ -1,6 +1,6 @@
 use core::ops::{Deref, DerefMut};
 
-use crate::{ Shared};
+use crate::Shared;
 
 /// TODO: docs.
 pub(crate) struct BackendHandle<B> {
@@ -10,7 +10,7 @@ pub(crate) struct BackendHandle<B> {
 /// TODO: docs.
 pub(crate) struct BackendMut<'a, B> {
     backend: &'a mut B,
-    handle: BackendHandle<B>,
+    handle: &'a BackendHandle<B>,
 }
 
 impl<B> BackendHandle<B> {
@@ -20,8 +20,7 @@ impl<B> BackendHandle<B> {
     where
         F: FnOnce(BackendMut<'_, B>) -> R,
     {
-        let handle = self.clone();
-        self.inner.with_mut(|backend| f(BackendMut { backend, handle }))
+        self.inner.with_mut(|backend| f(BackendMut { backend, handle: self }))
     }
 }
 
@@ -29,6 +28,11 @@ impl<B> BackendMut<'_, B> {
     #[inline]
     pub(crate) fn handle(&self) -> BackendHandle<B> {
         self.handle.clone()
+    }
+
+    #[inline]
+    pub(crate) fn reborrow(&mut self) -> BackendMut<'_, B> {
+        BackendMut { backend: self.backend, handle: self.handle }
     }
 }
 
