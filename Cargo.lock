@@ -196,6 +196,7 @@ dependencies = [
  "nvim-oxi",
  "nvimx-core",
  "nvimx2-macros",
+ "serde",
  "smallvec",
 ]
 

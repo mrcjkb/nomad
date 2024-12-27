@@ -15,7 +15,7 @@ pub trait Function<B: Backend>: 'static {
     type Args: DeserializeOwned;
 
     /// TODO: docs.
-    type Return: Serialize;
+    type Return: Serialize + 'static;
 
     /// TODO: docs.
     type Docs;

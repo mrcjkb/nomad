@@ -1,10 +1,11 @@
 use core::convert::Infallible;
-use core::error::Error;
+
+use crate::notify;
 
 /// TODO: docs
 pub trait MaybeResult<T> {
-    /// TODO: docs
-    type Error: Error;
+    /// TODO: docs.
+    type Error: notify::Error;
 
     /// TODO: docs
     fn into_result(self) -> Result<T, Self::Error>;
@@ -20,10 +21,7 @@ impl<T> MaybeResult<T> for T {
     }
 }
 
-impl<T, E> MaybeResult<T> for Result<T, E>
-where
-    E: Error,
-{
+impl<T, E: notify::Error> MaybeResult<T> for Result<T, E> {
     type Error = E;
 
     #[inline]
