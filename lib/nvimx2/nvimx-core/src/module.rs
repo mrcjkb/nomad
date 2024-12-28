@@ -70,23 +70,22 @@ where
         Fun: Function<B, Module = M>,
     {
         let backend = self.backend.clone();
-
         let fun = move |value| {
             let fun = &mut fun;
             backend.with_mut(move |mut backend| {
-                let args = Fun::Args::deserialize(backend.deserializer(value))
-                    .map_err(|err| {
+                let args = backend.deserialize::<Fun::Args>(value).map_err(
+                    |err| {
                         backend.emit_err(&err);
                         FunctionError::Deserialize(err)
-                    })?;
+                    },
+                )?;
 
                 let ret = fun
                     .call(args, NeovimCtx::new(backend.reborrow()))
                     .into_result()
                     .map_err(|err| {
-                        // Even though the error is bound to `notify::Error`
-                        // (which itself is bound to `'static`), Rust thinks
-                        // that the error captures some lifetime due to
+                        // Even though the error is bound to 'static, Rust
+                        // thinks that the error captures some lifetime due to
                         // `Function::call()` returning an `impl MaybeResult`.
                         //
                         // Should be the same problem as
@@ -101,7 +100,7 @@ where
                         FunctionError::Call(err)
                     })?;
 
-                ret.serialize(backend.serializer()).map_err(|err| {
+                backend.serialize(&ret).map_err(|err| {
                     backend.emit_err(&err);
                     FunctionError::Serialize(err)
                 })

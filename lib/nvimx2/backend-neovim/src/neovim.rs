@@ -12,9 +12,9 @@ impl Backend for Neovim {
     type ApiValue = oxi::Object;
     type LocalExecutor = executor::NeovimLocalExecutor;
     type BackgroundExecutor = executor::NeovimBackgroundExecutor;
-    type Emitter<'a> = &'a mut notify::NeovimEmitter;
-    type Serializer = serde::NeovimSerializer;
-    type Deserializer<'de> = serde::NeovimDeserializer;
+    type Emitter<'this> = &'this mut notify::NeovimEmitter;
+    type SerializeError = serde::NeovimSerializeError;
+    type DeserializeError = serde::NeovimDeserializeError;
 
     #[inline]
     fn init() -> Self {
@@ -32,15 +32,18 @@ impl Backend for Neovim {
     }
 
     #[inline]
-    fn serializer(&mut self) -> Self::Serializer {
-        serde::NeovimSerializer::default()
+    fn serialize<T: ?Sized + ::serde::Serialize>(
+        &mut self,
+        value: &T,
+    ) -> Result<Self::ApiValue, Self::SerializeError> {
+        serde::serialize(value)
     }
 
     #[inline]
-    fn deserializer<'de>(
+    fn deserialize<T: ::serde::de::DeserializeOwned>(
         &mut self,
-        value: oxi::Object,
-    ) -> Self::Deserializer<'de> {
-        serde::NeovimDeserializer::new(value)
+        object: Self::ApiValue,
+    ) -> Result<T, Self::DeserializeError> {
+        serde::deserialize(object)
     }
 }

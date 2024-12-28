@@ -4,8 +4,6 @@ use core::marker::PhantomData;
 
 use nvimx_core::api::{Api, ModuleApi};
 use nvimx_core::{ActionName, Module, Plugin, notify};
-use serde::de::Deserialize;
-use serde::ser::Serialize;
 
 use crate::Neovim;
 use crate::oxi::{Dictionary, Function, Object};

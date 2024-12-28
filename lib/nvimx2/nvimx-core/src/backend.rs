@@ -1,4 +1,5 @@
-use serde::{Deserializer, Serializer};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::api::Api;
 use crate::executor::{BackgroundExecutor, LocalExecutor};
@@ -20,13 +21,13 @@ pub trait Backend: 'static + Sized {
     type BackgroundExecutor: BackgroundExecutor;
 
     /// TODO: docs.
-    type Emitter<'a>: notify::Emitter;
+    type Emitter<'this>: notify::Emitter;
 
     /// TODO: docs.
-    type Serializer: Serializer<Ok = Self::ApiValue, Error: notify::Error + 'static>;
+    type SerializeError: notify::Error + 'static;
 
     /// TODO: docs.
-    type Deserializer<'de>: Deserializer<'de, Error: notify::Error + 'static>;
+    type DeserializeError: notify::Error + 'static;
 
     /// TODO: docs.
     fn api<P: Plugin<Self>>(&mut self) -> Self::Api<P>;
@@ -38,13 +39,20 @@ pub trait Backend: 'static + Sized {
     fn emitter(&mut self) -> Self::Emitter<'_>;
 
     /// TODO: docs.
-    fn serializer(&mut self) -> Self::Serializer;
+    fn serialize<T>(
+        &mut self,
+        value: &T,
+    ) -> Result<Self::ApiValue, Self::SerializeError>
+    where
+        T: ?Sized + Serialize;
 
     /// TODO: docs.
-    fn deserializer<'de>(
+    fn deserialize<T>(
         &mut self,
         value: Self::ApiValue,
-    ) -> Self::Deserializer<'de>;
+    ) -> Result<T, Self::DeserializeError>
+    where
+        T: DeserializeOwned;
 }
 
 /// TODO: docs.
