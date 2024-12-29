@@ -66,7 +66,7 @@ where
 {
     /// TODO: docs.
     #[inline]
-    pub fn with_command<Cmd>(mut self, mut cmd: Cmd) -> Self
+    pub fn with_command<Cmd>(mut self, mut command: Cmd) -> Self
     where
         Cmd: Command<B, Module = M>,
     {
@@ -76,13 +76,13 @@ where
     /// TODO: docs.
     #[track_caller]
     #[inline]
-    pub fn with_function<Fun>(mut self, mut fun: Fun) -> Self
+    pub fn with_function<Fun>(mut self, mut function: Fun) -> Self
     where
         Fun: Function<B, Module = M>,
     {
         let backend = self.backend.clone();
         let fun = move |value| {
-            let fun = &mut fun;
+            let fun = &mut function;
             backend.with_mut(move |mut backend| {
                 let args = backend.deserialize::<Fun::Args>(value).map_err(
                     |err| {
@@ -119,6 +119,15 @@ where
         };
         self.api.add_function(Fun::NAME, fun);
         self
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn with_module<Mod>(mut self, mut module: Mod) -> Self
+    where
+        Mod: Module<B, Namespace = M>,
+    {
+        todo!();
     }
 
     #[inline]
