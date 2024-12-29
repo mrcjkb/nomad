@@ -1,11 +1,22 @@
 //! TODO: docs.
 
-use crate::{ActionName, Backend, Module, Plugin, notify};
+use crate::command::{CommandArgs, CommandCompletion};
+use crate::{ActionName, Backend, ByteOffset, Module, Plugin, notify};
 
 /// TODO: docs.
 pub trait Api<P: Plugin<B>, B: Backend>: 'static + Sized {
     /// TODO: docs.
     type ModuleApi<'a, M: Module<B, Plugin = P>>: ModuleApi<M, B>;
+
+    /// TODO: docs.
+    fn add_command<Cmd, CompFun, Comps>(
+        &mut self,
+        command: Cmd,
+        completion_fun: CompFun,
+    ) where
+        Cmd: FnMut(CommandArgs) + 'static,
+        CompFun: FnMut(CommandArgs, ByteOffset) -> Comps + 'static,
+        Comps: IntoIterator<Item = CommandCompletion>;
 
     /// TODO: docs.
     fn with_module<M>(&mut self) -> Self::ModuleApi<'_, M>

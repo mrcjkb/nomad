@@ -3,10 +3,11 @@
 use core::marker::PhantomData;
 
 use nvimx_core::api::{Api, ModuleApi};
-use nvimx_core::{ActionName, Module, Plugin, notify};
+use nvimx_core::command::{CommandArgs, CommandCompletion};
+use nvimx_core::{ActionName, ByteOffset, Module, Plugin, notify};
 
 use crate::Neovim;
-use crate::oxi::{Dictionary, Function, Object};
+use crate::oxi::{Dictionary, Function, Object, api};
 
 /// TODO: docs.
 pub struct NeovimApi<P> {
@@ -25,6 +26,63 @@ where
     P: Plugin<Neovim>,
 {
     type ModuleApi<'a, M: Module<Neovim, Plugin = P>> = NeovimModuleApi<'a, M>;
+
+    #[inline]
+    fn add_command<Cmd, CompFun, Comps>(
+        &mut self,
+        mut command: Cmd,
+        mut completion_fun: CompFun,
+    ) where
+        Cmd: FnMut(CommandArgs) + 'static,
+        CompFun: FnMut(CommandArgs, ByteOffset) -> Comps + 'static,
+        Comps: IntoIterator<Item = CommandCompletion>,
+    {
+        let command =
+            Function::from_fn_mut(move |args: api::types::CommandArgs| {
+                command(CommandArgs::new(
+                    args.args.as_deref().unwrap_or_default(),
+                ))
+            });
+
+        let completion_fun = Function::from_fn_mut(
+            move |(_, command_str, mut cursor_offset): (
+                String,
+                String,
+                usize,
+            )| {
+                // Trim any leading whitespace.
+                let initial_len = command_str.len();
+                let command_str = command_str.trim_start();
+                cursor_offset -= initial_len - command_str.len();
+
+                // The command line must start with "<Command> " for Neovim to
+                // invoke us.
+                let subcommand_starts_from = P::NAME.as_str().len() + 1;
+                debug_assert!(command_str.starts_with(P::NAME.as_str()));
+                debug_assert!(cursor_offset >= subcommand_starts_from);
+
+                let args = &command_str[subcommand_starts_from..];
+                cursor_offset -= subcommand_starts_from;
+
+                completion_fun(
+                    CommandArgs::new(args),
+                    ByteOffset::new(cursor_offset),
+                )
+                .into_iter()
+                .map(|comp| comp.as_str().to_owned())
+                .collect::<Vec<_>>()
+            },
+        );
+
+        let opts = api::opts::CreateCommandOpts::builder()
+            .complete(api::types::CommandComplete::CustomList(completion_fun))
+            .force(true)
+            .nargs(api::types::CommandNArgs::Any)
+            .build();
+
+        api::create_user_command(P::NAME.as_str(), command, &opts)
+            .expect("all arguments are valid");
+    }
 
     #[track_caller]
     #[inline]

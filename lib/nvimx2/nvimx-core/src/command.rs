@@ -1,11 +1,15 @@
+//! TODO: docs.
+
+use smol_str::SmolStr;
+
 use crate::{
     Action,
     ActionName,
     Backend,
-    CommandArgs,
     MaybeResult,
     Module,
     NeovimCtx,
+    notify,
 };
 
 /// TODO: docs.
@@ -17,7 +21,7 @@ pub trait Command<B: Backend>: 'static {
     type Module: Module<B>;
 
     /// TODO: docs.
-    type Args: for<'a> TryFrom<CommandArgs<'a>>;
+    type Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error>;
 
     /// TODO: docs.
     type Docs;
@@ -33,10 +37,34 @@ pub trait Command<B: Backend>: 'static {
     fn docs() -> Self::Docs;
 }
 
+/// TODO: docs.
+pub struct CommandArgs<'a>(&'a [&'a str]);
+
+/// TODO: docs.
+pub struct CommandCompletion {
+    inner: SmolStr,
+}
+
+impl<'a> CommandArgs<'a> {
+    /// TODO: docs.
+    #[inline]
+    pub fn new(_command_str: &'a str) -> Self {
+        todo!()
+    }
+}
+
+impl CommandCompletion {
+    /// TODO: docs.
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        self.inner.as_str()
+    }
+}
+
 impl<A, B> Command<B> for A
 where
     A: Action<B, Return = ()>,
-    A::Args: for<'a> TryFrom<CommandArgs<'a>>,
+    A::Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error>,
     B: Backend,
 {
     const NAME: &'static ActionName = A::NAME;

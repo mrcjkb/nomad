@@ -1132,6 +1132,7 @@ name = "nvimx-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "smol_str",
  "thiserror 2.0.4",
 ]
 
