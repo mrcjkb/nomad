@@ -37,6 +37,8 @@ where
         CompFun: FnMut(CommandArgs, ByteOffset) -> Comps + 'static,
         Comps: IntoIterator<Item = CommandCompletion>,
     {
+        let command_name = P::COMMAND_NAME.as_str();
+
         let command =
             Function::from_fn_mut(move |args: api::types::CommandArgs| {
                 command(CommandArgs::new(
@@ -57,8 +59,8 @@ where
 
                 // The command line must start with "<Command> " for Neovim to
                 // invoke us.
-                let subcommand_starts_from = P::NAME.as_str().len() + 1;
-                debug_assert!(command_str.starts_with(P::NAME.as_str()));
+                let subcommand_starts_from = command_name.len() + 1;
+                debug_assert!(command_str.starts_with(command_name));
                 debug_assert!(cursor_offset >= subcommand_starts_from);
 
                 let args = &command_str[subcommand_starts_from..];
@@ -80,7 +82,7 @@ where
             .nargs(api::types::CommandNArgs::Any)
             .build();
 
-        api::create_user_command(P::NAME.as_str(), command, &opts)
+        api::create_user_command(command_name, command, &opts)
             .expect("all arguments are valid");
     }
 

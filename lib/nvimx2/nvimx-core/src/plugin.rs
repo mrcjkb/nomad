@@ -1,12 +1,16 @@
 use core::marker::PhantomData;
 
 use crate::api::{Api, ModuleApi};
-use crate::{Backend, BackendHandle, Module, ModuleApiCtx};
+use crate::{ActionName, Backend, BackendHandle, Module, ModuleApiCtx};
 
 /// TODO: docs.
 pub trait Plugin<B: Backend>: 'static + Sized {
     /// TODO: docs.
     const NAME: &'static PluginName;
+
+    /// TODO: docs.
+    const COMMAND_NAME: &'static ActionName =
+        ActionName::new(Self::NAME.uppercase_first().as_str());
 
     /// TODO: docs.
     type Docs;
@@ -74,5 +78,11 @@ impl PluginName {
         assert!(name.len() <= 24);
         // SAFETY: `PluginName` is a `repr(transparent)` newtype around `str`.
         unsafe { &*(name as *const str as *const Self) }
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub const fn uppercase_first(&self) -> &Self {
+        todo!();
     }
 }
