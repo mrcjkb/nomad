@@ -271,7 +271,7 @@ where
                             actual_num: num_initialized + 1 + iter.count(),
                             expected_num: N,
                         },
-                    ))
+                    ));
                 },
                 None if num_initialized < N => {
                     break Some(Self::Error::WrongNum(
@@ -280,7 +280,7 @@ where
                             actual_num: num_initialized,
                             expected_num: N,
                         },
-                    ))
+                    ));
                 },
                 None => break None,
             };

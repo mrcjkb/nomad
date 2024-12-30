@@ -1,7 +1,5 @@
 use nvimx::ctx::NeovimCtx;
 use nvimx::plugin::{
-    action_name,
-    module_name,
     Action,
     ActionName,
     ConfigReceiver,
@@ -9,6 +7,8 @@ use nvimx::plugin::{
     ModuleApi,
     ModuleName,
     ToCompletionFunc,
+    action_name,
+    module_name,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");

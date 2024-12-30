@@ -1,10 +1,10 @@
 use nvimx::ctx::NeovimCtx;
 use nvimx::plugin::{
-    module_name,
     ConfigReceiver,
     Module,
     ModuleApi,
     ModuleName,
+    module_name,
 };
 
 use crate::actions::{Login, Logout};

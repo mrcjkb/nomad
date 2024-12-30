@@ -8,6 +8,7 @@ mod sync_replacement;
 
 use std::io;
 
+use collab_server::SessionId;
 use collab_server::message::{
     FileContents,
     Message,
@@ -16,20 +17,20 @@ use collab_server::message::{
     ProjectRequest,
     ProjectResponse,
 };
-use collab_server::SessionId;
 use detach_buffer_actions::DetachBufferActions;
 use eerie::fs::AbsPathBuf;
 use futures_util::stream::FusedStream;
 use futures_util::{
-    pin_mut,
-    select,
-    stream,
     FutureExt,
     Sink,
     SinkExt,
     Stream,
     StreamExt,
+    pin_mut,
+    select,
+    stream,
 };
+use nvimx::Shared;
 use nvimx::ctx::{BufferId, NeovimCtx};
 use nvimx::diagnostics::{
     DiagnosticMessage,
@@ -39,7 +40,6 @@ use nvimx::diagnostics::{
 };
 use nvimx::event::{BufReadPost, BufUnload, Event};
 use nvimx::plugin::Module;
-use nvimx::Shared;
 use peer_selection::PeerSelection;
 use peer_tooltip::PeerTooltip;
 pub(crate) use project::Project;

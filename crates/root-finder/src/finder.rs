@@ -1,4 +1,4 @@
-use futures_util::{pin_mut, StreamExt};
+use futures_util::{StreamExt, pin_mut};
 use nvimx::fs::{self, AbsPath, AbsPathBuf, DirEntry, FsNodeKind};
 
 use crate::{FindRootError, Marker};

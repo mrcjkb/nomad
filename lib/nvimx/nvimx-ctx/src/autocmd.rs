@@ -32,7 +32,7 @@ pub trait AutoCommand: Sized {
         ActorId,
         &'ctx AutoCommandCtx<'ctx>,
     ) -> Result<ShouldDetach, DiagnosticMessage>
-           + 'static;
+    + 'static;
 }
 
 /// TODO: docs.

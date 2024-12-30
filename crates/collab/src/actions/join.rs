@@ -3,6 +3,7 @@ use std::io;
 use std::rc::Rc;
 
 use async_net::TcpStream;
+use collab_server::SessionIntent;
 use collab_server::client::{ClientRxError, KnockError, Knocker, Welcome};
 use collab_server::configs::nomad::{
     NomadAuthenticateInfos,
@@ -18,23 +19,22 @@ use collab_server::message::{
     ProjectRequest,
     ProjectResponse,
 };
-use collab_server::SessionIntent;
 use eerie::fs::AbsPathBuf;
 use eerie::{DirectoryId, DirectoryRef, Replica};
 use futures_util::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
-use futures_util::{future, stream, SinkExt, Stream, StreamExt};
+use futures_util::{SinkExt, Stream, StreamExt, future, stream};
+use nvimx::Shared;
 use nvimx::ctx::NeovimCtx;
 use nvimx::diagnostics::DiagnosticMessage;
 use nvimx::emit::{Emit, EmitExt, EmitMessage, Severity};
-use nvimx::plugin::{action_name, ActionName, AsyncAction, ToCompletionFunc};
-use nvimx::Shared;
+use nvimx::plugin::{ActionName, AsyncAction, ToCompletionFunc, action_name};
 
 use super::UserBusyError;
+use crate::Collab;
 use crate::config::Config;
 use crate::session::{NewSessionArgs, RunSessionError, Session};
 use crate::session_id::SessionId;
 use crate::session_status::SessionStatus;
-use crate::Collab;
 
 #[derive(Clone)]
 pub(crate) struct Join {

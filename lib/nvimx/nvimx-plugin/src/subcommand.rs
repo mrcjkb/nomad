@@ -30,9 +30,9 @@ pub trait SubCommand: 'static {
 
     /// TODO: docs
     type Args: for<'args> TryFrom<
-        SubCommandArgs<'args>,
-        Error: Into<DiagnosticMessage>,
-    >;
+            SubCommandArgs<'args>,
+            Error: Into<DiagnosticMessage>,
+        >;
 
     /// TODO: docs
     type Docs;
@@ -81,9 +81,9 @@ impl<A> SubCommand for A
 where
     A: for<'a> Action<Ctx<'a> = NeovimCtx<'a>, Return = ()> + ToCompletionFunc,
     A::Args: for<'args> TryFrom<
-        SubCommandArgs<'args>,
-        Error: Into<DiagnosticMessage>,
-    >,
+            SubCommandArgs<'args>,
+            Error: Into<DiagnosticMessage>,
+        >,
 {
     const NAME: ActionName = A::NAME;
     type Args = A::Args;

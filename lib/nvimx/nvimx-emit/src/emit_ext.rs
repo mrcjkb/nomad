@@ -1,11 +1,11 @@
 use core::future::Future;
 use core::time::Duration;
 
-use futures_util::{pin_mut, select, FutureExt, Stream, StreamExt};
+use futures_util::{FutureExt, Stream, StreamExt, pin_mut, select};
 
+use crate::Emit;
 use crate::clear::Clear;
 use crate::clear_after::ClearAfter;
-use crate::Emit;
 
 /// TODO: docs.
 pub trait EmitExt {

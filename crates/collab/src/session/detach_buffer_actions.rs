@@ -1,7 +1,7 @@
+use nvimx::Shared;
 use nvimx::ctx::{BufferCtx, BufferId, ShouldDetach};
 use nvimx::event::BufUnloadArgs;
-use nvimx::plugin::{action_name, Action, ActionName};
-use nvimx::Shared;
+use nvimx::plugin::{Action, ActionName, action_name};
 
 use super::Project;
 use crate::Collab;

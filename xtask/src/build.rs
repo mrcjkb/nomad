@@ -2,7 +2,7 @@ use core::{fmt, iter, str};
 use std::borrow::Cow;
 use std::env;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use cargo_metadata::TargetKind;
 use futures_executor::block_on;
 use nvimx::fs::os_fs::OsFs;

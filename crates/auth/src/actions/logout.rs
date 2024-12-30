@@ -1,5 +1,5 @@
 use nvimx::ctx::NeovimCtx;
-use nvimx::plugin::{action_name, ActionName, AsyncAction, ToCompletionFunc};
+use nvimx::plugin::{ActionName, AsyncAction, ToCompletionFunc, action_name};
 
 use crate::Auth;
 

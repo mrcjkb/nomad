@@ -1,8 +1,8 @@
 use core::ops::Range;
 
+use nvimx::ByteOffset;
 use nvimx::ctx::{BufferCtx, BufferId, Selection};
 use nvimx::diagnostics::HighlightGroup;
-use nvimx::ByteOffset;
 
 /// TODO: docs.
 pub(super) struct PeerSelection {

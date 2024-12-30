@@ -1,12 +1,12 @@
+use nvimx::Shared;
 use nvimx::ctx::NeovimCtx;
 use nvimx::plugin::{
-    module_name,
     ConfigReceiver,
     Module,
     ModuleApi,
     ModuleName,
+    module_name,
 };
-use nvimx::Shared;
 
 use crate::actions::{Join, Start, Yank};
 use crate::config::Config;

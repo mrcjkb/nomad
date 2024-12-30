@@ -8,4 +8,4 @@ mod sleep;
 
 pub use executor::Executor;
 pub use join_handle::JoinHandle;
-pub use sleep::{sleep, Sleep};
+pub use sleep::{Sleep, sleep};

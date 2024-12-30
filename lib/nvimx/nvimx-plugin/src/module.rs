@@ -4,10 +4,10 @@ use nvimx_common::MaybeResult;
 use nvimx_ctx::NeovimCtx;
 use serde::de::DeserializeOwned;
 
+use crate::ModuleName;
 use crate::config::ConfigReceiver;
 use crate::module_api::ModuleApi;
 use crate::plugin::Plugin;
-use crate::ModuleName;
 
 /// TODO: docs.
 pub trait Module: 'static + From<ConfigReceiver<Self>> {

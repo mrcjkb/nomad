@@ -1,10 +1,10 @@
+use nvimx::Shared;
 use nvimx::ctx::NeovimCtx;
 use nvimx::diagnostics::DiagnosticMessage;
-use nvimx::plugin::{action_name, Action, ActionName, ToCompletionFunc};
-use nvimx::Shared;
+use nvimx::plugin::{Action, ActionName, ToCompletionFunc, action_name};
 
-use crate::session_status::SessionStatus;
 use crate::Collab;
+use crate::session_status::SessionStatus;
 
 #[derive(Clone)]
 pub(crate) struct Yank {

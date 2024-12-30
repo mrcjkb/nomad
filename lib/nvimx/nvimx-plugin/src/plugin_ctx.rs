@@ -1,7 +1,7 @@
 use core::future::Future;
 use core::pin::Pin;
 
-use nvimx_common::{oxi, MaybeResult};
+use nvimx_common::{MaybeResult, oxi};
 use nvimx_ctx::NeovimCtx;
 use nvimx_diagnostics::{DiagnosticSource, Level};
 

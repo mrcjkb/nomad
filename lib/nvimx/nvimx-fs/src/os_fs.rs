@@ -6,7 +6,7 @@ use core::task::{Context, Poll};
 use std::ffi::OsString;
 use std::io;
 
-use futures_util::{ready, Stream};
+use futures_util::{Stream, ready};
 
 use crate::{
     AbsPath,

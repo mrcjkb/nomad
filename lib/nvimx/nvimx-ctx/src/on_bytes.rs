@@ -3,11 +3,11 @@ use nvim_oxi::api::opts;
 use nvimx_common::Replacement;
 use nvimx_diagnostics::{DiagnosticMessage, DiagnosticSource, Level};
 
+use crate::ActorId;
 use crate::autocmd::ShouldDetach;
 use crate::buffer_id::BufferId;
 use crate::neovim_ctx::NeovimCtx;
 use crate::text_buffer_ctx::TextBufferCtx;
-use crate::ActorId;
 
 /// TODO: docs.
 pub struct RegisterOnBytesArgs<Callback> {

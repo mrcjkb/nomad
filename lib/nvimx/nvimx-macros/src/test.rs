@@ -1,8 +1,8 @@
 use core::fmt;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
-use syn::{parse_quote, Block, FnArg, Ident, ItemFn, Path};
+use quote::{ToTokens, quote};
+use syn::{Block, FnArg, Ident, ItemFn, Path, parse_quote};
 
 pub(crate) fn test(args: Args, item: ItemFn) -> syn::Result<TokenStream> {
     let test = Test::new(&args, &item)?;

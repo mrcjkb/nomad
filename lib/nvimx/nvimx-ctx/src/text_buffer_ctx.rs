@@ -4,11 +4,11 @@ use nvim_oxi::api::{self, opts};
 use nvimx_common::{ByteOffset, Point, Replacement, Text};
 use nvimx_diagnostics::DiagnosticMessage;
 
+use crate::ActorId;
 use crate::autocmd::ShouldDetach;
 use crate::buffer_ctx::BufferCtx;
 use crate::on_bytes::{OnBytesArgs, RegisterOnBytesArgs};
 use crate::text_file_ctx::TextFileCtx;
-use crate::ActorId;
 
 /// TODO: docs.
 #[repr(transparent)]

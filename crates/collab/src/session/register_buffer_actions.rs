@@ -1,10 +1,10 @@
 use std::collections::hash_map::Entry;
 
 use collab_server::message::Message;
+use nvimx::Shared;
 use nvimx::ctx::{BufferCtx, BufferId, ShouldDetach};
 use nvimx::event::{BufReadPostArgs, Cursor, Event, OnBytes};
-use nvimx::plugin::{action_name, Action, ActionName};
-use nvimx::Shared;
+use nvimx::plugin::{Action, ActionName, action_name};
 use smallvec::SmallVec;
 use tracing::error;
 

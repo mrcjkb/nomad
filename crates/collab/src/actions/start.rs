@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::io;
 
 use async_net::TcpStream;
+use collab_server::SessionIntent;
 use collab_server::client::{ClientRxError, KnockError, Knocker, Welcome};
 use collab_server::configs::nomad::{
     NomadAuthenticateInfos,
@@ -9,23 +10,22 @@ use collab_server::configs::nomad::{
     NomadConfig,
 };
 use collab_server::message::{GitHubHandle, Peer, Peers};
-use collab_server::SessionIntent;
 use eerie::fs::{AbsPathBuf, FsNodeName};
 use eerie::{Replica, ReplicaBuilder};
 use futures_util::io::{ReadHalf, WriteHalf};
 use futures_util::{AsyncReadExt, StreamExt};
+use nvimx::Shared;
 use nvimx::ctx::{BufferCtx, NeovimCtx};
 use nvimx::diagnostics::DiagnosticMessage;
 use nvimx::fs::os_fs::OsFs;
-use nvimx::plugin::{action_name, ActionName, AsyncAction, ToCompletionFunc};
-use nvimx::Shared;
+use nvimx::plugin::{ActionName, AsyncAction, ToCompletionFunc, action_name};
 use root_finder::markers;
 
 use super::UserBusyError;
+use crate::Collab;
 use crate::config::Config;
 use crate::session::{NewSessionArgs, RunSessionError, Session};
 use crate::session_status::SessionStatus;
-use crate::Collab;
 
 #[derive(Clone)]
 pub(crate) struct Start {
@@ -362,7 +362,7 @@ fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
                         return Err(ReadReplicaError::CouldntReadDir {
                             dir_path,
                             err: io_err,
-                        })
+                        });
                     },
                 };
                 let node_name_os = dir_entry.file_name();
@@ -375,7 +375,7 @@ fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
                         return Err(ReadReplicaError::NodeNameNotUtf8 {
                             parent_path: dir_path,
                             fs_node_name: node_name_os,
-                        })
+                        });
                     },
                 };
                 let node_type = match dir_entry.file_type().await {
@@ -384,7 +384,7 @@ fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
                         return Err(ReadReplicaError::CouldntReadType {
                             fs_node_path: dir_path,
                             err: io_err,
-                        })
+                        });
                     },
                 };
                 dir_path.push(node_name);
@@ -397,7 +397,7 @@ fn recurse(mut dir_path: AbsPathBuf, node_tx: NodeTx, ctx: NeovimCtx<'_>) {
                                     fs_node_path: dir_path,
                                     err: io_err,
                                 },
-                            )
+                            );
                         },
                     };
                     node_tx.send(Ok(Node::File {

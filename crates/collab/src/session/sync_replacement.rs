@@ -1,8 +1,8 @@
 use collab_server::message::Message;
+use nvimx::Shared;
 use nvimx::ctx::{ShouldDetach, TextBufferCtx};
 use nvimx::event::OnBytesArgs;
-use nvimx::plugin::{action_name, Action, ActionName};
-use nvimx::Shared;
+use nvimx::plugin::{Action, ActionName, action_name};
 
 use super::Project;
 use crate::Collab;

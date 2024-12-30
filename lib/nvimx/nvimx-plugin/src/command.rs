@@ -1,6 +1,6 @@
 use fxhash::FxHashMap;
-use nvimx_common::oxi::{self, api};
 use nvimx_common::ByteOffset;
+use nvimx_common::oxi::{self, api};
 use nvimx_diagnostics::{
     DiagnosticMessage,
     DiagnosticSource,
@@ -68,14 +68,11 @@ impl Command {
             v.sort_unstable();
             v
         };
-        self.inner.module_subcommands.insert(
-            module_name,
-            ModuleSubCommands {
-                default_subcommand: module_commands.default_subcommand,
-                subcommands: module_commands.subcommands,
-                subcommand_names: subcommand_names.clone(),
-            },
-        );
+        self.inner.module_subcommands.insert(module_name, ModuleSubCommands {
+            default_subcommand: module_commands.default_subcommand,
+            subcommands: module_commands.subcommands,
+            subcommand_names: subcommand_names.clone(),
+        });
         self.completion_func.module_funcs.insert(
             module_name,
             ModuleCompletionFunc {
