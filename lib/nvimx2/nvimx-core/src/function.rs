@@ -1,16 +1,12 @@
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
-use crate::module::Module;
 use crate::{Action, ActionName, Backend, MaybeResult, NeovimCtx};
 
 /// TODO: docs.
 pub trait Function<B: Backend>: 'static {
     /// TODO: docs.
     const NAME: &'static ActionName;
-
-    /// TODO: docs.
-    type Module: Module<B>;
 
     /// TODO: docs.
     type Args: DeserializeOwned;
@@ -41,7 +37,6 @@ where
 {
     const NAME: &'static ActionName = A::NAME;
 
-    type Module = A::Module;
     type Args = A::Args;
     type Return = A::Return;
     type Docs = A::Docs;

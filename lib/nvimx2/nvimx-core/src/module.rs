@@ -61,7 +61,7 @@ where
     #[inline]
     pub fn with_command<Cmd>(self, mut command: Cmd) -> Self
     where
-        Cmd: Command<B, Module = M>,
+        Cmd: Command<B>,
     {
         todo!();
     }
@@ -71,7 +71,7 @@ where
     #[inline]
     pub fn with_function<Fun>(self, mut function: Fun) -> Self
     where
-        Fun: Function<B, Module = M>,
+        Fun: Function<B>,
     {
         let backend = self.backend.clone();
         let fun = move |value| {

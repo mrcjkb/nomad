@@ -1,13 +1,9 @@
-use crate::module::Module;
 use crate::{Backend, MaybeResult, NeovimCtx};
 
 /// TODO: docs.
 pub trait Action<B: Backend>: 'static {
     /// TODO: docs.
     const NAME: &'static ActionName;
-
-    /// TODO: docs.
-    type Module: Module<B>;
 
     /// TODO: docs.
     type Args;

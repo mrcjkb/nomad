@@ -2,16 +2,12 @@
 
 use smol_str::SmolStr;
 
-use crate::module::Module;
 use crate::{Action, ActionName, Backend, MaybeResult, NeovimCtx, notify};
 
 /// TODO: docs.
 pub trait Command<B: Backend>: 'static {
     /// TODO: docs.
     const NAME: &'static ActionName;
-
-    /// TODO: docs.
-    type Module: Module<B>;
 
     /// TODO: docs.
     type Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error>;
@@ -62,7 +58,6 @@ where
 {
     const NAME: &'static ActionName = A::NAME;
 
-    type Module = A::Module;
     type Args = A::Args;
     type Docs = A::Docs;
 
