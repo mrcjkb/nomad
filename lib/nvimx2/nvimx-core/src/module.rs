@@ -213,7 +213,7 @@ pub(crate) use command_builder::{
 };
 
 mod command_builder {
-    use fxhash::FxHashMap;
+    use core::borrow::Borrow;
 
     use super::{Module, ModuleName};
     use crate::backend::BackendExt;
@@ -239,14 +239,18 @@ mod command_builder {
 
     pub(crate) struct CommandHandlers<B> {
         module_name: &'static ModuleName,
-        inner: FxHashMap<&'static str, CommandHandler<B>>,
-        submodules: FxHashMap<&'static str, Self>,
+        inner: OrderedMap<&'static str, CommandHandler<B>>,
+        submodules: OrderedMap<&'static str, Self>,
     }
 
     #[derive(Default)]
     pub(crate) struct CommandCompletionFns {
-        inner: FxHashMap<&'static str, CommandCompletionFn>,
-        submodules: FxHashMap<&'static str, Self>,
+        inner: OrderedMap<&'static str, CommandCompletionFn>,
+        submodules: OrderedMap<&'static str, Self>,
+    }
+
+    struct OrderedMap<K, V> {
+        inner: Vec<(K, V)>,
     }
 
     struct MissingCommandError<'a, B>(&'a CommandHandlers<B>);
@@ -354,7 +358,7 @@ mod command_builder {
 
         #[inline]
         fn add_module<M: Module<B>>(&mut self) -> &mut Self {
-            self.submodules.entry(M::NAME.as_str()).or_insert(Self::new::<M>())
+            self.submodules.insert(M::NAME.as_str(), Self::new::<M>())
         }
 
         #[inline]
@@ -384,13 +388,12 @@ mod command_builder {
 
     impl CommandCompletionFns {
         #[inline]
-        pub(crate) fn build<B: Backend>(
-            self,
-            backend: BackendHandle<B>,
+        pub(crate) fn build(
+            mut self,
         ) -> impl FnMut(CommandArgs, ByteOffset) -> Vec<CommandCompletion> + 'static
         {
             move |args: CommandArgs, cursor: ByteOffset| {
-                todo!();
+                self.complete(args, cursor)
             }
         }
 
@@ -413,7 +416,69 @@ mod command_builder {
             &mut self,
             module_name: &'static ModuleName,
         ) -> &mut Self {
-            self.submodules.entry(module_name.as_str()).or_default()
+            self.submodules.insert(module_name.as_str(), Default::default())
+        }
+
+        #[inline]
+        fn complete(
+            &mut self,
+            args: CommandArgs,
+            offset: ByteOffset,
+        ) -> Vec<CommandCompletion> {
+            debug_assert!(offset <= args.byte_len());
+            todo!();
+        }
+    }
+
+    impl<K: Ord, V> OrderedMap<K, V> {
+        #[inline]
+        fn contains_key(&self, key: K) -> bool {
+            self.get_idx(&key).is_ok()
+        }
+
+        #[inline]
+        fn get<Q>(&self, key: &Q) -> Option<&V>
+        where
+            K: Borrow<Q>,
+            Q: ?Sized + Ord,
+        {
+            let idx = self.get_idx(key).ok()?;
+            Some(&self.inner[idx].1)
+        }
+
+        #[inline]
+        fn get_idx<Q>(&self, key: &Q) -> Result<usize, usize>
+        where
+            K: Borrow<Q>,
+            Q: ?Sized + Ord,
+        {
+            self.inner.binary_search_by(|(probe, _)| {
+                Borrow::<Q>::borrow(probe).cmp(key)
+            })
+        }
+
+        #[inline]
+        fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+        where
+            K: Borrow<Q>,
+            Q: ?Sized + Ord,
+        {
+            let idx = self.get_idx(key).ok()?;
+            Some(&mut self.inner[idx].1)
+        }
+
+        #[inline]
+        fn insert(&mut self, key: K, value: V) -> &mut V {
+            let idx = self.get_idx(&key).unwrap_or_else(|x| x);
+            self.inner.insert(idx, (key, value));
+            &mut self.inner[idx].1
+        }
+    }
+
+    impl<K, V> Default for OrderedMap<K, V> {
+        #[inline]
+        fn default() -> Self {
+            Self { inner: Vec::new() }
         }
     }
 

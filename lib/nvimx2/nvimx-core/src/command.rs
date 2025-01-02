@@ -69,6 +69,12 @@ pub struct CommandCompletion {
 impl<'a> CommandArgs<'a> {
     /// TODO: docs.
     #[inline]
+    pub fn byte_len(&self) -> ByteOffset {
+        ByteOffset::from(self.0.len())
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn new(_command_str: &'a str) -> Self {
         todo!()
     }

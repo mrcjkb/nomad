@@ -38,8 +38,8 @@ pub trait Plugin<B: Backend>: Module<B> {
         );
         Module::api(self, api_ctx);
         module_api.finish();
-        let command = command_handlers.build(backend.clone());
-        let completion_fn = command_completions.build(backend);
+        let command = command_handlers.build(backend);
+        let completion_fn = command_completions.build();
         api.add_command(command, completion_fn);
         api
     }
