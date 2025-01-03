@@ -162,7 +162,8 @@ impl Key for NeovimMapKey<'_> {
 
     #[inline]
     fn as_str(&self) -> Result<&str, Self::AsStrError<'_>> {
-        todo!()
+        let Self(key) = self;
+        key.to_str().map_err(|_| NeovimMapKeyAsStrError)
     }
 }
 
@@ -181,7 +182,7 @@ impl notify::Error for NeovimMapAccessError {
 impl fmt::Debug for NeovimMapKey<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        fmt::Debug::fmt(&self.0, f)
     }
 }
 
