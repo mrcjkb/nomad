@@ -1,15 +1,15 @@
 use core::fmt;
 use core::ops::Range;
 
+use compact_str::CompactString;
 use smallvec::SmallVec;
-use smol_str::SmolStr;
 
 use crate::ByteOffset;
 
 /// TODO: docs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Message {
-    inner: SmolStr,
+    inner: CompactString,
     spans: SmallVec<[SpanInner; 4]>,
 }
 
@@ -75,14 +75,84 @@ impl Message {
 
     /// TODO: docs.
     #[inline]
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str<S: AsRef<str>>(s: S) -> Self {
+        Self { inner: s.as_ref().into(), spans: Default::default() }
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    /// Constructs a new, empty [`Message`].
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn push_comma_separated<I, S>(
+        &mut self,
+        iter: I,
+        span_kind: SpanKind,
+    ) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        self.push_separated(iter, span_kind, ", ")
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn push_span<S: AsRef<str>>(
+        &mut self,
+        s: S,
+        span_kind: SpanKind,
+    ) -> &mut Self {
+        let start = self.inner.len().into();
+        self.inner.push_str(s.as_ref());
+        let end = self.inner.len().into();
+        self.spans.push(SpanInner { byte_range: start..end, kind: span_kind });
+        self
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn push_str<S: AsRef<str>>(&mut self, s: S) -> &mut Self {
+        self.inner.push_str(s.as_ref());
+        self
     }
 
     /// TODO: docs.
     #[inline]
     pub fn spans(&self) -> Spans<'_> {
         Spans::new(self)
+    }
+
+    #[inline]
+    fn push_separated<I, S>(
+        &mut self,
+        iter: I,
+        span_kind: SpanKind,
+        separator: &str,
+    ) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut iter = iter.into_iter().peekable();
+        loop {
+            let Some(s) = iter.next() else { break };
+            self.push_span(s, span_kind.clone());
+            if iter.peek().is_some() {
+                self.push_str(separator);
+            }
+        }
+        self
     }
 }
 
