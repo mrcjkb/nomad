@@ -3,6 +3,7 @@
 use serde::de::DeserializeOwned;
 
 use crate::api::{Api, ModuleApi};
+use crate::backend::{Key, KeyValuePair, MapAccess, Value};
 use crate::command::{Command, CommandBuilder};
 use crate::util::OrderedMap;
 use crate::{
@@ -34,7 +35,7 @@ pub trait Module<B: Backend>: 'static + Sized {
     fn on_config_changed(
         &mut self,
         new_config: Self::Config,
-        ctx: NeovimCtx<'_, B>,
+        ctx: &mut NeovimCtx<'_, B>,
     );
 
     /// TODO: docs.
@@ -56,10 +57,12 @@ pub struct ApiCtx<'a, 'b, M: Module<B>, P: Plugin<B>, B: Backend> {
 pub struct ModuleName(str);
 
 pub(crate) struct ConfigFnBuilder<B: Backend> {
+    module_name: &'static ModuleName,
     config_handler: Box<
-        dyn FnMut(B::ApiValue, &mut notify::Namespace, NeovimCtx<B>) + 'static,
+        dyn FnMut(B::ApiValue, &mut notify::Namespace, &mut NeovimCtx<B>)
+            + 'static,
     >,
-    submodules: OrderedMap<&'static ModuleName, Self>,
+    submodules: OrderedMap<&'static str, Self>,
 }
 
 impl<'a, 'b, M, P, B> ApiCtx<'a, 'b, M, P, B>
@@ -195,26 +198,38 @@ impl ModuleName {
 impl<B: Backend> ConfigFnBuilder<B> {
     #[inline]
     pub(crate) fn build(
-        self,
+        mut self,
         backend: BackendHandle<B>,
     ) -> impl FnMut(B::ApiValue) + 'static {
         move |value| {
-            let mut namespace = notify::Namespace::default();
-            todo!();
+            backend.with_mut(|backend| {
+                self.handle(
+                    value,
+                    &mut notify::Namespace::default(),
+                    &mut NeovimCtx::new(backend),
+                )
+            });
         }
     }
 
     #[inline]
     pub(crate) fn finish<M: Module<B>>(&mut self, mut module: M) {
         self.config_handler = Box::new(move |value, namespace, ctx| {
-            let config: M::Config = todo!();
-            module.on_config_changed(config, ctx);
+            let backend = ctx.backend_mut();
+            match backend.deserialize(value) {
+                Ok(config) => module.on_config_changed(config, ctx),
+                Err(err) => {
+                    // backend.emit_deserialize_config_error(namespace, err)
+                    backend.emit_err(namespace, err)
+                },
+            }
         });
     }
 
     #[inline]
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new<M: Module<B>>() -> Self {
         Self {
+            module_name: M::NAME,
             config_handler: Box::new(|_, _, _| {}),
             submodules: Default::default(),
         }
@@ -222,7 +237,46 @@ impl<B: Backend> ConfigFnBuilder<B> {
 
     #[inline]
     fn add_module<M: Module<B>>(&mut self) -> &mut Self {
-        self.submodules.insert(M::NAME, ConfigFnBuilder::new())
+        self.submodules.insert(M::NAME.as_str(), ConfigFnBuilder::new::<M>())
+    }
+
+    #[inline]
+    fn handle(
+        &mut self,
+        mut value: B::ApiValue,
+        namespace: &mut notify::Namespace,
+        ctx: &mut NeovimCtx<B>,
+    ) {
+        let mut map_access = match value.map_access() {
+            Ok(map_access) => map_access,
+            Err(err) => {
+                // TODO: the namespace should just be the plugin and the
+                // config fn name.
+                ctx.backend_mut().emit_err(namespace, &err);
+                return;
+            },
+        };
+        namespace.push_module(self.module_name);
+        while let Some(pair) = map_access.next_pair() {
+            let key = pair.key();
+            let key_str = match key.as_str() {
+                Ok(key) => key,
+                Err(err) => {
+                    // TODO: same as above.
+                    ctx.backend_mut().emit_err(namespace, &err);
+                    namespace.push_module(self.module_name);
+                    return;
+                },
+            };
+            if let Some(submodule) = self.submodules.get_mut(key_str) {
+                drop(key);
+                let value = pair.take_value();
+                submodule.handle(value, namespace, ctx);
+            }
+        }
+        drop(map_access);
+        (self.config_handler)(value, namespace, ctx);
+        namespace.pop();
     }
 }
 

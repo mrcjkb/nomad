@@ -1,3 +1,5 @@
+use core::fmt;
+
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -58,7 +60,7 @@ pub trait Backend: 'static + Sized {
 /// TODO: docs.
 pub trait Value: Default + 'static {
     /// TODO: docs.
-    type MapAccess<'a>: MapAccess<Pair<'a>: KeyValuePair<Value = Self>>;
+    type MapAccess<'a>: MapAccess<Pair: KeyValuePair<Value = Self>>;
 
     /// TODO: docs.
     type MapAccessError<'a>: notify::Error
@@ -74,18 +76,16 @@ pub trait Value: Default + 'static {
 /// TODO: docs.
 pub trait MapAccess {
     /// TODO: docs.
-    type Pair<'a>: KeyValuePair
-    where
-        Self: 'a;
+    type Pair: KeyValuePair;
 
     /// TODO: docs.
-    fn next_pair(&mut self) -> Option<Self::Pair<'_>>;
+    fn next_pair(&mut self) -> Option<Self::Pair>;
 }
 
 /// TODO: docs.
 pub trait KeyValuePair {
     /// TODO: docs.
-    type Key<'a>: PartialEq<str>
+    type Key<'a>: Key
     where
         Self: 'a;
 
@@ -97,6 +97,17 @@ pub trait KeyValuePair {
 
     /// TODO: docs.
     fn take_value(self) -> Self::Value;
+}
+
+/// TODO: docs.
+pub trait Key: fmt::Debug {
+    /// TODO: docs.
+    type AsStrError<'a>: notify::Error
+    where
+        Self: 'a;
+
+    /// TODO: docs.
+    fn as_str(&self) -> Result<&str, Self::AsStrError<'_>>;
 }
 
 /// TODO: docs.

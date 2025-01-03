@@ -1,6 +1,8 @@
 //! TODO: docs.
 
-use nvimx_core::{KeyValuePair, MapAccess, Value, notify};
+use core::fmt;
+
+use nvimx_core::{Key, KeyValuePair, MapAccess, Value, notify};
 
 use crate::oxi::{self, Dictionary, Object, ObjectKind, lua};
 
@@ -31,6 +33,9 @@ pub struct NeovimMapKey<'a> {
 
 /// TODO: docs.
 pub struct NeovimMapAccessError(ObjectKind);
+
+/// TODO: docs.
+pub struct NeovimMapKeyAsStrError;
 
 impl NeovimValue {
     #[inline]
@@ -82,13 +87,11 @@ impl lua::Pushable for NeovimValue {
     }
 }
 
-impl MapAccess for NeovimMapAccess<'_> {
-    type Pair<'a>
-        = NeovimMapPair<'a>
-    where
-        Self: 'a;
+impl<'a> MapAccess for NeovimMapAccess<'a> {
+    type Pair = NeovimMapPair<'a>;
 
-    fn next_pair(&mut self) -> Option<Self::Pair<'_>> {
+    #[inline]
+    fn next_pair(&mut self) -> Option<Self::Pair> {
         todo!()
     }
 }
@@ -101,12 +104,14 @@ impl KeyValuePair for NeovimMapPair<'_> {
 
     type Value = NeovimValue;
 
+    #[inline]
     fn key(&self) -> Self::Key<'_> {
         // let (dict_key, _) = self.dict.get_by_index(self.dict_idx).unwrap();
         // NeovimMapKey { dict_key, dict_idx: self.dict_idx }
         todo!();
     }
 
+    #[inline]
     fn take_value(self) -> Self::Value {
         // let idx = self.dict_idx;
         // let (_, value) = self.dict.swap_remove_by_index(idx).unwrap();
@@ -115,18 +120,44 @@ impl KeyValuePair for NeovimMapPair<'_> {
     }
 }
 
-impl PartialEq<str> for NeovimMapKey<'_> {
+impl Key for NeovimMapKey<'_> {
+    type AsStrError<'a>
+        = NeovimMapKeyAsStrError
+    where
+        Self: 'a;
+
     #[inline]
-    fn eq(&self, s: &str) -> bool {
-        self.dict_key == s
+    fn as_str(&self) -> Result<&str, Self::AsStrError<'_>> {
+        todo!()
     }
 }
 
 impl notify::Error for NeovimMapAccessError {
+    #[inline]
     fn to_level(&self) -> Option<notify::Level> {
         Some(notify::Level::Error)
     }
 
+    #[inline]
+    fn to_message(&self) -> notify::Message {
+        todo!()
+    }
+}
+
+impl fmt::Debug for NeovimMapKey<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl notify::Error for NeovimMapKeyAsStrError {
+    #[inline]
+    fn to_level(&self) -> Option<notify::Level> {
+        Some(notify::Level::Error)
+    }
+
+    #[inline]
     fn to_message(&self) -> notify::Message {
         todo!()
     }

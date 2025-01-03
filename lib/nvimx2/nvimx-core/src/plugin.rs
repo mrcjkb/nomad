@@ -14,8 +14,8 @@ pub trait Plugin<B: Backend>: Module<B> {
     /// TODO: docs.
     const CONFIG_FN_NAME: &'static ActionName = ActionName::new("setup");
 
-    #[track_caller]
     #[doc(hidden)]
+    #[track_caller]
     fn api(self, mut backend: B) -> B::Api<Self> {
         let mut api = B::api::<Self>(&mut backend);
         let backend = BackendHandle::new(backend);
@@ -26,7 +26,7 @@ pub trait Plugin<B: Backend>: Module<B> {
             &mut command_handlers,
             &mut command_completions,
         );
-        let mut config_builder = ConfigFnBuilder::new();
+        let mut config_builder = ConfigFnBuilder::new::<Self>();
         let mut namespace = notify::Namespace::default();
         namespace.push_module(Self::NAME);
         let api_ctx = ApiCtx::<Self, _, _>::new(
