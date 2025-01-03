@@ -109,6 +109,7 @@ impl MapAccess for NeovimMapAccess<'_> {
         = NeovimMapKey<'a>
     where
         Self: 'a;
+
     type Value = NeovimValue;
 
     #[inline]
@@ -133,6 +134,7 @@ impl MapAccess for NeovimDictAccess<'_> {
         = NeovimMapKey<'a>
     where
         Self: 'a;
+
     type Value = NeovimValue;
 
     #[inline]

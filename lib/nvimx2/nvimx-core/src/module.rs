@@ -29,13 +29,13 @@ pub trait Module<B: Backend>: 'static + Sized {
     type Docs;
 
     /// TODO: docs.
-    fn api<P: Plugin<B>>(&self, ctx: ApiCtx<'_, '_, Self, P, B>);
+    fn api<P: Plugin<B>>(&self, ctx: &mut ApiCtx<Self, P, B>);
 
     /// TODO: docs.
     fn on_config_changed(
         &mut self,
         new_config: Self::Config,
-        ctx: &mut NeovimCtx<'_, B>,
+        ctx: &mut NeovimCtx<B>,
     );
 
     /// TODO: docs.
@@ -73,7 +73,7 @@ where
 {
     /// TODO: docs.
     #[inline]
-    pub fn with_command<Cmd>(mut self, command: Cmd) -> Self
+    pub fn with_command<Cmd>(&mut self, command: Cmd) -> &mut Self
     where
         Cmd: Command<B>,
     {
@@ -84,7 +84,7 @@ where
     /// TODO: docs.
     #[track_caller]
     #[inline]
-    pub fn with_function<Fun>(self, mut function: Fun) -> Self
+    pub fn with_function<Fun>(&mut self, mut function: Fun) -> &mut Self
     where
         Fun: Function<B>,
     {
@@ -103,7 +103,7 @@ where
                 )?;
 
                 let ret = fun
-                    .call(args, NeovimCtx::new(backend.as_mut()))
+                    .call(args, &mut NeovimCtx::new(backend.as_mut()))
                     .into_result()
                     .map_err(|err| {
                         // Even though the error is bound to 'static, Rust
@@ -134,20 +134,20 @@ where
 
     /// TODO: docs.
     #[inline]
-    pub fn with_module<Mod>(mut self, module: Mod) -> Self
+    pub fn with_module<Mod>(&mut self, module: Mod) -> &mut Self
     where
         Mod: Module<B>,
     {
         let mut module_api = self.module_api.as_module::<Mod>();
         self.namespace.push_module(Mod::NAME);
-        let api_ctx = ApiCtx::new(
+        let mut api_ctx = ApiCtx::new(
             &mut module_api,
             self.command_builder.add_module::<Mod>(),
             self.config_builder.add_module::<Mod>(),
             self.namespace,
             self.backend,
         );
-        Module::api(&module, api_ctx);
+        Module::api(&module, &mut api_ctx);
         module_api.finish();
         self.namespace.pop();
         self.config_builder.finish(module);

@@ -29,14 +29,14 @@ pub trait Plugin<B: Backend>: Module<B> {
         let mut config_builder = ConfigFnBuilder::new::<Self>();
         let mut namespace = notify::Namespace::default();
         namespace.push_module(Self::NAME);
-        let api_ctx = ApiCtx::<Self, _, _>::new(
+        let mut api_ctx = ApiCtx::<Self, _, _>::new(
             &mut module_api,
             command_builder,
             &mut config_builder,
             &mut namespace,
             &backend,
         );
-        Module::api(&self, api_ctx);
+        Module::api(&self, &mut api_ctx);
 
         config_builder.finish(self);
         let mut config_fn = config_builder.build(backend.clone());

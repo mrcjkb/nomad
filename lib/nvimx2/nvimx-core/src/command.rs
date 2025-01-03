@@ -41,7 +41,7 @@ pub trait Command<B: Backend>: 'static {
     fn call(
         &mut self,
         args: Self::Args,
-        ctx: NeovimCtx<'_, B>,
+        ctx: &mut NeovimCtx<B>,
     ) -> impl MaybeResult<()>;
 
     /// TODO: docs.
@@ -570,9 +570,7 @@ impl<B: Backend> CommandHandlers<B> {
                         return;
                     },
                 };
-                if let Err(err) =
-                    command.call(args, ctx.as_mut()).into_result()
-                {
+                if let Err(err) = command.call(args, &mut ctx).into_result() {
                     ctx.backend_mut().emit_err(namespace, &err);
                 }
             });
@@ -727,7 +725,7 @@ where
     fn call(
         &mut self,
         args: Self::Args,
-        ctx: NeovimCtx<'_, B>,
+        ctx: &mut NeovimCtx<B>,
     ) -> impl MaybeResult<()> {
         A::call(self, args, ctx)
     }

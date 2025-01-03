@@ -18,7 +18,7 @@ pub trait Action<B: Backend>: 'static {
     fn call(
         &mut self,
         args: Self::Args,
-        ctx: NeovimCtx<'_, B>,
+        ctx: &mut NeovimCtx<B>,
     ) -> impl MaybeResult<Self::Return>;
 
     /// TODO: docs.
