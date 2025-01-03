@@ -38,8 +38,9 @@ impl<'a, M: Module<Neovim>> NeovimModuleApi<'a, M> {
                 M::NAME.as_str(),
             );
         }
+        let len = self.dictionary.len();
         self.dictionary.insert(field_name, value.into());
-        self.dictionary.get_mut(field_name).expect("just inserted it")
+        self.dictionary.as_mut_slice()[len].value_mut()
     }
 
     #[inline]
