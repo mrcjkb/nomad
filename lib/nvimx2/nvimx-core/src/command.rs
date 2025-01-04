@@ -789,14 +789,11 @@ impl notify::Error for CommandArgsWrongNumError<'_> {
         let mut message = notify::Message::new();
         message
             .push_str("expected ")
-            .push_span(
-                self.expected_num.to_smolstr(),
-                notify::SpanKind::Expected,
-            )
+            .push_expected(self.expected_num.to_smolstr())
             .push_str(" argument")
             .push_str(if self.expected_num == 1 { "" } else { "s" })
             .push_str(", but got ")
-            .push_span(self.actual_num.to_smolstr(), notify::SpanKind::Actual);
+            .push_actual(self.actual_num.to_smolstr());
 
         if !self.args.is_empty() {
             message.push_str(": ").push_comma_separated(

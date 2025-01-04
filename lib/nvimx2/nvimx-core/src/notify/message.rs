@@ -126,6 +126,18 @@ impl Message {
 
     /// TODO: docs.
     #[inline]
+    pub fn push_actual<S: AsRef<str>>(&mut self, s: S) -> &mut Self {
+        self.push_span(s, SpanKind::Actual)
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn push_expected<S: AsRef<str>>(&mut self, s: S) -> &mut Self {
+        self.push_span(s, SpanKind::Expected)
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn push_str<S: AsRef<str>>(&mut self, s: S) -> &mut Self {
         self.inner.push_str(s.as_ref());
         self

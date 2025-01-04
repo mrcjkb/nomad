@@ -183,10 +183,10 @@ impl notify::Error for NeovimMapAccessError {
             _ => "a ",
         };
         msg.push_str("expected a ")
-            .push_span("dictionary", notify::SpanKind::Expected)
+            .push_expected("dictionary")
             .push_str(", got ")
             .push_str(kind_article)
-            .push_span(kind.as_static(), notify::SpanKind::Actual)
+            .push_actual(kind.as_static())
             .push_str(" instead");
         msg
     }
