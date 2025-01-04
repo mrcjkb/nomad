@@ -40,7 +40,7 @@ pub struct NeovimMapKey<'a>(&'a oxi::String);
 pub struct NeovimMapAccessError(ObjectKind);
 
 /// TODO: docs.
-pub struct NeovimMapKeyAsStrError;
+pub struct NeovimMapKeyAsStrError<'a>(&'a oxi::String);
 
 impl NeovimValue {
     #[inline]
@@ -156,14 +156,14 @@ impl MapAccess for NeovimDictAccess<'_> {
 
 impl Key for NeovimMapKey<'_> {
     type AsStrError<'a>
-        = NeovimMapKeyAsStrError
+        = NeovimMapKeyAsStrError<'a>
     where
         Self: 'a;
 
     #[inline]
     fn as_str(&self) -> Result<&str, Self::AsStrError<'_>> {
         let Self(key) = self;
-        key.to_str().map_err(|_| NeovimMapKeyAsStrError)
+        key.to_str().map_err(|_| NeovimMapKeyAsStrError(key))
     }
 }
 
@@ -175,7 +175,20 @@ impl notify::Error for NeovimMapAccessError {
 
     #[inline]
     fn to_message(&self) -> notify::Message {
-        todo!()
+        let Self(kind) = self;
+        let mut msg = notify::Message::new();
+        let kind_article = match kind {
+            ObjectKind::Nil => "",
+            ObjectKind::Array | ObjectKind::Integer => "an ",
+            _ => "a ",
+        };
+        msg.push_str("expected a ")
+            .push_span("dictionary", notify::SpanKind::Expected)
+            .push_str(", got ")
+            .push_str(kind_article)
+            .push_span(kind.as_static(), notify::SpanKind::Actual)
+            .push_str(" instead");
+        msg
     }
 }
 
@@ -186,7 +199,7 @@ impl fmt::Debug for NeovimMapKey<'_> {
     }
 }
 
-impl notify::Error for NeovimMapKeyAsStrError {
+impl notify::Error for NeovimMapKeyAsStrError<'_> {
     #[inline]
     fn to_level(&self) -> Option<notify::Level> {
         Some(notify::Level::Error)
@@ -194,6 +207,10 @@ impl notify::Error for NeovimMapKeyAsStrError {
 
     #[inline]
     fn to_message(&self) -> notify::Message {
-        todo!()
+        let mut msg = notify::Message::new();
+        msg.push_str("'")
+            .push_str(self.0.to_string_lossy())
+            .push_str("' is not a valid UTF-8 string");
+        msg
     }
 }
