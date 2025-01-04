@@ -199,6 +199,7 @@ dependencies = [
  "serde",
  "serde_path_to_error",
  "smallvec",
+ "strsim",
  "thiserror 2.0.4",
 ]
 
