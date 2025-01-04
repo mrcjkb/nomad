@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use async_task::Builder;
 use concurrent_queue::{ConcurrentQueue, PopError, PushError};
-use nvimx_core::executor::LocalExecutor;
+use nvimx_core::executor::{LocalExecutor, Task};
 
 use crate::oxi::{self, libuv};
 
@@ -147,6 +147,13 @@ impl LocalExecutor for NeovimLocalExecutor {
         Fut::Output: 'static,
     {
         self.spawn_inner(future)
+    }
+}
+
+impl<T> Task<T> for NeovimLocalTask<T> {
+    #[inline]
+    fn detach(self) {
+        self.inner.detach()
     }
 }
 

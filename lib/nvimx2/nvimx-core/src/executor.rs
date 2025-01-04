@@ -13,7 +13,7 @@ pub type TaskBackground<T, B> =
 /// TODO: docs.
 pub trait LocalExecutor {
     /// TODO: docs.
-    type Task<T>: Future<Output = T>;
+    type Task<T>: Task<T>;
 
     /// TODO: docs.
     fn spawn<Fut>(&mut self, f: Fut) -> Self::Task<Fut::Output>
@@ -25,11 +25,17 @@ pub trait LocalExecutor {
 /// TODO: docs.
 pub trait BackgroundExecutor {
     /// TODO: docs.
-    type Task<T>: Future<Output = T>;
+    type Task<T>: Task<T>;
 
     /// TODO: docs.
     fn spawn<Fut>(&mut self, f: Fut) -> Self::Task<Fut::Output>
     where
         Fut: Future + Send + Sync + 'static,
         Fut::Output: Send + Sync + 'static;
+}
+
+/// TODO: docs.
+pub trait Task<T>: Future<Output = T> {
+    /// TODO: docs.
+    fn detach(self);
 }
