@@ -1,16 +1,49 @@
 use core::pin::Pin;
-use core::task::{Context, Poll};
+use core::task::{Context, Poll, ready};
 
+use futures_executor::ThreadPool;
 use nvimx_core::executor::{BackgroundExecutor, Task};
 
 /// TODO: docs.
-pub struct NeovimBackgroundExecutor;
+pub struct NeovimBackgroundExecutor {
+    thread_pool: ThreadPool,
+}
 
 pin_project_lite::pin_project! {
     /// TODO: docs.
     pub struct NeovimBackgroundTask<T> {
         #[pin]
-        inner: async_task::Task<T>,
+        inner: async_oneshot::Receiver<T>,
+    }
+}
+
+impl NeovimBackgroundExecutor {
+    /// TODO: docs.
+    #[inline]
+    pub fn init() -> Self {
+        Self {
+            thread_pool: ThreadPool::builder()
+                .name_prefix("nvimx")
+                .create()
+                .expect("couldn't create thread pool"),
+        }
+    }
+
+    #[inline]
+    fn spawn_inner<Fut>(
+        &self,
+        future: Fut,
+    ) -> NeovimBackgroundTask<Fut::Output>
+    where
+        Fut: Future + Send + Sync + 'static,
+        Fut::Output: Send + Sync + 'static,
+    {
+        let (mut tx, rx) = async_oneshot::oneshot();
+        self.thread_pool.spawn_ok(async move {
+            // The task might've been detached, and that's ok.
+            let _ = tx.send(future.await);
+        });
+        NeovimBackgroundTask { inner: rx }
     }
 }
 
@@ -18,20 +51,18 @@ impl BackgroundExecutor for NeovimBackgroundExecutor {
     type Task<T> = NeovimBackgroundTask<T>;
 
     #[inline]
-    fn spawn<Fut>(&mut self, _fut: Fut) -> Self::Task<Fut::Output>
+    fn spawn<Fut>(&mut self, future: Fut) -> Self::Task<Fut::Output>
     where
         Fut: Future + Send + Sync + 'static,
         Fut::Output: Send + Sync + 'static,
     {
-        todo!();
+        self.spawn_inner(future)
     }
 }
 
 impl<T> Task<T> for NeovimBackgroundTask<T> {
     #[inline]
-    fn detach(self) {
-        todo!();
-    }
+    fn detach(self) {}
 }
 
 impl<T> Future for NeovimBackgroundTask<T> {
@@ -39,6 +70,11 @@ impl<T> Future for NeovimBackgroundTask<T> {
 
     #[inline]
     fn poll(self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<T> {
-        todo!();
+        match ready!(self.project().inner.poll(ctx)) {
+            Ok(value) => Poll::Ready(value),
+            // This only happens if the background executor is dropped, which
+            // should only happen when Neovim is shutting down.
+            Err(_closed) => Poll::Pending,
+        }
     }
 }

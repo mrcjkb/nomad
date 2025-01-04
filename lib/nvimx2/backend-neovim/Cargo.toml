@@ -11,8 +11,10 @@ neovim-0-10 = ["nvim-oxi/neovim-0-10"]
 neovim-nightly = ["nvim-oxi/neovim-nightly"]
 
 [dependencies]
+async-oneshot = "0.5"
 async-task = "4.7"
 concurrent-queue = "2.5"
+futures-executor = { version = "0.3", features = ["thread-pool"] }
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv"] }
 nvimx-core = { path = "../nvimx-core" }
 nvimx2-macros = { path = "../nvimx-macros" }
