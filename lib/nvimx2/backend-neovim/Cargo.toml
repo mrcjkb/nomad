@@ -11,9 +11,12 @@ neovim-0-10 = ["nvim-oxi/neovim-0-10"]
 neovim-nightly = ["nvim-oxi/neovim-nightly"]
 
 [dependencies]
+async-task = "4.7"
+concurrent-queue = "2.5"
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv"] }
 nvimx-core = { path = "../nvimx-core" }
 nvimx2-macros = { path = "../nvimx-macros" }
+pin-project-lite = { workspace = true }
 serde = { workspace = true }
 serde_path_to_error = "0.1"
 smallvec = { workspace = true }
