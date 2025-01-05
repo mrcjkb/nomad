@@ -26,7 +26,7 @@ impl Module<Self, Neovim> for Mad {
         todo!()
     }
 
-    fn on_config_changed(&mut self, _: (), _: &mut NeovimCtx<Neovim>) {}
 
     fn docs() {}
+    fn on_new_config(&mut self, _: (), _: &mut NeovimCtx<Neovim>) {}
 }

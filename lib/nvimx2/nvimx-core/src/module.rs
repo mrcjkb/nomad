@@ -34,7 +34,7 @@ pub trait Module<P: Plugin<B>, B: Backend>: 'static + Sized {
     fn api(&self, ctx: &mut ApiCtx<Self, P, B>);
 
     /// TODO: docs.
-    fn on_config_changed(
+    fn on_new_config(
         &mut self,
         new_config: Self::Config,
         ctx: &mut NeovimCtx<B>,
@@ -222,7 +222,7 @@ impl<B: Backend> ConfigFnBuilder<B> {
         self.config_handler = Box::new(move |value, module_path, ctx| {
             let backend = ctx.backend_mut();
             match backend.deserialize(value) {
-                Ok(config) => module.on_config_changed(config, ctx),
+                Ok(config) => module.on_new_config(config, ctx),
                 Err(err) => {
                     // backend.emit_deserialize_config_error(namespace, err)
                     backend.emit_err(module_path, err)
