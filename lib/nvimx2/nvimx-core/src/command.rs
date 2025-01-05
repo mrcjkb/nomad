@@ -832,6 +832,15 @@ where
     }
 }
 
+impl CompletionFn for () {
+    type Completions = core::iter::Empty<CommandCompletion>;
+
+    #[inline]
+    fn call(&mut self, _: CommandArgs, _: ByteOffset) -> Self::Completions {
+        core::iter::empty()
+    }
+}
+
 impl<F, R> CompletionFn for F
 where
     F: FnMut(CommandArgs, ByteOffset) -> R + 'static,
