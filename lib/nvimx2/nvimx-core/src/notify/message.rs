@@ -1,7 +1,7 @@
 use core::fmt;
 use core::ops::Range;
 
-use compact_str::CompactString;
+use compact_str::{CompactString, ToCompactString};
 use smallvec::SmallVec;
 
 use crate::ByteOffset;
@@ -74,6 +74,25 @@ impl Message {
     #[inline]
     pub fn byte_len(&self) -> ByteOffset {
         self.inner.len().into()
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn from_debug<S: fmt::Debug>(s: S) -> Self {
+        struct DisplayAsDebug<T>(T);
+        impl<T: fmt::Debug> fmt::Display for DisplayAsDebug<T> {
+            #[inline]
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fmt::Debug::fmt(&self.0, f)
+            }
+        }
+        Self::from_display(DisplayAsDebug(s))
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn from_display<S: fmt::Display>(s: S) -> Self {
+        Self { inner: s.to_compact_string(), spans: Default::default() }
     }
 
     /// TODO: docs.

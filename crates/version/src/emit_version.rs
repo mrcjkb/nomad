@@ -22,6 +22,6 @@ impl<B: Backend> Command<B> for EmitVersion {
     type Args = ();
 
     fn call(&mut self, _: Self::Args, ctx: &mut ActionCtx<B>) {
-        ctx.emit_info(Message::from_str(format!("{VERSION:?}")));
+        ctx.emit_info(Message::from_debug(VERSION));
     }
 }
