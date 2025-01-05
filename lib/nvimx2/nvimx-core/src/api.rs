@@ -11,7 +11,7 @@ where
     B: Backend,
 {
     /// TODO: docs.
-    type ModuleApi<'a, M: Module<B>>: ModuleApi<Self, P, M, B>;
+    type ModuleApi<'a, M: Module<P, B>>: ModuleApi<Self, P, M, B>;
 
     /// TODO: docs.
     fn add_command<Cmd, CompFun, Comps>(
@@ -32,7 +32,7 @@ pub trait ModuleApi<A, P, M, B>: Sized
 where
     A: Api<P, B>,
     P: Plugin<B>,
-    M: Module<B>,
+    M: Module<P, B>,
     B: Backend,
 {
     /// TODO: docs.
@@ -44,7 +44,7 @@ where
     /// TODO: docs.
     fn as_module<M2>(&mut self) -> A::ModuleApi<'_, M2>
     where
-        M2: Module<B>;
+        M2: Module<P, B>;
 
     /// TODO: docs.
     fn finish(self);

@@ -20,6 +20,7 @@ use crate::{
     ByteOffset,
     MaybeResult,
     NeovimCtx,
+    Plugin,
     notify,
 };
 
@@ -537,14 +538,15 @@ impl<'a, B: Backend> CommandBuilder<'a, B> {
 
     #[track_caller]
     #[inline]
-    pub(super) fn add_module<M>(&mut self) -> CommandBuilder<'_, B>
+    pub(super) fn add_module<P, M>(&mut self) -> CommandBuilder<'_, B>
     where
-        M: Module<B>,
+        P: Plugin<B>,
+        M: Module<P, B>,
     {
         self.assert_namespace_is_available(M::NAME.as_str());
         CommandBuilder {
             command_has_been_added: self.command_has_been_added,
-            handlers: self.handlers.add_module::<M>(),
+            handlers: self.handlers.add_module::<P, M>(),
             completions: self.completions.add_module(M::NAME),
         }
     }
@@ -583,7 +585,7 @@ impl<B: Backend> CommandHandlers<B> {
     }
 
     #[inline]
-    pub(crate) fn new<M: Module<B>>() -> Self {
+    pub(crate) fn new<P: Plugin<B>, M: Module<P, B>>() -> Self {
         Self {
             module_name: M::NAME,
             inner: Default::default(),
@@ -612,8 +614,12 @@ impl<B: Backend> CommandHandlers<B> {
     }
 
     #[inline]
-    fn add_module<M: Module<B>>(&mut self) -> &mut Self {
-        self.submodules.insert(M::NAME.as_str(), Self::new::<M>())
+    fn add_module<P, M>(&mut self) -> &mut Self
+    where
+        P: Plugin<B>,
+        M: Module<P, B>,
+    {
+        self.submodules.insert(M::NAME.as_str(), Self::new::<P, M>())
     }
 
     #[inline]

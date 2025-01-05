@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// TODO: docs.
-pub trait Module<B: Backend>: 'static + Sized {
+pub trait Module<P: Plugin<B>, B: Backend>: 'static + Sized {
     /// TODO: docs.
     const NAME: ModuleName;
 
@@ -31,7 +31,7 @@ pub trait Module<B: Backend>: 'static + Sized {
     type Docs;
 
     /// TODO: docs.
-    fn api<P: Plugin<B>>(&self, ctx: &mut ApiCtx<Self, P, B>);
+    fn api(&self, ctx: &mut ApiCtx<Self, P, B>);
 
     /// TODO: docs.
     fn on_config_changed(
@@ -45,7 +45,7 @@ pub trait Module<B: Backend>: 'static + Sized {
 }
 
 /// TODO: docs.
-pub struct ApiCtx<'a, 'b, M: Module<B>, P: Plugin<B>, B: Backend> {
+pub struct ApiCtx<'a, 'b, M: Module<P, B>, P: Plugin<B>, B: Backend> {
     module_api: &'a mut <B::Api<P> as Api<P, B>>::ModuleApi<'b, M>,
     command_builder: CommandBuilder<'a, B>,
     config_builder: &'a mut ConfigFnBuilder<B>,
@@ -66,7 +66,7 @@ pub(crate) struct ConfigFnBuilder<B: Backend> {
 
 impl<'a, 'b, M, P, B> ApiCtx<'a, 'b, M, P, B>
 where
-    M: Module<B>,
+    M: Module<P, B>,
     P: Plugin<B>,
     B: Backend,
 {
@@ -139,14 +139,14 @@ where
     #[inline]
     pub fn with_module<Mod>(&mut self, module: Mod) -> &mut Self
     where
-        Mod: Module<B>,
+        Mod: Module<P, B>,
     {
         let mut module_api = self.module_api.as_module::<Mod>();
         self.module_path.push(Mod::NAME);
         let mut api_ctx = ApiCtx::new(
             &mut module_api,
-            self.command_builder.add_module::<Mod>(),
-            self.config_builder.add_module::<Mod>(),
+            self.command_builder.add_module::<P, Mod>(),
+            self.config_builder.add_module::<P, Mod>(),
             self.module_path,
             self.backend,
         );
@@ -215,7 +215,10 @@ impl<B: Backend> ConfigFnBuilder<B> {
     }
 
     #[inline]
-    pub(crate) fn finish<M: Module<B>>(&mut self, mut module: M) {
+    pub(crate) fn finish<P: Plugin<B>, M: Module<P, B>>(
+        &mut self,
+        mut module: M,
+    ) {
         self.config_handler = Box::new(move |value, module_path, ctx| {
             let backend = ctx.backend_mut();
             match backend.deserialize(value) {
@@ -229,7 +232,7 @@ impl<B: Backend> ConfigFnBuilder<B> {
     }
 
     #[inline]
-    pub(crate) fn new<M: Module<B>>() -> Self {
+    pub(crate) fn new<P: Plugin<B>, M: Module<P, B>>() -> Self {
         Self {
             module_name: M::NAME,
             config_handler: Box::new(|_, _, _| {}),
@@ -238,8 +241,9 @@ impl<B: Backend> ConfigFnBuilder<B> {
     }
 
     #[inline]
-    fn add_module<M: Module<B>>(&mut self) -> &mut Self {
-        self.submodules.insert(M::NAME.as_str(), ConfigFnBuilder::new::<M>())
+    fn add_module<P: Plugin<B>, M: Module<P, B>>(&mut self) -> &mut Self {
+        self.submodules
+            .insert(M::NAME.as_str(), ConfigFnBuilder::new::<P, M>())
     }
 
     #[inline]

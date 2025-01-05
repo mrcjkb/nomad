@@ -7,7 +7,7 @@ use crate::module::{ApiCtx, ConfigFnBuilder, Module};
 use crate::{ActionName, Backend, BackendHandle};
 
 /// TODO: docs.
-pub trait Plugin<B: Backend>: Module<B> {
+pub trait Plugin<B: Backend>: Module<Self, B> {
     /// TODO: docs.
     const COMMAND_NAME: ActionName = panic!();
 
@@ -21,16 +21,16 @@ pub trait Plugin<B: Backend>: Module<B> {
         let backend = BackendHandle::new(backend);
         let mut module_api = api.as_module();
         let mut command_has_been_added = false;
-        let mut command_handlers = CommandHandlers::new::<Self>();
+        let mut command_handlers = CommandHandlers::new::<Self, Self>();
         let mut command_completions = CommandCompletionFns::default();
         let command_builder = CommandBuilder::new(
             &mut command_has_been_added,
             &mut command_handlers,
             &mut command_completions,
         );
-        let mut config_builder = ConfigFnBuilder::new::<Self>();
+        let mut config_builder = ConfigFnBuilder::new::<Self, Self>();
         let mut module_path = ModulePath::new(Self::NAME);
-        let mut api_ctx = ApiCtx::<Self, _, _>::new(
+        let mut api_ctx = ApiCtx::<Self, Self, _>::new(
             &mut module_api,
             command_builder,
             &mut config_builder,

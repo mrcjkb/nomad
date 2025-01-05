@@ -18,12 +18,16 @@ pub struct NeovimApi<P> {
 }
 
 /// TODO: docs.
-pub struct NeovimModuleApi<'a, M> {
+pub struct NeovimModuleApi<'a, M, P> {
     dictionary: &'a mut Dictionary,
-    _module: PhantomData<M>,
+    _module: PhantomData<(M, P)>,
 }
 
-impl<'a, M: Module<Neovim>> NeovimModuleApi<'a, M> {
+impl<'a, P, M> NeovimModuleApi<'a, M, P>
+where
+    P: Plugin<Neovim>,
+    M: Module<P, Neovim>,
+{
     #[track_caller]
     #[inline]
     fn insert(
@@ -53,7 +57,7 @@ impl<P> Api<P, Neovim> for NeovimApi<P>
 where
     P: Plugin<Neovim>,
 {
-    type ModuleApi<'a, M: Module<Neovim>> = NeovimModuleApi<'a, M>;
+    type ModuleApi<'a, M: Module<P, Neovim>> = NeovimModuleApi<'a, M, P>;
 
     #[inline]
     fn add_command<Cmd, CompFun, Comps>(
@@ -120,10 +124,10 @@ where
     }
 }
 
-impl<P, M> ModuleApi<NeovimApi<P>, P, M, Neovim> for NeovimModuleApi<'_, M>
+impl<P, M> ModuleApi<NeovimApi<P>, P, M, Neovim> for NeovimModuleApi<'_, M, P>
 where
     P: Plugin<Neovim>,
-    M: Module<Neovim>,
+    M: Module<P, Neovim>,
 {
     #[track_caller]
     #[inline]
@@ -140,7 +144,9 @@ where
 
     #[track_caller]
     #[inline]
-    fn as_module<M2: Module<Neovim>>(&mut self) -> NeovimModuleApi<'_, M2> {
+    fn as_module<M2: Module<P, Neovim>>(
+        &mut self,
+    ) -> NeovimModuleApi<'_, M2, P> {
         let obj = self.insert(M2::NAME.as_str(), Dictionary::default());
         // SAFETY: We just inserted a dictionary.
         let dictionary = unsafe { obj.as_dictionary_unchecked_mut() };
