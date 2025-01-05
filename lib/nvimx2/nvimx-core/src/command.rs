@@ -47,9 +47,7 @@ pub trait Command<B: Backend>: 'static {
     ) -> impl MaybeResult<()>;
 
     /// TODO: docs.
-    fn to_completion_fn(&self) -> impl CompletionFn {
-        |_: CommandArgs, _: ByteOffset| core::iter::empty()
-    }
+    fn to_completion_fn(&self) -> impl CompletionFn {}
 
     /// TODO: docs.
     fn docs() -> Self::Docs;

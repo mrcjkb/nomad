@@ -93,8 +93,7 @@ where
                         Self::NAME,
                         err,
                     );
-                })
-                .await;
+                });
             }
         })
         .detach();

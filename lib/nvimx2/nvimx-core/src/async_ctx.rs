@@ -1,6 +1,5 @@
 use core::marker::PhantomData;
 
-use crate::executor::TaskLocal;
 use crate::{Backend, BackendHandle, NeovimCtx};
 
 /// TODO: docs.
@@ -9,17 +8,17 @@ pub struct AsyncCtx<'a, B> {
     _non_static: PhantomData<&'a ()>,
 }
 
-impl<'a, B> AsyncCtx<'a, B>
+impl<B> AsyncCtx<'_, B>
 where
     B: Backend,
 {
     /// TODO: docs.
     #[inline]
-    pub fn with_ctx<F, R>(&self, f: F) -> TaskLocal<R, B>
+    pub fn with_ctx<Fun, Out>(&self, fun: Fun) -> Out
     where
-        F: FnOnce(&mut NeovimCtx<B>) -> R,
+        Fun: FnOnce(&mut NeovimCtx<B>) -> Out,
     {
-        todo!();
+        self.backend.with_mut(|backend| fun(&mut NeovimCtx::new(backend)))
     }
 
     /// TODO: docs.
