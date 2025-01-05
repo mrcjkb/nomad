@@ -95,8 +95,7 @@ where
                     );
                 });
             }
-        })
-        .detach();
+        });
     }
 
     #[inline]

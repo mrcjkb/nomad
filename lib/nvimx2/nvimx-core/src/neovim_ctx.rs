@@ -27,28 +27,14 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
 
     /// TODO: docs.
     #[inline]
-    pub fn spawn_local<Fun, Out>(&mut self, fun: Fun) -> TaskLocal<Out, B>
+    pub fn spawn_local<Fun>(&mut self, fun: Fun)
     where
-        Fun: AsyncFnOnce(&mut AsyncCtx<B>) -> Out + 'static,
-        Out: 'static,
+        Fun: AsyncFnOnce(&mut AsyncCtx<B>) + 'static,
     {
         let mut async_ctx = AsyncCtx::<'static, _>::new(self.backend.handle());
-        let task = self
-            .backend_mut()
+        self.backend_mut()
             .local_executor()
-            .spawn(async move { fun(&mut async_ctx).await });
-        TaskLocal { inner: task }
-    }
-}
-
-pub struct TaskLocal<T, B: Backend> {
-    inner: <<B as Backend>::LocalExecutor as LocalExecutor>::Task<T>,
-}
-
-impl<T, B: Backend> TaskLocal<T, B> {
-    /// TODO: docs.
-    #[inline]
-    pub fn detach(self) {
-        self.inner.detach()
+            .spawn(async move { fun(&mut async_ctx).await })
+            .detach();
     }
 }
