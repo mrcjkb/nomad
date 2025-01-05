@@ -9,8 +9,7 @@ use crate::{ActionName, Backend, BackendHandle};
 /// TODO: docs.
 pub trait Plugin<B: Backend>: Module<B> {
     /// TODO: docs.
-    const COMMAND_NAME: ActionName =
-        ActionName::new(Self::NAME.uppercase_first().as_str());
+    const COMMAND_NAME: ActionName = panic!();
 
     /// TODO: docs.
     const CONFIG_FN_NAME: ActionName = ActionName::new("setup");
@@ -21,9 +20,11 @@ pub trait Plugin<B: Backend>: Module<B> {
         let mut api = B::api::<Self>(&mut backend);
         let backend = BackendHandle::new(backend);
         let mut module_api = api.as_module();
+        let mut command_has_been_added = false;
         let mut command_handlers = CommandHandlers::new::<Self>();
         let mut command_completions = CommandCompletionFns::default();
         let command_builder = CommandBuilder::new(
+            &mut command_has_been_added,
             &mut command_handlers,
             &mut command_completions,
         );
@@ -47,9 +48,11 @@ pub trait Plugin<B: Backend>: Module<B> {
 
         module_api.finish();
 
-        let command = command_handlers.build(backend);
-        let completion_fn = command_completions.build();
-        api.add_command(command, completion_fn);
+        if command_has_been_added {
+            let command = command_handlers.build(backend);
+            let completion_fn = command_completions.build();
+            api.add_command(command, completion_fn);
+        }
 
         api
     }

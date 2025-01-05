@@ -152,6 +152,7 @@ pub struct CommandArgsWrongNumError<'a> {
 }
 
 pub(crate) struct CommandBuilder<'a, B> {
+    pub(crate) command_has_been_added: &'a mut bool,
     pub(crate) handlers: &'a mut CommandHandlers<B>,
     pub(crate) completions: &'a mut CommandCompletionFns,
 }
@@ -515,10 +516,11 @@ where
 impl<'a, B: Backend> CommandBuilder<'a, B> {
     #[inline]
     pub(crate) fn new(
+        command_has_been_added: &'a mut bool,
         handlers: &'a mut CommandHandlers<B>,
         completions: &'a mut CommandCompletionFns,
     ) -> Self {
-        Self { handlers, completions }
+        Self { command_has_been_added, handlers, completions }
     }
 
     #[track_caller]
@@ -528,6 +530,7 @@ impl<'a, B: Backend> CommandBuilder<'a, B> {
         Cmd: Command<B>,
     {
         self.assert_namespace_is_available(Cmd::NAME.as_str());
+        *self.command_has_been_added = true;
         self.completions.add_command(&command);
         self.handlers.add_command(command);
     }
@@ -540,6 +543,7 @@ impl<'a, B: Backend> CommandBuilder<'a, B> {
     {
         self.assert_namespace_is_available(M::NAME.as_str());
         CommandBuilder {
+            command_has_been_added: self.command_has_been_added,
             handlers: self.handlers.add_module::<M>(),
             completions: self.completions.add_module(M::NAME),
         }

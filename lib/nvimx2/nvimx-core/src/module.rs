@@ -55,7 +55,6 @@ pub struct ApiCtx<'a, 'b, M: Module<B>, P: Plugin<B>, B: Backend> {
 
 /// TODO: docs.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[repr(transparent)]
 pub struct ModuleName(&'static str);
 
 pub(crate) struct ConfigFnBuilder<B: Backend> {
