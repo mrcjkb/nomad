@@ -182,7 +182,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "auth"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "nomad",
  "nvimx",
@@ -196,7 +196,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "backend-neovim"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "async-oneshot",
  "async-task",
@@ -424,7 +424,7 @@ checksum = "afb84c814227b90d6895e01398aee0d8033c00e7466aca416fb6a8e0eb19d8a7"
 
 [[package]]
 name = "clipboard"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "copypasta",
 ]
@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "collab"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "async-fs",
  "async-net",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "collab2"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "editor",
  "editor-mock",
@@ -682,11 +682,11 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
 name = "editor"
-version = "0.1.0"
+version = "0.1.0-dev"
 
 [[package]]
 name = "editor-mock"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "collab2",
  "editor",
@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "editor-neovim"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "collab2",
  "editor",
@@ -1193,7 +1193,7 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "mad"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "auth",
  "collab",
@@ -1242,7 +1242,7 @@ checksum = "a0f889fb66f7acdf83442c35775764b51fed3c606ab9cee51500dbde2cf528ca"
 
 [[package]]
 name = "nomad"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "home",
  "nvimx",
@@ -1349,7 +1349,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "nvim-oxi",
  "nvimx-common",
@@ -1366,7 +1366,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-common"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "compact_str",
  "eerie",
@@ -1377,7 +1377,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-core"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "compact_str",
  "fxhash",
@@ -1391,7 +1391,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-ctx"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "fxhash",
  "nohash",
@@ -1404,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-diagnostics"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "nvim-oxi",
  "smol_str",
@@ -1412,7 +1412,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-emit"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "futures-util",
  "nvim-oxi",
@@ -1423,7 +1423,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-event"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "nvimx-common",
  "nvimx-ctx",
@@ -1433,7 +1433,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-executor"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "async-task",
  "concurrent-queue",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-fs"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "async-fs",
  "eerie",
@@ -1455,7 +1455,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-macros"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1465,7 +1465,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-plugin"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "flume",
  "futures-util",
@@ -1496,7 +1496,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx-ui"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "compact_str",
  "nvim-oxi",
@@ -1507,7 +1507,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx2"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "backend-neovim",
  "nvimx-core",
@@ -1516,7 +1516,7 @@ dependencies = [
 
 [[package]]
 name = "nvimx2-macros"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1745,7 +1745,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "root-finder"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "futures-util",
  "nvimx",
@@ -2268,7 +2268,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "chrono",
  "git2",
@@ -2678,7 +2678,7 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.1.0-dev"
 dependencies = [
  "anyhow",
  "cargo_metadata",

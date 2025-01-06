@@ -4,7 +4,7 @@ members = ["crates/*", "lib/*", "lib/nvimx2/*", "xtask"]
 exclude = ["lib/nvimx2/src"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.0-dev"
 edition = "2024"
 authors = ["Nomad <hello@nomad.foo>"]
 license = "MIT"
