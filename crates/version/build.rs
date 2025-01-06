@@ -6,7 +6,7 @@ use std::fmt::Write;
 use std::fs::File;
 use std::path::Path;
 
-use chrono::{DateTime, Datelike, FixedOffset, TimeZone};
+use chrono::{Datelike, FixedOffset, TimeZone};
 use git2::Repository;
 
 fn main() {
