@@ -45,11 +45,11 @@ pub trait Command<B: Backend>: 'static {
     ) -> impl MaybeResult<()>;
 
     /// TODO: docs.
-    fn to_completion_fn(&self) -> impl CompletionFn {}
+    fn to_completion_fn(&self) -> impl CompletionFn<B> {}
 }
 
 /// TODO: docs.
-pub trait CompletionFn: 'static {
+pub trait CompletionFn<B: Backend>: 'static {
     /// TODO: docs.
     type Completions: IntoIterator<Item = CommandCompletion>;
 
@@ -62,9 +62,9 @@ pub trait CompletionFn: 'static {
 }
 
 /// TODO: docs.
-pub trait ToCompletionFn {
+pub trait ToCompletionFn<B: Backend> {
     /// TODO: docs.
-    fn to_completion_fn(&self) -> impl CompletionFn;
+    fn to_completion_fn(&self) -> impl CompletionFn<B>;
 }
 
 /// TODO: docs.
@@ -804,7 +804,7 @@ impl<B> notify::Error for InvalidCommandError<'_, B> {
 
 impl<A, B> Command<B> for A
 where
-    A: Action<B, Return = ()> + ToCompletionFn,
+    A: Action<B, Return = ()> + ToCompletionFn<B>,
     A::Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error>,
     B: Backend,
 {
@@ -822,12 +822,12 @@ where
     }
 
     #[inline]
-    fn to_completion_fn(&self) -> impl CompletionFn {
+    fn to_completion_fn(&self) -> impl CompletionFn<B> {
         ToCompletionFn::to_completion_fn(self)
     }
 }
 
-impl CompletionFn for () {
+impl<B: Backend> CompletionFn<B> for () {
     type Completions = core::iter::Empty<CommandCompletion>;
 
     #[inline]
@@ -836,10 +836,11 @@ impl CompletionFn for () {
     }
 }
 
-impl<F, R> CompletionFn for F
+impl<B, F, R> CompletionFn<B> for F
 where
     F: FnMut(CommandArgs, ByteOffset) -> R + 'static,
     R: IntoIterator<Item = CommandCompletion>,
+    B: Backend,
 {
     type Completions = R;
 

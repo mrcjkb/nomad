@@ -20,6 +20,6 @@ impl<B: Backend> AsyncAction<B> for Login {
     async fn call(&mut self, _: Self::Args, _: &mut AsyncCtx<'_, B>) {}
 }
 
-impl ToCompletionFn for Login {
+impl<B: Backend> ToCompletionFn<B> for Login {
     fn to_completion_fn(&self) {}
 }
