@@ -36,6 +36,16 @@ fn add_commit_infos(file: &mut GeneratedFile) {
         .add_const("COMMIT_YEAR", date.year() as u16)
         .add_const("COMMIT_MONTH", date.month() as u8)
         .add_const("COMMIT_DAY", date.day() as u8);
+
+    // Trigger a rebuild when new commits are made.
+    let head_path = repo.path().join("HEAD");
+    println!("cargo:rerun-if-changed={}", head_path.display());
+
+    let head_contents = std::fs::read_to_string(&head_path).unwrap();
+    if let Some((_, relative_ref_path)) = head_contents.split_once("ref: ") {
+        let ref_path = repo.path().join(relative_ref_path.trim());
+        println!("cargo:rerun-if-changed={}", ref_path.display());
+    }
 }
 
 fn add_version_infos(file: &mut GeneratedFile) {
