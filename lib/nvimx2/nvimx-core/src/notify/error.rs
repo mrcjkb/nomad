@@ -1,62 +1,31 @@
 use core::convert::Infallible;
 
-use super::{Level, Message, Notification};
-use crate::action_ctx::ModulePath;
-use crate::{Backend, Name, Plugin};
+use super::{Level, Message, Source};
+use crate::{Backend, Plugin};
 
 /// TODO: docs.
-pub trait Error {
+pub trait Error<B: Backend> {
     /// TODO: docs.
-    fn to_notification<P, B>(
-        &self,
-        module_path: &ModulePath,
-        action_name: Option<Name>,
-    ) -> Option<(Level, Message)>
+    fn to_message<P>(&self, source: Source) -> Option<(Level, Message)>
     where
-        P: Plugin<B>,
-        B: Backend;
+        P: Plugin<B>;
 }
 
-impl Error for Infallible {
-    fn to_notification<P, B>(
-        &self,
-        _: &ModulePath,
-        _: Option<Name>,
-    ) -> Option<(Level, Message)>
+impl<B: Backend> Error<B> for Infallible {
+    fn to_message<P>(&self, _: Source) -> Option<(Level, Message)>
     where
         P: Plugin<B>,
-        B: Backend,
     {
         unreachable!()
     }
 }
 
-impl<T: Error> Error for &T {
+impl<T: Error<B>, B: Backend> Error<B> for &T {
     #[inline]
-    fn to_notification<P, B>(
-        &self,
-        module_path: &ModulePath,
-        action_name: Option<Name>,
-    ) -> Option<(Level, Message)>
+    fn to_message<P>(&self, source: Source) -> Option<(Level, Message)>
     where
         P: Plugin<B>,
-        B: Backend,
     {
-        (&**self).to_notification::<P, B>(module_path, action_name)
+        (&**self).to_message::<P>(source)
     }
 }
-//
-// impl Error for Box<dyn Error> {
-//     #[inline]
-//     fn to_notification<P, B>(
-//         &self,
-//         module_path: &ModulePath,
-//         action_name: Option<Name>,
-//     ) -> Option<Notification>
-//     where
-//         P: Plugin<B>,
-//         B: Backend,
-//     {
-//         (&**self).to_notification(module_path, action_name)
-//     }
-// }

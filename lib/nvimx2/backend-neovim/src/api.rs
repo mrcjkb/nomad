@@ -140,7 +140,7 @@ where
     fn add_function<Fun, Err>(&mut self, fun_name: Name, mut fun: Fun)
     where
         Fun: FnMut(NeovimValue) -> Result<NeovimValue, Err> + 'static,
-        Err: notify::Error,
+        Err: notify::Error<Neovim>,
     {
         self.insert(
             fun_name,

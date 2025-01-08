@@ -42,7 +42,7 @@ where
     fn add_function<Fun, Err>(&mut self, fun_name: Name, fun: Fun)
     where
         Fun: FnMut(B::ApiValue) -> Result<B::ApiValue, Err> + 'static,
-        Err: notify::Error;
+        Err: notify::Error<B>;
 
     /// TODO: docs.
     fn as_module<M2>(&mut self) -> A::ModuleApi<'_, M2>

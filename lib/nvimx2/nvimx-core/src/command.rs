@@ -35,14 +35,14 @@ pub trait Command<P: Plugin<B>, B: Backend>: 'static {
     const NAME: Name;
 
     /// TODO: docs.
-    type Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error>;
+    type Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error<B>>;
 
     /// TODO: docs.
     fn call(
         &mut self,
         args: Self::Args,
         ctx: &mut ActionCtx<P, B>,
-    ) -> impl MaybeResult<()>;
+    ) -> impl MaybeResult<(), B>;
 
     /// TODO: docs.
     fn to_completion_fn(&self) -> impl CompletionFn<B> {}
@@ -154,14 +154,14 @@ pub(crate) struct CommandBuilder<'a, P, B> {
 
 pub(crate) struct CommandHandlers<P, B> {
     module_name: Name,
-    inner: OrderedMap<&'static str, CommandHandler<P, B>>,
-    submodules: OrderedMap<&'static str, Self>,
+    inner: OrderedMap<Name, CommandHandler<P, B>>,
+    submodules: OrderedMap<Name, Self>,
 }
 
 #[derive(Default)]
 pub(crate) struct CommandCompletionFns {
-    inner: OrderedMap<&'static str, CommandCompletionFn>,
-    submodules: OrderedMap<&'static str, Self>,
+    inner: OrderedMap<Name, CommandCompletionFn>,
+    submodules: OrderedMap<Name, Self>,
 }
 
 struct MissingCommandError<'a, P, B>(&'a CommandHandlers<P, B>);
@@ -598,12 +598,12 @@ impl<P: Plugin<B>, B: Backend> CommandHandlers<P, B> {
             let args = match Cmd::Args::try_from(args) {
                 Ok(args) => args,
                 Err(err) => {
-                    ctx.emit_action_err(Cmd::NAME, err);
+                    ctx.emit_err(err);
                     return;
                 },
             };
             if let Err(err) = command.call(args, ctx).into_result() {
-                ctx.emit_action_err(Cmd::NAME, err);
+                ctx.emit_err(err);
             }
         });
         self.inner.insert(Cmd::NAME, handler);
@@ -626,18 +626,23 @@ impl<P: Plugin<B>, B: Backend> CommandHandlers<P, B> {
     ) {
         let Some(arg) = args.pop_front() else {
             let err = MissingCommandError(self);
-            return ctx.backend_mut().emit_err::<P, _>(module_path, None, err);
+            let src = notify::Source { module_path, action_name: None };
+            ctx.backend_mut().emit_err::<P, _>(src, err);
+            return;
         };
 
-        if let Some(handler) = self.inner.get_mut(arg.as_str()) {
-            let mut action_ctx = ActionCtx::new(ctx, module_path);
+        if let Some((name, handler)) =
+            self.inner.get_key_value_mut(arg.as_str())
+        {
+            let mut action_ctx = ActionCtx::new(ctx, module_path, *name);
             (handler)(args, &mut action_ctx);
         } else if let Some(module) = self.submodules.get_mut(arg.as_str()) {
             module_path.push(module.module_name);
             module.handle(args, module_path, ctx);
         } else {
             let err = InvalidCommandError(self, arg);
-            ctx.backend_mut().emit_err::<P, _>(module_path, None, err);
+            let src = notify::Source { module_path, action_name: None };
+            ctx.backend_mut().emit_err::<P, _>(src, err);
         }
     }
 }
@@ -722,16 +727,17 @@ impl CommandCompletionFns {
     }
 }
 
-impl<P, B> notify::Error for MissingCommandError<'_, P, B> {
+impl<P, B> notify::Error<B> for MissingCommandError<'_, P, B>
+where
+    B: Backend,
+{
     #[inline]
-    fn to_notification<P2, B2>(
+    fn to_message<P2>(
         &self,
-        _: &ModulePath,
-        _: Option<Name>,
+        _: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
-        P2: Plugin<B2>,
-        B2: Backend,
+        P2: Plugin<B>,
     {
         let Self(handlers) = self;
         let mut message = notify::Message::new();
@@ -753,16 +759,17 @@ impl<P, B> notify::Error for MissingCommandError<'_, P, B> {
     }
 }
 
-impl<P, B> notify::Error for InvalidCommandError<'_, P, B> {
+impl<P, B> notify::Error<B> for InvalidCommandError<'_, P, B>
+where
+    B: Backend,
+{
     #[inline]
-    fn to_notification<P2, B2>(
+    fn to_message<P2>(
         &self,
-        _: &ModulePath,
-        _: Option<Name>,
+        _: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
-        P2: Plugin<B2>,
-        B2: Backend,
+        P2: Plugin<B>,
     {
         let Self(handlers, arg) = self;
         let mut message = notify::Message::new();
@@ -813,7 +820,7 @@ impl<P, B> notify::Error for InvalidCommandError<'_, P, B> {
 impl<A, P, B> Command<P, B> for A
 where
     A: Action<P, B, Return = ()> + ToCompletionFn<B>,
-    A::Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error>,
+    A::Args: for<'args> TryFrom<CommandArgs<'args>, Error: notify::Error<B>>,
     P: Plugin<B>,
     B: Backend,
 {
@@ -826,7 +833,7 @@ where
         &mut self,
         args: Self::Args,
         ctx: &mut ActionCtx<P, B>,
-    ) -> impl MaybeResult<()> {
+    ) -> impl MaybeResult<(), B> {
         A::call(self, args, ctx)
     }
 
@@ -863,38 +870,32 @@ where
     }
 }
 
-impl<T: notify::Error> notify::Error for CommandArgsIntoSliceError<'_, T> {
+impl<T: notify::Error<B>, B: Backend> notify::Error<B>
+    for CommandArgsIntoSliceError<'_, T>
+{
     #[inline]
-    fn to_notification<P, B>(
+    fn to_message<P>(
         &self,
-        module_path: &ModulePath,
-        action_name: Option<Name>,
+        source: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
         P: Plugin<B>,
-        B: Backend,
     {
         match self {
-            Self::Item(err) => {
-                err.to_notification::<P, B>(module_path, action_name)
-            },
-            Self::WrongNum(err) => {
-                err.to_notification::<P, B>(module_path, action_name)
-            },
+            Self::Item(err) => err.to_message::<P>(source),
+            Self::WrongNum(err) => err.to_message::<P>(source),
         }
     }
 }
 
-impl notify::Error for CommandArgsWrongNumError<'_> {
+impl<B: Backend> notify::Error<B> for CommandArgsWrongNumError<'_> {
     #[inline]
-    fn to_notification<P, B2>(
+    fn to_message<P>(
         &self,
-        _: &ModulePath,
-        _: Option<Name>,
+        _: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
-        P: Plugin<B2>,
-        B2: Backend,
+        P: Plugin<B>,
     {
         debug_assert_ne!(self.args.len(), self.expected_num);
 

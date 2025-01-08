@@ -19,7 +19,7 @@ pub trait Function<P: Plugin<B>, B: Backend>: 'static {
         &mut self,
         args: Self::Args,
         ctx: &mut ActionCtx<P, B>,
-    ) -> impl MaybeResult<Self::Return>;
+    ) -> impl MaybeResult<Self::Return, B>;
 }
 
 impl<A, P, B> Function<P, B> for A
@@ -40,7 +40,7 @@ where
         &mut self,
         args: A::Args,
         ctx: &mut ActionCtx<P, B>,
-    ) -> impl MaybeResult<Self::Return> {
+    ) -> impl MaybeResult<Self::Return, B> {
         A::call(self, args, ctx)
     }
 }

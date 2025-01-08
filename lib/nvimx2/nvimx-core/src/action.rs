@@ -1,6 +1,6 @@
 pub use crate::action_ctx::ActionCtx;
 use crate::backend::BackendExt;
-use crate::{AsyncCtx, Backend, MaybeResult, Name, Plugin};
+use crate::{AsyncCtx, Backend, MaybeResult, Name, Plugin, notify};
 
 /// TODO: docs.
 pub trait Action<P: Plugin<B>, B: Backend>: 'static {
@@ -18,7 +18,7 @@ pub trait Action<P: Plugin<B>, B: Backend>: 'static {
         &mut self,
         args: Self::Args,
         ctx: &mut ActionCtx<P, B>,
-    ) -> impl MaybeResult<Self::Return>;
+    ) -> impl MaybeResult<Self::Return, B>;
 }
 
 /// TODO: docs.
@@ -34,7 +34,7 @@ pub trait AsyncAction<P: Plugin<B>, B: Backend>: 'static {
         &mut self,
         args: Self::Args,
         ctx: &mut AsyncCtx<P, B>,
-    ) -> impl Future<Output = impl MaybeResult<()>>;
+    ) -> impl Future<Output = impl MaybeResult<(), B>>;
 }
 
 impl<T, P, B> Action<P, B> for T
@@ -55,8 +55,10 @@ where
             if let Err(err) = this.call(args, ctx).await.into_result() {
                 ctx.with_ctx(move |ctx| {
                     ctx.backend_mut().emit_err::<P, _>(
-                        &module_path,
-                        Some(Self::NAME),
+                        notify::Source {
+                            module_path: &module_path,
+                            action_name: Some(Self::NAME),
+                        },
                         err,
                     );
                 });

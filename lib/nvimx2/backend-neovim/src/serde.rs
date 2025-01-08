@@ -5,8 +5,8 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use smallvec::SmallVec;
 
-use crate::oxi;
 use crate::value::NeovimValue;
+use crate::{Neovim, oxi};
 
 /// TODO: docs.
 #[derive(Debug, thiserror::Error)]
@@ -69,16 +69,14 @@ impl Path<'_> {
     }
 }
 
-impl notify::Error for NeovimSerializeError {
+impl notify::Error<Neovim> for NeovimSerializeError {
     #[inline]
-    fn to_notification<P, B>(
+    fn to_message<P>(
         &self,
-        _: &ModulePath,
-        _: Option<nvimx_core::Name>,
+        _: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
-        P: Plugin<B>,
-        B: Backend,
+        P: Plugin<Neovim>,
     {
         let mut message = notify::Message::new();
         message
@@ -90,25 +88,25 @@ impl notify::Error for NeovimSerializeError {
     }
 }
 
-impl notify::Error for NeovimDeserializeError {
+impl notify::Error<Neovim> for NeovimDeserializeError {
     #[inline]
-    fn to_notification<P, B>(
+    fn to_message<P>(
         &self,
-        module_path: &ModulePath,
-        action_name: Option<nvimx_core::Name>,
+        source: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
-        P: Plugin<B>,
-        B: Backend,
+        P: Plugin<Neovim>,
     {
         let mut message = notify::Message::new();
 
         let what = (|| {
             let default = "value";
-            let mut names = module_path.names();
-            let Some(module) = names.next() else { return default };
+            let mut names = source.module_path.names();
+            let Some(module_name) = names.next() else { return default };
             let None = names.next() else { return default };
-            if module == P::NAME && action_name == Some(P::CONFIG_FN_NAME) {
+            if module_name == P::NAME
+                && source.action_name == Some(P::CONFIG_FN_NAME)
+            {
                 "config"
             } else {
                 default

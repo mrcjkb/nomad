@@ -88,13 +88,17 @@ impl VimNotifyProvider for DefaultProvider {
     #[inline]
     fn to_message(&mut self, notification: &Notification) -> String {
         let mut msg = String::from("[");
-        let mut iter = notification.namespace.names();
-        if let Some(first) = iter.next() {
+        let mut modules = notification.source.module_path.names();
+        if let Some(first) = modules.next() {
             msg.push_str(first);
-            for item in iter {
+            for module in modules {
                 msg.push('.');
-                msg.push_str(item);
+                msg.push_str(module);
             }
+        }
+        if let Some(action_name) = notification.source.action_name {
+            msg.push('.');
+            msg.push_str(action_name);
         }
         msg.push_str("] ");
         msg.push_str(notification.message.as_str());

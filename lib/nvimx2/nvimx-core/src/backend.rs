@@ -3,11 +3,10 @@ use core::fmt;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::action_ctx::ModulePath;
 use crate::api::Api;
 use crate::executor::{BackgroundExecutor, LocalExecutor};
 use crate::notify::Emitter;
-use crate::{Name, Plugin, notify};
+use crate::{Plugin, notify};
 
 /// TODO: docs.
 pub trait Backend: 'static + Sized {
@@ -15,7 +14,7 @@ pub trait Backend: 'static + Sized {
     type Api<P: Plugin<Self>>: Api<P, Self>;
 
     /// TODO: docs.
-    type ApiValue: Value;
+    type ApiValue: Value<Self>;
 
     /// TODO: docs.
     type LocalExecutor: LocalExecutor;
@@ -27,10 +26,10 @@ pub trait Backend: 'static + Sized {
     type Emitter<'this>: notify::Emitter;
 
     /// TODO: docs.
-    type SerializeError: notify::Error + 'static;
+    type SerializeError: notify::Error<Self> + 'static;
 
     /// TODO: docs.
-    type DeserializeError: notify::Error + 'static;
+    type DeserializeError: notify::Error<Self> + 'static;
 
     /// TODO: docs.
     fn api<P: Plugin<Self>>(&mut self) -> Self::Api<P>;
@@ -65,12 +64,12 @@ pub trait Backend: 'static + Sized {
 }
 
 /// TODO: docs.
-pub trait Value: Default + 'static {
+pub trait Value<B: Backend>: Default + 'static {
     /// TODO: docs.
-    type MapAccess<'a>: MapAccess<Value = Self>;
+    type MapAccess<'a>: MapAccess<B, Value = Self>;
 
     /// TODO: docs.
-    type MapAccessError<'a>: notify::Error
+    type MapAccessError<'a>: notify::Error<B>
     where
         Self: 'a;
 
@@ -81,9 +80,9 @@ pub trait Value: Default + 'static {
 }
 
 /// TODO: docs.
-pub trait MapAccess {
+pub trait MapAccess<B: Backend> {
     /// TODO: docs.
-    type Key<'a>: Key
+    type Key<'a>: Key<B>
     where
         Self: 'a;
 
@@ -98,9 +97,9 @@ pub trait MapAccess {
 }
 
 /// TODO: docs.
-pub trait Key: fmt::Debug {
+pub trait Key<B: Backend>: fmt::Debug {
     /// TODO: docs.
-    type AsStrError<'a>: notify::Error
+    type AsStrError<'a>: notify::Error<B>
     where
         Self: 'a;
 
@@ -111,21 +110,18 @@ pub trait Key: fmt::Debug {
 /// TODO: docs.
 pub(crate) trait BackendExt: Backend {
     #[inline]
-    fn emit_err<P: Plugin<Self>, Err: notify::Error>(
+    fn emit_err<P: Plugin<Self>, Err: notify::Error<Self>>(
         &mut self,
-        module_path: &ModulePath,
-        action_name: Option<Name>,
+        source: notify::Source,
         err: Err,
     ) {
-        let Some((level, message)) =
-            err.to_notification::<P, Self>(module_path, action_name)
-        else {
+        let Some((level, message)) = err.to_message::<P>(source) else {
             return;
         };
 
         let notification = notify::Notification {
             level,
-            namespace: module_path,
+            source,
             message,
             updates_prev: None,
         };

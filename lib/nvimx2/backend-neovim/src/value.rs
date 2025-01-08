@@ -4,6 +4,7 @@ use core::fmt;
 
 use nvimx_core::{Backend, Key, MapAccess, ModulePath, Plugin, Value, notify};
 
+use crate::Neovim;
 use crate::oxi::{self, Dictionary, Object, ObjectKind, lua};
 
 /// TODO: docs.
@@ -54,7 +55,7 @@ impl NeovimValue {
     }
 }
 
-impl Value for NeovimValue {
+impl Value<Neovim> for NeovimValue {
     type MapAccess<'a> = NeovimMapAccess<'a>;
     type MapAccessError<'a> = NeovimMapAccessError;
 
@@ -104,7 +105,7 @@ impl lua::Pushable for NeovimValue {
     }
 }
 
-impl MapAccess for NeovimMapAccess<'_> {
+impl MapAccess<Neovim> for NeovimMapAccess<'_> {
     type Key<'a>
         = NeovimMapKey<'a>
     where
@@ -129,7 +130,7 @@ impl MapAccess for NeovimMapAccess<'_> {
     }
 }
 
-impl MapAccess for NeovimDictAccess<'_> {
+impl MapAccess<Neovim> for NeovimDictAccess<'_> {
     type Key<'a>
         = NeovimMapKey<'a>
     where
@@ -154,7 +155,7 @@ impl MapAccess for NeovimDictAccess<'_> {
     }
 }
 
-impl Key for NeovimMapKey<'_> {
+impl Key<Neovim> for NeovimMapKey<'_> {
     type AsStrError<'a>
         = NeovimMapKeyAsStrError<'a>
     where
@@ -167,16 +168,14 @@ impl Key for NeovimMapKey<'_> {
     }
 }
 
-impl notify::Error for NeovimMapAccessError {
+impl notify::Error<Neovim> for NeovimMapAccessError {
     #[inline]
-    fn to_notification<P, B>(
+    fn to_message<P>(
         &self,
-        _: &ModulePath,
-        _: Option<nvimx_core::Name>,
+        _: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
-        P: Plugin<B>,
-        B: Backend,
+        P: Plugin<Neovim>,
     {
         let Self(kind) = self;
         let mut msg = notify::Message::new();
@@ -202,16 +201,14 @@ impl fmt::Debug for NeovimMapKey<'_> {
     }
 }
 
-impl notify::Error for NeovimMapKeyAsStrError<'_> {
+impl notify::Error<Neovim> for NeovimMapKeyAsStrError<'_> {
     #[inline]
-    fn to_notification<P, B>(
+    fn to_message<P>(
         &self,
-        _: &ModulePath,
-        _: Option<nvimx_core::Name>,
+        _: notify::Source,
     ) -> Option<(notify::Level, notify::Message)>
     where
-        P: Plugin<B>,
-        B: Backend,
+        P: Plugin<Neovim>,
     {
         let mut msg = notify::Message::new();
         msg.push_str("'")
