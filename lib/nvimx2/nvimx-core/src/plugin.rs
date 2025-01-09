@@ -54,7 +54,7 @@ pub trait Plugin<B: Backend>: Module<Self, B> {
         let mut config_fn = config_builder.build(backend.clone());
         module_api.add_function(Self::CONFIG_FN_NAME, move |value| {
             config_fn(value);
-            Ok::<_, Infallible>(B::ApiValue::default())
+            None
         });
 
         module_api.finish();

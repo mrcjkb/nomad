@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use nvimx_core::backend::{Api, ModuleApi};
 use nvimx_core::command::{CommandArgs, CommandCompletion};
 use nvimx_core::module::Module;
-use nvimx_core::notify::{self, Name};
+use nvimx_core::notify::Name;
 use nvimx_core::{ByteOffset, Plugin};
 
 use crate::Neovim;
@@ -138,10 +138,9 @@ where
 
     #[track_caller]
     #[inline]
-    fn add_function<Fun, Err>(&mut self, fun_name: Name, mut fun: Fun)
+    fn add_function<Fun>(&mut self, fun_name: Name, mut fun: Fun)
     where
-        Fun: FnMut(NeovimValue) -> Result<NeovimValue, Err> + 'static,
-        Err: notify::Error<Neovim>,
+        Fun: FnMut(NeovimValue) -> Option<NeovimValue> + 'static,
     {
         self.insert(
             fun_name,

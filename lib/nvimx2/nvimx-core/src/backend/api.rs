@@ -42,10 +42,9 @@ where
     fn add_constant(&mut self, constant_name: Name, value: B::ApiValue);
 
     /// TODO: docs.
-    fn add_function<Fun, Err>(&mut self, fun_name: Name, fun: Fun)
+    fn add_function<Fun>(&mut self, fun_name: Name, fun: Fun)
     where
-        Fun: FnMut(B::ApiValue) -> Result<B::ApiValue, Err> + 'static,
-        Err: notify::Error<B>;
+        Fun: FnMut(B::ApiValue) -> Option<B::ApiValue> + 'static;
 
     /// TODO: docs.
     fn as_submodule<M2>(&mut self) -> A::ModuleApi<'_, M2>

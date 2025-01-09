@@ -4,7 +4,7 @@ use crate::backend::Backend;
 use crate::notify;
 
 /// TODO: docs.
-pub trait Value<B: Backend>: Default + 'static {
+pub trait Value<B: Backend>: 'static {
     /// TODO: docs.
     type MapAccess<'a>: MapAccess<B, Value = Self>;
 

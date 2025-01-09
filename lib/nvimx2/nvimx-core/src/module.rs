@@ -1,7 +1,5 @@
 //! TODO: docs.
 
-use core::convert::Infallible;
-
 use serde::de::DeserializeOwned;
 
 use crate::action::ActionCtx;
@@ -80,7 +78,7 @@ where
         Const: Constant,
     {
         let value = self.backend.with_mut(|mut backend| {
-            match backend.serialize(&value) {
+            match backend.serialize(&value).into_result() {
                 Ok(value) => value,
                 Err(err) => {
                     let source = notify::Source {
@@ -119,44 +117,34 @@ where
                     module_path,
                     action_name: Some(Fun::NAME),
                 };
-                let args = backend.deserialize::<Fun::Args>(value).map_err(
-                    |err| {
-                        backend.emit_err::<P, _>(source, &err);
-                        FunctionError::Deserialize(err)
+                let args = match backend
+                    .deserialize::<Fun::Args>(value)
+                    .into_result()
+                {
+                    Ok(args) => args,
+                    Err(err) => {
+                        backend.emit_err::<P, _>(source, err);
+                        return None;
                     },
-                )?;
-
+                };
                 let mut action_ctx = ActionCtx::new(
                     NeovimCtx::new(backend.as_mut(), module_path),
                     Fun::NAME,
                 );
-
-                let ret = fun
-                    .call(args, &mut action_ctx)
-                    .into_result()
-                    .map_err(|err| {
-                        // Even though the error is bound to 'static, Rust
-                        // thinks that the error captures some lifetime due to
-                        // `Function::call()` returning an `impl MaybeResult`.
-                        //
-                        // Should be the same problem as
-                        // https://github.com/rust-lang/rust/issues/42940
-                        //
-                        // FIXME: Is there a better way around this than boxing
-                        // the error?
-                        // Box::new(err) as Box<dyn notify::Error>
-                        let a: Infallible = todo!();
-                        a
-                    })
-                    .map_err(|err| {
-                        backend.emit_err::<P, _>(source, &err);
-                        FunctionError::Call(err)
-                    })?;
-
-                backend.serialize(&ret).map_err(|err| {
-                    backend.emit_err::<P, _>(source, &err);
-                    FunctionError::Serialize(err)
-                })
+                let ret = match fun.call(args, &mut action_ctx).into_result() {
+                    Ok(ret) => ret,
+                    Err(err) => {
+                        backend.emit_err::<P, _>(source, err);
+                        return None;
+                    },
+                };
+                match backend.serialize(&ret).into_result() {
+                    Ok(ret) => Some(ret),
+                    Err(err) => {
+                        backend.emit_err::<P, _>(source, err);
+                        None
+                    },
+                }
             })
         };
         self.module_api.add_function(Fun::NAME, fun);
@@ -221,7 +209,7 @@ impl<P: Plugin<B>, B: Backend> ConfigFnBuilder<P, B> {
     pub(crate) fn finish<M: Module<P, B>>(&mut self, mut module: M) {
         self.config_handler = Box::new(move |value, ctx| {
             let backend = ctx.backend_mut();
-            match backend.deserialize(value) {
+            match backend.deserialize::<M::Config>(value).into_result() {
                 Ok(config) => module.on_new_config(config, ctx),
                 Err(err) => ctx.emit_err(Some(P::CONFIG_FN_NAME), err),
             }

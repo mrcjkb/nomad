@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::backend::{Api, BackgroundExecutor, LocalExecutor, Value};
-use crate::notify;
+use crate::notify::{self, MaybeResult};
 use crate::plugin::Plugin;
 
 /// TODO: docs.
@@ -25,12 +25,6 @@ pub trait Backend: 'static + Sized {
     type Emitter<'this>: notify::Emitter;
 
     /// TODO: docs.
-    type SerializeError: notify::Error<Self>;
-
-    /// TODO: docs.
-    type DeserializeError: notify::Error<Self>;
-
-    /// TODO: docs.
     fn api<P: Plugin<Self>>(&mut self) -> Self::Api<P>;
 
     /// TODO: docs.
@@ -49,7 +43,7 @@ pub trait Backend: 'static + Sized {
     fn serialize<T>(
         &mut self,
         value: &T,
-    ) -> Result<Self::ApiValue, Self::SerializeError>
+    ) -> impl MaybeResult<Self::ApiValue, Self>
     where
         T: ?Sized + Serialize;
 
@@ -57,7 +51,7 @@ pub trait Backend: 'static + Sized {
     fn deserialize<T>(
         &mut self,
         value: Self::ApiValue,
-    ) -> Result<T, Self::DeserializeError>
+    ) -> impl MaybeResult<T, Self>
     where
         T: DeserializeOwned;
 }
