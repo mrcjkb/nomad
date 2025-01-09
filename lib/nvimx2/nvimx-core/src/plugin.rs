@@ -1,5 +1,3 @@
-use core::convert::Infallible;
-
 use crate::backend::{Api, Backend, BackendHandle, ModuleApi};
 use crate::command::{CommandBuilder, CommandCompletionFns, CommandHandlers};
 use crate::module::{ApiCtx, ConfigFnBuilder, Module};

@@ -1,7 +1,4 @@
-//! TODO: docs.
-
-use serde::de::DeserializeOwned;
-
+use crate::NeovimCtx;
 use crate::action::ActionCtx;
 use crate::backend::{
     Api,
@@ -15,29 +12,10 @@ use crate::backend::{
     Value,
 };
 use crate::command::{Command, CommandBuilder};
+use crate::module::{Constant, Function, Module};
 use crate::notify::{self, Error, MaybeResult, ModulePath, Name};
 use crate::plugin::Plugin;
 use crate::util::OrderedMap;
-use crate::{Constant, Function, NeovimCtx};
-
-/// TODO: docs.
-pub trait Module<P: Plugin<B>, B: Backend>: 'static + Sized {
-    /// TODO: docs.
-    const NAME: Name;
-
-    /// TODO: docs.
-    type Config: DeserializeOwned;
-
-    /// TODO: docs.
-    fn api(&self, ctx: &mut ApiCtx<Self, P, B>);
-
-    /// TODO: docs.
-    fn on_new_config(
-        &mut self,
-        new_config: Self::Config,
-        ctx: &mut NeovimCtx<P, B>,
-    );
-}
 
 /// TODO: docs.
 pub struct ApiCtx<'a, 'b, M: Module<P, B>, P: Plugin<B>, B: Backend> {
@@ -273,34 +251,5 @@ impl<P: Plugin<B>, B: Backend> ConfigFnBuilder<P, B> {
         drop(map_access);
         let mut ctx = NeovimCtx::new(backend, module_path);
         (self.config_handler)(value, &mut ctx);
-    }
-}
-
-enum FunctionError<D, C, S> {
-    Deserialize(D),
-    Call(C),
-    Serialize(S),
-}
-
-impl<D, C, S, B> notify::Error<B> for FunctionError<D, C, S>
-where
-    D: notify::Error<B>,
-    C: notify::Error<B>,
-    S: notify::Error<B>,
-    B: Backend,
-{
-    #[inline]
-    fn to_message<P>(
-        &self,
-        source: notify::Source,
-    ) -> Option<(notify::Level, notify::Message)>
-    where
-        P: Plugin<B>,
-    {
-        match self {
-            Self::Deserialize(err) => err.to_message::<P>(source),
-            Self::Call(err) => err.to_message::<P>(source),
-            Self::Serialize(err) => err.to_message::<P>(source),
-        }
     }
 }

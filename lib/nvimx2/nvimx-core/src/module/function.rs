@@ -7,7 +7,11 @@ use crate::notify::{MaybeResult, Name};
 use crate::plugin::Plugin;
 
 /// TODO: docs.
-pub trait Function<P: Plugin<B>, B: Backend>: 'static {
+pub trait Function<P, B>: 'static
+where
+    P: Plugin<B>,
+    B: Backend,
+{
     /// TODO: docs.
     const NAME: Name;
 

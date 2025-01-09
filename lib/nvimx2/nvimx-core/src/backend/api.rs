@@ -4,7 +4,7 @@ use crate::ByteOffset;
 use crate::backend::Backend;
 use crate::command::{CommandArgs, CommandCompletion};
 use crate::module::Module;
-use crate::notify::{self, Name};
+use crate::notify::Name;
 use crate::plugin::Plugin;
 
 /// TODO: docs.

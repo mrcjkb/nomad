@@ -1,6 +1,6 @@
 use core::fmt;
 
-use nvimx2::Constant;
+use nvimx2::module::Constant;
 use nvimx2::notify::Name;
 
 use crate::generated;
