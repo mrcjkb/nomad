@@ -72,7 +72,7 @@ where
 }
 
 struct ConfigBuilder<B: Backend> {
-    handler: Box<dyn FnMut(ApiValue<B>, &mut ModulePath, BackendMut<B>)>,
+    handler: Box<dyn FnMut(ApiValue<B>, &mut NeovimCtx<B>)>,
     module_name: Name,
     submodules: OrderedMap<Name, Self>,
 }
@@ -223,11 +223,6 @@ impl<B: Backend> ConfigBuilder<B> {
     }
 
     #[inline]
-    fn emit_err<E: notify::Error>(&mut self, _err: E) {
-        todo!();
-    }
-
-    #[inline]
     fn handle(
         &mut self,
         mut config: ApiValue<B>,
@@ -237,8 +232,7 @@ impl<B: Backend> ConfigBuilder<B> {
         let mut map_access = match config.map_access() {
             Ok(map_access) => map_access,
             Err(err) => {
-                self.emit_err(err);
-                return;
+                todo!();
             },
         };
         loop {
@@ -246,8 +240,7 @@ impl<B: Backend> ConfigBuilder<B> {
             let key_str = match key.as_str() {
                 Ok(key) => key,
                 Err(err) => {
-                    self.emit_err(err);
-                    return;
+                    todo!();
                 },
             };
             let Some(submodule) = self.submodules.get_mut(key_str) else {
@@ -260,26 +253,24 @@ impl<B: Backend> ConfigBuilder<B> {
             module_path.pop();
         }
         drop(map_access);
-        (self.handler)(config, module_path, backend);
+        (self.handler)(config, &mut NeovimCtx::new(backend, module_path));
     }
 
     #[inline]
     fn new<M: Module<B>>(module: &'static M) -> Self {
         Self {
-            handler: Box::new(
-                |config, module_path, mut backend| match backend
+            handler: Box::new(|config, ctx| {
+                match ctx
+                    .backend_mut()
                     .deserialize::<M::Config>(config)
                     .into_result()
                 {
                     Ok(config) => {
-                        module.on_new_config(
-                            config,
-                            &mut NeovimCtx::<B>::new(backend, module_path),
-                        );
+                        module.on_new_config(config, ctx);
                     },
-                    Err(_err) => todo!(),
-                },
-            ),
+                    Err(err) => todo!(),
+                }
+            }),
             module_name: M::NAME,
             submodules: Default::default(),
         }

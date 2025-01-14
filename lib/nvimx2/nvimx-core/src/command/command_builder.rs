@@ -14,8 +14,7 @@ use crate::notify::{self, MaybeResult, ModulePath, Name};
 use crate::util::OrderedMap;
 use crate::{ByteOffset, NeovimCtx};
 
-type CommandHandler<B> =
-    Box<dyn FnMut(CommandArgs, &mut ModulePath, BackendMut<B>)>;
+type CommandHandler<B> = Box<dyn FnMut(CommandArgs, NeovimCtx<B>)>;
 
 type CommandCompletionFn =
     Box<dyn FnMut(CommandArgs, ByteOffset) -> Vec<CommandCompletion>>;
@@ -46,21 +45,19 @@ impl<B: Backend> CommandBuilder<B> {
         Cmd: Command<B>,
     {
         self.assert_namespace_is_available(Cmd::NAME);
-        let handler: CommandHandler<B> =
-            Box::new(move |args, module_path, backend| {
-                let ctx = NeovimCtx::new(backend, module_path);
-                let mut ctx = ActionCtx::new(ctx, Cmd::NAME);
-                let args = match Cmd::Args::try_from(args) {
-                    Ok(args) => args,
-                    Err(err) => {
-                        ctx.emit_err(err);
-                        return;
-                    },
-                };
-                if let Err(err) = command.call(args, &mut ctx).into_result() {
+        let handler: CommandHandler<B> = Box::new(move |args, ctx| {
+            let mut ctx = ActionCtx::new(ctx, Cmd::NAME);
+            let args = match Cmd::Args::try_from(args) {
+                Ok(args) => args,
+                Err(err) => {
                     ctx.emit_err(err);
-                }
-            });
+                    return;
+                },
+            };
+            if let Err(err) = command.call(args, &mut ctx).into_result() {
+                ctx.emit_err(err);
+            }
+        });
         self.handlers.insert(Cmd::NAME, handler);
     }
 
@@ -134,7 +131,7 @@ impl<B: Backend> CommandBuilder<B> {
         };
 
         if let Some(handler) = self.handlers.get_mut(arg.as_str()) {
-            (handler)(args, module_path, backend);
+            (handler)(args, NeovimCtx::new(backend, module_path));
         } else if let Some(module) = self.submodules.get_mut(arg.as_str()) {
             module_path.push(module.module_name);
             module.handle(args, module_path, backend);
