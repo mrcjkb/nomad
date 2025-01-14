@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 
 use crate::action::ActionCtx;
-use crate::backend::{Backend, BackendExt, BackendHandle, BackendMut};
+use crate::backend::{Backend, BackendHandle, BackendMut};
 use crate::command::{
     Command,
     CommandArg,

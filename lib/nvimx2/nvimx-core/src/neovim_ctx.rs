@@ -1,7 +1,6 @@
 use crate::AsyncCtx;
 use crate::backend::{
     Backend,
-    BackendExt,
     BackendMut,
     BackgroundExecutor,
     LocalExecutor,

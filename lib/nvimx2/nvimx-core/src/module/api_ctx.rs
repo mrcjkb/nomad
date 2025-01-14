@@ -6,7 +6,6 @@ use crate::backend::{
     Api,
     ApiValue,
     Backend,
-    BackendExt,
     BackendHandle,
     BackendMut,
     Key,

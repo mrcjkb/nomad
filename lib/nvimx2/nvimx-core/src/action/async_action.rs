@@ -1,6 +1,6 @@
 use crate::AsyncCtx;
 use crate::action::{Action, ActionCtx};
-use crate::backend::{Backend, BackendExt};
+use crate::backend::Backend;
 use crate::notify::{self, MaybeResult, Name};
 
 /// TODO: docs.

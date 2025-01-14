@@ -6,7 +6,6 @@ use serde::de::Deserialize;
 use crate::backend::{
     Api,
     ApiValue,
-    BackendExt,
     BackgroundExecutor,
     Key,
     LocalExecutor,
@@ -14,7 +13,7 @@ use crate::backend::{
     Value,
 };
 use crate::module::Module;
-use crate::notify::{self, MaybeResult};
+use crate::notify::{self, Emitter, MaybeResult};
 use crate::plugin::Plugin;
 
 /// TODO: docs.
@@ -107,5 +106,25 @@ pub trait Backend: 'static + Sized {
         P: Plugin<Self>,
     {
         self.emit_err(source, err);
+    }
+
+    /// TODO: docs.
+    #[inline]
+    fn emit_err<Err>(&mut self, source: notify::Source, err: Err)
+    where
+        Err: notify::Error,
+    {
+        let Some((level, message)) = err.to_message(source) else {
+            return;
+        };
+
+        let notification = notify::Notification {
+            level,
+            source,
+            message,
+            updates_prev: None,
+        };
+
+        self.emitter().emit(notification);
     }
 }
