@@ -1,6 +1,8 @@
 use ::serde::{Deserialize, Serialize};
+use nvimx_core::Plugin;
 use nvimx_core::backend::Backend;
 use nvimx_core::module::Module;
+use nvimx_core::notify::{ModulePath, Source};
 
 use crate::{api, executor, notify, serde, value};
 
@@ -62,5 +64,16 @@ impl Backend for Neovim {
         value: value::NeovimValue,
     ) -> Result<T, serde::NeovimDeserializeError> {
         serde::deserialize(value)
+    }
+
+    #[inline]
+    fn emit_deserialize_error_in_config<P: Plugin<Self>>(
+        &mut self,
+        config_path: &ModulePath,
+        source: Source,
+        mut err: Self::DeserializeError,
+    ) {
+        err.set_config_path(config_path.clone());
+        self.emit_err(source, err);
     }
 }

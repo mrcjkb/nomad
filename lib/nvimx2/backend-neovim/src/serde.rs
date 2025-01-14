@@ -1,6 +1,8 @@
 //! TODO: docs.
 
-use nvimx_core::notify;
+use core::fmt;
+
+use nvimx_core::notify::{self, ModulePath};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -8,21 +10,21 @@ use crate::oxi;
 use crate::value::NeovimValue;
 
 /// TODO: docs.
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[derive(Debug)]
 pub struct NeovimSerializeError {
     inner: serde_path_to_error::Error<oxi::serde::SerializeError>,
 }
 
 /// TODO: docs.
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[derive(Debug)]
 pub struct NeovimDeserializeError {
     inner: serde_path_to_error::Error<oxi::serde::DeserializeError>,
+    config_path: Option<ModulePath>,
 }
 
 struct Path<'a> {
     inner: &'a serde_path_to_error::Path,
+    config_path: Option<&'a ModulePath>,
 }
 
 #[inline]
@@ -41,20 +43,28 @@ pub(crate) fn deserialize<'de, T: Deserialize<'de>>(
     serde_path_to_error::deserialize(oxi::serde::Deserializer::new(
         value.into_inner(),
     ))
-    .map_err(|inner| NeovimDeserializeError { inner })
+    .map_err(|inner| NeovimDeserializeError { inner, config_path: None })
 }
 
 impl NeovimSerializeError {
     #[inline]
     fn path(&self) -> Path<'_> {
-        Path { inner: self.inner.path() }
+        Path { inner: self.inner.path(), config_path: None }
     }
 }
 
 impl NeovimDeserializeError {
     #[inline]
+    pub(crate) fn set_config_path(&mut self, config_path: ModulePath) {
+        self.config_path = Some(config_path);
+    }
+
+    #[inline]
     fn path(&self) -> Path<'_> {
-        Path { inner: self.inner.path() }
+        Path {
+            inner: self.inner.path(),
+            config_path: self.config_path.as_ref(),
+        }
     }
 }
 
@@ -62,9 +72,21 @@ impl Path<'_> {
     /// If the path is not empty, pushes " at {self}" to the given message.
     #[inline]
     pub(crate) fn push_at(&self, message: &mut notify::Message) {
-        if self.inner.iter().len() > 1 {
-            message.push_str(" at ").push_info(self.inner.to_string());
+        if !self.is_empty() {
+            message.push_str(" at ").push_info(self.to_string());
         }
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.inner.iter().len() == 0
+            && self
+                .config_path
+                .map(|path| {
+                    // The first name is the plugin's, which we don't display.
+                    path.names().len() <= 1
+                })
+                .unwrap_or(true)
     }
 }
 
@@ -85,24 +107,21 @@ impl notify::Error for NeovimSerializeError {
 }
 
 impl notify::Error for NeovimDeserializeError {
+    #[allow(clippy::too_many_lines)]
     #[inline]
     fn to_message(
         &self,
-        source: notify::Source,
+        _: notify::Source,
     ) -> Option<(notify::Level, notify::Message)> {
         let mut message = notify::Message::new();
 
-        let what = (|| {
-            let default = "value";
-            let mut names = source.module_path.names();
-            let Some(plugin_name) = names.next() else { return default };
-            let None = names.next() else { return default };
-            default
-        })();
-
         message
             .push_str("couldn't deserialize ")
-            .push_str(what)
+            .push_str(if self.config_path.is_some() {
+                "config"
+            } else {
+                "value"
+            })
             .push_with(|message| self.path().push_at(message))
             .push_str(": ");
 
@@ -141,7 +160,7 @@ impl notify::Error for NeovimDeserializeError {
         let levenshtein_threshold = 2;
 
         let mut guesses = expected
-            .into_iter()
+            .iter()
             .map(|candidate| {
                 let distance = strsim::levenshtein(candidate, actual);
                 (candidate, distance)
@@ -163,5 +182,27 @@ impl notify::Error for NeovimDeserializeError {
         }
 
         Some((notify::Level::Error, message))
+    }
+}
+
+impl fmt::Display for Path<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(config_path) = self.config_path {
+            let mut names = config_path.names().peekable();
+            // The first name is the plugin's.
+            names.next();
+            loop {
+                let Some(name) = names.next() else { break };
+                f.write_str(name)?;
+                if names.peek().is_some() {
+                    f.write_str(".")?;
+                }
+            }
+        }
+        if self.inner.iter().len() > 0 {
+            write!(f, ".{}", self.inner)?;
+        }
+        Ok(())
     }
 }
