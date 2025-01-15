@@ -16,7 +16,7 @@ where
     P: Plugin<B>,
     B: Backend,
 {
-    let plugin = Box::leak(Box::new(plugin));
+    let plugin = state.add_module(plugin);
     let mut command_builder = CommandBuilder::new::<P>();
     let mut command_completions_builder = CommandCompletionsBuilder::default();
     let mut config_builder = ConfigBuilder::new(plugin);
@@ -185,7 +185,7 @@ where
 
     #[inline]
     fn add_submodule<S: Module<B>>(&mut self, sub: S) -> B::Api {
-        let sub = Box::leak(Box::new(sub));
+        let sub = self.state.add_module(sub);
         let mut ctx = ApiCtx {
             module_api: self.state.api::<S>(),
             command_builder: self.command_builder.add_module::<S>(),
