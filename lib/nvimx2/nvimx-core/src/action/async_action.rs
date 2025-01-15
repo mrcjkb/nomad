@@ -1,7 +1,7 @@
 use crate::AsyncCtx;
 use crate::action::{Action, ActionCtx};
 use crate::backend::Backend;
-use crate::notify::{self, MaybeResult, Name};
+use crate::notify::{MaybeResult, Name};
 
 /// TODO: docs.
 pub trait AsyncAction<B: Backend>: 'static {
@@ -35,18 +35,9 @@ where
         ctx: &mut ActionCtx<B>,
     ) {
         let mut this = self.clone();
-        let module_path = ctx.module_path().clone();
         ctx.spawn_local(async move |ctx| {
             if let Err(err) = this.call(args, ctx).await.into_result() {
-                ctx.with_ctx(move |ctx| {
-                    ctx.backend_mut().emit_err(
-                        notify::Source {
-                            module_path: &module_path,
-                            action_name: Some(Self::NAME),
-                        },
-                        err,
-                    );
-                });
+                ctx.with_ctx(move |ctx| ctx.emit_err(Some(Self::NAME), err));
             }
         });
     }
