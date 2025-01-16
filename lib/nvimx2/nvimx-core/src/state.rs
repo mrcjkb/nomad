@@ -8,23 +8,32 @@ use fxhash::FxHashMap;
 use crate::backend::Backend;
 use crate::module::Module;
 use crate::notify::Namespace;
-use crate::{NeovimCtx, Shared, plugin};
+use crate::plugin::Plugin;
+use crate::{NeovimCtx, Shared};
 
 /// TODO: docs.
-pub(crate) struct State<B> {
+pub(crate) struct State<B: Backend> {
     backend: B,
-    modules: FxHashMap<TypeId, &'static dyn Any>,
+    modules: FxHashMap<TypeId, ModuleState<B>>,
 }
 
 /// TODO: docs.
-pub(crate) struct StateHandle<B> {
+pub(crate) struct StateHandle<B: Backend> {
     inner: Shared<State<B>>,
 }
 
 /// TODO: docs.
-pub(crate) struct StateMut<'a, B> {
+pub(crate) struct StateMut<'a, B: Backend> {
     state: &'a mut State<B>,
     handle: &'a StateHandle<B>,
+}
+
+type PanicHandler<B> =
+    &'static dyn Fn(Box<dyn Any + Send + 'static>, &mut NeovimCtx<B>);
+
+struct ModuleState<B: Backend> {
+    module: &'static dyn Any,
+    panic_handler: Option<PanicHandler<B>>,
 }
 
 impl<B: Backend> State<B> {
@@ -37,7 +46,7 @@ impl<B: Backend> State<B> {
         match self.modules.entry(TypeId::of::<M>()) {
             Entry::Vacant(entry) => {
                 let module = Box::leak(Box::new(module));
-                entry.insert(module);
+                entry.insert(ModuleState { module, panic_handler: None });
                 module
             },
             Entry::Occupied(_) => unreachable!(
@@ -47,14 +56,38 @@ impl<B: Backend> State<B> {
         }
     }
 
+    #[track_caller]
+    #[inline]
+    pub(crate) fn add_plugin<P>(&mut self, plugin: P) -> &'static P
+    where
+        P: Plugin<B>,
+    {
+        match self.modules.entry(TypeId::of::<P>()) {
+            Entry::Vacant(entry) => {
+                let plugin = &*Box::leak(Box::new(plugin));
+                let handler: Box<
+                    dyn Fn(Box<dyn Any + Send>, &mut NeovimCtx<B>),
+                > = Box::new(move |payload, ctx| {
+                    plugin.handle_panic(payload, ctx);
+                });
+                let panic_handler = Some(&*Box::leak(handler));
+                entry.insert(ModuleState { module: plugin, panic_handler });
+                plugin
+            },
+            Entry::Occupied(_) => unreachable!(
+                "a plugin of type {:?} has already been added",
+                any::type_name::<P>()
+            ),
+        }
+    }
     #[inline]
     pub(crate) fn get_module<M>(&self) -> Option<&'static M>
     where
         M: Module<B>,
     {
-        self.modules.get(&TypeId::of::<M>()).map(|&module| {
+        self.modules.get(&TypeId::of::<M>()).map(|module_state| {
             // SAFETY: the TypeId matched.
-            unsafe { downcast_ref_unchecked(module) }
+            unsafe { downcast_ref_unchecked(module_state.module) }
         })
     }
 
@@ -91,6 +124,7 @@ impl<B: Backend> StateMut<'_, B> {
         self.handle.clone()
     }
 
+    #[track_caller]
     #[inline]
     pub(crate) fn with_ctx<F, R>(
         &mut self,
@@ -106,15 +140,15 @@ impl<B: Backend> StateMut<'_, B> {
         match panic::catch_unwind(panic::AssertUnwindSafe(|| fun(&mut ctx))) {
             Ok(ret) => Some(ret),
             Err(payload) => {
-                let &handler = self
+                let handler = self
                     .modules
                     .get(&plugin_id)
-                    .expect("no plugin matching given TypeId")
-                    .downcast_ref::<&'static dyn plugin::PanicHandler<B>>()
+                    .expect("no plugin matching the given TypeId")
+                    .panic_handler
                     .expect("TypeId is of a Module, not a Plugin");
                 #[allow(deprecated)]
                 let mut ctx = NeovimCtx::new(namespace, self.as_mut());
-                handler.handle(payload, &mut ctx);
+                handler(payload, &mut ctx);
                 None
             },
         }
@@ -129,14 +163,14 @@ unsafe fn downcast_ref_unchecked<T: Any>(value: &dyn Any) -> &T {
     unsafe { &*(value as *const dyn Any as *const T) }
 }
 
-impl<B> Clone for StateHandle<B> {
+impl<B: Backend> Clone for StateHandle<B> {
     #[inline]
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
-impl<B> Deref for State<B> {
+impl<B: Backend> Deref for State<B> {
     type Target = B;
 
     #[inline]
@@ -145,14 +179,14 @@ impl<B> Deref for State<B> {
     }
 }
 
-impl<B> DerefMut for State<B> {
+impl<B: Backend> DerefMut for State<B> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.backend
     }
 }
 
-impl<B> Deref for StateMut<'_, B> {
+impl<B: Backend> Deref for StateMut<'_, B> {
     type Target = State<B>;
 
     #[inline]
@@ -161,7 +195,7 @@ impl<B> Deref for StateMut<'_, B> {
     }
 }
 
-impl<B> DerefMut for StateMut<'_, B> {
+impl<B: Backend> DerefMut for StateMut<'_, B> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.state

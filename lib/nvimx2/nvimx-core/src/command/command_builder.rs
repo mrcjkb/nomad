@@ -22,7 +22,7 @@ type CommandHandler<B> = Box<dyn FnMut(CommandArgs, &mut NeovimCtx<B>)>;
 type CommandCompletionFn =
     Box<dyn FnMut(CommandArgs, ByteOffset) -> Vec<CommandCompletion>>;
 
-pub(crate) struct CommandBuilder<B> {
+pub(crate) struct CommandBuilder<B: Backend> {
     plugin_id: TypeId,
     /// Map from command name to the handler for that command.
     handlers: OrderedMap<Name, CommandHandler<B>>,
@@ -37,9 +37,12 @@ pub(crate) struct CommandCompletionsBuilder {
     submodules: OrderedMap<Name, Self>,
 }
 
-struct MissingCommandError<'a, B>(&'a CommandBuilder<B>);
+struct MissingCommandError<'a, B: Backend>(&'a CommandBuilder<B>);
 
-struct InvalidCommandError<'a, B>(&'a CommandBuilder<B>, CommandArg<'a>);
+struct InvalidCommandError<'a, B: Backend>(
+    &'a CommandBuilder<B>,
+    CommandArg<'a>,
+);
 
 impl<B: Backend> CommandBuilder<B> {
     #[track_caller]

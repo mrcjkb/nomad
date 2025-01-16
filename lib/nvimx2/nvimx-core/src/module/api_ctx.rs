@@ -16,7 +16,7 @@ where
     P: Plugin<B>,
     B: Backend,
 {
-    let plugin = state.add_module(plugin);
+    let plugin = state.add_plugin(plugin);
     let mut command_builder = CommandBuilder::new::<P>();
     let mut command_completions_builder = CommandCompletionsBuilder::default();
     let mut config_builder = ConfigBuilder::new(plugin);

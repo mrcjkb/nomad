@@ -47,22 +47,3 @@ pub trait Plugin<B: Backend>: Module<B> {
         todo!()
     }
 }
-
-pub(crate) trait PanicHandler<B> {
-    fn handle(
-        &self,
-        payload: Box<dyn Any + Send + 'static>,
-        ctx: &mut NeovimCtx<B>,
-    );
-}
-
-impl<P: Plugin<B>, B: Backend> PanicHandler<B> for P {
-    #[inline]
-    fn handle(
-        &self,
-        payload: Box<dyn Any + Send + 'static>,
-        ctx: &mut NeovimCtx<B>,
-    ) {
-        Plugin::handle_panic(self, payload, ctx);
-    }
-}

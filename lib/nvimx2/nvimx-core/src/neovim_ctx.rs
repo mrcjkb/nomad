@@ -11,7 +11,7 @@ use crate::notify::{self, Emitter, Namespace, NotificationId};
 use crate::state::StateMut;
 
 /// TODO: docs.
-pub struct NeovimCtx<'a, B> {
+pub struct NeovimCtx<'a, B: Backend> {
     namespace: &'a Namespace,
     state: StateMut<'a, B>,
 }

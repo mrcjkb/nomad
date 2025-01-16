@@ -6,7 +6,7 @@ use crate::state::StateHandle;
 use crate::{NeovimCtx, notify};
 
 /// TODO: docs.
-pub struct AsyncCtx<'a, B> {
+pub struct AsyncCtx<'a, B: Backend> {
     namespace: Namespace,
     state: StateHandle<B>,
     _non_static: PhantomData<&'a ()>,
