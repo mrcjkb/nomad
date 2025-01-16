@@ -71,56 +71,56 @@ pub trait Backend: 'static + Sized {
     #[allow(unused_variables)]
     fn emit_deserialize_error_in_config<P>(
         &mut self,
-        config_path: &notify::ModulePath,
-        source: notify::Source,
+        config_namespace: &notify::Namespace,
+        namespace: &notify::Namespace,
         err: Self::DeserializeError,
     ) where
         P: Plugin<Self>,
     {
-        self.emit_err(source, err);
+        self.emit_err(namespace, err);
     }
 
     /// TODO: docs.
     #[allow(unused_variables)]
     fn emit_map_access_error_in_config<P>(
         &mut self,
-        config_path: &notify::ModulePath,
-        source: notify::Source,
+        config_namespace: &notify::Namespace,
+        namespace: &notify::Namespace,
         err: <ApiValue<Self> as Value<Self>>::MapAccessError<'_>,
     ) where
         P: Plugin<Self>,
     {
-        self.emit_err(source, err);
+        self.emit_err(namespace, err);
     }
 
     /// TODO: docs.
     #[allow(unused_variables)]
     fn emit_key_as_str_error_in_config<P>(
         &mut self,
-        config_path: &notify::ModulePath,
-        source: notify::Source,
+        config_namespace: &notify::Namespace,
+        namespace: &notify::Namespace,
         err: <<<ApiValue<Self> as Value<Self>>::MapAccess<'_> as MapAccess<
             Self,
         >>::Key<'_> as Key<Self>>::AsStrError<'_>,
     ) where
         P: Plugin<Self>,
     {
-        self.emit_err(source, err);
+        self.emit_err(namespace, err);
     }
 
     /// TODO: docs.
     #[inline]
-    fn emit_err<Err>(&mut self, source: notify::Source, err: Err)
+    fn emit_err<Err>(&mut self, namespace: &notify::Namespace, err: Err)
     where
         Err: notify::Error,
     {
-        let Some((level, message)) = err.to_message(source) else {
+        let Some((level, message)) = err.to_message(namespace) else {
             return;
         };
 
         let notification = notify::Notification {
             level,
-            source,
+            namespace,
             message,
             updates_prev: None,
         };

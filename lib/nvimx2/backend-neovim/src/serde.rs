@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use nvimx_core::notify::{self, ModulePath};
+use nvimx_core::notify::{self, Namespace};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -19,12 +19,12 @@ pub struct NeovimSerializeError {
 #[derive(Debug)]
 pub struct NeovimDeserializeError {
     inner: serde_path_to_error::Error<oxi::serde::DeserializeError>,
-    config_path: Option<ModulePath>,
+    config_path: Option<Namespace>,
 }
 
 struct Path<'a> {
     inner: &'a serde_path_to_error::Path,
-    config_path: Option<&'a ModulePath>,
+    config_path: Option<&'a Namespace>,
 }
 
 #[inline]
@@ -55,7 +55,7 @@ impl NeovimSerializeError {
 
 impl NeovimDeserializeError {
     #[inline]
-    pub(crate) fn set_config_path(&mut self, config_path: ModulePath) {
+    pub(crate) fn set_config_path(&mut self, config_path: Namespace) {
         self.config_path = Some(config_path);
     }
 
@@ -94,7 +94,7 @@ impl notify::Error for NeovimSerializeError {
     #[inline]
     fn to_message(
         &self,
-        _: notify::Source,
+        _: &notify::Namespace,
     ) -> Option<(notify::Level, notify::Message)> {
         let mut message = notify::Message::new();
         message
@@ -111,7 +111,7 @@ impl notify::Error for NeovimDeserializeError {
     #[inline]
     fn to_message(
         &self,
-        _: notify::Source,
+        _: &notify::Namespace,
     ) -> Option<(notify::Level, notify::Message)> {
         let mut message = notify::Message::new();
 

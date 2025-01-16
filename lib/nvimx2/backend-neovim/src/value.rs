@@ -167,7 +167,7 @@ impl notify::Error for NeovimMapAccessError {
     #[inline]
     fn to_message(
         &self,
-        _: notify::Source,
+        _: &notify::Namespace,
     ) -> Option<(notify::Level, notify::Message)> {
         let Self(kind) = self;
         let mut msg = notify::Message::new();
@@ -197,7 +197,7 @@ impl notify::Error for NeovimMapKeyAsStrError<'_> {
     #[inline]
     fn to_message(
         &self,
-        _: notify::Source,
+        _: &notify::Namespace,
     ) -> Option<(notify::Level, notify::Message)> {
         let mut msg = notify::Message::new();
         msg.push_str("'")

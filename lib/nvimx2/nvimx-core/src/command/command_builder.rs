@@ -10,7 +10,7 @@ use crate::command::{
     CompletionFn,
 };
 use crate::module::Module;
-use crate::notify::{self, MaybeResult, ModulePath, Name};
+use crate::notify::{self, MaybeResult, Name, Namespace};
 use crate::state::{StateHandle, StateMut};
 use crate::util::OrderedMap;
 use crate::{ByteOffset, NeovimCtx};
@@ -79,8 +79,8 @@ impl<B: Backend> CommandBuilder<B> {
     ) -> impl FnMut(CommandArgs) {
         move |args: CommandArgs| {
             state.with_mut(|state| {
-                let mut module_path = ModulePath::new(self.module_name);
-                self.handle(args, &mut module_path, state);
+                let mut namespace = Namespace::new(self.module_name);
+                self.handle(args, &mut namespace, state);
             })
         }
     }
@@ -121,25 +121,23 @@ impl<B: Backend> CommandBuilder<B> {
     fn handle(
         &mut self,
         mut args: CommandArgs,
-        module_path: &mut ModulePath,
+        namespace: &mut Namespace,
         mut state: StateMut<B>,
     ) {
         let Some(arg) = args.pop_front() else {
             let err = MissingCommandError(self);
-            let src = notify::Source { module_path, action_name: None };
-            state.emit_err(src, err);
+            state.emit_err(namespace, err);
             return;
         };
 
         if let Some(handler) = self.handlers.get_mut(arg.as_str()) {
-            state.with_ctx(module_path, |ctx| handler(args, ctx.as_mut()));
+            state.with_ctx(namespace, |ctx| handler(args, ctx.as_mut()));
         } else if let Some(module) = self.submodules.get_mut(arg.as_str()) {
-            module_path.push(module.module_name);
-            module.handle(args, module_path, state);
+            namespace.push(module.module_name);
+            module.handle(args, namespace, state);
         } else {
             let err = InvalidCommandError(self, arg);
-            let src = notify::Source { module_path, action_name: None };
-            state.emit_err(src, err);
+            state.emit_err(namespace, err);
         }
     }
 
@@ -261,7 +259,7 @@ impl<B: Backend> notify::Error for MissingCommandError<'_, B> {
     #[inline]
     fn to_message(
         &self,
-        _: notify::Source,
+        _: &notify::Namespace,
     ) -> Option<(notify::Level, notify::Message)> {
         let Self(handlers) = self;
         let mut message = notify::Message::new();
@@ -287,7 +285,7 @@ impl<B: Backend> notify::Error for InvalidCommandError<'_, B> {
     #[inline]
     fn to_message(
         &self,
-        _: notify::Source,
+        _: &notify::Namespace,
     ) -> Option<(notify::Level, notify::Message)> {
         let Self(handlers, arg) = self;
         let mut message = notify::Message::new();

@@ -1,7 +1,7 @@
-use crate::notify::{Level, Message, NotificationId, Source};
+use crate::notify::{Level, Message, Namespace, NotificationId};
 
 /// TODO: docs.
-pub struct Notification<'src> {
+pub struct Notification<'ns> {
     /// TODO: docs.
     pub level: Level,
 
@@ -9,7 +9,7 @@ pub struct Notification<'src> {
     pub message: Message,
 
     /// TODO: docs.
-    pub source: Source<'src>,
+    pub namespace: &'ns Namespace,
 
     /// TODO: docs.
     pub updates_prev: Option<NotificationId>,

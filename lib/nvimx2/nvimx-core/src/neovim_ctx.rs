@@ -7,12 +7,12 @@ use crate::backend::{
     TaskBackground,
 };
 use crate::module::Module;
-use crate::notify::{self, Emitter, ModulePath, Name, NotificationId, Source};
+use crate::notify::{self, Emitter, Name, Namespace, NotificationId};
 use crate::state::StateMut;
 
 /// TODO: docs.
 pub struct NeovimCtx<'a, B> {
-    module_path: &'a ModulePath,
+    namespace: &'a Namespace,
     state: StateMut<'a, B>,
 }
 
@@ -80,7 +80,7 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
 
     #[inline]
     pub(crate) fn as_mut(&mut self) -> NeovimCtx<'_, B> {
-        NeovimCtx { module_path: self.module_path, state: self.state.as_mut() }
+        NeovimCtx { namespace: self.namespace, state: self.state.as_mut() }
     }
 
     #[inline]
@@ -88,10 +88,7 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     where
         Err: notify::Error,
     {
-        self.state.emit_err(
-            Source { module_path: self.module_path, action_name },
-            err,
-        );
+        self.state.emit_err(self.namespace, err);
     }
 
     #[inline]
@@ -102,7 +99,7 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     ) -> NotificationId {
         self.state.emitter().emit(notify::Notification {
             level: notify::Level::Info,
-            source: Source { module_path: self.module_path, action_name },
+            namespace: self.namespace,
             message,
             updates_prev: None,
         })
@@ -117,14 +114,14 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     #[deprecated(note = "use `StateMut::with_ctx()` instead")]
     #[inline]
     pub(crate) fn new(
-        module_path: &'a ModulePath,
+        namespace: &'a Namespace,
         state: StateMut<'a, B>,
     ) -> Self {
-        Self { state, module_path }
+        Self { namespace, state }
     }
 
     #[inline]
     pub(crate) fn to_async(&self) -> AsyncCtx<'static, B> {
-        AsyncCtx::new(self.module_path.clone(), self.state.handle())
+        AsyncCtx::new(self.namespace.clone(), self.state.handle())
     }
 }

@@ -5,7 +5,7 @@ use crate::action::ActionCtx;
 use crate::backend::{Api, ApiValue, Backend, Key, MapAccess, Value};
 use crate::command::{Command, CommandBuilder, CommandCompletionsBuilder};
 use crate::module::{Constant, Function, Module};
-use crate::notify::{self, Error, MaybeResult, ModulePath, Name};
+use crate::notify::{self, Error, MaybeResult, Name, Namespace};
 use crate::plugin::{self, Plugin};
 use crate::state::{StateHandle, StateMut};
 use crate::util::OrderedMap;
@@ -20,13 +20,13 @@ where
     let mut command_builder = CommandBuilder::new::<P>();
     let mut command_completions_builder = CommandCompletionsBuilder::default();
     let mut config_builder = ConfigBuilder::new(plugin);
-    let mut module_path = ModulePath::new(P::NAME);
+    let mut namespace = Namespace::new(P::NAME);
     let mut api_ctx = ApiCtx {
         module_api: state.api::<P>(),
         command_builder: &mut command_builder,
         completions_builder: &mut command_completions_builder,
         config_builder: &mut config_builder,
-        module_path: &mut module_path,
+        namespace: &mut namespace,
         module: PhantomData,
         state: state.as_mut(),
     };
@@ -57,7 +57,7 @@ where
     completions_builder: &'a mut CommandCompletionsBuilder,
     config_builder: &'a mut ConfigBuilder<B>,
     module_api: B::Api,
-    module_path: &'a mut ModulePath,
+    namespace: &'a mut Namespace,
     module: PhantomData<M>,
     state: StateMut<'a, B>,
 }
@@ -102,11 +102,7 @@ where
         let value = match self.state.serialize(&value).into_result() {
             Ok(value) => value,
             Err(err) => {
-                let source = notify::Source {
-                    module_path: self.module_path,
-                    action_name: Some(Const::NAME),
-                };
-                let msg = err.to_message(source).map(|(_, msg)| msg);
+                let msg = err.to_message(self.namespace).map(|(_, msg)| msg);
                 panic!(
                     "couldn't serialize {:?}{colon}{reason:?}",
                     Const::NAME,
@@ -128,40 +124,37 @@ where
         Fun: Function<B>,
     {
         let state = self.state.handle();
-        let module_path = self.module_path.clone();
+        let mut namespace = self.namespace.clone();
+        namespace.push(Fun::NAME);
         let fun = move |value| {
             let fun = &mut function;
-            let module_path = &module_path;
+            let namespace = &namespace;
             state.with_mut(move |mut state| {
-                let source = notify::Source {
-                    module_path,
-                    action_name: Some(Fun::NAME),
-                };
                 let args = match state
                     .deserialize::<Fun::Args<'_>>(value)
                     .into_result()
                 {
                     Ok(args) => args,
                     Err(err) => {
-                        state.emit_err(source, err);
+                        state.emit_err(namespace, err);
                         return None;
                     },
                 };
-                let res = state.with_ctx(module_path, |ctx| {
+                let res = state.with_ctx(namespace, |ctx| {
                     let mut ctx = ActionCtx::new(ctx.as_mut(), Fun::NAME);
                     fun.call(args, &mut ctx).into_result()
                 });
                 let ret = match res {
                     Ok(ret) => ret,
                     Err(err) => {
-                        state.emit_err(source, err);
+                        state.emit_err(namespace, err);
                         return None;
                     },
                 };
                 match state.serialize(&ret).into_result() {
                     Ok(ret) => Some(ret),
                     Err(err) => {
-                        state.emit_err(source, err);
+                        state.emit_err(namespace, err);
                         None
                     },
                 }
@@ -178,10 +171,10 @@ where
     where
         Mod: Module<B>,
     {
-        self.module_path.push(Mod::NAME);
+        self.namespace.push(Mod::NAME);
         let submodule_api = self.add_submodule::<Mod>(module);
         self.module_api.add_submodule::<Mod>(submodule_api);
-        self.module_path.pop();
+        self.namespace.pop();
         self
     }
 
@@ -194,7 +187,7 @@ where
             command_builder: self.command_builder.add_module::<S>(),
             completions_builder: self.completions_builder.add_module::<S, _>(),
             config_builder: self.config_builder.add_module(sub),
-            module_path: self.module_path,
+            namespace: self.namespace,
             module: PhantomData,
             state: self.state.as_mut(),
         };
@@ -214,15 +207,12 @@ impl<B: Backend> ConfigBuilder<B> {
         mut self,
         state: StateHandle<B>,
     ) -> impl FnMut(ApiValue<B>) -> Option<ApiValue<B>> {
+        let mut namespace = notify::Namespace::new(P::NAME);
+        namespace.push(P::CONFIG_FN_NAME);
         move |config| {
             state.with_mut(|state| {
-                let mut config_path = ModulePath::new(self.module_name);
-                let module_path = notify::ModulePath::new(P::NAME);
-                let source = notify::Source {
-                    module_path: &module_path,
-                    action_name: Some(P::CONFIG_FN_NAME),
-                };
-                self.handle::<P>(config, source, &mut config_path, state);
+                let mut config_path = Namespace::new(self.module_name);
+                self.handle::<P>(config, &namespace, &mut config_path, state);
             });
             None
         }
@@ -233,8 +223,8 @@ impl<B: Backend> ConfigBuilder<B> {
     fn handle<P: Plugin<B>>(
         &mut self,
         mut config: ApiValue<B>,
-        source: notify::Source,
-        config_path: &mut ModulePath,
+        namespace: &Namespace,
+        config_path: &mut Namespace,
         mut state: StateMut<B>,
     ) {
         let mut map_access = match config.map_access() {
@@ -242,7 +232,7 @@ impl<B: Backend> ConfigBuilder<B> {
             Err(err) => {
                 state.emit_map_access_error_in_config::<P>(
                     config_path,
-                    source,
+                    namespace,
                     err,
                 );
                 return;
@@ -255,7 +245,7 @@ impl<B: Backend> ConfigBuilder<B> {
                 Err(err) => {
                     state.emit_key_as_str_error_in_config::<P>(
                         config_path,
-                        source,
+                        namespace,
                         err,
                     );
                     return;
@@ -267,18 +257,21 @@ impl<B: Backend> ConfigBuilder<B> {
             drop(key);
             let config = map_access.take_next_value();
             config_path.push(submodule.module_name);
-            submodule.handle::<P>(config, source, config_path, state.as_mut());
+            submodule.handle::<P>(
+                config,
+                namespace,
+                config_path,
+                state.as_mut(),
+            );
             config_path.pop();
         }
         drop(map_access);
-        match state
-            .with_ctx(source.module_path, |ctx| (self.handler)(config, ctx))
-        {
+        match state.with_ctx(namespace, |ctx| (self.handler)(config, ctx)) {
             Ok(()) => {},
             Err(err) => {
                 state.emit_deserialize_error_in_config::<P>(
                     config_path,
-                    source,
+                    namespace,
                     err,
                 );
             },

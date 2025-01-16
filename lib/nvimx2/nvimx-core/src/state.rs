@@ -6,7 +6,7 @@ use fxhash::FxHashMap;
 
 use crate::backend::Backend;
 use crate::module::Module;
-use crate::notify::ModulePath;
+use crate::notify::Namespace;
 use crate::{NeovimCtx, Shared};
 
 /// TODO: docs.
@@ -91,16 +91,12 @@ impl<B: Backend> StateMut<'_, B> {
     }
 
     #[inline]
-    pub(crate) fn with_ctx<F, R>(
-        &mut self,
-        module_path: &ModulePath,
-        fun: F,
-    ) -> R
+    pub(crate) fn with_ctx<F, R>(&mut self, namespace: &Namespace, fun: F) -> R
     where
         F: FnOnce(&mut NeovimCtx<B>) -> R,
     {
         #[allow(deprecated)]
-        let mut ctx = NeovimCtx::new(module_path, self.as_mut());
+        let mut ctx = NeovimCtx::new(namespace, self.as_mut());
         fun(&mut ctx)
     }
 }

@@ -4,11 +4,11 @@ use crate::notify::Name;
 
 /// TODO: docs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ModulePath {
+pub struct Namespace {
     names: SmallVec<[Name; 2]>,
 }
 
-impl ModulePath {
+impl Namespace {
     /// TODO: docs.
     #[inline]
     pub fn names(&self) -> impl ExactSizeIterator<Item = Name> + '_ {
@@ -17,8 +17,8 @@ impl ModulePath {
 
     /// TODO: docs.
     #[inline]
-    pub(crate) fn new(base_module: Name) -> Self {
-        Self { names: smallvec![base_module] }
+    pub(crate) fn new(plugin_name: Name) -> Self {
+        Self { names: smallvec![plugin_name] }
     }
 
     /// TODO: docs.

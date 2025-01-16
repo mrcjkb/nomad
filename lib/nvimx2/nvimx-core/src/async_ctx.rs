@@ -1,13 +1,13 @@
 use core::marker::PhantomData;
 
 use crate::backend::{Backend, BackgroundExecutor, TaskBackground};
-use crate::notify::{ModulePath, Name};
+use crate::notify::{Name, Namespace};
 use crate::state::StateHandle;
 use crate::{NeovimCtx, notify};
 
 /// TODO: docs.
 pub struct AsyncCtx<'a, B> {
-    module_path: ModulePath,
+    namespace: Namespace,
     state: StateHandle<B>,
     _non_static: PhantomData<&'a ()>,
 }
@@ -44,7 +44,7 @@ impl<B: Backend> AsyncCtx<'_, B> {
     where
         Fun: FnOnce(&mut NeovimCtx<B>) -> Out,
     {
-        self.state.with_mut(|mut state| state.with_ctx(&self.module_path, fun))
+        self.state.with_mut(|mut state| state.with_ctx(&self.namespace, fun))
     }
 
     #[inline]
@@ -60,7 +60,7 @@ impl<B: Backend> AsyncCtx<'_, B> {
 
     /// TODO: docs.
     #[inline]
-    pub(crate) fn new(module_path: ModulePath, state: StateHandle<B>) -> Self {
-        Self { module_path, state, _non_static: PhantomData }
+    pub(crate) fn new(namespace: Namespace, state: StateHandle<B>) -> Self {
+        Self { namespace, state, _non_static: PhantomData }
     }
 }
