@@ -1,3 +1,8 @@
+use core::any::TypeId;
+use core::panic;
+
+use futures_util::FutureExt;
+
 use crate::AsyncCtx;
 use crate::backend::{
     Backend,
@@ -13,6 +18,7 @@ use crate::state::StateMut;
 /// TODO: docs.
 pub struct NeovimCtx<'a, B: Backend> {
     namespace: &'a Namespace,
+    plugin_id: TypeId,
     state: StateMut<'a, B>,
 }
 
@@ -69,9 +75,26 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     where
         Fun: AsyncFnOnce(&mut AsyncCtx<B>) + 'static,
     {
-        let mut async_ctx = self.to_async();
+        let mut ctx = AsyncCtx::new(
+            self.namespace.clone(),
+            self.plugin_id,
+            self.state.handle(),
+        );
+
         self.local_executor()
-            .spawn(async move { fun(&mut async_ctx).await })
+            .spawn(async move {
+                if let Err(payload) =
+                    panic::AssertUnwindSafe(fun(&mut ctx)).catch_unwind().await
+                {
+                    ctx.state().with_mut(|mut state| {
+                        state.handle_panic(
+                            ctx.namespace(),
+                            ctx.plugin_id(),
+                            payload,
+                        );
+                    })
+                }
+            })
             .detach();
     }
 
@@ -116,13 +139,9 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     #[inline]
     pub(crate) fn new(
         namespace: &'a Namespace,
+        plugin_id: TypeId,
         state: StateMut<'a, B>,
     ) -> Self {
-        Self { namespace, state }
-    }
-
-    #[inline]
-    pub(crate) fn to_async(&self) -> AsyncCtx<'static, B> {
-        AsyncCtx::new(self.namespace.clone(), self.state.handle())
+        Self { namespace, plugin_id, state }
     }
 }

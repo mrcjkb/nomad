@@ -17,7 +17,7 @@ compact_str = "0.8"
 eerie = { git = "ssh://git@github.com/nomad/eerie.git" }
 flume = { version = "0.11", features = ["async"] }
 futures = "0.3"
-futures-util = "0.3"
+futures-util = { version = "0.3", default-features = false }
 fxhash = "0.2"
 nohash = "0.2"
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi" }

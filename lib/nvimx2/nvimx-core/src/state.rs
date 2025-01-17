@@ -126,31 +126,41 @@ impl<B: Backend> StateMut<'_, B> {
         self.handle.clone()
     }
 
+    #[inline]
+    pub(crate) fn handle_panic(
+        &mut self,
+        namespace: &Namespace,
+        plugin_id: TypeId,
+        payload: Box<dyn Any + Send>,
+    ) {
+        let handler = self
+            .modules
+            .get(&plugin_id)
+            .expect("no plugin matching the given TypeId")
+            .panic_handler
+            .expect("TypeId is of a Module, not a Plugin");
+        #[allow(deprecated)]
+        let mut ctx = NeovimCtx::new(namespace, plugin_id, self.as_mut());
+        handler.handle_panic(payload, &mut ctx);
+    }
+
     #[track_caller]
     #[inline]
     pub(crate) fn with_ctx<F, R>(
         &mut self,
-        plugin_id: TypeId,
         namespace: &Namespace,
+        plugin_id: TypeId,
         fun: F,
     ) -> Option<R>
     where
         F: FnOnce(&mut NeovimCtx<B>) -> R,
     {
         #[allow(deprecated)]
-        let mut ctx = NeovimCtx::new(namespace, self.as_mut());
+        let mut ctx = NeovimCtx::new(namespace, plugin_id, self.as_mut());
         match panic::catch_unwind(panic::AssertUnwindSafe(|| fun(&mut ctx))) {
             Ok(ret) => Some(ret),
             Err(payload) => {
-                let handler = self
-                    .modules
-                    .get(&plugin_id)
-                    .expect("no plugin matching the given TypeId")
-                    .panic_handler
-                    .expect("TypeId is of a Module, not a Plugin");
-                #[allow(deprecated)]
-                let mut ctx = NeovimCtx::new(namespace, self.as_mut());
-                handler.handle_panic(payload, &mut ctx);
+                self.handle_panic(namespace, plugin_id, payload);
                 None
             },
         }

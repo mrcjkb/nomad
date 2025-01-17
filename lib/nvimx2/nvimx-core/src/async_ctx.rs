@@ -1,3 +1,4 @@
+use core::any::TypeId;
 use core::marker::PhantomData;
 
 use crate::backend::{Backend, BackgroundExecutor, TaskBackground};
@@ -8,6 +9,7 @@ use crate::{NeovimCtx, notify};
 /// TODO: docs.
 pub struct AsyncCtx<'a, B: Backend> {
     namespace: Namespace,
+    plugin_id: TypeId,
     state: StateHandle<B>,
     _non_static: PhantomData<&'a ()>,
 }
@@ -45,17 +47,35 @@ impl<B: Backend> AsyncCtx<'_, B> {
         Fun: FnOnce(&mut NeovimCtx<B>) -> Out,
     {
         self.state.with_mut(|state| {
-            // We're running inside a call to `NeovimCtx::spawn_local()`, so
-            // panics are already being caught and we don't need to do anything
-            // special here.
+            // We're running inside a call to `NeovimCtx::spawn_local()` which
+            // is already catching unwinding panics, so we can directly create
+            // a `NeovimCtx` here.
             #[allow(deprecated)]
-            fun(&mut NeovimCtx::new(&self.namespace, state))
+            fun(&mut NeovimCtx::new(&self.namespace, self.plugin_id, state))
         })
     }
 
-    /// TODO: docs.
     #[inline]
-    pub(crate) fn new(namespace: Namespace, state: StateHandle<B>) -> Self {
-        Self { namespace, state, _non_static: PhantomData }
+    pub(crate) fn new(
+        namespace: Namespace,
+        plugin_id: TypeId,
+        state: StateHandle<B>,
+    ) -> Self {
+        Self { namespace, plugin_id, state, _non_static: PhantomData }
+    }
+
+    #[inline]
+    pub(crate) fn namespace(&self) -> &Namespace {
+        &self.namespace
+    }
+
+    #[inline]
+    pub(crate) fn plugin_id(&self) -> TypeId {
+        self.plugin_id
+    }
+
+    #[inline]
+    pub(crate) fn state(&self) -> &StateHandle<B> {
+        &self.state
     }
 }

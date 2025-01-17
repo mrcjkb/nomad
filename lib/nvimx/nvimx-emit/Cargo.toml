@@ -11,7 +11,7 @@ neovim-0-10 = ["nvim-oxi/neovim-0-10"]
 neovim-nightly = ["nvim-oxi/neovim-nightly"]
 
 [dependencies]
-futures-util = { workspace = true }
+futures-util = { workspace = true, features = ["default"] }
 nvim-oxi = { workspace = true }
 nvimx-diagnostics = { workspace = true }
 nvimx-executor = { workspace = true }

@@ -1379,6 +1379,7 @@ name = "nvimx-core"
 version = "0.1.0-dev"
 dependencies = [
  "compact_str",
+ "futures-util",
  "fxhash",
  "pin-project-lite",
  "serde",

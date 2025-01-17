@@ -141,7 +141,7 @@ where
                         return None;
                     },
                 };
-                let res = state.with_ctx(plugin_id, namespace, |ctx| {
+                let res = state.with_ctx(namespace, plugin_id, |ctx| {
                     fun.call(args, ctx).into_result()
                 });
                 let ret = match res? {
@@ -268,7 +268,7 @@ impl<B: Backend> ConfigBuilder<B> {
         }
         drop(map_access);
         if let Some(Err(err)) =
-            state.with_ctx(TypeId::of::<P>(), namespace, |ctx| {
+            state.with_ctx(namespace, TypeId::of::<P>(), |ctx| {
                 (self.handler)(config, ctx)
             })
         {
