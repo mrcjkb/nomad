@@ -17,7 +17,7 @@ pub struct AsyncCtx<'a, B: Backend> {
 impl<B: Backend> AsyncCtx<'_, B> {
     /// TODO: docs.
     #[inline]
-    pub fn emit_err<Err>(&mut self, err: Err) -> NotificationId
+    pub fn emit_error<Err>(&mut self, err: Err) -> NotificationId
     where
         Err: notify::Error,
     {
