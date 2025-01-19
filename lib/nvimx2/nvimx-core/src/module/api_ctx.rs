@@ -256,7 +256,7 @@ impl<B: Backend> ConfigBuilder<B> {
         }
         drop(map_access);
         if let Some(Err(err)) =
-            state.with_ctx(namespace, TypeId::of::<P>(), |ctx| {
+            state.with_ctx(config_path, TypeId::of::<P>(), |ctx| {
                 (self.handler)(config, ctx)
             })
         {
