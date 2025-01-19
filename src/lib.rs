@@ -1,6 +1,6 @@
 use nvimx2::NeovimCtx;
 use nvimx2::backend::Backend;
-use nvimx2::module::{ApiCtx, Module};
+use nvimx2::module::{ApiCtx, Empty, Module};
 use nvimx2::neovim::{self, Neovim};
 use nvimx2::notify::Name;
 use nvimx2::plugin::Plugin;
@@ -20,7 +20,7 @@ impl Plugin<Neovim> for Mad {
 impl<B: Backend> Module<B> for Mad {
     const NAME: Name = "mad";
 
-    type Config = ();
+    type Config = Empty;
 
     fn api(&self, ctx: &mut ApiCtx<B>) {
         ctx.with_command(auth::Login::new())
@@ -30,5 +30,5 @@ impl<B: Backend> Module<B> for Mad {
             .with_module(collab2::Collab::default());
     }
 
-    fn on_new_config(&self, _: (), _: &mut NeovimCtx<B>) {}
+    fn on_new_config(&self, _: Self::Config, _: &mut NeovimCtx<B>) {}
 }
