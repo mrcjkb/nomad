@@ -129,7 +129,9 @@ impl Api<Neovim> for NeovimApi {
     where
         S: Module<Neovim>,
     {
-        self.insert(S::NAME, module_api);
+        if !module_api.dictionary.is_empty() {
+            self.insert(S::NAME, module_api);
+        }
     }
 }
 
