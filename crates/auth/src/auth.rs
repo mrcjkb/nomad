@@ -40,5 +40,7 @@ impl<B: Backend> Module<B> for Auth {
         ctx.with_function(self.login()).with_function(self.logout());
     }
 
+    fn on_loaded(&self, _: &mut NeovimCtx<B>) {}
+
     fn on_new_config(&self, _: Self::Config, _: &mut NeovimCtx<B>) {}
 }

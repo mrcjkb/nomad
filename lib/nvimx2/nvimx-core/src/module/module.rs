@@ -18,4 +18,8 @@ pub trait Module<B: Backend>: 'static + Sized {
 
     /// TODO: docs.
     fn on_new_config(&self, new_config: Self::Config, ctx: &mut NeovimCtx<B>);
+
+    /// TODO: docs.
+    #[allow(unused_variables)]
+    fn on_loaded(&self, ctx: &mut NeovimCtx<B>) {}
 }
