@@ -30,6 +30,9 @@ where
         state: state.as_mut(),
     };
     Module::api(plugin, &mut api_ctx);
+    api_ctx.state.with_ctx(api_ctx.namespace, api_ctx.plugin_id, |ctx| {
+        plugin.on_init(ctx);
+    });
     let mut plugin_api = api_ctx.module_api;
     plugin_api.add_function(
         P::CONFIG_FN_NAME,
@@ -184,6 +187,9 @@ impl<B: Backend> ApiCtx<'_, B> {
             state: self.state.as_mut(),
         };
         sub.api(&mut ctx);
+        ctx.state.with_ctx(ctx.namespace, ctx.plugin_id, |ctx| {
+            sub.on_init(ctx);
+        });
         ctx.module_api
     }
 }

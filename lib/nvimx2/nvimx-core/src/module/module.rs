@@ -21,5 +21,5 @@ pub trait Module<B: Backend>: 'static + Sized {
 
     /// TODO: docs.
     #[allow(unused_variables)]
-    fn on_loaded(&self, ctx: &mut NeovimCtx<B>) {}
+    fn on_init(&self, ctx: &mut NeovimCtx<B>) {}
 }

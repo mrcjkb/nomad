@@ -29,7 +29,11 @@ impl<B: Backend> Module<B> for Collab {
         ctx.with_function(self.start());
     }
 
-    fn on_loaded(&self, _: &mut NeovimCtx<B>) {}
+    fn on_init(&self, ctx: &mut NeovimCtx<B>) {
+        ctx.spawn_local(async move |_ctx| {
+            todo!("wait for new sessions");
+        });
+    }
 
     fn on_new_config(&self, new_config: Self::Config, _: &mut NeovimCtx<B>) {
         self.config.set(new_config);
