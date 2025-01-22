@@ -1,9 +1,9 @@
 use auth::AuthInfos;
-use nvimx2::backend::Backend;
 use nvimx2::module::{ApiCtx, Module};
 use nvimx2::notify::Name;
 use nvimx2::{NeovimCtx, Shared};
 
+use crate::CollabBackend;
 use crate::config::Config;
 use crate::start::Start;
 
@@ -20,7 +20,7 @@ impl Collab {
     }
 }
 
-impl<B: Backend> Module<B> for Collab {
+impl<B: CollabBackend> Module<B> for Collab {
     const NAME: Name = "collab";
 
     type Config = Config;

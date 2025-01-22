@@ -17,7 +17,10 @@ impl Plugin<Neovim> for Mad {
     const COMMAND_NAME: Name = "Mad";
 }
 
-impl<B: Backend> Module<B> for Mad {
+impl<B> Module<B> for Mad
+where
+    B: Backend + collab2::CollabBackend,
+{
     const NAME: Name = "mad";
 
     type Config = Empty;

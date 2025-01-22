@@ -87,6 +87,6 @@ neovim-nightly = ["nvimx2/neovim-nightly"]
 
 [dependencies]
 auth = { workspace = true }
-collab2 = { workspace = true }
+collab2 = { workspace = true, features = ["neovim"] }
 nvimx2 = { workspace = true, features = ["neovim-0-10"] }
 version = { workspace = true }
