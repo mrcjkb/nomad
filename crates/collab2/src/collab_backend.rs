@@ -16,8 +16,8 @@ pub trait CollabBackend: Backend {
 
 #[cfg(feature = "neovim")]
 mod neovim {
-    use nvimx2::neovim::{Neovim, NeovimBuffer, oxi};
-    use oxi::mlua::{Function, Table};
+    use mlua::{Function, Table};
+    use nvimx2::neovim::{Neovim, NeovimBuffer, mlua};
 
     use super::*;
 
@@ -36,7 +36,7 @@ mod neovim {
     /// Returns the root directory of the first language server attached to the
     /// given buffer, if any.
     fn lsp_rootdir(buffer: NeovimBuffer) -> Option<String> {
-        let lua = oxi::mlua::lua();
+        let lua = mlua::lua();
 
         let get_clients = lua
             .globals()

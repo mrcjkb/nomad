@@ -20,5 +20,7 @@ pub use buffer::NeovimBuffer;
 pub use neovim::Neovim;
 #[doc(hidden)]
 pub use nvim_oxi as oxi;
+#[cfg(feature = "mlua")]
+pub use nvim_oxi::mlua;
 #[doc(inline)]
 pub use nvimx2_macros::plugin;
