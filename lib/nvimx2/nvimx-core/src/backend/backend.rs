@@ -7,6 +7,7 @@ use crate::backend::{
     Api,
     ApiValue,
     BackgroundExecutor,
+    Buffer,
     Key,
     LocalExecutor,
     MapAccess,
@@ -20,6 +21,9 @@ use crate::plugin::Plugin;
 pub trait Backend: 'static + Sized {
     /// TODO: docs.
     type Api: Api<Self>;
+
+    /// TODO: docs.
+    type Buffer<'this>: Buffer<Self>;
 
     /// TODO: docs.
     type LocalExecutor: LocalExecutor;
@@ -41,6 +45,9 @@ pub trait Backend: 'static + Sized {
 
     /// TODO: docs.
     fn init() -> Self;
+
+    /// TODO: docs.
+    fn current_buffer(&mut self) -> Option<Self::Buffer<'_>>;
 
     /// TODO: docs.
     fn emitter(&mut self) -> Self::Emitter<'_>;

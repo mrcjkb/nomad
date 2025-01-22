@@ -3,7 +3,6 @@ use core::panic;
 
 use futures_lite::FutureExt;
 
-use crate::AsyncCtx;
 use crate::backend::{
     Backend,
     BackgroundExecutor,
@@ -14,6 +13,7 @@ use crate::backend::{
 use crate::module::Module;
 use crate::notify::{self, Emitter, Namespace, NotificationId};
 use crate::state::StateMut;
+use crate::{AsyncCtx, BufferCtx};
 
 /// TODO: docs.
 pub struct NeovimCtx<'a, B: Backend> {
@@ -27,6 +27,12 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     #[inline]
     pub fn backend_mut(&mut self) -> &mut B {
         &mut self.state
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn current_buffer(&mut self) -> Option<BufferCtx<'_, B>> {
+        self.backend_mut().current_buffer().map(BufferCtx::new)
     }
 
     /// TODO: docs.

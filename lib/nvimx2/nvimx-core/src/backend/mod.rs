@@ -2,11 +2,13 @@
 
 mod api;
 mod backend;
+mod buffer;
 mod executor;
 mod value;
 
 pub use api::Api;
 pub use backend::Backend;
+pub use buffer::Buffer;
 pub use executor::{BackgroundExecutor, LocalExecutor, Task, TaskBackground};
 pub use value::{Key, MapAccess, Value};
 
