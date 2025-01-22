@@ -7,7 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-neovim = ["nvimx2/neovim-0-10"]
+neovim = ["nvimx2/neovim-0-10", "nvimx2/neovim-mlua"]
 
 [dependencies]
 auth = { workspace = true }

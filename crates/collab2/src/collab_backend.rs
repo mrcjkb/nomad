@@ -16,7 +16,8 @@ pub trait CollabBackend: Backend {
 
 #[cfg(feature = "neovim")]
 mod neovim {
-    use nvimx2::neovim::Neovim;
+    use nvimx2::neovim::{Neovim, NeovimBuffer, oxi};
+    use oxi::mlua::{Function, Table};
 
     use super::*;
 
@@ -24,10 +25,39 @@ mod neovim {
         type FindProjectRootError = core::convert::Infallible;
 
         async fn project_root(
-            _buffer_id: BufferId<Self>,
+            buffer: NeovimBuffer,
             _ctx: &mut AsyncCtx<'_, Self>,
         ) -> Result<AbsPathBuf, Self::FindProjectRootError> {
+            let _root = lsp_rootdir(buffer);
             todo!()
         }
+    }
+
+    /// Returns the root directory of the first language server attached to the
+    /// given buffer, if any.
+    fn lsp_rootdir(buffer: NeovimBuffer) -> Option<String> {
+        let lua = oxi::mlua::lua();
+
+        let get_clients = lua
+            .globals()
+            .get::<Table>("vim")
+            .ok()?
+            .get::<Table>("lsp")
+            .ok()?
+            .get::<Function>("get_clients")
+            .ok()?;
+
+        let opts = lua.create_table().ok()?;
+        opts.set("bufnr", buffer).ok()?;
+
+        get_clients
+            .call::<Table>(opts)
+            .ok()?
+            .get::<Table>(1)
+            .ok()?
+            .get::<Table>("config")
+            .ok()?
+            .get::<String>("root_dir")
+            .ok()
     }
 }
