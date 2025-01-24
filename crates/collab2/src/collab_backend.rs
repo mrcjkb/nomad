@@ -1,9 +1,9 @@
 use nvimx2::backend::{Backend, BufferId};
-use nvimx2::fs::AbsPathBuf;
+use nvimx2::fs::{self, AbsPathBuf};
 use nvimx2::{AsyncCtx, notify};
 
 /// TODO: docs.
-pub trait CollabBackend: Backend {
+pub trait CollabBackend: Backend<Fs: WithHomeDirFs> {
     /// TODO: docs.
     type FindProjectRootError: notify::Error;
 
@@ -13,6 +13,17 @@ pub trait CollabBackend: Backend {
         buffer_id: BufferId<Self>,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> impl Future<Output = Result<AbsPathBuf, Self::FindProjectRootError>>;
+}
+
+/// TODO: docs.
+pub trait WithHomeDirFs: fs::Fs {
+    /// TODO: docs.
+    type HomeDirError: notify::Error;
+
+    /// TODO: docs.
+    fn home_dir(
+        &mut self,
+    ) -> impl Future<Output = Result<AbsPathBuf, Self::HomeDirError>>;
 }
 
 #[cfg(feature = "neovim")]
@@ -28,6 +39,10 @@ mod neovim {
         CouldntFindRoot,
         MarkedRoot(root_markers::FindRootError<NeovimFs>),
         IsParentDir(<NeovimFs as Fs>::NodeAtPathError),
+    }
+
+    pub enum NeovimHomeDirError {
+        CouldntFindHome,
     }
 
     impl CollabBackend for Neovim {
@@ -71,6 +86,16 @@ mod neovim {
         }
     }
 
+    impl WithHomeDirFs for NeovimFs {
+        type HomeDirError = NeovimHomeDirError;
+
+        async fn home_dir(
+            &mut self,
+        ) -> Result<AbsPathBuf, Self::HomeDirError> {
+            todo!()
+        }
+    }
+
     /// Returns the root directory of the first language server attached to the
     /// given buffer, if any.
     fn lsp_root(buffer: NeovimBuffer) -> Option<String> {
@@ -100,6 +125,12 @@ mod neovim {
     }
 
     impl notify::Error for NeovimFindProjectRootError {
+        fn to_message(&self) -> (notify::Level, notify::Message) {
+            todo!()
+        }
+    }
+
+    impl notify::Error for NeovimHomeDirError {
         fn to_message(&self) -> (notify::Level, notify::Message) {
             todo!()
         }
