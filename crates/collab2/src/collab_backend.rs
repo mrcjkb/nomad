@@ -5,14 +5,14 @@ use nvimx2::{AsyncCtx, notify};
 /// TODO: docs.
 pub trait CollabBackend: Backend<Fs: WithHomeDirFs> {
     /// TODO: docs.
-    type FindProjectRootError: notify::Error;
+    type SearchProjectRootError: notify::Error;
 
-    /// Tries to find the absolute path to the root of the project containing
-    /// the buffer with the given ID.
-    fn find_project_root(
+    /// Searches for the root of the project containing the buffer with the
+    /// given ID.
+    fn search_project_root(
         buffer_id: BufferId<Self>,
         ctx: &mut AsyncCtx<'_, Self>,
-    ) -> impl Future<Output = Result<AbsPathBuf, Self::FindProjectRootError>>;
+    ) -> impl Future<Output = Result<AbsPathBuf, Self::SearchProjectRootError>>;
 }
 
 /// TODO: docs.
@@ -29,6 +29,7 @@ pub trait WithHomeDirFs: fs::Fs {
 #[cfg(feature = "neovim")]
 mod neovim {
     use mlua::{Function, Table};
+    use nvimx2::backend::Buffer;
     use nvimx2::fs::{self, Fs};
     use nvimx2::neovim::{Neovim, NeovimBuffer, NeovimFs, mlua};
 
@@ -38,6 +39,7 @@ mod neovim {
         LspRootDirNotAbsolute(fs::AbsPathNotAbsoluteError),
         CouldntFindRoot,
         HomeDir(NeovimHomeDirError),
+        InvalidBufferPath(String),
         MarkedRoot(root_markers::FindRootError<NeovimFs>),
         IsParentDir(<NeovimFs as Fs>::NodeAtPathError),
     }
@@ -47,19 +49,24 @@ mod neovim {
     }
 
     impl CollabBackend for Neovim {
-        type FindProjectRootError = NeovimFindProjectRootError;
+        type SearchProjectRootError = NeovimFindProjectRootError;
 
-        async fn find_project_root(
+        async fn search_project_root(
             buffer: NeovimBuffer,
             ctx: &mut AsyncCtx<'_, Self>,
-        ) -> Result<AbsPathBuf, Self::FindProjectRootError> {
+        ) -> Result<AbsPathBuf, Self::SearchProjectRootError> {
             if let Some(lsp_root) = lsp_root(buffer) {
                 return lsp_root.as_str().try_into().map_err(
                     NeovimFindProjectRootError::LspRootDirNotAbsolute,
                 );
             }
 
-            let buffer_path: AbsPathBuf = todo!();
+            let buffer_path =
+                buffer.name().parse::<AbsPathBuf>().map_err(|_| {
+                    NeovimFindProjectRootError::InvalidBufferPath(
+                        buffer.name().into_owned(),
+                    )
+                })?;
 
             let mut fs = ctx.fs();
 
