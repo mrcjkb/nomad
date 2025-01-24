@@ -13,6 +13,7 @@ use crate::backend::{
     MapAccess,
     Value,
 };
+use crate::fs;
 use crate::module::Module;
 use crate::notify::{self, Emitter, MaybeResult};
 use crate::plugin::Plugin;
@@ -32,6 +33,9 @@ pub trait Backend: 'static + Sized {
     type BackgroundExecutor: BackgroundExecutor;
 
     /// TODO: docs.
+    type Fs: fs::Fs;
+
+    /// TODO: docs.
     type Emitter<'this>: notify::Emitter;
 
     /// TODO: docs.
@@ -48,6 +52,9 @@ pub trait Backend: 'static + Sized {
 
     /// TODO: docs.
     fn current_buffer(&mut self) -> Option<Self::Buffer>;
+
+    /// TODO: docs.
+    fn fs(&mut self) -> Self::Fs;
 
     /// TODO: docs.
     fn emitter(&mut self) -> Self::Emitter<'_>;

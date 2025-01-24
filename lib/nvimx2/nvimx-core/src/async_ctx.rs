@@ -32,6 +32,12 @@ impl<B: Backend> AsyncCtx<'_, B> {
 
     /// TODO: docs.
     #[inline]
+    pub fn fs(&mut self) -> B::Fs {
+        self.with_ctx(|ctx| ctx.fs())
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn spawn_background<Fut>(
         &self,
         fut: Fut,

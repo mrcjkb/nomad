@@ -48,6 +48,12 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     }
 
     /// TODO: docs.
+    #[inline]
+    pub fn fs(&mut self) -> B::Fs {
+        self.backend_mut().fs()
+    }
+
+    /// TODO: docs.
     #[track_caller]
     #[inline]
     pub fn get_module<M>(&self) -> &M

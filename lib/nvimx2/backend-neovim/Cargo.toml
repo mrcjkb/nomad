@@ -18,7 +18,7 @@ async-task = "4.7"
 concurrent-queue = "2.5"
 futures-executor = { version = "0.3", features = ["thread-pool"] }
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = ["libuv"] }
-nvimx-core = { path = "../nvimx-core" }
+nvimx-core = { path = "../nvimx-core", features = ["os-fs"] }
 nvimx2-macros = { path = "../nvimx-macros", features = ["plugin"] }
 pin-project-lite = { workspace = true }
 serde = { workspace = true }

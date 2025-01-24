@@ -4,7 +4,7 @@ use nvimx_core::module::Module;
 use nvimx_core::notify::Namespace;
 use nvimx_core::plugin::Plugin;
 
-use crate::{NeovimBuffer, api, executor, notify, serde, value};
+use crate::{NeovimBuffer, NeovimFs, api, executor, notify, serde, value};
 
 /// TODO: docs.
 pub struct Neovim {
@@ -16,6 +16,7 @@ pub struct Neovim {
 impl Backend for Neovim {
     type Api = api::NeovimApi;
     type Buffer = NeovimBuffer;
+    type Fs = NeovimFs;
     type LocalExecutor = executor::NeovimLocalExecutor;
     type BackgroundExecutor = executor::NeovimBackgroundExecutor;
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
@@ -34,6 +35,11 @@ impl Backend for Neovim {
     #[inline]
     fn api<M: Module<Self>>(&mut self) -> Self::Api {
         api::NeovimApi::new::<M>()
+    }
+
+    #[inline]
+    fn fs(&mut self) -> Self::Fs {
+        Self::Fs::default()
     }
 
     #[inline]

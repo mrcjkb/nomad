@@ -24,3 +24,6 @@ pub use nvim_oxi as oxi;
 pub use nvim_oxi::mlua;
 #[doc(inline)]
 pub use nvimx2_macros::plugin;
+
+/// TODO: docs.
+pub type NeovimFs = nvimx_core::fs::os::OsFs;
