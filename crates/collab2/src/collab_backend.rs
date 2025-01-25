@@ -85,13 +85,9 @@ mod default_search_project_root {
             return res.map_err(Error::MarkedRoot);
         }
 
-        let buffer_parent =
-            buffer_path.parent().ok_or(Error::CouldntFindRoot)?;
-
-        fs.exists(buffer_parent)
-            .await
-            .map_err(|_| Error::ParentDoesntExist(buffer_parent.to_owned()))?
-            .then(|| buffer_parent.to_owned())
+        buffer_path
+            .parent()
+            .map(ToOwned::to_owned)
             .ok_or(Error::CouldntFindRoot)
     }
 
@@ -110,9 +106,6 @@ mod default_search_project_root {
 
         /// There's no buffer with the given ID.
         InvalidBufId(BufferId<B>),
-
-        /// The parent directory of the focused buffer doesn't exist.
-        ParentDoesntExist(fs::AbsPathBuf),
 
         /// TODO: docs.
         CouldntFindRoot,
