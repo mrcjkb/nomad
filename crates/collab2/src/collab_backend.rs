@@ -62,14 +62,14 @@ mod default_search_project_root {
         }
 
         let buffer_name = ctx.with_ctx(|ctx| {
-            ctx.buffer(buffer_id)
-                .ok_or(Error::NoBuffer)
+            ctx.buffer(buffer_id.clone())
+                .ok_or(Error::InvalidBufId(buffer_id))
                 .map(|buf| buf.name().into_owned())
         })?;
 
         let buffer_path = buffer_name
             .parse::<AbsPathBuf>()
-            .map_err(|_| Error::InvalidBufferPath(buffer_name))?;
+            .map_err(|_| Error::BufNameNotAbsolutePath(buffer_name))?;
 
         let mut fs = ctx.fs();
 
@@ -96,8 +96,8 @@ mod default_search_project_root {
     }
 
     pub(crate) enum Error<B: CollabBackend> {
-        /// TODO: docs.
-        InvalidBufferPath(String),
+        /// The buffer's name is not an absolute path.
+        BufNameNotAbsolutePath(String),
 
         /// TODO: docs.
         Lsp(<B::Buffer as CollabBuffer<B>>::LspRootError),
@@ -105,17 +105,17 @@ mod default_search_project_root {
         /// TODO: docs.
         MarkedRoot(root_markers::FindRootError<B::Fs, Markers>),
 
-        /// TODO: docs.
+        /// An error occured while searching for the home directory.
         HomeDir(<B::Fs as CollabFs>::HomeDirError),
 
-        /// TODO: docs.
-        NoBuffer,
+        /// There's no buffer with the given ID.
+        InvalidBufId(BufferId<B>),
+
+        /// The parent directory of the focused buffer doesn't exist.
+        ParentDoesntExist(fs::AbsPathBuf),
 
         /// TODO: docs.
         CouldntFindRoot,
-
-        /// TODO: docs.
-        ParentDoesntExist(fs::AbsPathBuf),
     }
 }
 

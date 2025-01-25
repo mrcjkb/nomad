@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use auth::AuthInfos;
 use nvimx2::action::AsyncAction;
 use nvimx2::command::ToCompletionFn;
@@ -14,12 +16,15 @@ pub struct Start {
     _config: Shared<Config>,
 }
 
+/// The type of error that can occur when [`Start`]ing a new session fails.
 pub enum StartError<B: CollabBackend> {
-    InvalidBufferPath(String),
-    NoBufferFocused,
-    UserNotLoggedIn,
+    NoBufferFocused(NoBufferFocusedError<B>),
     SearchProjectRoot(B::SearchProjectRootError),
+    UserNotLoggedIn(UserNotLoggedInError<B>),
 }
+
+pub struct NoBufferFocusedError<B>(PhantomData<B>);
+pub struct UserNotLoggedInError<B>(PhantomData<B>);
 
 impl<B: CollabBackend> AsyncAction<B> for Start {
     const NAME: Name = "start";
@@ -34,12 +39,12 @@ impl<B: CollabBackend> AsyncAction<B> for Start {
         let _auth_infos = self
             .auth_infos
             .with(|infos| infos.as_ref().cloned())
-            .ok_or(StartError::UserNotLoggedIn)?;
+            .ok_or_else(StartError::user_not_logged_in)?;
 
         let buffer_id = ctx.with_ctx(|ctx| {
             ctx.current_buffer()
                 .map(|buf| buf.id())
-                .ok_or(StartError::NoBufferFocused)
+                .ok_or_else(StartError::no_buffer_focused)
         })?;
 
         let _project_root = B::search_project_root(buffer_id, ctx)
@@ -63,13 +68,53 @@ impl From<&Collab> for Start {
     }
 }
 
+impl<B: CollabBackend> StartError<B> {
+    fn no_buffer_focused() -> Self {
+        Self::NoBufferFocused(NoBufferFocusedError(PhantomData))
+    }
+
+    fn user_not_logged_in() -> Self {
+        Self::UserNotLoggedIn(UserNotLoggedInError(PhantomData))
+    }
+}
+
 impl<B: CollabBackend> notify::Error for StartError<B> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
-            StartError::InvalidBufferPath(_path) => todo!(),
-            StartError::NoBufferFocused => todo!(),
-            StartError::UserNotLoggedIn => todo!(),
+            StartError::NoBufferFocused(err) => err.to_message(),
             StartError::SearchProjectRoot(err) => err.to_message(),
+            StartError::UserNotLoggedIn(err) => err.to_message(),
+        }
+    }
+}
+
+impl<B: CollabBackend> notify::Error for NoBufferFocusedError<B> {
+    default fn to_message(&self) -> (notify::Level, notify::Message) {
+        (notify::Level::Off, notify::Message::new())
+    }
+}
+
+impl<B: CollabBackend> notify::Error for UserNotLoggedInError<B> {
+    default fn to_message(&self) -> (notify::Level, notify::Message) {
+        (notify::Level::Off, notify::Message::new())
+    }
+}
+
+#[cfg(feature = "neovim")]
+mod neovim_error_impls {
+    use nvimx2::neovim::Neovim;
+
+    use super::*;
+
+    impl notify::Error for NoBufferFocusedError<Neovim> {
+        fn to_message(&self) -> (notify::Level, notify::Message) {
+            todo!();
+        }
+    }
+
+    impl notify::Error for UserNotLoggedInError<Neovim> {
+        fn to_message(&self) -> (notify::Level, notify::Message) {
+            todo!();
         }
     }
 }

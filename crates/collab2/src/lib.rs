@@ -1,5 +1,7 @@
 //! TODO: docs.
 
+#![feature(min_specialization)]
+
 mod collab;
 mod collab_backend;
 mod config;
