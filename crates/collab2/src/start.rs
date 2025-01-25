@@ -60,8 +60,8 @@ impl<B: CollabBackend> AsyncAction<B> for Start {
         }
 
         let start_args = StartArgs {
-            _auth_infos: &auth_infos,
-            _project_root: &project_root,
+            auth_infos: &auth_infos,
+            project_root: &project_root,
             server_address: &self.config.with(|c| c.server_address.clone()),
         };
 

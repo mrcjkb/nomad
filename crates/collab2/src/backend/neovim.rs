@@ -3,7 +3,9 @@ use std::io;
 use std::path::PathBuf;
 
 use async_net::TcpStream;
-use collab_server::message;
+use collab_server::configs::nomad;
+use collab_server::{SessionIntent, client, message};
+use futures_util::AsyncReadExt;
 use mlua::{Function, Table};
 use nvimx2::fs::{self, AbsPath};
 use nvimx2::neovim::{Neovim, NeovimBuffer, NeovimFs, mlua, oxi};
@@ -82,9 +84,20 @@ impl CollabBackend for Neovim {
         args: StartArgs<'_>,
         _: &mut AsyncCtx<'_, Self>,
     ) -> Result<StartInfos<Self>, Self::StartSessionError> {
-        let _tcp_stream = TcpStream::connect(&**args.server_address)
+        let (reader, writer) = TcpStream::connect(&**args.server_address)
             .await
-            .map_err(NeovimStartSessionError::TcpConnect)?;
+            .map_err(NeovimStartSessionError::TcpConnect)?
+            .split();
+
+        let knock = collab_server::Knock {
+            auth_infos: args.auth_infos.clone().into(),
+            session_intent: SessionIntent::StartNew,
+        };
+
+        let _welcome =
+            client::Knocker::<_, _, nomad::NomadConfig>::new(reader, writer)
+                .knock(knock)
+                .await;
 
         todo!()
     }

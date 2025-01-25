@@ -83,27 +83,29 @@ pub trait CollabFs: fs::Fs {
 }
 
 /// TODO: docs.
+#[allow(dead_code)]
 pub struct StartArgs<'a> {
     /// TODO: docs.
+    pub(crate) auth_infos: &'a auth::AuthInfos,
+
+    /// TODO: docs.
+    pub(crate) project_root: &'a fs::AbsPath,
+
+    /// TODO: docs.
     pub(crate) server_address: &'a config::ServerAddress,
-
-    /// TODO: docs.
-    pub(crate) _auth_infos: &'a auth::AuthInfos,
-
-    /// TODO: docs.
-    pub(crate) _project_root: &'a fs::AbsPath,
 }
 
 /// TODO: docs.
+#[allow(dead_code)]
 pub struct StartInfos<B: CollabBackend> {
     /// TODO: docs.
-    pub(crate) _peer_id: PeerId,
+    pub(crate) peer_id: PeerId,
 
     /// TODO: docs.
-    pub(crate) _server_tx: B::ServerTx,
+    pub(crate) server_tx: B::ServerTx,
 
     /// TODO: docs.
-    pub(crate) _server_rx: B::ServerRx,
+    pub(crate) server_rx: B::ServerRx,
 }
 
 #[cfg(feature = "neovim")]
