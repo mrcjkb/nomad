@@ -12,6 +12,7 @@ neovim = [
   "nvimx2/neovim-mlua",
   "dep:futures-util",
   "dep:home",
+  "dep:smol_str",
 ]
 
 [dependencies]
@@ -21,6 +22,7 @@ serde = { workspace = true, features = ["derive"] }
 
 futures-util = { workspace = true, optional = true, features = ["async-await-macro"] }
 home = { version = "0.5", optional = true }
+smol_str = { workspace = true, optional = true }
 
 [lints]
 workspace = true

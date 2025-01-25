@@ -541,6 +541,7 @@ dependencies = [
  "home",
  "nvimx2",
  "serde",
+ "smol_str",
 ]
 
 [[package]]

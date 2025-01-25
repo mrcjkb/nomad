@@ -1,5 +1,5 @@
 use nvimx2::backend::{Backend, Buffer, BufferId};
-use nvimx2::fs::{self, AbsPathBuf, Fs};
+use nvimx2::fs::{self, AbsPathBuf};
 use nvimx2::{AsyncCtx, notify};
 
 /// TODO: docs.
@@ -88,7 +88,7 @@ mod default_search_project_root {
         buffer_path
             .parent()
             .map(ToOwned::to_owned)
-            .ok_or(Error::CouldntFindRoot)
+            .ok_or(Error::CouldntFindRoot(buffer_path))
     }
 
     pub(crate) enum Error<B: CollabBackend> {
@@ -108,7 +108,7 @@ mod default_search_project_root {
         InvalidBufId(BufferId<B>),
 
         /// TODO: docs.
-        CouldntFindRoot,
+        CouldntFindRoot(fs::AbsPathBuf),
     }
 }
 
@@ -117,6 +117,7 @@ mod neovim {
     use mlua::{Function, Table};
     use nvimx2::fs;
     use nvimx2::neovim::{Neovim, NeovimBuffer, NeovimFs, mlua};
+    use smol_str::ToSmolStr;
 
     use super::*;
 
@@ -143,7 +144,7 @@ mod neovim {
     }
 
     impl CollabBuffer<Neovim> for NeovimBuffer {
-        type LspRootError = fs::AbsPathNotAbsoluteError;
+        type LspRootError = String;
 
         fn lsp_root(
             buffer: NeovimBuffer,
@@ -177,7 +178,9 @@ mod neovim {
                     .ok()
             }
 
-            inner(buffer).map(|root_dir| root_dir.parse()).transpose()
+            inner(buffer)
+                .map(|root_dir| root_dir.parse().map_err(|_| root_dir))
+                .transpose()
         }
     }
 
@@ -198,7 +201,41 @@ mod neovim {
 
     impl notify::Error for NeovimSearchProjectRootError {
         fn to_message(&self) -> (notify::Level, notify::Message) {
-            todo!()
+            use default_search_project_root::Error::*;
+
+            let mut msg = notify::Message::new();
+
+            match &self.inner {
+                BufNameNotAbsolutePath(buf_name) => {
+                    msg.push_str("buffer name ")
+                        .push_invalid(buf_name)
+                        .push_str(" is not an absolute path");
+                },
+                Lsp(lsp_root) => {
+                    msg.push_str("LSP root at ")
+                        .push_invalid(lsp_root)
+                        .push_str(" is not an absolute path");
+                },
+                MarkedRoot(_err) => todo!(),
+                HomeDir(err) => return err.to_message(),
+                InvalidBufId(buf) => {
+                    msg.push_str("there's no buffer whose handle is ")
+                        .push_invalid(buf.handle().to_smolstr());
+                },
+                CouldntFindRoot(buffer_path) => {
+                    msg.push_str("couldn't find project root for buffer at ")
+                        .push_info(buffer_path.to_smolstr())
+                        .push_str(", please pass one explicitly");
+                },
+            }
+
+            (notify::Level::Error, msg)
+        }
+    }
+
+    impl notify::Error for NeovimHomeDirError {
+        fn to_message(&self) -> (notify::Level, notify::Message) {
+            todo!();
         }
     }
 }

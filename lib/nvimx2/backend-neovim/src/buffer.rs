@@ -10,6 +10,12 @@ use crate::Neovim;
 pub struct NeovimBuffer(crate::oxi::BufHandle);
 
 impl NeovimBuffer {
+    /// Returns this buffer's handle.
+    #[inline]
+    pub fn handle(&self) -> crate::oxi::BufHandle {
+        self.0
+    }
+
     #[inline]
     pub(crate) fn current() -> Self {
         Self::new(crate::oxi::api::Buffer::current())
@@ -24,11 +30,6 @@ impl NeovimBuffer {
     pub(crate) fn get_name(&self) -> PathBuf {
         debug_assert!(self.exists());
         self.inner().get_name().expect("buffer exists")
-    }
-
-    #[inline]
-    fn handle(&self) -> crate::oxi::BufHandle {
-        self.0
     }
 
     #[inline]
