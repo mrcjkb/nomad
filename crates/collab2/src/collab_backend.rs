@@ -245,6 +245,7 @@ mod root_markers {
     use futures_util::stream::{self, StreamExt};
     use futures_util::{pin_mut, select};
     use nvimx2::fs::{self, DirEntry};
+    use nvimx2::notify;
 
     pub struct FindRootArgs<'a, M> {
         /// The marker used to determine if a directory is the root.
@@ -273,28 +274,26 @@ mod root_markers {
         ) -> impl Future<Output = Result<bool, Self::Error>>;
     }
 
-    pub enum FindRootError<Fs: fs::Fs, M: RootMarker<Fs>> {
+    pub struct FindRootError<Fs: fs::Fs, M: RootMarker<Fs>> {
         /// TODO: docs.
-        DirEntry {
-            /// TODO: docs.
-            path: fs::AbsPathBuf,
-            /// TODO: docs.
-            err: DirEntryError<Fs>,
-        },
+        pub dir_path: fs::AbsPathBuf,
 
         /// TODO: docs.
-        Marker(M::Error),
+        pub kind: FindRootErrorKind<Fs, M>,
+    }
+
+    pub enum FindRootErrorKind<Fs: fs::Fs, M: RootMarker<Fs>> {
+        /// TODO: docs.
+        DirEntry(DirEntryError<Fs>),
+
+        /// TODO: docs.
+        Marker { dir_entry_name: Option<fs::FsNodeNameBuf>, err: M::Error },
 
         /// TODO: docs.
         NodeAtStartPath(Fs::NodeAtPathError),
 
         /// TODO: docs.
-        ReadDir {
-            /// TODO: docs.
-            dir_path: fs::AbsPathBuf,
-            /// TODO: docs.
-            err: Fs::ReadDirError,
-        },
+        ReadDir(Fs::ReadDirError),
 
         /// TODO: docs.
         StartPathNotFound,
@@ -318,8 +317,14 @@ mod root_markers {
             let node_kind = fs
                 .node_at_path(self.start_from)
                 .await
-                .map_err(FindRootError::NodeAtStartPath)?
-                .ok_or(FindRootError::StartPathNotFound)?
+                .map_err(FindRootErrorKind::NodeAtStartPath)
+                .and_then(|maybe_node| {
+                    maybe_node.ok_or(FindRootErrorKind::StartPathNotFound)
+                })
+                .map_err(|kind| FindRootError {
+                    dir_path: self.start_from.to_owned(),
+                    kind,
+                })?
                 .kind();
 
             let mut dir = match node_kind {
@@ -357,9 +362,9 @@ mod root_markers {
             let read_dir = fs
                 .read_dir(dir_path)
                 .await
-                .map_err(|err| FindRootError::ReadDir {
+                .map_err(|err| FindRootError {
                     dir_path: dir_path.to_owned(),
-                    err,
+                    kind: FindRootErrorKind::ReadDir(err),
                 })?
                 .fuse();
 
@@ -371,16 +376,30 @@ mod root_markers {
                 select! {
                     read_res = read_dir.select_next_some() => {
                         let dir_entry =
-                            read_res.map_err(|err| FindRootError::DirEntry {
-                                path: dir_path.to_owned(),
-                                err: DirEntryError::Access(err),
+                            read_res.map_err(|err| FindRootError {
+                                dir_path: dir_path.to_owned(),
+                                kind: FindRootErrorKind::DirEntry(
+                                    DirEntryError::Access(err),
+                                ),
                             })?;
 
                         let fut = async move {
-                            self.marker
-                                .matches(&dir_entry)
-                                .await
-                                .map_err(FindRootError::Marker)
+                            match self.marker.matches(&dir_entry).await {
+                                Ok(matches) => Ok(matches),
+                                Err(err) => {
+                                    let dir_entry_name = dir_entry.name()
+                                        .await
+                                        .ok()
+                                        .map(|name| name.into_owned());
+                                    Err(FindRootError {
+                                        dir_path: dir_path.to_owned(),
+                                        kind: FindRootErrorKind::Marker {
+                                            dir_entry_name,
+                                            err
+                                        },
+                                    })
+                                }
+                            }
                         };
 
                         check_marker_matches.push(fut);
@@ -412,6 +431,17 @@ mod root_markers {
                     .is_directory()
                     .await
                     .map_err(DirEntryError::NodeKind)?)
+        }
+    }
+
+    impl<Fs, M> notify::Error for FindRootError<Fs, M>
+    where
+        Fs: fs::Fs,
+        M: RootMarker<Fs>,
+        M::Error: notify::Error,
+    {
+        fn to_message(&self) -> (notify::Level, notify::Message) {
+            todo!();
         }
     }
 }
