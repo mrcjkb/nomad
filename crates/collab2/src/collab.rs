@@ -1,7 +1,7 @@
 use core::cell::Cell;
 
-use async_channel::{Receiver, Sender};
 use auth::AuthInfos;
+use flume::{Receiver, Sender};
 use nvimx2::module::{ApiCtx, Module};
 use nvimx2::notify::Name;
 use nvimx2::{NeovimCtx, Shared};
@@ -53,7 +53,7 @@ impl<B: CollabBackend> Module<B> for Collab<B> {
             .expect("`Module::on_init()` is only called once");
 
         ctx.spawn_local(async move |ctx| {
-            while let Ok(session) = session_rx.recv().await {
+            while let Ok(session) = session_rx.recv_async().await {
                 ctx.spawn_local(async move |ctx| {
                     if let Err(err) = session.run(ctx).await {
                         ctx.emit_err(err);
@@ -70,7 +70,7 @@ impl<B: CollabBackend> Module<B> for Collab<B> {
 
 impl<B: CollabBackend> From<&auth::Auth> for Collab<B> {
     fn from(auth: &auth::Auth) -> Self {
-        let (session_tx, session_rx) = async_channel::bounded(1);
+        let (session_tx, session_rx) = flume::bounded(1);
         Self {
             auth_infos: auth.infos().clone(),
             config: Default::default(),

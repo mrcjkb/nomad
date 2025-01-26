@@ -126,12 +126,54 @@ impl CollabBackend for Neovim {
     }
 
     async fn select_session<'pairs>(
-        _sessions: &'pairs [(fs::AbsPathBuf, SessionId)],
-        _action: ActionForSelectedSession,
-        _ctx: &mut AsyncCtx<'_, Self>,
+        sessions: &'pairs [(fs::AbsPathBuf, SessionId)],
+        action: ActionForSelectedSession,
+        ctx: &mut AsyncCtx<'_, Self>,
     ) -> Option<&'pairs (fs::AbsPathBuf, SessionId)> {
-        let _select = get_lua_value::<Function>(&["vim", "ui", "select"])?;
-        todo!()
+        let select = get_lua_value::<Function>(&["vim", "ui", "select"])?;
+
+        let home_dir = ctx.fs().home_dir().await.ok();
+
+        let items = {
+            let t = mlua::lua().create_table().ok()?;
+            for (idx, (path, _)) in sessions.iter().enumerate() {
+                let path = TildePath { path, home_dir: home_dir.as_deref() };
+                t.raw_set(idx, path.to_string()).ok()?;
+            }
+            t
+        };
+
+        let prompt = match action {
+            ActionForSelectedSession::CopySessionId => {
+                "Choose the session to yank the ID of: "
+            },
+        };
+
+        let opts = {
+            let t = mlua::lua().create_table().ok()?;
+            t.raw_set("prompt", prompt).ok()?;
+            t
+        };
+
+        let (idx_tx, idx_rx) = flume::bounded(1);
+
+        let on_choice = mlua::lua()
+            .create_function(
+                move |_, (_, lua_idx): (mlua::Value, Option<u8>)| {
+                    let idx = lua_idx.map(|idx| idx - 1);
+                    let _ = idx_tx.send(idx);
+                    Ok(())
+                },
+            )
+            .ok()?;
+
+        select.call::<()>((items, opts, on_choice)).ok()?;
+
+        idx_rx
+            .recv_async()
+            .await
+            .ok()?
+            .and_then(|idx| sessions.get(idx as usize))
     }
 
     async fn start_session(
@@ -179,7 +221,7 @@ impl CollabBuffer<Neovim> for NeovimBuffer {
             let lua = mlua::lua();
 
             let opts = lua.create_table().ok()?;
-            opts.set("bufnr", buffer).ok()?;
+            opts.raw_set("bufnr", buffer).ok()?;
 
             get_lua_value::<Function>(&["vim", "lsp", "get_clients"])?
                 .call::<Table>(opts)

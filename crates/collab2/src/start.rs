@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
-use async_channel::Sender;
 use auth::AuthInfos;
+use flume::Sender;
 use nvimx2::action::AsyncAction;
 use nvimx2::command::ToCompletionFn;
 use nvimx2::notify::{self, Name};
@@ -80,7 +80,7 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
         });
 
         self.session_tx
-            .send(session)
+            .send_async(session)
             .await
             .map_err(|_| StartError::session_rx_dropped())
     }
