@@ -2,6 +2,7 @@
 mod neovim;
 
 use collab_server::message::{Message, PeerId};
+use eerie::Replica;
 use futures_util::{Sink, Stream};
 use nvimx2::backend::{Backend, Buffer, BufferId};
 use nvimx2::fs::{self, AbsPathBuf};
@@ -14,6 +15,10 @@ use crate::config;
 pub trait CollabBackend:
     Backend<Buffer: CollabBuffer<Self>, Fs: CollabFs>
 {
+    /// The type of error returned by
+    /// [`read_replica`](CollabBackend::read_replica).
+    type ReadReplicaError: notify::Error;
+
     /// The type of error returned by
     /// [`search_project_root`](CollabBackend::search_project_root).
     type SearchProjectRootError: notify::Error;
@@ -40,6 +45,12 @@ pub trait CollabBackend:
         project_root: &fs::AbsPath,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> impl Future<Output = bool>;
+
+    /// TODO: docs.
+    fn read_replica(
+        project_root: &fs::AbsPath,
+        ctx: &mut AsyncCtx<'_, Self>,
+    ) -> impl Future<Output = Result<Replica, Self::ReadReplicaError>>;
 
     /// Searches for the root of the project containing the buffer with the
     /// given ID.

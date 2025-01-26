@@ -22,6 +22,7 @@ pub struct Start {
 /// The type of error that can occur when [`Start`]ing a new session fails.
 pub enum StartError<B: CollabBackend> {
     NoBufferFocused(NoBufferFocusedError<B>),
+    ReadReplica(B::ReadReplicaError),
     SearchProjectRoot(B::SearchProjectRootError),
     StartSession(B::StartSessionError),
     UserNotLoggedIn(UserNotLoggedInError<B>),
@@ -69,7 +70,11 @@ impl<B: CollabBackend> AsyncAction<B> for Start {
             .await
             .map_err(StartError::StartSession)?;
 
-        Ok(())
+        let _replica = B::read_replica(&project_root, ctx)
+            .await
+            .map_err(StartError::ReadReplica)?;
+
+        todo!();
     }
 }
 
@@ -101,6 +106,7 @@ impl<B: CollabBackend> notify::Error for StartError<B> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
             StartError::NoBufferFocused(err) => err.to_message(),
+            StartError::ReadReplica(err) => err.to_message(),
             StartError::SearchProjectRoot(err) => err.to_message(),
             StartError::StartSession(err) => err.to_message(),
             StartError::UserNotLoggedIn(err) => err.to_message(),

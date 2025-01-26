@@ -541,6 +541,7 @@ dependencies = [
  "async-net",
  "auth",
  "collab-server",
+ "eerie",
  "futures-util",
  "home",
  "nvimx2",

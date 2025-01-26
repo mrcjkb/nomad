@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use async_net::TcpStream;
 use collab_server::configs::nomad;
 use collab_server::{SessionIntent, client, message};
+use eerie::Replica;
 use futures_util::io::{ReadHalf, WriteHalf};
 use futures_util::{AsyncReadExt, Sink, Stream};
 use mlua::{Function, Table};
@@ -15,6 +16,8 @@ use nvimx2::neovim::{Neovim, NeovimBuffer, NeovimFs, mlua, oxi};
 use smol_str::ToSmolStr;
 
 use crate::backend::*;
+
+pub struct NeovimReadReplicaError {}
 
 pin_project_lite::pin_project! {
     pub struct NeovimServerTx {
@@ -60,6 +63,7 @@ struct TildePath<'a> {
 }
 
 impl CollabBackend for Neovim {
+    type ReadReplicaError = NeovimReadReplicaError;
     type SearchProjectRootError = NeovimSearchProjectRootError;
     type ServerTx = NeovimServerTx;
     type ServerRx = NeovimServerRx;
@@ -93,6 +97,13 @@ impl CollabBackend for Neovim {
             1 => true,
             _ => unreachable!("only provided {} options", options.len()),
         }
+    }
+
+    async fn read_replica(
+        _project_root: &fs::AbsPath,
+        _ctx: &mut AsyncCtx<'_, Self>,
+    ) -> Result<Replica, Self::ReadReplicaError> {
+        todo!();
     }
 
     async fn search_project_root(
@@ -235,6 +246,12 @@ impl Stream for NeovimServerRx {
             .inner
             .poll_next(ctx)
             .map_err(|err| NeovimServerRxError { inner: err })
+    }
+}
+
+impl notify::Error for NeovimReadReplicaError {
+    fn to_message(&self) -> (notify::Level, notify::Message) {
+        todo!();
     }
 }
 
