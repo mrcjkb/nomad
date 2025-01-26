@@ -10,13 +10,13 @@ use nvimx2::{AsyncCtx, Shared};
 use crate::Collab;
 use crate::backend::{CollabBackend, StartArgs};
 use crate::config::Config;
-use crate::session::Session;
+use crate::session::{NewSessionArgs, Session};
 
-/// The [`Action`] used to start a new collaborative editing session.
+/// The `Action` used to start a new collaborative editing session.
 pub struct Start<B: CollabBackend> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
-    _session_tx: Sender<Session<B>>,
+    session_tx: Sender<Session<B>>,
 }
 
 /// The type of error that can occur when [`Start`]ing a new session fails.
@@ -24,11 +24,13 @@ pub enum StartError<B: CollabBackend> {
     NoBufferFocused(NoBufferFocusedError<B>),
     ReadReplica(B::ReadReplicaError),
     SearchProjectRoot(B::SearchProjectRootError),
+    SessionRxDropped(SessionRxDroppedError<B>),
     StartSession(B::StartSessionError),
     UserNotLoggedIn(UserNotLoggedInError<B>),
 }
 
 pub struct NoBufferFocusedError<B>(PhantomData<B>);
+pub struct SessionRxDroppedError<B>(PhantomData<B>);
 pub struct UserNotLoggedInError<B>(PhantomData<B>);
 
 impl<B: CollabBackend> AsyncAction<B> for Start<B> {
@@ -66,15 +68,29 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
             server_address: &self.config.with(|c| c.server_address.clone()),
         };
 
-        let _start_infos = B::start_session(start_args, ctx)
+        let start_infos = B::start_session(start_args, ctx)
             .await
             .map_err(StartError::StartSession)?;
 
-        let _replica = B::read_replica(&project_root, ctx)
+        let replica = B::read_replica(&project_root, ctx)
             .await
             .map_err(StartError::ReadReplica)?;
 
-        todo!();
+        let session = Session::new(NewSessionArgs {
+            is_host: true,
+            local_peer: start_infos.local_peer,
+            project_root,
+            remote_peers: start_infos.remote_peers,
+            replica,
+            server_rx: start_infos.server_rx,
+            server_tx: start_infos.server_tx,
+            session_id: start_infos.session_id,
+        });
+
+        self.session_tx
+            .send(session)
+            .await
+            .map_err(|_| StartError::session_rx_dropped())
     }
 }
 
@@ -83,7 +99,7 @@ impl<B: CollabBackend> Clone for Start<B> {
         Self {
             auth_infos: self.auth_infos.clone(),
             config: self.config.clone(),
-            _session_tx: self._session_tx.clone(),
+            session_tx: self.session_tx.clone(),
         }
     }
 }
@@ -97,7 +113,7 @@ impl<B: CollabBackend> From<&Collab<B>> for Start<B> {
         Self {
             auth_infos: collab.auth_infos.clone(),
             config: collab.config.clone(),
-            _session_tx: collab.session_tx.clone(),
+            session_tx: collab.session_tx.clone(),
         }
     }
 }
@@ -105,6 +121,10 @@ impl<B: CollabBackend> From<&Collab<B>> for Start<B> {
 impl<B: CollabBackend> StartError<B> {
     fn no_buffer_focused() -> Self {
         Self::NoBufferFocused(NoBufferFocusedError(PhantomData))
+    }
+
+    fn session_rx_dropped() -> Self {
+        Self::SessionRxDropped(SessionRxDroppedError(PhantomData))
     }
 
     fn user_not_logged_in() -> Self {
@@ -118,6 +138,7 @@ impl<B: CollabBackend> notify::Error for StartError<B> {
             StartError::NoBufferFocused(err) => err.to_message(),
             StartError::ReadReplica(err) => err.to_message(),
             StartError::SearchProjectRoot(err) => err.to_message(),
+            StartError::SessionRxDropped(err) => err.to_message(),
             StartError::StartSession(err) => err.to_message(),
             StartError::UserNotLoggedIn(err) => err.to_message(),
         }
@@ -125,6 +146,12 @@ impl<B: CollabBackend> notify::Error for StartError<B> {
 }
 
 impl<B> notify::Error for NoBufferFocusedError<B> {
+    default fn to_message(&self) -> (notify::Level, notify::Message) {
+        (notify::Level::Off, notify::Message::new())
+    }
+}
+
+impl<B> notify::Error for SessionRxDroppedError<B> {
     default fn to_message(&self) -> (notify::Level, notify::Message) {
         (notify::Level::Off, notify::Message::new())
     }

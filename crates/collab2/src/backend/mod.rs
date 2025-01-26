@@ -1,7 +1,8 @@
 #[cfg(feature = "neovim")]
 mod neovim;
 
-use collab_server::message::{Message, PeerId};
+use collab_server::SessionId;
+use collab_server::message::{Message, Peer, Peers};
 use eerie::Replica;
 use futures_util::{Sink, Stream};
 use nvimx2::backend::{Backend, Buffer, BufferId};
@@ -110,13 +111,19 @@ pub struct StartArgs<'a> {
 #[allow(dead_code)]
 pub struct StartInfos<B: CollabBackend> {
     /// TODO: docs.
-    pub(crate) peer_id: PeerId,
+    pub(crate) local_peer: Peer,
+
+    /// TODO: docs.
+    pub(crate) remote_peers: Peers,
 
     /// TODO: docs.
     pub(crate) server_tx: B::ServerTx,
 
     /// TODO: docs.
     pub(crate) server_rx: B::ServerRx,
+
+    /// TODO: docs.
+    pub(crate) session_id: SessionId,
 }
 
 #[cfg(feature = "neovim")]
