@@ -106,12 +106,6 @@ impl<B: CollabBackend> From<&Collab<B>> for Yank {
     }
 }
 
-impl<B: CollabBackend> YankError<B> {
-    fn no_active_session() -> Self {
-        Self::NoActiveSession(NoActiveSessionError::new())
-    }
-}
-
 impl<B> NoActiveSessionError<B> {
     pub(crate) fn new() -> Self {
         Self(PhantomData)

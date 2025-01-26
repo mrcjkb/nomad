@@ -5,6 +5,7 @@
 mod backend;
 mod collab;
 mod config;
+mod leave;
 mod session;
 mod sessions;
 mod start;
