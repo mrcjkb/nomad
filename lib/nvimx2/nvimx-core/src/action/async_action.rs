@@ -38,7 +38,7 @@ where
         let mut this = self.clone();
         ctx.spawn_local(async move |ctx| {
             if let Err(err) = this.call(args, ctx).await.into_result() {
-                ctx.emit_error(err);
+                ctx.emit_err(err);
             }
         });
     }

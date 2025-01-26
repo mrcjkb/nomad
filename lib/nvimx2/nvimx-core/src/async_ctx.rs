@@ -17,7 +17,7 @@ pub struct AsyncCtx<'a, B: Backend> {
 impl<B: Backend> AsyncCtx<'_, B> {
     /// TODO: docs.
     #[inline]
-    pub fn emit_error<Err>(&mut self, err: Err) -> NotificationId
+    pub fn emit_err<Err>(&mut self, err: Err) -> NotificationId
     where
         Err: notify::Error,
     {
@@ -50,6 +50,15 @@ impl<B: Backend> AsyncCtx<'_, B> {
             .state
             .with_mut(|mut state| state.background_executor().spawn(fut));
         TaskBackground::new(task)
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn spawn_local<Fut>(&self, fut: Fut)
+    where
+        Fut: AsyncFnOnce(&mut AsyncCtx<B>) + 'static,
+    {
+        self.with_ctx(move |ctx| ctx.spawn_local(fut));
     }
 
     /// TODO: docs.

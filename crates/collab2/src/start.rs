@@ -10,13 +10,13 @@ use nvimx2::{AsyncCtx, Shared};
 use crate::Collab;
 use crate::backend::{CollabBackend, StartArgs};
 use crate::config::Config;
+use crate::session::Session;
 
 /// The [`Action`] used to start a new collaborative editing session.
-#[derive(Clone)]
-pub struct Start {
+pub struct Start<B: CollabBackend> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
-    _session_tx: Sender<()>,
+    _session_tx: Sender<Session<B>>,
 }
 
 /// The type of error that can occur when [`Start`]ing a new session fails.
@@ -31,7 +31,7 @@ pub enum StartError<B: CollabBackend> {
 pub struct NoBufferFocusedError<B>(PhantomData<B>);
 pub struct UserNotLoggedInError<B>(PhantomData<B>);
 
-impl<B: CollabBackend> AsyncAction<B> for Start {
+impl<B: CollabBackend> AsyncAction<B> for Start<B> {
     const NAME: Name = "start";
 
     type Args = ();
@@ -78,12 +78,22 @@ impl<B: CollabBackend> AsyncAction<B> for Start {
     }
 }
 
-impl<B: CollabBackend> ToCompletionFn<B> for Start {
+impl<B: CollabBackend> Clone for Start<B> {
+    fn clone(&self) -> Self {
+        Self {
+            auth_infos: self.auth_infos.clone(),
+            config: self.config.clone(),
+            _session_tx: self._session_tx.clone(),
+        }
+    }
+}
+
+impl<B: CollabBackend> ToCompletionFn<B> for Start<B> {
     fn to_completion_fn(&self) {}
 }
 
-impl From<&Collab> for Start {
-    fn from(collab: &Collab) -> Self {
+impl<B: CollabBackend> From<&Collab<B>> for Start<B> {
+    fn from(collab: &Collab<B>) -> Self {
         Self {
             auth_infos: collab.auth_infos.clone(),
             config: collab.config.clone(),

@@ -53,7 +53,7 @@ impl<B: CollabBackend> Session<B> {
         Self { _args: args }
     }
 
-    pub(crate) fn run(
+    pub(crate) async fn run(
         self,
         _ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), RunSessionError<B>> {

@@ -8,24 +8,25 @@ use nvimx2::{NeovimCtx, Shared};
 
 use crate::CollabBackend;
 use crate::config::Config;
+use crate::session::Session;
 use crate::start::Start;
 
 /// TODO: docs.
-pub struct Collab {
+pub struct Collab<B: CollabBackend> {
     pub(crate) auth_infos: Shared<Option<AuthInfos>>,
     pub(crate) config: Shared<Config>,
-    pub(crate) session_tx: Sender<()>,
-    session_rx: Cell<Option<Receiver<()>>>,
+    pub(crate) session_tx: Sender<Session<B>>,
+    session_rx: Cell<Option<Receiver<Session<B>>>>,
 }
 
-impl Collab {
+impl<B: CollabBackend> Collab<B> {
     /// Returns a new instance of the [`Start`] action.
-    pub fn start(&self) -> Start {
+    pub fn start(&self) -> Start<B> {
         self.into()
     }
 }
 
-impl<B: CollabBackend> Module<B> for Collab {
+impl<B: CollabBackend> Module<B> for Collab<B> {
     const NAME: Name = "collab";
 
     type Config = Config;
@@ -40,11 +41,15 @@ impl<B: CollabBackend> Module<B> for Collab {
             .replace(None)
             .expect("`Module::on_init()` is only called once");
 
-        ctx.spawn_local(
-            async move |_ctx| {
-                while let Ok(()) = session_rx.recv().await {}
-            },
-        );
+        ctx.spawn_local(async move |ctx| {
+            while let Ok(session) = session_rx.recv().await {
+                ctx.spawn_local(async move |ctx| {
+                    if let Err(err) = session.run(ctx).await {
+                        ctx.emit_err(err);
+                    }
+                });
+            }
+        });
     }
 
     fn on_new_config(&self, new_config: Self::Config, _: &mut NeovimCtx<B>) {
@@ -52,7 +57,7 @@ impl<B: CollabBackend> Module<B> for Collab {
     }
 }
 
-impl From<&auth::Auth> for Collab {
+impl<B: CollabBackend> From<&auth::Auth> for Collab<B> {
     fn from(auth: &auth::Auth) -> Self {
         let (session_tx, session_rx) = async_channel::bounded(1);
         Self {
