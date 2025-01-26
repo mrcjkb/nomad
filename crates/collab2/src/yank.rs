@@ -94,16 +94,16 @@ pub enum YankError<B: CollabBackend> {
 
 pub struct NoActiveSessionError<B>(PhantomData<B>);
 
-impl<B: CollabBackend> ToCompletionFn<B> for Yank {
-    fn to_completion_fn(&self) {}
-}
-
 impl<B: CollabBackend> From<&Collab<B>> for Yank {
     fn from(collab: &Collab<B>) -> Self {
         Self {
             session_selector: SessionSelector::new(collab.sessions.clone()),
         }
     }
+}
+
+impl<B: CollabBackend> ToCompletionFn<B> for Yank {
+    fn to_completion_fn(&self) {}
 }
 
 impl<B> NoActiveSessionError<B> {

@@ -118,10 +118,6 @@ impl<B: CollabBackend> Clone for Start<B> {
     }
 }
 
-impl<B: CollabBackend> ToCompletionFn<B> for Start<B> {
-    fn to_completion_fn(&self) {}
-}
-
 impl<B: CollabBackend> From<&Collab<B>> for Start<B> {
     fn from(collab: &Collab<B>) -> Self {
         Self {
@@ -132,6 +128,10 @@ impl<B: CollabBackend> From<&Collab<B>> for Start<B> {
             stop_channels: collab.stop_channels.clone(),
         }
     }
+}
+
+impl<B: CollabBackend> ToCompletionFn<B> for Start<B> {
+    fn to_completion_fn(&self) {}
 }
 
 impl<B: CollabBackend> StartError<B> {
