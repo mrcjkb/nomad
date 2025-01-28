@@ -73,10 +73,10 @@ pub trait WalkDir: Sized {
                                 });
                             },
                         };
-                        let dir_path = dir_path.clone();
-                        let handler = handler.clone();
+                        let dir_path = &dir_path;
+                        let handler = &handler;
                         handle_entries.push(async move {
-                            handler(&dir_path, &entry).await;
+                            handler(dir_path, &entry).await;
                             entry
                         });
                     },
@@ -117,17 +117,25 @@ pub trait WalkDir: Sized {
     fn paths(
         &self,
         dir_path: fs::AbsPathBuf,
-    ) -> impl Stream<Item = Result<fs::AbsPathBuf, PathsError<Self>>> {
+    ) -> impl Stream<Item = Result<fs::AbsPathBuf, WalkError<Self>>> {
         self.to_stream(dir_path, async |parent_path, entry| {
-            let entry_name = entry.name().await?;
             let mut path = parent_path.to_owned();
+            let entry_name = match entry.name().await {
+                Ok(name) => name,
+                Err(err) => {
+                    return Err(WalkError {
+                        dir_path: parent_path.to_owned(),
+                        kind: WalkErrorKind::DirEntryName(err),
+                    });
+                },
+            };
             path.push(entry_name);
             Ok(path)
         })
         .map(|res| match res {
             Ok(Ok(path)) => Ok(path),
-            Ok(Err(err)) => Err(PathsError::DirEntryName(err)),
-            Err(err) => Err(PathsError::Walk(err)),
+            Ok(Err(err)) => Err(err),
+            Err(err) => Err(err),
         })
     }
 
@@ -167,15 +175,6 @@ pub trait WalkDir: Sized {
             },
         )
     }
-}
-
-/// TODO: docs.
-pub enum PathsError<W: WalkDir> {
-    /// TODO: docs.
-    Walk(WalkError<W>),
-
-    /// TODO: docs.
-    DirEntryName(<W::DirEntry as fs::DirEntry>::NameError),
 }
 
 /// TODO: docs.
