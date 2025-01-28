@@ -20,12 +20,12 @@ impl<B: Backend> AsyncAction<B> for Login {
     async fn call(&mut self, _: Self::Args, _: &mut AsyncCtx<'_, B>) {}
 }
 
-impl<B: Backend> ToCompletionFn<B> for Login {
-    fn to_completion_fn(&self) {}
-}
-
 impl From<&Auth> for Login {
     fn from(auth: &Auth) -> Self {
         Self { _infos: auth.infos().clone() }
     }
+}
+
+impl<B: Backend> ToCompletionFn<B> for Login {
+    fn to_completion_fn(&self) {}
 }

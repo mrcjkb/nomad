@@ -25,4 +25,15 @@ where
     W: WalkDir<Fs>,
     Fs: fs::Fs,
 {
+    type DirEntry = W::DirEntry;
+    type ReadDir = W::ReadDir;
+    type DirEntryError = W::DirEntryError;
+    type ReadDirError = W::ReadDirError;
+
+    async fn read_dir(
+        &self,
+        _path: &fs::AbsPath,
+    ) -> Result<Self::ReadDir, Self::ReadDirError> {
+        todo!()
+    }
 }

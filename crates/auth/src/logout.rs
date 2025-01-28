@@ -22,12 +22,12 @@ impl<B: Backend> AsyncAction<B> for Logout {
     }
 }
 
-impl<B: Backend> ToCompletionFn<B> for Logout {
-    fn to_completion_fn(&self) {}
-}
-
 impl From<&Auth> for Logout {
     fn from(auth: &Auth) -> Self {
         Self { infos: auth.infos().clone() }
     }
+}
+
+impl<B: Backend> ToCompletionFn<B> for Logout {
+    fn to_completion_fn(&self) {}
 }
