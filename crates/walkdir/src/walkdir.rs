@@ -87,15 +87,15 @@ pub trait WalkDir: Sized {
                             },
                         };
                         let dir_path = dir_path.clone();
-                        let also_handler = handler.clone();
+                        let handler = handler.clone();
                         handle_entries.push(async move {
-                            also_handler(&dir_path, &entry).await;
+                            handler(&dir_path, &entry).await;
                             entry
                         });
                     },
                     entry = handle_entries.select_next_some() => {
                         let mut dir_path = dir_path.clone();
-                        let also_handler = handler.clone();
+                        let handler = handler.clone();
                         read_children.push(async move {
                             let entry_kind = match entry.node_kind().await {
                                 Ok(kind) => kind,
@@ -109,10 +109,10 @@ pub trait WalkDir: Sized {
                                 Err(_err) => todo!(),
                             };
                             dir_path.push(entry_name);
-                            self.for_each(dir_path, also_handler).await
+                            self.for_each(dir_path, handler).await
                         });
                     },
-                    _res = read_children.select_next_some() => (),
+                    res = read_children.select_next_some() => res?,
                 }
             }
         }
