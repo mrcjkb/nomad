@@ -1,5 +1,5 @@
-use futures_util::select;
 use futures_util::stream::{self, FuturesUnordered, Stream, StreamExt};
+use futures_util::{FutureExt, pin_mut, select};
 use nvimx2::fs;
 
 use crate::WalkDir;
@@ -15,12 +15,33 @@ pub trait Filter<W: WalkDir> {
         dir_path: &fs::AbsPath,
         dir_entry: &W::DirEntry,
     ) -> impl Future<Output = Result<bool, Self::Error>>;
+
+    /// TODO: docs.
+    fn and<T>(self, other: T) -> And<Self, T>
+    where
+        T: Filter<W>,
+        Self: Sized,
+    {
+        And { filter_1: self, filter_2: other }
+    }
 }
 
 /// TODO: docs.
 pub struct Filtered<F, W> {
     filter: F,
     walker: W,
+}
+
+/// TODO: docs.
+pub struct And<F1, F2> {
+    filter_1: F1,
+    filter_2: F2,
+}
+
+/// TODO: docs.
+pub enum Either<L, R> {
+    Left(L),
+    Right(R),
 }
 
 /// TODO: docs.
@@ -131,5 +152,41 @@ where
         dir_entry: &<W as WalkDir>::DirEntry,
     ) -> Result<bool, Self::Error> {
         self(dir_path, dir_entry).await
+    }
+}
+
+impl<F1, F2, W> Filter<W> for And<F1, F2>
+where
+    F1: Filter<W>,
+    F2: Filter<W>,
+    W: WalkDir,
+{
+    type Error = Either<F1::Error, F2::Error>;
+
+    async fn should_filter(
+        &self,
+        dir_path: &fs::AbsPath,
+        dir_entry: &W::DirEntry,
+    ) -> Result<bool, Self::Error> {
+        let filter_1 = self.filter_1.should_filter(dir_path, dir_entry).fuse();
+        let filter_2 = self.filter_2.should_filter(dir_path, dir_entry).fuse();
+        pin_mut!(filter_1);
+        pin_mut!(filter_2);
+
+        loop {
+            select! {
+                res = filter_1 => {
+                    if res.map_err(Either::Left)? {
+                        return Ok(true);
+                    }
+                },
+                res = filter_2 => {
+                    if res.map_err(Either::Right)? {
+                        return Ok(true);
+                    }
+                },
+                complete => return Ok(false),
+            }
+        }
     }
 }
