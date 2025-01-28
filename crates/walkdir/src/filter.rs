@@ -1,4 +1,4 @@
-use futures_util::stream::{self, FuturesUnordered, Stream, StreamExt};
+use futures_util::stream::{self, Stream, StreamExt};
 use futures_util::{FutureExt, pin_mut, select};
 use nvimx2::fs;
 
@@ -82,7 +82,7 @@ where
         Self::ReadDirError,
     > {
         let entries = self.walker.read_dir(dir_path).await?.fuse();
-        let filters = FuturesUnordered::new();
+        let filters = stream::FuturesUnordered::new();
         Ok(stream::unfold(
             (Box::pin(entries), filters),
             move |(mut entries, mut filters)| async move {

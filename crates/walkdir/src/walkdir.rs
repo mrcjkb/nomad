@@ -4,7 +4,6 @@ use futures_util::stream::{self, Stream, StreamExt};
 use futures_util::{FutureExt, pin_mut, select};
 use nvimx2::fs::{self, DirEntry};
 
-use crate::accumulate::{self, AccumulateError, Accumulator};
 use crate::filter::{Filter, Filtered};
 
 /// TODO: docs.
@@ -28,20 +27,6 @@ pub trait WalkDir: Sized {
             Self::ReadDirError,
         >,
     >;
-
-    /// TODO: docs.
-    #[inline]
-    fn accumulate<A, Fs>(
-        &self,
-        acc: &mut A,
-        fs: &mut Fs,
-    ) -> impl Future<Output = Result<Fs::Timestamp, AccumulateError<A, Self, Fs>>>
-    where
-        A: Accumulator<Fs>,
-        Fs: fs::Fs,
-    {
-        async move { accumulate::accumulate(self, acc, fs).await }
-    }
 
     /// TODO: docs.
     #[inline]
