@@ -2,8 +2,9 @@ use core::pin::Pin;
 
 use futures_util::stream::{self, Stream, StreamExt};
 use futures_util::{FutureExt, pin_mut, select};
-use nvimx2::fs::{self, DirEntry};
+use nvimx2::fs;
 
+use crate::dir_entry::DirEntry;
 use crate::filter::{Filter, Filtered};
 
 /// TODO: docs.
@@ -38,7 +39,6 @@ pub trait WalkDir: Sized {
     }
 
     /// TODO: docs.
-    #[allow(clippy::too_many_lines)]
     #[inline]
     fn for_each<'a, H>(
         &'a self,
@@ -46,9 +46,9 @@ pub trait WalkDir: Sized {
         handler: H,
     ) -> Pin<Box<dyn Future<Output = Result<(), WalkError<Self>>> + 'a>>
     where
-        H: AsyncFn(&fs::AbsPath, &Self::DirEntry) + Clone + 'a,
+        H: AsyncFn(&fs::AbsPath, DirEntry<Self>) + Clone + 'a,
     {
-        async move {
+        Box::pin(async move {
             let entries = match self.read_dir(&dir_path).await {
                 Ok(entries) => entries.fuse(),
                 Err(err) => {
@@ -58,58 +58,37 @@ pub trait WalkDir: Sized {
                     });
                 },
             };
+            let mut create_entries = stream::FuturesUnordered::new();
             let mut handle_entries = stream::FuturesUnordered::new();
             let mut read_children = stream::FuturesUnordered::new();
             pin_mut!(entries);
             loop {
                 select! {
                     res = entries.select_next_some() => {
-                        let entry = match res {
-                            Ok(entry) => entry,
-                            Err(err) => {
-                                return Err(WalkError {
-                                    dir_path: dir_path.clone(),
-                                    kind: WalkErrorKind::DirEntry(err),
-                                });
-                            },
-                        };
-                        let dir_path = &dir_path;
-                        let handler = &handler;
-                        handle_entries.push(async move {
-                            handler(dir_path, &entry).await;
-                            entry
-                        });
+                        let entry = res.map_err(|err| WalkError {
+                            dir_path: dir_path.clone(),
+                            kind: WalkErrorKind::DirEntry(err),
+                        })?;
+                        create_entries.push(DirEntry::new(entry));
                     },
-                    entry = handle_entries.select_next_some() => {
-                        let mut dir_path = dir_path.clone();
-                        let handler = handler.clone();
-                        read_children.push(async move {
-                            let entry_kind = match entry.node_kind().await {
-                                Ok(kind) => kind,
-                                Err(err) => return Err(WalkError {
-                                    dir_path,
-                                    kind: WalkErrorKind::DirEntryNodeKind(err),
-                                }),
-                            };
-                            if !entry_kind.is_dir() {
-                                return Ok(());
-                            }
-                            let entry_name = match entry.name().await {
-                                Ok(name) => name,
-                                Err(err) => return Err(WalkError {
-                                    dir_path,
-                                    kind: WalkErrorKind::DirEntryName(err),
-                                }),
-                            };
-                            dir_path.push(entry_name);
-                            self.for_each(dir_path, handler).await
-                        });
+                    res = create_entries.select_next_some() => {
+                        let entry = res.map_err(|kind| WalkError {
+                            dir_path: dir_path.clone(),
+                            kind,
+                        })?;
+                        if entry.node_kind().is_dir() {
+                            let mut dir_path = dir_path.clone();
+                            dir_path.push(entry.name());
+                            let handler = handler.clone();
+                            read_children.push(self.for_each(dir_path, handler));
+                        }
+                        handle_entries.push(handler(&dir_path, entry));
                     },
+                    () = handle_entries.select_next_some() => (),
                     res = read_children.select_next_some() => res?,
                 }
             }
-        }
-        .boxed_local()
+        })
     }
 
     /// TODO: docs.
@@ -120,22 +99,8 @@ pub trait WalkDir: Sized {
     ) -> impl Stream<Item = Result<fs::AbsPathBuf, WalkError<Self>>> {
         self.to_stream(dir_path, async |parent_path, entry| {
             let mut path = parent_path.to_owned();
-            let entry_name = match entry.name().await {
-                Ok(name) => name,
-                Err(err) => {
-                    return Err(WalkError {
-                        dir_path: parent_path.to_owned(),
-                        kind: WalkErrorKind::DirEntryName(err),
-                    });
-                },
-            };
-            path.push(entry_name);
-            Ok(path)
-        })
-        .map(|res| match res {
-            Ok(Ok(path)) => Ok(path),
-            Ok(Err(err)) => Err(err),
-            Err(err) => Err(err),
+            path.push(entry.name());
+            path
         })
     }
 
@@ -147,7 +112,7 @@ pub trait WalkDir: Sized {
         handler: H,
     ) -> impl Stream<Item = Result<T, WalkError<Self>>> + 'a
     where
-        H: AsyncFn(&fs::AbsPath, &Self::DirEntry) -> T + Clone + 'a,
+        H: AsyncFn(&fs::AbsPath, DirEntry<Self>) -> T + Clone + 'a,
         T: 'a,
     {
         let (tx, rx) = flume::unbounded();
@@ -192,10 +157,10 @@ pub enum WalkErrorKind<W: WalkDir> {
     DirEntry(W::DirEntryError),
 
     /// TODO: docs.
-    DirEntryName(<W::DirEntry as DirEntry>::NameError),
+    DirEntryName(<W::DirEntry as fs::DirEntry>::NameError),
 
     /// TODO: docs.
-    DirEntryNodeKind(<W::DirEntry as DirEntry>::NodeKindError),
+    DirEntryNodeKind(<W::DirEntry as fs::DirEntry>::NodeKindError),
 
     /// TODO: docs.
     ReadDir(W::ReadDirError),

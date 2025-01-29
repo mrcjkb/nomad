@@ -1,5 +1,4 @@
 use core::convert::Infallible;
-use core::ops::{Deref, DerefMut};
 use std::borrow::Cow;
 
 use nvimx2::fs::{self, FsNodeKind, FsNodeName, FsNodeNameBuf};
@@ -14,6 +13,16 @@ pub struct DirEntry<W: WalkDir> {
 }
 
 impl<W: WalkDir> DirEntry<W> {
+    /// TODO: docs.
+    pub fn inner(&self) -> &W::DirEntry {
+        &self.inner
+    }
+
+    /// TODO: docs.
+    pub fn inner_mut(&mut self) -> &mut W::DirEntry {
+        &mut self.inner
+    }
+
     /// TODO: docs.
     pub fn into_inner(self) -> W::DirEntry {
         self.inner
@@ -46,20 +55,6 @@ impl<W: WalkDir> DirEntry<W> {
             .map(Cow::into_owned)
             .map_err(WalkErrorKind::DirEntryName)?;
         Ok(Self { inner, name, node_kind })
-    }
-}
-
-impl<W: WalkDir> Deref for DirEntry<W> {
-    type Target = W::DirEntry;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<W: WalkDir> DerefMut for DirEntry<W> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
     }
 }
 
