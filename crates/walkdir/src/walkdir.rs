@@ -1,3 +1,4 @@
+use core::convert::Infallible;
 use core::pin::Pin;
 
 use futures_util::stream::{self, Stream, StreamExt};
@@ -5,7 +6,7 @@ use futures_util::{FutureExt, pin_mut, select};
 use nvimx2::fs;
 
 use crate::dir_entry::DirEntry;
-use crate::filter::{Filter, Filtered};
+use crate::filter::{Either, Filter, Filtered};
 
 /// TODO: docs.
 pub trait WalkDir: Sized {
@@ -40,21 +41,22 @@ pub trait WalkDir: Sized {
 
     /// TODO: docs.
     #[inline]
-    fn for_each<'a, H>(
+    fn for_each<'a, H, E>(
         &'a self,
         dir_path: &'a fs::AbsPath,
         handler: H,
-    ) -> Pin<Box<dyn Future<Output = Result<(), WalkError<Self>>> + 'a>>
+    ) -> Pin<Box<dyn Future<Output = Result<(), ForEachError<Self, E>>> + 'a>>
     where
-        H: AsyncFn(DirEntry<Self>) + Clone + 'a,
+        H: AsyncFn(DirEntry<Self>) -> Result<(), E> + Clone + 'a,
+        E: 'a,
     {
         Box::pin(async move {
             let entries = match self.read_dir(dir_path).await {
                 Ok(entries) => entries.fuse(),
                 Err(err) => {
-                    return Err(WalkError {
+                    return Err(ForEachError {
                         dir_path: dir_path.to_owned(),
-                        kind: WalkErrorKind::ReadDir(err),
+                        kind: Either::Left(WalkErrorKind::ReadDir(err)),
                     });
                 },
             };
@@ -65,16 +67,16 @@ pub trait WalkDir: Sized {
             loop {
                 select! {
                     res = entries.select_next_some() => {
-                        let entry = res.map_err(|err| WalkError {
+                        let entry = res.map_err(|err| ForEachError {
                             dir_path: dir_path.to_owned(),
-                            kind: WalkErrorKind::DirEntry(err),
+                            kind: Either::Left(WalkErrorKind::DirEntry(err)),
                         })?;
                         create_entries.push(DirEntry::new(dir_path, entry));
                     },
                     res = create_entries.select_next_some() => {
-                        let entry = res.map_err(|kind| WalkError {
+                        let entry = res.map_err(|kind| ForEachError {
                             dir_path: dir_path.to_owned(),
-                            kind,
+                            kind: Either::Left(kind),
                         })?;
                         if entry.node_kind().is_dir() {
                             let dir_path = entry.path();
@@ -83,10 +85,19 @@ pub trait WalkDir: Sized {
                                 self.for_each(&dir_path, handler).await
                             });
                         }
-                        handle_entries.push(handler(entry));
+                        let handler = &handler;
+                        handle_entries.push(async move {
+                            let parent_path = entry.parent_path();
+                            handler(entry).await.map_err(|err| {
+                                ForEachError {
+                                    dir_path: parent_path.to_owned(),
+                                    kind: Either::Right(err),
+                                }
+                            })
+                        });
                     },
-                    () = handle_entries.select_next_some() => (),
                     res = read_children.select_next_some() => res?,
+                    res = handle_entries.select_next_some() => res?,
                     complete => return Ok(()),
                 }
             }
@@ -98,25 +109,39 @@ pub trait WalkDir: Sized {
     fn paths<'a>(
         &'a self,
         dir_path: &'a fs::AbsPath,
-    ) -> impl Stream<Item = Result<fs::AbsPathBuf, WalkError<Self>>> + 'a {
-        self.to_stream(dir_path, async |entry| entry.path())
+    ) -> impl Stream<Item = Result<fs::AbsPathBuf, PathsError<Self>>> + 'a
+    {
+        self.to_stream(dir_path, async |entry| {
+            Ok::<_, Infallible>(entry.path())
+        })
+        .map(|res| {
+            res.map_err(|err| {
+                let kind = match err.kind {
+                    Either::Left(res) => res,
+                    Either::Right(_infallible) => unreachable!(),
+                };
+                WalkError { dir_path: err.dir_path, kind }
+            })
+        })
     }
 
     /// TODO: docs.
     #[inline]
-    fn to_stream<'a, H, T>(
+    fn to_stream<'a, H, T, E>(
         &'a self,
         dir_path: &'a fs::AbsPath,
         handler: H,
-    ) -> impl Stream<Item = Result<T, WalkError<Self>>> + 'a
+    ) -> impl Stream<Item = Result<T, ForEachError<Self, E>>> + 'a
     where
-        H: AsyncFn(DirEntry<Self>) -> T + Clone + 'a,
+        H: AsyncFn(DirEntry<Self>) -> Result<T, E> + Clone + 'a,
         T: 'a,
+        E: 'a,
     {
         let (tx, rx) = flume::unbounded();
         let for_each = self
             .for_each(dir_path, async move |entry| {
-                let _ = tx.send(handler(entry).await);
+                let _ = tx.send(handler(entry).await?);
+                Ok(())
             })
             .boxed_local()
             .fuse();
@@ -129,7 +154,7 @@ pub trait WalkDir: Sized {
                         Err(err) => Err(err),
                     },
                     res = rx.recv_async() => match res {
-                        Ok(payload) => Ok(payload),
+                        Ok(value) => Ok(value),
                         Err(_err) => return None,
                     },
                 };
@@ -140,12 +165,18 @@ pub trait WalkDir: Sized {
 }
 
 /// TODO: docs.
-pub struct WalkError<W: WalkDir> {
+pub type ForEachError<W, E> = WalkError<Either<WalkErrorKind<W>, E>>;
+
+/// TODO: docs.
+pub type PathsError<W> = WalkError<WalkErrorKind<W>>;
+
+/// TODO: docs.
+pub struct WalkError<K> {
     /// TODO: docs.
     pub dir_path: fs::AbsPathBuf,
 
     /// TODO: docs.
-    pub kind: WalkErrorKind<W>,
+    pub kind: K,
 }
 
 /// TODO: docs.
