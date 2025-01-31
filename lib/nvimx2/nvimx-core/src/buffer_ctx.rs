@@ -4,11 +4,10 @@ use crate::backend::{Backend, Buffer, BufferId};
 
 /// TODO: docs.
 pub struct BufferCtx<'a, B: Backend> {
-    inner: B::Buffer,
-    _non_static: core::marker::PhantomData<&'a ()>,
+    inner: B::Buffer<'a>,
 }
 
-impl<B: Backend> BufferCtx<'_, B> {
+impl<'a, B: Backend> BufferCtx<'a, B> {
     /// TODO: docs.
     #[inline]
     pub fn id(&self) -> BufferId<B> {
@@ -22,7 +21,7 @@ impl<B: Backend> BufferCtx<'_, B> {
     }
 
     #[inline]
-    pub(crate) fn new(inner: B::Buffer) -> Self {
-        Self { inner, _non_static: core::marker::PhantomData }
+    pub(crate) fn new(inner: B::Buffer<'a>) -> Self {
+        Self { inner }
     }
 }

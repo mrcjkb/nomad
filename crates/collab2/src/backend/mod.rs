@@ -14,8 +14,11 @@ use crate::config;
 /// A [`Backend`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
 pub trait CollabBackend:
-    Backend<Buffer: CollabBuffer<Self>, Fs: CollabFs>
+    for<'a> Backend<Buffer<'a>: CollabBuffer<Self>, Fs: CollabFs>
 {
+    /// The type of error returned by [`lsp_root`](CollabBuffer::lsp_root).
+    type BufferLspRootError;
+
     /// The type of error returned by
     /// [`paste_session_id`](CollabBackend::paste_session_id).
     type PasteSessionIdError: notify::Error;
@@ -89,16 +92,13 @@ pub trait CollabBackend:
 /// A [`Buffer`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
 pub trait CollabBuffer<B: CollabBackend>: Buffer<B> {
-    /// The type of error returned by [`lsp_root`](CollabBuffer::lsp_root).
-    type LspRootError;
-
     /// Returns the path to the root of the workspace containing the buffer
     /// with the given ID, or `None` if there's no language server attached to
     /// it.
     fn lsp_root(
         buffer_id: BufferId<B>,
         ctx: &mut AsyncCtx<'_, B>,
-    ) -> Result<Option<AbsPathBuf>, Self::LspRootError>;
+    ) -> Result<Option<AbsPathBuf>, B::BufferLspRootError>;
 }
 
 /// A [`Fs`](fs::Fs) subtrait defining additional capabilities needed by the
@@ -201,7 +201,23 @@ mod default_read_replica {
             }
             Ok(builder)
         };
-        res.await.map(ReplicaBuilder::build).map_err(Error::Walk)
+
+        let mut builder = res.await.map_err(Error::Walk)?;
+
+        // Update the lengths of the open buffers.
+        //
+        // FIXME: what if a buffer was edited and already closed.
+        ctx.with_ctx(|ctx| {
+            let mut buffers = ctx.buffers();
+            while let Some(mut buffer) = buffers.next() {
+                let Some(mut file) = builder.file_mut(buffer.name()) else {
+                    continue;
+                };
+                file.set_len(buffer.byte_len().into());
+            }
+        });
+
+        Ok(builder.build())
     }
 
     pub(super) enum Error<B: CollabBackend> {
@@ -271,7 +287,7 @@ mod default_search_project_root {
         FindRoot(root_markers::FindRootError<B::Fs, Markers>),
         HomeDir(<B::Fs as CollabFs>::HomeDirError),
         InvalidBufId(BufferId<B>),
-        Lsp(<B::Buffer as CollabBuffer<B>>::LspRootError),
+        Lsp(B::BufferLspRootError),
     }
 }
 

@@ -59,6 +59,14 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
 
     /// TODO: docs.
     #[inline]
+    pub fn for_each_buffer(&mut self, mut fun: impl FnMut(BufferCtx<'_, B>)) {
+        self.backend_mut().for_each_buffer(|buf| {
+            fun(BufferCtx::new(buf));
+        })
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn fs(&mut self) -> B::Fs {
         self.backend_mut().fs()
     }

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
 
-use nvimx_core::backend::Buffer;
+use nvimx_core::backend::{Buffer, BufferId};
 
 use crate::Neovim;
 
@@ -33,21 +33,19 @@ impl NeovimBuffer {
     }
 
     #[inline]
-    fn inner(&self) -> crate::oxi::api::Buffer {
-        self.handle().into()
+    pub(crate) fn new(inner: crate::oxi::api::Buffer) -> Self {
+        Self(inner.handle())
     }
 
     #[inline]
-    fn new(inner: crate::oxi::api::Buffer) -> Self {
-        Self(inner.handle())
+    fn inner(&self) -> crate::oxi::api::Buffer {
+        self.handle().into()
     }
 }
 
 impl Buffer<Neovim> for NeovimBuffer {
-    type Id = Self;
-
     #[inline]
-    fn id(&self) -> Self::Id {
+    fn id(&self) -> BufferId<Neovim> {
         *self
     }
 

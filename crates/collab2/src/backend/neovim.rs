@@ -65,6 +65,7 @@ struct TildePath<'a> {
 }
 
 impl CollabBackend for Neovim {
+    type BufferLspRootError = String;
     type PasteSessionIdError = NeovimPasteSessionIdError;
     type ReadReplicaError = NeovimReadReplicaError;
     type SearchProjectRootError = NeovimSearchProjectRootError;
@@ -210,12 +211,10 @@ impl CollabBackend for Neovim {
 }
 
 impl CollabBuffer<Neovim> for NeovimBuffer {
-    type LspRootError = String;
-
     fn lsp_root(
         buffer: NeovimBuffer,
         _: &mut AsyncCtx<'_, Neovim>,
-    ) -> Result<Option<AbsPathBuf>, Self::LspRootError> {
+    ) -> Result<Option<AbsPathBuf>, String> {
         /// Returns the root directory of the first language server
         /// attached to the given buffer, if any.
         fn inner(buffer: NeovimBuffer) -> Option<String> {

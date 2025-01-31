@@ -5,10 +5,7 @@ use crate::backend::Backend;
 /// TODO: docs.
 pub trait Buffer<B: Backend> {
     /// TODO: docs.
-    type Id: Clone;
-
-    /// TODO: docs.
-    fn id(&self) -> Self::Id;
+    fn id(&self) -> B::BufferId;
 
     /// TODO: docs.
     fn name(&self) -> Cow<'_, str>;

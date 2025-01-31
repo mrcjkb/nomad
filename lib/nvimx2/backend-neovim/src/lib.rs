@@ -1,5 +1,7 @@
 //! TODO: docs.
 
+#![feature(precise_capturing_in_traits)]
+
 pub mod api;
 mod background_executor;
 mod buffer;

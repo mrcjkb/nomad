@@ -4,7 +4,16 @@ use nvimx_core::module::Module;
 use nvimx_core::notify::Namespace;
 use nvimx_core::plugin::Plugin;
 
-use crate::{NeovimBuffer, NeovimFs, api, executor, notify, serde, value};
+use crate::{
+    NeovimBuffer,
+    NeovimFs,
+    api,
+    executor,
+    notify,
+    oxi,
+    serde,
+    value,
+};
 
 /// TODO: docs.
 pub struct Neovim {
@@ -15,7 +24,8 @@ pub struct Neovim {
 
 impl Backend for Neovim {
     type Api = api::NeovimApi;
-    type Buffer = NeovimBuffer;
+    type Buffer<'a> = NeovimBuffer;
+    type BufferId = NeovimBuffer;
     type Fs = NeovimFs;
     type LocalExecutor = executor::NeovimLocalExecutor;
     type BackgroundExecutor = executor::NeovimBackgroundExecutor;
@@ -38,8 +48,13 @@ impl Backend for Neovim {
     }
 
     #[inline]
-    fn buffer(&mut self, buf: NeovimBuffer) -> Option<Self::Buffer> {
+    fn buffer(&mut self, buf: NeovimBuffer) -> Option<Self::Buffer<'_>> {
         buf.exists().then_some(buf)
+    }
+
+    #[inline]
+    fn buffer_ids(&mut self) -> impl Iterator<Item = NeovimBuffer> + use<> {
+        oxi::api::list_bufs().map(NeovimBuffer::new)
     }
 
     #[inline]
@@ -48,7 +63,7 @@ impl Backend for Neovim {
     }
 
     #[inline]
-    fn current_buffer(&mut self) -> Option<Self::Buffer> {
+    fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
         Some(NeovimBuffer::current())
     }
 

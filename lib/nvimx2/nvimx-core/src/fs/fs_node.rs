@@ -3,7 +3,7 @@ use crate::fs::{self, AbsPath, FsNodeKind};
 /// TODO: docs.
 pub enum FsNode<Fs, Path>
 where
-    Fs: fs::Fs + ?Sized,
+    Fs: fs::Fs,
     Path: AsRef<AbsPath>,
 {
     /// TODO: docs.
@@ -15,7 +15,7 @@ where
 
 impl<Fs, Path> FsNode<Fs, Path>
 where
-    Fs: fs::Fs + ?Sized,
+    Fs: fs::Fs,
     Path: AsRef<AbsPath>,
 {
     /// TODO: docs.

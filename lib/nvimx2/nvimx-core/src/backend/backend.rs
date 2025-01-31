@@ -25,7 +25,10 @@ pub trait Backend: 'static + Sized {
     type Api: Api<Self>;
 
     /// TODO: docs.
-    type Buffer: Buffer<Self>;
+    type Buffer<'a>: Buffer<Self>;
+
+    /// TODO: docs.
+    type BufferId: Clone;
 
     /// TODO: docs.
     type LocalExecutor: LocalExecutor;
@@ -52,10 +55,15 @@ pub trait Backend: 'static + Sized {
     fn init() -> Self;
 
     /// TODO: docs.
-    fn buffer(&mut self, id: BufferId<Self>) -> Option<Self::Buffer>;
+    fn buffer(&mut self, id: BufferId<Self>) -> Option<Self::Buffer<'_>>;
 
     /// TODO: docs.
-    fn current_buffer(&mut self) -> Option<Self::Buffer>;
+    fn buffer_ids(
+        &mut self,
+    ) -> impl Iterator<Item = BufferId<Self>> + use<Self>;
+
+    /// TODO: docs.
+    fn current_buffer(&mut self) -> Option<Self::Buffer<'_>>;
 
     /// TODO: docs.
     fn fs(&mut self) -> Self::Fs;
@@ -84,6 +92,16 @@ pub trait Backend: 'static + Sized {
     ) -> impl MaybeResult<T, Error = Self::DeserializeError>
     where
         T: Deserialize<'de>;
+
+    /// TODO: docs.
+    #[inline]
+    fn for_each_buffer<Fun>(&mut self, mut fun: Fun)
+    where
+        Fun: FnMut(Self::Buffer<'_>),
+    {
+        self.buffer_ids()
+            .for_each(|id| fun(self.buffer(id).expect("buffer exists")))
+    }
 
     /// TODO: docs.
     #[allow(unused_variables)]
