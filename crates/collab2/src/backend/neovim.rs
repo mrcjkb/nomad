@@ -19,7 +19,9 @@ use crate::backend::*;
 
 pub struct NeovimPasteSessionIdError {}
 
-pub struct NeovimReadReplicaError {}
+pub struct NeovimReadReplicaError {
+    inner: default_read_replica::Error<Neovim>,
+}
 
 pin_project_lite::pin_project! {
     pub struct NeovimServerTx {
@@ -111,11 +113,17 @@ impl CollabBackend for Neovim {
     }
 
     async fn read_replica(
-        _peer_id: PeerId,
-        _project_root: &fs::AbsPath,
-        _ctx: &mut AsyncCtx<'_, Self>,
+        peer_id: PeerId,
+        project_root: &fs::AbsPath,
+        ctx: &mut AsyncCtx<'_, Self>,
     ) -> Result<Replica, Self::ReadReplicaError> {
-        todo!();
+        default_read_replica::read_replica(
+            peer_id,
+            project_root.to_owned(),
+            ctx,
+        )
+        .await
+        .map_err(|inner| NeovimReadReplicaError { inner })
     }
 
     async fn search_project_root(
@@ -329,7 +337,28 @@ impl notify::Error for NeovimPasteSessionIdError {
 
 impl notify::Error for NeovimReadReplicaError {
     fn to_message(&self) -> (notify::Level, notify::Message) {
-        todo!();
+        use default_read_replica::Error::*;
+
+        let mut msg = notify::Message::from_str("error at ");
+
+        let err: &dyn fmt::Display = match &self.inner {
+            Walk(err) => {
+                msg.push_info(&err.dir_path);
+                match &err.kind {
+                    walkdir::Either::Left(err) => match err {
+                        walkdir::WalkErrorKind::DirEntry(err) => err,
+                        walkdir::WalkErrorKind::DirEntryName(err) => err,
+                        walkdir::WalkErrorKind::DirEntryNodeKind(err) => err,
+                        walkdir::WalkErrorKind::ReadDir(err) => err,
+                    },
+                    walkdir::Either::Right(err) => err,
+                }
+            },
+        };
+
+        msg.push_str(": ").push_str(err.to_smolstr());
+
+        (notify::Level::Error, msg)
     }
 }
 
