@@ -10,5 +10,6 @@ pub mod emitter;
 pub mod executor;
 pub mod fs;
 pub mod serde;
+pub mod value;
 
 pub use backend::TestBackend;
