@@ -1,3 +1,4 @@
+use core::convert::Infallible;
 use core::fmt;
 
 use crate::backend::Backend;
@@ -45,4 +46,35 @@ pub trait Key<B: Backend>: fmt::Debug {
 
     /// TODO: docs.
     fn as_str(&self) -> Result<&str, Self::AsStrError<'_>>;
+}
+
+impl<MA: MapAccess<B>, B: Backend> MapAccess<B> for &mut MA {
+    type Key<'a>
+        = MA::Key<'a>
+    where
+        Self: 'a;
+
+    type Value = MA::Value;
+
+    #[inline]
+    fn next_key(&mut self) -> Option<Self::Key<'_>> {
+        MA::next_key(self)
+    }
+
+    #[inline]
+    fn take_next_value(&mut self) -> Self::Value {
+        MA::take_next_value(self)
+    }
+}
+
+impl<B: Backend> Key<B> for &str {
+    type AsStrError<'a>
+        = Infallible
+    where
+        Self: 'a;
+
+    #[inline]
+    fn as_str(&self) -> Result<&str, Self::AsStrError<'_>> {
+        Ok(self)
+    }
 }
