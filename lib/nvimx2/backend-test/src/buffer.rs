@@ -14,8 +14,8 @@ pub struct TestBuffer {
 }
 
 /// TODO: docs.
-#[derive(Debug, Copy, Clone)]
-pub struct TestBufferId;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct TestBufferId(u64);
 
 impl Buffer<TestBackend> for TestBuffer {
     fn byte_len(&self) -> ByteOffset {
