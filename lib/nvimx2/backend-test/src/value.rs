@@ -15,6 +15,7 @@ pub enum TestValue {
     Function(Box<dyn FnMut(Self) -> Self>),
 }
 
+#[derive(Default)]
 pub struct TestMap {
     inner: IndexMap<String, TestValue>,
 }
@@ -37,6 +38,20 @@ impl TestValue {
     }
 }
 
+impl TestMap {
+    pub(crate) fn contains_key(&mut self, key: impl AsRef<str>) -> bool {
+        self.inner.contains_key(key.as_ref())
+    }
+
+    pub(crate) fn insert(
+        &mut self,
+        key: impl AsRef<str>,
+        value: impl Into<TestValue>,
+    ) {
+        self.inner.insert(key.as_ref().to_owned(), value.into());
+    }
+}
+
 impl Value<TestBackend> for TestValue {
     type MapAccess<'a> = (&'a mut TestMap, Option<usize>);
     type MapAccessError<'a> = TestMapAccessError;
@@ -49,6 +64,13 @@ impl Value<TestBackend> for TestValue {
             Self::Map(map) => Ok((map, None)),
             _ => Err(TestMapAccessError { kind: self.kind() }),
         }
+    }
+}
+
+impl Default for TestValue {
+    #[inline]
+    fn default() -> Self {
+        Self::Null
     }
 }
 
