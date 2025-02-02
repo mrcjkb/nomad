@@ -29,7 +29,7 @@ where
     T: Deserialize<'de>,
 {
     serde_json::Value::try_from(value)
-        .and_then(|value| T::deserialize(value))
+        .and_then(T::deserialize)
         .map_err(|inner| TestDeserializeError { inner })
 }
 

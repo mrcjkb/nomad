@@ -218,10 +218,13 @@ dependencies = [
 name = "backend-test"
 version = "0.1.0-dev"
 dependencies = [
+ "async-task",
+ "concurrent-queue",
  "crop",
  "fxhash",
  "indexmap",
  "nvimx-core",
+ "pin-project-lite",
  "serde",
  "serde_json",
 ]
