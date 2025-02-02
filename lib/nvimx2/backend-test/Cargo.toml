@@ -12,6 +12,7 @@ publish.workspace = true
 async-task = "4.7"
 concurrent-queue = "2.5"
 crop = "0.4"
+futures-lite = { workspace = true, features = ["std"] }
 fxhash = { workspace = true }
 indexmap = "2.7"
 nvimx-core = { path = "../nvimx-core" }

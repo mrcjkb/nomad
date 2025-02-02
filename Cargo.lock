@@ -221,6 +221,7 @@ dependencies = [
  "async-task",
  "concurrent-queue",
  "crop",
+ "futures-lite",
  "fxhash",
  "indexmap",
  "nvimx-core",
