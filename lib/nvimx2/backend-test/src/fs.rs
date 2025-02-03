@@ -1,10 +1,9 @@
 use core::convert::Infallible;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use std::borrow::Cow;
-use std::error::Error;
 use std::fs::Metadata;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
 
 use futures_lite::Stream;
 use nvimx_core::fs::{
@@ -17,8 +16,6 @@ use nvimx_core::fs::{
     FsNodeName,
     Watcher,
 };
-
-pub type AnyError = Box<dyn Error + Send + Sync>;
 
 /// TODO: docs.
 #[derive(Clone)]

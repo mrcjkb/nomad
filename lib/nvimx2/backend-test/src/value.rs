@@ -1,6 +1,7 @@
 use indexmap::IndexMap;
 use nvimx_core::backend::{MapAccess, Value};
 use nvimx_core::notify;
+use serde_json::Number;
 
 use crate::TestBackend;
 
@@ -8,7 +9,7 @@ use crate::TestBackend;
 pub enum TestValue {
     Null,
     Bool(bool),
-    Number(i64),
+    Number(Number),
     String(String),
     List(Vec<Self>),
     Map(TestMap),
@@ -56,7 +57,6 @@ impl Value<TestBackend> for TestValue {
     type MapAccess<'a> = (&'a mut TestMap, Option<usize>);
     type MapAccessError<'a> = TestMapAccessError;
 
-    #[inline]
     fn map_access(
         &mut self,
     ) -> Result<Self::MapAccess<'_>, Self::MapAccessError<'_>> {
@@ -68,7 +68,6 @@ impl Value<TestBackend> for TestValue {
 }
 
 impl Default for TestValue {
-    #[inline]
     fn default() -> Self {
         Self::Null
     }
@@ -102,8 +101,19 @@ impl MapAccess<TestBackend> for (&mut TestMap, Option<usize>) {
 }
 
 impl From<serde_json::Value> for TestValue {
-    fn from(_value: serde_json::Value) -> Self {
-        todo!();
+    fn from(value: serde_json::Value) -> Self {
+        match value {
+            serde_json::Value::Null => Self::Null,
+            serde_json::Value::Bool(bool) => Self::Bool(bool),
+            serde_json::Value::Number(number) => Self::Number(number),
+            serde_json::Value::String(str) => Self::String(str),
+            serde_json::Value::Array(vec) => {
+                Self::List(vec.into_iter().map(Into::into).collect())
+            },
+            serde_json::Value::Object(map) => Self::Map(
+                map.into_iter().map(|(k, v)| (k, v.into())).collect(),
+            ),
+        }
     }
 }
 
@@ -115,8 +125,15 @@ impl TryFrom<TestValue> for serde_json::Value {
     }
 }
 
+impl FromIterator<(String, TestValue)> for TestMap {
+    fn from_iter<T: IntoIterator<Item = (String, TestValue)>>(
+        iter: T,
+    ) -> Self {
+        Self { inner: IndexMap::from_iter(iter) }
+    }
+}
+
 impl notify::Error for TestMapAccessError {
-    #[inline]
     fn to_message(&self) -> (notify::Level, notify::Message) {
         let msg = format!("expected a map, got {} instead", self.kind);
         (notify::Level::Error, notify::Message::from_str(msg))
