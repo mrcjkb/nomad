@@ -105,8 +105,23 @@ pub struct FsEvent<Fs: self::Fs> {
 }
 
 /// TODO: docs.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FsEventKind {
     /// TODO: docs.
     CreatedDir,
+}
+
+impl<Fs> Clone for FsEvent<Fs>
+where
+    Fs: self::Fs,
+    Fs::Timestamp: Clone,
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            kind: self.kind.clone(),
+            path: self.path.clone(),
+            timestamp: self.timestamp.clone(),
+        }
+    }
 }

@@ -9,6 +9,7 @@ publish.workspace = true
 [features]
 
 [dependencies]
+async-broadcast = "0.7"
 async-task = "4.7"
 concurrent-queue = "2.5"
 crop = "0.4"

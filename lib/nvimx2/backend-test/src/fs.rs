@@ -6,6 +6,7 @@ use std::fs::Metadata;
 use std::sync::{Arc, Mutex};
 
 use futures_lite::Stream;
+use fxhash::FxHashMap;
 use indexmap::IndexMap;
 use nvimx_core::fs::{
     AbsPath,
@@ -50,11 +51,25 @@ pin_project_lite::pin_project! {
     }
 }
 
-pub struct TestWatcher {}
+pin_project_lite::pin_project! {
+    pub struct TestWatcher {
+        fs: TestFs,
+        path: AbsPathBuf,
+        #[pin]
+        inner: async_broadcast::Receiver<FsEvent<TestFs>>,
+    }
+
+    impl PinnedDrop for TestWatcher {
+        fn drop(this: Pin<&mut Self>) {
+            this.fs.with_inner(|inner| inner.watchers.remove(&this.path));
+        }
+    }
+}
 
 struct TestFsInner {
     root: TestFsNode,
     timestamp: TestTimestamp,
+    watchers: FxHashMap<AbsPathBuf, TestWatchChannel>,
 }
 
 enum TestFsNode {
@@ -62,12 +77,18 @@ enum TestFsNode {
     Directory(TestDirectory),
 }
 
+#[derive(Default)]
 struct TestDirectory {
     children: IndexMap<FsNodeNameBuf, TestFsNode>,
 }
 
 struct TestFile {
     contents: Vec<u8>,
+}
+
+struct TestWatchChannel {
+    inactive_rx: async_broadcast::InactiveReceiver<FsEvent<TestFs>>,
+    sender: async_broadcast::Sender<FsEvent<TestFs>>,
 }
 
 impl TestFs {
@@ -319,9 +340,12 @@ impl Stream for TestWatcher {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _ctx: &mut Context<'_>,
+        ctx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        todo!()
+        self.project()
+            .inner
+            .poll_next(ctx)
+            .map(|maybe_item| maybe_item.map(Ok))
     }
 }
 
