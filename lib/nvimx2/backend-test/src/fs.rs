@@ -6,14 +6,17 @@ use std::fs::Metadata;
 use std::sync::{Arc, Mutex};
 
 use futures_lite::Stream;
+use indexmap::IndexMap;
 use nvimx_core::fs::{
     AbsPath,
+    AbsPathBuf,
     DirEntry,
     Fs,
     FsEvent,
     FsNode,
     FsNodeKind,
     FsNodeName,
+    FsNodeNameBuf,
     Watcher,
 };
 
@@ -26,14 +29,41 @@ pub struct TestFs {
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TestTimestamp(u64);
 
-pub struct TestDirEntry {}
+pub enum TestDirEntry {
+    Directory(TestDirectoryHandle),
+    File(TestFileHandle),
+}
+
+pub struct TestDirectoryHandle {
+    fs: TestFs,
+    path: AbsPathBuf,
+}
+
+pub struct TestFileHandle {
+    fs: TestFs,
+    path: AbsPathBuf,
+}
 
 pub struct TestReadDir {}
 
 pub struct TestWatcher {}
 
 struct TestFsInner {
+    root: TestFsNode,
     timestamp: TestTimestamp,
+}
+
+enum TestFsNode {
+    File(TestFile),
+    Directory(TestDirectory),
+}
+
+struct TestDirectory {
+    children: IndexMap<FsNodeNameBuf, TestFsNode>,
+}
+
+struct TestFile {
+    contents: Vec<u8>,
 }
 
 impl TestFs {
@@ -47,11 +77,69 @@ impl TestFs {
     }
 }
 
+impl TestFsInner {
+    fn node_at_path(&self, path: &AbsPath) -> Option<&TestFsNode> {
+        if path.is_root() {
+            Some(&self.root)
+        } else {
+            self.root().child_at_path(path)
+        }
+    }
+
+    fn root(&self) -> &TestDirectory {
+        match &self.root {
+            TestFsNode::Directory(dir) => dir,
+            _ => unreachable!("root is always a directory"),
+        }
+    }
+}
+
+impl TestFsNode {
+    fn kind(&self) -> FsNodeKind {
+        match self {
+            Self::File(_) => FsNodeKind::File,
+            Self::Directory(_) => FsNodeKind::Directory,
+        }
+    }
+}
+
+impl TestDirectory {
+    fn child_at_path(&self, path: &AbsPath) -> Option<&TestFsNode> {
+        let mut components = path.components();
+        let node = self.children.get(components.next()?)?;
+        match node {
+            TestFsNode::Directory(dir) => {
+                let path = components.as_path();
+                if path.is_root() {
+                    Some(node)
+                } else {
+                    dir.child_at_path(path)
+                }
+            },
+            TestFsNode::File(_) => components.next().is_none().then_some(node),
+        }
+    }
+
+    fn dir_at_path(&self, path: &AbsPath) -> Option<&TestDirectory> {
+        match self.child_at_path(path)? {
+            TestFsNode::Directory(dir) => Some(dir),
+            _ => None,
+        }
+    }
+
+    fn file_at_path(&self, path: &AbsPath) -> Option<&TestFile> {
+        match self.child_at_path(path)? {
+            TestFsNode::File(file) => Some(file),
+            _ => None,
+        }
+    }
+}
+
 impl Fs for TestFs {
     type Timestamp = TestTimestamp;
     type DirEntry = TestDirEntry;
-    type Directory<Path> = ();
-    type File<Path> = ();
+    type Directory<Path> = TestDirectoryHandle;
+    type File<Path> = TestFileHandle;
     type ReadDir = TestReadDir;
     type Watcher = TestWatcher;
     type DirEntryError = Infallible;
@@ -60,10 +148,27 @@ impl Fs for TestFs {
     type WatchError = Infallible;
 
     async fn node_at_path<P: AsRef<AbsPath>>(
-        &mut self,
-        _path: P,
+        &self,
+        path: P,
     ) -> Result<Option<FsNode<Self, P>>, Self::NodeAtPathError> {
-        todo!()
+        let path = path.as_ref();
+        let Some(kind) = self.with_inner(|inner| {
+            inner.node_at_path(path).map(TestFsNode::kind)
+        }) else {
+            return Ok(None);
+        };
+        let node = match kind {
+            FsNodeKind::File => FsNode::File(TestFileHandle {
+                fs: self.clone(),
+                path: path.to_owned(),
+            }),
+            FsNodeKind::Directory => FsNode::Directory(TestDirectoryHandle {
+                fs: self.clone(),
+                path: path.to_owned(),
+            }),
+            FsNodeKind::Symlink => todo!("can't handle symlinks yet"),
+        };
+        Ok(Some(node))
     }
 
     fn now(&self) -> Self::Timestamp {
@@ -78,7 +183,7 @@ impl Fs for TestFs {
     }
 
     async fn watch<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         _path: P,
     ) -> Result<Self::Watcher, Self::WatchError> {
         todo!()

@@ -83,7 +83,7 @@ impl Fs for OsFs {
 
     #[inline]
     async fn node_at_path<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> Result<Option<FsNode<Self, P>>, Self::NodeAtPathError> {
         let metadata = match async_fs::metadata(path.as_ref()).await {
@@ -120,7 +120,7 @@ impl Fs for OsFs {
 
     #[inline]
     async fn watch<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> Result<Self::Watcher, Self::WatchError> {
         Ok(OsWatcher { watched_path: path.as_ref().to_owned() })

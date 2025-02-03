@@ -39,7 +39,7 @@ pub trait Fs: Sized + 'static {
 
     /// TODO: docs.
     fn node_at_path<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> impl Future<Output = Result<Option<FsNode<Self, P>>, Self::NodeAtPathError>>;
 
@@ -54,13 +54,13 @@ pub trait Fs: Sized + 'static {
 
     /// TODO: docs.
     fn watch<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> impl Future<Output = Result<Self::Watcher, Self::WatchError>>;
 
     /// TODO: docs.
     fn exists<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> impl Future<Output = Result<bool, Self::NodeAtPathError>> {
         async move { self.node_at_path(path).await.map(|opt| opt.is_some()) }
@@ -68,7 +68,7 @@ pub trait Fs: Sized + 'static {
 
     /// TODO: docs.
     fn is_dir<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> impl Future<Output = Result<bool, Self::NodeAtPathError>> {
         async move {
@@ -80,7 +80,7 @@ pub trait Fs: Sized + 'static {
 
     /// TODO: docs.
     fn is_file<P: AsRef<AbsPath>>(
-        &mut self,
+        &self,
         path: P,
     ) -> impl Future<Output = Result<bool, Self::NodeAtPathError>> {
         async move {
