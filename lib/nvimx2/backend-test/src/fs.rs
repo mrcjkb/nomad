@@ -46,7 +46,7 @@ pub struct TestFileHandle {
 
 pub struct TestReadDir {
     dir_handle: TestDirectoryHandle,
-    nexxt_child_idx: usize,
+    next_child_idx: usize,
 }
 
 pub struct TestWatcher {}
@@ -77,6 +77,48 @@ impl TestFs {
     {
         let mut inner = self.inner.lock().unwrap();
         f(&mut inner)
+    }
+}
+
+impl TestDirEntry {
+    fn exists(&self) -> bool {
+        match self {
+            Self::Directory(dir_handle) => dir_handle.exists(),
+            Self::File(file_handle) => file_handle.exists(),
+        }
+    }
+
+    fn kind(&self) -> FsNodeKind {
+        match self {
+            Self::Directory(_) => FsNodeKind::Directory,
+            Self::File(_) => FsNodeKind::File,
+        }
+    }
+
+    fn path(&self) -> &AbsPath {
+        match self {
+            Self::Directory(handle) => &handle.path,
+            Self::File(handle) => &handle.path,
+        }
+    }
+}
+
+impl TestDirectoryHandle {
+    fn exists(&self) -> bool {
+        self.fs.with_inner(|inner| {
+            matches!(
+                inner.node_at_path(&self.path),
+                Some(TestFsNode::Directory(_))
+            )
+        })
+    }
+}
+
+impl TestFileHandle {
+    fn exists(&self) -> bool {
+        self.fs.with_inner(|inner| {
+            matches!(inner.node_at_path(&self.path), Some(TestFsNode::File(_)))
+        })
     }
 }
 
@@ -189,7 +231,7 @@ impl Fs for TestFs {
         else {
             return Err(TestReadDirError::NoDirAtPath);
         };
-        Ok(TestReadDir { dir_handle, nexxt_child_idx: 0 })
+        Ok(TestReadDir { dir_handle, next_child_idx: 0 })
     }
 
     async fn watch<P: AsRef<AbsPath>>(
@@ -201,20 +243,25 @@ impl Fs for TestFs {
 }
 
 impl DirEntry for TestDirEntry {
-    type MetadataError = Infallible;
-    type NameError = Infallible;
-    type NodeKindError = Infallible;
+    type MetadataError = TestDirEntryDoesNotExistError;
+    type NameError = TestDirEntryDoesNotExistError;
+    type NodeKindError = TestDirEntryDoesNotExistError;
 
     async fn metadata(&self) -> Result<Metadata, Self::MetadataError> {
         todo!()
     }
 
     async fn name(&self) -> Result<Cow<'_, FsNodeName>, Self::NameError> {
-        todo!()
+        self.exists()
+            .then(|| self.path().fs_node_name().expect("path is not root"))
+            .map(Cow::Borrowed)
+            .ok_or(TestDirEntryDoesNotExistError)
     }
 
     async fn node_kind(&self) -> Result<FsNodeKind, Self::NodeKindError> {
-        todo!()
+        self.exists()
+            .then_some(self.kind())
+            .ok_or(TestDirEntryDoesNotExistError)
     }
 }
 
@@ -251,6 +298,10 @@ pub enum TestReadDirError {
     #[error("no directory at path")]
     NoDirAtPath,
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("dir entry does not exist")]
+pub struct TestDirEntryDoesNotExistError;
 
 impl From<Infallible> for TestReadDirError {
     fn from(_: Infallible) -> Self {
