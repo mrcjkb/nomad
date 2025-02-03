@@ -88,7 +88,7 @@ struct TestFile {
 
 struct TestWatchChannel {
     inactive_rx: async_broadcast::InactiveReceiver<FsEvent<TestFs>>,
-    sender: async_broadcast::Sender<FsEvent<TestFs>>,
+    tx: async_broadcast::Sender<FsEvent<TestFs>>,
 }
 
 impl TestFs {
@@ -210,6 +210,19 @@ impl TestDirectory {
     }
 }
 
+impl TestWatchChannel {
+    const CAPACITY: usize = 16;
+
+    fn new() -> Self {
+        let (tx, rx) = async_broadcast::broadcast(Self::CAPACITY);
+        Self { tx, inactive_rx: rx.deactivate() }
+    }
+
+    fn rx(&self) -> async_broadcast::Receiver<FsEvent<TestFs>> {
+        self.inactive_rx.activate_cloned()
+    }
+}
+
 impl Fs for TestFs {
     type Timestamp = TestTimestamp;
     type DirEntry = TestDirEntry;
@@ -266,9 +279,17 @@ impl Fs for TestFs {
 
     async fn watch<P: AsRef<AbsPath>>(
         &self,
-        _path: P,
+        path: P,
     ) -> Result<Self::Watcher, Self::WatchError> {
-        todo!()
+        let path = path.as_ref().to_owned();
+        let rx = self.with_inner(|inner| {
+            inner
+                .watchers
+                .entry(path.clone())
+                .or_insert_with(TestWatchChannel::new)
+                .rx()
+        });
+        Ok(TestWatcher { inner: rx, fs: self.clone(), path })
     }
 }
 
