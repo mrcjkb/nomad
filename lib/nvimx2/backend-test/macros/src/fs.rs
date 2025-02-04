@@ -4,8 +4,12 @@ use syn::parse::{Parse, ParseStream};
 use syn::{Expr, Ident, Token, braced, parse_macro_input, token};
 
 pub(crate) fn fs(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let root = parse_macro_input!(input as Directory);
+    let root = parse_macro_input!(input as RootDirectory);
     quote! { ::nvimx2::tests::fs::TestFs::new(#root) }.into()
+}
+
+struct RootDirectory {
+    inner: Directory,
 }
 
 struct Directory {
@@ -21,13 +25,17 @@ enum FsNode {
     Directory(Directory),
 }
 
-impl Parse for FsNode {
+impl Parse for RootDirectory {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.peek(token::Brace) {
-            Directory::parse(input).map(Self::Directory)
+        // Allow both `fs!({})` and `fs! {}`.
+        let inner = if input.peek(token::Brace) {
+            Directory::parse(input)?
         } else {
-            File::parse(input).map(Self::File)
-        }
+            let tokens = input.parse::<TokenStream>()?;
+            syn::parse2::<Directory>(quote!({ #tokens }))?
+        };
+
+        Ok(Self { inner })
     }
 }
 
@@ -55,6 +63,22 @@ impl Parse for Directory {
 impl Parse for File {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         Expr::parse(input).map(|contents| Self { contents })
+    }
+}
+
+impl Parse for FsNode {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.peek(token::Brace) {
+            Directory::parse(input).map(Self::Directory)
+        } else {
+            File::parse(input).map(Self::File)
+        }
+    }
+}
+
+impl ToTokens for RootDirectory {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.inner.to_tokens(tokens);
     }
 }
 
