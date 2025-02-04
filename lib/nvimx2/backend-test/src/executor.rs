@@ -25,7 +25,7 @@ impl TestExecutor {
     }
 
     pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
-        let keep_polling_runnables = async move {
+        let keep_polling_runnables = async {
             loop {
                 self.runnable_rx
                     .recv_async()

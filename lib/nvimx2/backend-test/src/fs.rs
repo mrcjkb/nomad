@@ -29,6 +29,20 @@ pub struct TestFs {
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TestTimestamp(u64);
 
+pub enum TestFsNode {
+    File(TestFile),
+    Directory(TestDirectory),
+}
+
+#[derive(Default)]
+pub struct TestDirectory {
+    children: IndexMap<FsNodeNameBuf, TestFsNode>,
+}
+
+pub struct TestFile {
+    contents: Vec<u8>,
+}
+
 pub enum TestDirEntry {
     Directory(TestDirectoryHandle),
     File(TestFileHandle),
@@ -70,20 +84,6 @@ struct TestFsInner {
     root: TestFsNode,
     timestamp: TestTimestamp,
     watchers: FxHashMap<AbsPathBuf, TestWatchChannel>,
-}
-
-enum TestFsNode {
-    File(TestFile),
-    Directory(TestDirectory),
-}
-
-#[derive(Default)]
-struct TestDirectory {
-    children: IndexMap<FsNodeNameBuf, TestFsNode>,
-}
-
-struct TestFile {
-    contents: Vec<u8>,
 }
 
 struct TestWatchChannel {
@@ -153,6 +153,10 @@ impl TestFsInner {
         }
     }
 
+    fn file_at_path(&self, path: &AbsPath) -> Option<&TestFile> {
+        self.root().file_at_path(path)
+    }
+
     fn node_at_path(&self, path: &AbsPath) -> Option<&TestFsNode> {
         if path.is_root() {
             Some(&self.root)
@@ -179,6 +183,23 @@ impl TestFsNode {
 }
 
 impl TestDirectory {
+    #[track_caller]
+    pub fn insert_child(
+        &mut self,
+        name: impl AsRef<FsNodeName>,
+        child: impl Into<TestFsNode>,
+    ) {
+        let name = name.as_ref();
+        match self.children.entry(name.to_owned()) {
+            indexmap::map::Entry::Occupied(_) => {
+                panic!("duplicate child name: {name:?}");
+            },
+            indexmap::map::Entry::Vacant(entry) => {
+                entry.insert(child.into());
+            },
+        }
+    }
+
     fn child_at_path(&self, path: &AbsPath) -> Option<&TestFsNode> {
         let mut components = path.components();
         let node = self.children.get(components.next()?)?;
@@ -195,7 +216,7 @@ impl TestDirectory {
         }
     }
 
-    fn dir_at_path(&self, path: &AbsPath) -> Option<&TestDirectory> {
+    fn dir_at_path(&self, path: &AbsPath) -> Option<&Self> {
         match self.child_at_path(path)? {
             TestFsNode::Directory(dir) => Some(dir),
             _ => None,
@@ -207,6 +228,16 @@ impl TestDirectory {
             TestFsNode::File(file) => Some(file),
             _ => None,
         }
+    }
+}
+
+impl TestFile {
+    pub fn contents(&self) -> &[u8] {
+        &self.contents
+    }
+
+    pub fn new<C: AsRef<[u8]>>(contents: C) -> Self {
+        Self { contents: contents.as_ref().to_owned() }
     }
 }
 
