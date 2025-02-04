@@ -93,6 +93,16 @@ struct TestWatchChannel {
 }
 
 impl TestFs {
+    pub fn new(root: TestDirectory) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(TestFsInner {
+                root: TestFsNode::Directory(root),
+                timestamp: TestTimestamp(0),
+                watchers: FxHashMap::default(),
+            })),
+        }
+    }
+
     #[allow(clippy::unwrap_used)]
     fn with_inner<F, T>(&self, f: F) -> T
     where
