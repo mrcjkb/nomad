@@ -1,14 +1,15 @@
 //! TODO: docs.
 
 use core::pin::Pin;
-use core::task::{Context, Poll};
+use core::task::{Context, Poll, ready};
 use std::borrow::Cow;
+use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::io;
 use std::time::SystemTime;
 
-use futures_lite::stream::Pending;
-use futures_lite::{Stream, ready};
+use futures_lite::Stream;
+use notify::{RecursiveMode, Watcher};
 
 use crate::fs::{
     AbsPath,
@@ -57,6 +58,18 @@ pin_project_lite::pin_project! {
     }
 }
 
+pin_project_lite::pin_project! {
+    /// TODO: docs.
+    pub struct OsWatcher {
+        buffered: VecDeque<FsEvent<OsFs>>,
+        #[pin]
+        inner: flume::r#async::RecvStream<
+            'static,
+            Result<(notify::Event, SystemTime), notify::Error>,
+        >,
+    }
+}
+
 /// TODO: docs.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum OsNameError {
@@ -79,8 +92,8 @@ impl Fs for OsFs {
     type ReadDir = OsReadDir;
     type ReadDirError = io::Error;
     type Timestamp = SystemTime;
-    type WatchError = core::convert::Infallible;
-    type Watcher = Pending<Result<FsEvent<Self>, Self::WatchError>>;
+    type WatchError = notify::Error;
+    type Watcher = OsWatcher;
 
     #[inline]
     async fn node_at_path<P: AsRef<AbsPath>>(
@@ -126,27 +139,23 @@ impl Fs for OsFs {
     #[inline]
     async fn watch<P: AsRef<AbsPath>>(
         &self,
-        _path: P,
+        path: P,
     ) -> Result<Self::Watcher, Self::WatchError> {
-        todo!();
-    }
-}
-
-impl Stream for OsReadDir {
-    type Item = Result<OsDirEntry, io::Error>;
-
-    #[inline]
-    fn poll_next(
-        self: Pin<&mut Self>,
-        ctx: &mut Context,
-    ) -> Poll<Option<Self::Item>> {
-        match ready!(self.project().inner.poll_next(ctx)) {
-            Some(Ok(entry)) => {
-                Poll::Ready(Some(Ok(OsDirEntry { inner: entry })))
+        let (tx, rx) = flume::unbounded();
+        let mut watcher = notify::recommended_watcher(
+            move |event_res: Result<_, notify::Error>| {
+                let _ =
+                    tx.send(event_res.map(|event| (event, SystemTime::now())));
             },
-            Some(Err(err)) => Poll::Ready(Some(Err(err))),
-            None => Poll::Ready(None),
-        }
+        )?;
+        watcher.watch(
+            std::path::Path::new(path.as_ref().as_str()),
+            RecursiveMode::Recursive,
+        )?;
+        Ok(OsWatcher {
+            buffered: VecDeque::default(),
+            inner: rx.into_stream(),
+        })
     }
 }
 
@@ -178,6 +187,24 @@ impl DirEntry<OsFs> for OsDirEntry {
     }
 }
 
+impl Stream for OsReadDir {
+    type Item = Result<OsDirEntry, io::Error>;
+
+    #[inline]
+    fn poll_next(
+        self: Pin<&mut Self>,
+        ctx: &mut Context,
+    ) -> Poll<Option<Self::Item>> {
+        match ready!(self.project().inner.poll_next(ctx)) {
+            Some(Ok(entry)) => {
+                Poll::Ready(Some(Ok(OsDirEntry { inner: entry })))
+            },
+            Some(Err(err)) => Poll::Ready(Some(Err(err))),
+            None => Poll::Ready(None),
+        }
+    }
+}
+
 impl Symlink<OsFs> for OsSymlink {
     type FollowError = io::Error;
 
@@ -197,5 +224,28 @@ impl Symlink<OsFs> for OsSymlink {
         let path = <&AbsPath>::try_from(&*target_path)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
         OsFs.node_at_path(path).await
+    }
+}
+
+impl Stream for OsWatcher {
+    type Item = Result<FsEvent<OsFs>, notify::Error>;
+
+    #[inline]
+    fn poll_next(
+        self: Pin<&mut Self>,
+        ctx: &mut Context,
+    ) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            if let Some(event) = this.buffered.pop_front() {
+                return Poll::Ready(Some(Ok(event)));
+            }
+            let Some((event, timestamp)) =
+                ready!(this.inner.as_mut().poll_next(ctx)).transpose()?
+            else {
+                return Poll::Ready(None);
+            };
+            this.buffered.extend(FsEvent::from_notify(event, timestamp));
+        }
     }
 }
