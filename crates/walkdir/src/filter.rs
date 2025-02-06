@@ -72,6 +72,7 @@ where
     F: Filter<W>,
     W: WalkDir,
 {
+    type Fs = W::Fs;
     type DirEntry = W::DirEntry;
     type DirEntryError = FilteredDirEntryError<F, W>;
     type ReadDirError = W::ReadDirError;

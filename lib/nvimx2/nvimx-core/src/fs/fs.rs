@@ -3,7 +3,7 @@ use core::future::Future;
 
 use futures_lite::Stream;
 
-use crate::fs::{AbsPath, AbsPathBuf, DirEntry, FsNode};
+use crate::fs::{AbsPath, DirEntry, FsEvent, FsNode, Symlink};
 
 /// TODO: docs.
 pub trait Fs: Sized + 'static {
@@ -11,7 +11,7 @@ pub trait Fs: Sized + 'static {
     type Timestamp: Clone + Ord;
 
     /// TODO: docs.
-    type DirEntry: DirEntry;
+    type DirEntry: DirEntry<Self>;
 
     /// TODO: docs.
     type Directory;
@@ -90,57 +90,6 @@ pub trait Fs: Sized + 'static {
             self.node_at_path(path).await.map(|maybe_node| {
                 maybe_node.map(|node| node.is_dir()).unwrap_or(false)
             })
-        }
-    }
-}
-
-/// TODO: docs.
-pub trait Symlink<Fs: self::Fs> {
-    /// TODO: docs.
-    type FollowError: Error;
-
-    /// TODO: docs.
-    fn follow(
-        &self,
-    ) -> impl Future<Output = Result<Option<FsNode<Fs>>, Self::FollowError>>;
-
-    /// TODO: docs.
-    fn follow_recursively(
-        &self,
-    ) -> impl Future<Output = Result<Option<FsNode<Fs>>, Self::FollowError>>;
-}
-
-/// TODO: docs.
-#[derive(Debug)]
-pub struct FsEvent<Fs: self::Fs> {
-    /// TODO: docs.
-    pub kind: FsEventKind,
-
-    /// TODO: docs.
-    pub path: AbsPathBuf,
-
-    /// TODO: docs.
-    pub timestamp: Fs::Timestamp,
-}
-
-/// TODO: docs.
-#[derive(Debug, Clone)]
-pub enum FsEventKind {
-    /// TODO: docs.
-    CreatedDir,
-}
-
-impl<Fs> Clone for FsEvent<Fs>
-where
-    Fs: self::Fs,
-    Fs::Timestamp: Clone,
-{
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            kind: self.kind.clone(),
-            path: self.path.clone(),
-            timestamp: self.timestamp.clone(),
         }
     }
 }

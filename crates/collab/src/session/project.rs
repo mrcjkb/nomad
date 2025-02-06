@@ -10,8 +10,7 @@ use eerie::{
     CursorRemoval,
     Edit,
     FileId,
-    FileRef,
-    FileRefMut,
+    FileMut,
     Hunks,
     PeerId,
     Replica,
@@ -400,7 +399,7 @@ impl File<'_> {
     }
 
     #[inline]
-    fn as_ref_mut(&mut self) -> FileRefMut<'_> {
+    fn as_ref_mut(&mut self) -> FileMut<'_> {
         self.project.replica.file_mut(self.file_id).expect("ID is valid")
     }
 }

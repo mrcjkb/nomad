@@ -11,7 +11,10 @@ use crate::filter::{Either, Filter, Filtered};
 /// TODO: docs.
 pub trait WalkDir: Sized {
     /// TODO: docs.
-    type DirEntry: fs::DirEntry;
+    type Fs: fs::Fs;
+
+    /// TODO: docs.
+    type DirEntry: fs::DirEntry<Self::Fs>;
 
     /// TODO: docs.
     type DirEntryError;
@@ -185,10 +188,10 @@ pub enum WalkErrorKind<W: WalkDir> {
     DirEntry(W::DirEntryError),
 
     /// TODO: docs.
-    DirEntryName(<W::DirEntry as fs::DirEntry>::NameError),
+    DirEntryName(<W::DirEntry as fs::DirEntry<W::Fs>>::NameError),
 
     /// TODO: docs.
-    DirEntryNodeKind(<W::DirEntry as fs::DirEntry>::NodeKindError),
+    DirEntryNodeKind(<W::DirEntry as fs::DirEntry<W::Fs>>::NodeKindError),
 
     /// TODO: docs.
     ReadDir(W::ReadDirError),
@@ -205,6 +208,7 @@ impl<K> WalkError<K> {
 }
 
 impl<Fs: fs::Fs> WalkDir for Fs {
+    type Fs = Self;
     type DirEntry = <Self as fs::Fs>::DirEntry;
     type DirEntryError = <Self as fs::Fs>::DirEntryError;
     type ReadDirError = <Self as fs::Fs>::ReadDirError;

@@ -4,7 +4,6 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::borrow::Cow;
 use std::ffi::OsString;
-use std::fs::Metadata;
 use std::io;
 use std::time::SystemTime;
 
@@ -21,6 +20,7 @@ use crate::fs::{
     FsNodeKind,
     FsNodeName,
     InvalidFsNodeNameError,
+    Metadata,
     Symlink,
 };
 
@@ -150,14 +150,14 @@ impl Stream for OsReadDir {
     }
 }
 
-impl DirEntry for OsDirEntry {
+impl DirEntry<OsFs> for OsDirEntry {
     type MetadataError = io::Error;
     type NameError = OsNameError;
     type NodeKindError = io::Error;
 
     #[inline]
-    async fn metadata(&self) -> Result<Metadata, Self::MetadataError> {
-        self.inner.metadata().await
+    async fn metadata(&self) -> Result<Metadata<OsFs>, Self::MetadataError> {
+        self.inner.metadata().await.map(Into::into)
     }
 
     #[inline]

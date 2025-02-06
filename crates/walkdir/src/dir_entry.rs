@@ -1,8 +1,7 @@
 use core::convert::Infallible;
 use std::borrow::Cow;
-use std::fs::Metadata;
 
-use nvimx2::fs::{self, FsNodeKind, FsNodeName, FsNodeNameBuf};
+use nvimx2::fs::{self, FsNodeKind, FsNodeName, FsNodeNameBuf, Metadata};
 
 use crate::{WalkDir, WalkErrorKind};
 
@@ -73,12 +72,12 @@ impl<'a, W: WalkDir> DirEntry<'a, W> {
     }
 }
 
-impl<W: WalkDir> fs::DirEntry for DirEntry<'_, W> {
-    type MetadataError = <W::DirEntry as fs::DirEntry>::MetadataError;
+impl<W: WalkDir> fs::DirEntry<W::Fs> for DirEntry<'_, W> {
+    type MetadataError = <W::DirEntry as fs::DirEntry<W::Fs>>::MetadataError;
     type NameError = Infallible;
     type NodeKindError = Infallible;
 
-    async fn metadata(&self) -> Result<Metadata, Self::MetadataError> {
+    async fn metadata(&self) -> Result<Metadata<W::Fs>, Self::MetadataError> {
         self.inner.metadata().await
     }
 

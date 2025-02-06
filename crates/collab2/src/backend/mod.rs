@@ -158,6 +158,7 @@ mod default_read_replica {
     use concurrent_queue::{ConcurrentQueue, PushError};
     use eerie::ReplicaBuilder;
     use fs::{DirEntry, FsNodeKind};
+    use nvimx2::ByteOffset;
     use walkdir::{Either, WalkDir, WalkError, WalkErrorKind};
 
     use super::*;
@@ -181,7 +182,7 @@ mod default_read_replica {
                 let op = match node_kind {
                     FsNodeKind::File => {
                         let meta = entry.metadata().await?;
-                        PushNode::File(entry.path(), meta.len())
+                        PushNode::File(entry.path(), meta.len)
                     },
                     FsNodeKind::Directory => PushNode::Directory(entry.path()),
                     FsNodeKind::Symlink => return Ok(()),
@@ -196,7 +197,9 @@ mod default_read_replica {
             let mut builder = ReplicaBuilder::new(peer_id);
             while let Ok(op) = op_queue.pop() {
                 let _ = match op {
-                    PushNode::File(path, len) => builder.push_file(path, len),
+                    PushNode::File(path, len) => {
+                        builder.push_file(path, len.into_u64())
+                    },
                     PushNode::Directory(path) => builder.push_directory(path),
                 };
             }
@@ -221,11 +224,11 @@ mod default_read_replica {
     }
 
     pub(super) enum Error<B: CollabBackend> {
-        Walk(WalkError<Either<WalkErrorKind<B::Fs>, <<B::Fs as fs::Fs>::DirEntry as fs::DirEntry>::MetadataError>>),
+        Walk(WalkError<Either<WalkErrorKind<B::Fs>, <<B::Fs as fs::Fs>::DirEntry as fs::DirEntry<B::Fs>>::MetadataError>>),
     }
 
     enum PushNode {
-        File(AbsPathBuf, u64),
+        File(AbsPathBuf, ByteOffset),
         Directory(AbsPathBuf),
     }
 }
@@ -349,8 +352,8 @@ mod root_markers {
 
     pub enum DirEntryError<Fs: fs::Fs> {
         Access(Fs::DirEntryError),
-        Name(<Fs::DirEntry as fs::DirEntry>::NameError),
-        NodeKind(<Fs::DirEntry as fs::DirEntry>::NodeKindError),
+        Name(<Fs::DirEntry as fs::DirEntry<Fs>>::NameError),
+        NodeKind(<Fs::DirEntry as fs::DirEntry<Fs>>::NodeKindError),
     }
 
     impl<M> FindRootArgs<'_, M> {

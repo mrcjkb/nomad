@@ -2,12 +2,12 @@ use core::convert::Infallible;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::borrow::Cow;
-use std::fs::Metadata;
 use std::sync::{Arc, Mutex};
 
 use futures_lite::Stream;
 use fxhash::FxHashMap;
 use indexmap::IndexMap;
+use nvimx_core::ByteOffset;
 use nvimx_core::fs::{
     AbsPath,
     AbsPathBuf,
@@ -18,6 +18,7 @@ use nvimx_core::fs::{
     FsNodeKind,
     FsNodeName,
     FsNodeNameBuf,
+    Metadata,
     Symlink,
 };
 
@@ -152,14 +153,26 @@ impl TestDirectoryHandle {
 
 impl TestFileHandle {
     fn exists(&self) -> bool {
-        self.fs.with_inner(|inner| {
-            matches!(inner.node_at_path(&self.path), Some(TestFsNode::File(_)))
+        self.with_file(|_| true).unwrap_or(false)
+    }
+
+    fn len(&self) -> Result<ByteOffset, TestDirEntryDoesNotExistError> {
+        self.with_file(|file| file.len())
+    }
+
+    fn with_file<T>(
+        &self,
+        f: impl FnOnce(&mut TestFile) -> T,
+    ) -> Result<T, TestDirEntryDoesNotExistError> {
+        self.fs.with_inner(|inner| match inner.file_at_path(&self.path) {
+            Some(file) => Ok(f(file)),
+            None => Err(TestDirEntryDoesNotExistError),
         })
     }
 }
 
 impl TestFsInner {
-    fn dir_at_path(&self, path: &AbsPath) -> Option<&TestDirectory> {
+    fn dir_at_path(&mut self, path: &AbsPath) -> Option<&mut TestDirectory> {
         if path.is_root() {
             Some(self.root())
         } else {
@@ -167,20 +180,20 @@ impl TestFsInner {
         }
     }
 
-    fn file_at_path(&self, path: &AbsPath) -> Option<&TestFile> {
+    fn file_at_path(&mut self, path: &AbsPath) -> Option<&mut TestFile> {
         self.root().file_at_path(path)
     }
 
-    fn node_at_path(&self, path: &AbsPath) -> Option<&TestFsNode> {
+    fn node_at_path(&mut self, path: &AbsPath) -> Option<&mut TestFsNode> {
         if path.is_root() {
-            Some(&self.root)
+            Some(&mut self.root)
         } else {
             self.root().child_at_path(path)
         }
     }
 
-    fn root(&self) -> &TestDirectory {
-        match &self.root {
+    fn root(&mut self) -> &mut TestDirectory {
+        match &mut self.root {
             TestFsNode::Directory(dir) => dir,
             _ => unreachable!("root is always a directory"),
         }
@@ -219,30 +232,24 @@ impl TestDirectory {
         Self::default()
     }
 
-    fn child_at_path(&self, path: &AbsPath) -> Option<&TestFsNode> {
+    fn child_at_path(&mut self, path: &AbsPath) -> Option<&mut TestFsNode> {
         let mut components = path.components();
-        let node = self.children.get(components.next()?)?;
-        match node {
-            TestFsNode::Directory(dir) => {
-                let path = components.as_path();
-                if path.is_root() {
-                    Some(node)
-                } else {
-                    dir.child_at_path(path)
-                }
-            },
-            TestFsNode::File(_) => components.next().is_none().then_some(node),
+        let node = self.children.get_mut(components.next()?)?;
+        if components.as_path().is_root() {
+            return Some(node);
         }
+        let TestFsNode::Directory(dir) = node else { return None };
+        dir.child_at_path(components.as_path())
     }
 
-    fn dir_at_path(&self, path: &AbsPath) -> Option<&Self> {
+    fn dir_at_path(&mut self, path: &AbsPath) -> Option<&mut Self> {
         match self.child_at_path(path)? {
             TestFsNode::Directory(dir) => Some(dir),
             _ => None,
         }
     }
 
-    fn file_at_path(&self, path: &AbsPath) -> Option<&TestFile> {
+    fn file_at_path(&mut self, path: &AbsPath) -> Option<&mut TestFile> {
         match self.child_at_path(path)? {
             TestFsNode::File(file) => Some(file),
             _ => None,
@@ -253,6 +260,10 @@ impl TestDirectory {
 impl TestFile {
     pub fn contents(&self) -> &[u8] {
         &self.contents
+    }
+
+    pub fn len(&self) -> ByteOffset {
+        self.contents().len().into()
     }
 
     pub fn new<C: AsRef<[u8]>>(contents: C) -> Self {
@@ -292,7 +303,7 @@ impl Fs for TestFs {
     ) -> Result<Option<FsNode<Self>>, Self::NodeAtPathError> {
         let path = path.as_ref();
         let Some(kind) = self.with_inner(|inner| {
-            inner.node_at_path(path).map(TestFsNode::kind)
+            inner.node_at_path(path).as_deref().map(TestFsNode::kind)
         }) else {
             return Ok(None);
         };
@@ -368,13 +379,20 @@ impl PartialEq for TestDirectory {
     }
 }
 
-impl DirEntry for TestDirEntry {
+impl DirEntry<TestFs> for TestDirEntry {
     type MetadataError = TestDirEntryDoesNotExistError;
     type NameError = TestDirEntryDoesNotExistError;
     type NodeKindError = TestDirEntryDoesNotExistError;
 
-    async fn metadata(&self) -> Result<Metadata, Self::MetadataError> {
-        todo!()
+    async fn metadata(&self) -> Result<Metadata<TestFs>, Self::MetadataError> {
+        Ok(Metadata {
+            created_at: None,
+            last_modified_at: None,
+            len: match self {
+                Self::Directory(_) => 0usize.into(),
+                Self::File(file) => file.len()?,
+            },
+        })
     }
 
     async fn name(&self) -> Result<Cow<'_, FsNodeName>, Self::NameError> {

@@ -1,12 +1,11 @@
 use core::error::Error;
 use core::future::Future;
 use std::borrow::Cow;
-use std::fs::Metadata;
 
-use crate::fs::{FsNodeKind, FsNodeName};
+use crate::fs::{self, FsNodeKind, FsNodeName, Metadata};
 
 /// TODO: docs.
-pub trait DirEntry {
+pub trait DirEntry<Fs: fs::Fs> {
     /// TODO: docs.
     type MetadataError: Error;
 
@@ -19,7 +18,7 @@ pub trait DirEntry {
     /// TODO: docs.
     fn metadata(
         &self,
-    ) -> impl Future<Output = Result<Metadata, Self::MetadataError>>;
+    ) -> impl Future<Output = Result<Metadata<Fs>, Self::MetadataError>>;
 
     /// TODO: docs.
     fn name(
@@ -36,9 +35,9 @@ pub trait DirEntry {
         &self,
     ) -> impl Future<Output = Result<bool, Self::NodeKindError>> {
         async {
-            self.node_kind().await.map(|maybe_kind| {
-                maybe_kind.map_or(false, |kind| kind.is_dir())
-            })
+            self.node_kind()
+                .await
+                .map(|maybe_kind| maybe_kind.is_some_and(|kind| kind.is_dir()))
         }
     }
 
@@ -48,7 +47,7 @@ pub trait DirEntry {
     ) -> impl Future<Output = Result<bool, Self::NodeKindError>> {
         async {
             self.node_kind().await.map(|maybe_kind| {
-                maybe_kind.map_or(false, |kind| kind.is_file())
+                maybe_kind.is_some_and(|kind| kind.is_file())
             })
         }
     }
