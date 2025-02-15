@@ -14,6 +14,7 @@ use crate::backend::{
 };
 use crate::notify::{self, Emitter, MaybeResult};
 use crate::plugin::Plugin;
+use crate::{AsyncCtx, NeovimCtx, fs};
 
 /// TODO: docs.
 pub trait Backend: 'static + Sized {
@@ -152,5 +153,20 @@ pub trait Backend: 'static + Sized {
         };
 
         self.emitter().emit(notification)
+    }
+
+    /// TODO: docs.
+    #[inline]
+    fn with_async_ctx<R>(
+        self,
+        _fun: impl AsyncFnOnce(&mut AsyncCtx<Self>) -> R,
+    ) -> R {
+        todo!();
+    }
+
+    /// TODO: docs.
+    #[inline]
+    fn with_ctx<R>(self, _fun: impl FnOnce(&mut NeovimCtx<Self>) -> R) -> R {
+        todo!();
     }
 }

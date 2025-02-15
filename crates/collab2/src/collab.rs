@@ -6,7 +6,7 @@ use nvimx2::module::{ApiCtx, Module};
 use nvimx2::notify::Name;
 use nvimx2::{NeovimCtx, Shared};
 
-use crate::CollabBackend;
+use crate::backend::CollabBackend;
 use crate::config::Config;
 use crate::leave::{Leave, StopChannels};
 use crate::session::Session;

@@ -1,5 +1,9 @@
+//! TODO: docs.
+
 #[cfg(feature = "neovim")]
 mod neovim;
+#[cfg(feature = "test")]
+pub mod test;
 
 use collab_server::SessionId;
 use collab_server::message::{Message, Peer, Peers};
@@ -14,11 +18,11 @@ use crate::config;
 /// A [`Backend`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
 pub trait CollabBackend:
-    for<'a> Backend<Buffer<'a>: CollabBuffer<Self>, Fs: CollabFs>
+    for<'a> Backend<
+        Buffer<'a>: CollabBuffer<LspRootError = Self::BufferLspRootError>,
+        Fs: CollabFs,
+    >
 {
-    /// The type of error returned by [`lsp_root`](CollabBuffer::lsp_root).
-    type BufferLspRootError;
-
     /// The type of error returned by
     /// [`copy_session_id`](CollabBackend::copy_session_id).
     type CopySessionIdError: notify::Error;
@@ -46,6 +50,9 @@ pub trait CollabBackend:
     /// The type of error returned by
     /// [`start_session`](CollabBackend::start_session).
     type StartSessionError: notify::Error;
+
+    /// The type of error returned by [`lsp_root`](CollabBuffer::lsp_root).
+    type BufferLspRootError;
 
     /// Asks the user to confirm starting a new collaborative editing session
     /// rooted at the given path.
@@ -91,14 +98,16 @@ pub trait CollabBackend:
 
 /// A [`Buffer`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
-pub trait CollabBuffer<B: CollabBackend>: Buffer {
+pub trait CollabBuffer: Buffer {
+    /// The type of error returned by [`lsp_root`](CollabBuffer::lsp_root).
+    type LspRootError;
+
     /// Returns the path to the root of the workspace containing the buffer
     /// with the given ID, or `None` if there's no language server attached to
     /// it.
     fn lsp_root(
-        buffer_id: Self::Id,
-        ctx: &mut AsyncCtx<'_, B>,
-    ) -> Result<Option<AbsPathBuf>, B::BufferLspRootError>;
+        id: Self::Id,
+    ) -> Result<Option<AbsPathBuf>, Self::LspRootError>;
 }
 
 /// A [`Fs`](fs::Fs) subtrait defining additional capabilities needed by the
@@ -151,7 +160,7 @@ pub struct StartInfos<B: CollabBackend> {
     pub(crate) session_id: SessionId,
 }
 
-#[cfg(feature = "neovim")]
+#[cfg(any(feature = "neovim", feature = "test"))]
 mod default_read_replica {
     use std::sync::Arc;
 
@@ -170,8 +179,6 @@ mod default_read_replica {
     ) -> Result<Replica, Error<B>>
     where
         B: CollabBackend,
-        B::Fs: Send,
-        WalkError<B::Fs>: Send,
     {
         let fs = ctx.fs();
         let res = async move {
@@ -233,7 +240,7 @@ mod default_read_replica {
     }
 }
 
-#[cfg(feature = "neovim")]
+#[cfg(any(feature = "neovim", feature = "test"))]
 mod default_search_project_root {
     use super::*;
 
@@ -249,7 +256,7 @@ mod default_search_project_root {
         B: CollabBackend,
     {
         if let Some(lsp_res) =
-            B::Buffer::lsp_root(buffer_id.clone(), ctx).transpose()
+            B::Buffer::lsp_root(buffer_id.clone()).transpose()
         {
             return lsp_res.map_err(Error::Lsp);
         }
@@ -294,7 +301,7 @@ mod default_search_project_root {
     }
 }
 
-#[cfg(feature = "neovim")]
+#[cfg(any(feature = "neovim", feature = "test"))]
 mod root_markers {
     use core::fmt;
     use std::borrow::Cow;

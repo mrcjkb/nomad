@@ -1,3 +1,5 @@
+//! TODO: docs.
+
 use core::marker::PhantomData;
 
 use auth::AuthInfos;
@@ -92,19 +94,29 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
 
 /// The type of error that can occur when [`Start`]ing a new session fails.
 pub enum StartError<B: CollabBackend> {
+    /// TODO: docs.
     NoBufferFocused(NoBufferFocusedError<B>),
+    /// TODO: docs.
     OverlappingSession(OverlappingSessionError),
+    /// TODO: docs.
     ReadReplica(B::ReadReplicaError),
+    /// TODO: docs.
     SearchProjectRoot(B::SearchProjectRootError),
+    /// TODO: docs.
     SessionRxDropped(SessionRxDroppedError<B>),
+    /// TODO: docs.
     StartSession(B::StartSessionError),
+    /// TODO: docs.
     UserNotLoggedIn(UserNotLoggedInError<B>),
 }
 
+/// TODO: docs.
 pub struct NoBufferFocusedError<B>(PhantomData<B>);
 
+/// TODO: docs.
 pub struct SessionRxDroppedError<B>(PhantomData<B>);
 
+/// TODO: docs.
 pub struct UserNotLoggedInError<B>(PhantomData<B>);
 
 impl<B: CollabBackend> Clone for Start<B> {

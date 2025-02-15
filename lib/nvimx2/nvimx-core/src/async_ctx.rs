@@ -70,10 +70,17 @@ impl<B: Backend> AsyncCtx<'_, B> {
     /// TODO: docs.
     #[track_caller]
     #[inline]
-    pub fn with_ctx<Fun, Out>(&self, fun: Fun) -> Out
-    where
-        Fun: FnOnce(&mut NeovimCtx<B>) -> Out,
-    {
+    pub fn with_backend<Out>(&self, fun: impl FnOnce(&mut B) -> Out) -> Out {
+        self.with_ctx(move |ctx| fun(ctx.backend_mut()))
+    }
+
+    /// TODO: docs.
+    #[track_caller]
+    #[inline]
+    pub fn with_ctx<Out>(
+        &self,
+        fun: impl FnOnce(&mut NeovimCtx<B>) -> Out,
+    ) -> Out {
         self.state.with_mut(|state| {
             // We're running inside a call to `NeovimCtx::spawn_local()` which
             // is already catching unwinding panics, so we can directly create

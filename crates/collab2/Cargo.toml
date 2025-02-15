@@ -16,6 +16,7 @@ neovim = [
   "nvimx2/neovim-0-10",
   "nvimx2/neovim-mlua",
 ]
+test = ["nvimx2/tests"]
 
 [dependencies]
 auth = { workspace = true }
@@ -41,3 +42,7 @@ nvimx2 = { workspace = true, features = ["tests"] }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "start"
+required-features = ["test"]

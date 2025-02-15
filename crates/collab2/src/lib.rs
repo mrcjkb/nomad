@@ -2,13 +2,13 @@
 
 #![feature(min_specialization)]
 
-mod backend;
+pub mod backend;
 mod collab;
 mod config;
 mod leave;
 mod session;
 mod sessions;
-mod start;
+pub mod start;
 mod yank;
 
 pub use backend::CollabBackend;

@@ -6,7 +6,7 @@ use flume::Receiver;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select};
 use nvimx2::{AsyncCtx, notify};
 
-use crate::CollabBackend;
+use crate::backend::CollabBackend;
 use crate::leave::StopSession;
 use crate::sessions::{Active, SessionGuard};
 
