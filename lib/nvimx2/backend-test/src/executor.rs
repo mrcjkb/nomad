@@ -6,7 +6,6 @@ use flume::{Receiver, Sender};
 use futures_lite::FutureExt;
 use nvimx_core::backend::{BackgroundExecutor, LocalExecutor, Task};
 
-#[derive(Clone)]
 pub struct TestExecutor {
     runnable_tx: Sender<Runnable>,
     runnable_rx: Receiver<Runnable>,
@@ -70,6 +69,18 @@ impl BackgroundExecutor for TestExecutor {
         let (runnable, task) = async_task::spawn(fut, self.schedule());
         runnable.schedule();
         TestTask { inner: task }
+    }
+}
+
+impl AsRef<Self> for TestExecutor {
+    fn as_ref(&self) -> &Self {
+        self
+    }
+}
+
+impl Clone for TestExecutor {
+    fn clone(&self) -> Self {
+        todo!()
     }
 }
 

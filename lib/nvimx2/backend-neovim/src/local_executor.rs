@@ -12,6 +12,7 @@ use crate::oxi::{self, libuv};
 type Runnable = async_task::Runnable<()>;
 
 /// TODO: docs.
+#[derive(Clone)]
 pub struct NeovimLocalExecutor {
     /// TODO: docs
     async_handle: libuv::AsyncHandle,

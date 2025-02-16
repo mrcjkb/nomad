@@ -83,6 +83,7 @@ impl<B: Backend> State<B> {
             ),
         }
     }
+
     #[inline]
     pub(crate) fn get_module<M>(&self) -> Option<&'static M>
     where
@@ -112,10 +113,10 @@ impl<B: Backend> StateHandle<B> {
 
     #[track_caller]
     #[inline]
-    pub(crate) fn with_mut<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(StateMut<'_, B>) -> R,
-    {
+    pub(crate) fn with_mut<R>(
+        &self,
+        f: impl FnOnce(StateMut<'_, B>) -> R,
+    ) -> R {
         self.inner.with_mut(|state| f(StateMut { state, handle: self }))
     }
 }

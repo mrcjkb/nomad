@@ -160,13 +160,41 @@ pub trait Backend: 'static + Sized {
     fn with_async_ctx<R>(
         self,
         _fun: impl AsyncFnOnce(&mut AsyncCtx<Self>) -> R,
-    ) -> R {
-        todo!();
+    ) -> impl Future<Output = R> {
+        async move {
+            // To make this work we'll have to bound the `LocalExecutor` to
+            // `Clone`, so that we can take a handle to it before the backend is
+            // turned into a `State`.
+            //
+            // If not, even if we added a `block_on()` method on `LocalExecutor`,
+            // we'd have to get a mutable reference to the backend to call it,
+            // which means any subsequent calls of AsyncCtx::with_ctx() inside the
+            // closure would panic due to the backend being already mutably
+            // borrowed.
+            //
+            // Actually, it wouldn't even make sense to define a `block_on()` on
+            // the Neovim executor because that would block the entire event loop.
+            // So we may only be able to define this on the `TestBackend`.
+            //
+            // Actually, we can still define it, but we can't make it blocking, we
+            // have to make it async.
+            //
+            // let executor = self.local_executor().clone();
+            // executor.block_on()
+            // StateHandle::new(self)
+            //     .with_async_ctx(async move |ctx| fun(ctx).await)
+            //     .await
+            todo!()
+        }
     }
 
     /// TODO: docs.
     #[inline]
     fn with_ctx<R>(self, _fun: impl FnOnce(&mut NeovimCtx<Self>) -> R) -> R {
+        // The Namespace can be omitted, it'll just be empty.
+        // The plugin_id can be omitted, panics will just be propagated instead
+        // of being caught.
+        // StateHandle::new(self).with_mut(|s| s.with_ctx(|ctx| fun(ctx)))
         todo!();
     }
 }
