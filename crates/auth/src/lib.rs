@@ -7,3 +7,5 @@ mod logout;
 
 pub use auth::Auth;
 pub use auth_infos::AuthInfos;
+pub use login::Login;
+pub use logout::Logout;

@@ -13,3 +13,5 @@ mod yank;
 
 pub use backend::CollabBackend;
 pub use collab::Collab;
+pub use leave::Leave;
+pub use yank::Yank;
