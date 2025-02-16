@@ -1,6 +1,5 @@
 use fxhash::FxHashMap;
 use nvimx_core::backend::{ApiValue, Backend, BufferId};
-use nvimx_core::module::Module;
 use nvimx_core::notify::MaybeResult;
 use serde::{Deserialize, Serialize};
 
@@ -41,10 +40,6 @@ impl Backend for TestBackend {
     type Emitter<'this> = &'this mut TestEmitter;
     type SerializeError = TestSerializeError;
     type DeserializeError = TestDeserializeError;
-
-    fn api<M: Module<Self>>(&mut self) -> Self::Api {
-        Default::default()
-    }
 
     fn buffer(&mut self, id: BufferId<Self>) -> Option<Self::Buffer<'_>> {
         self.buffers.get_mut(&id)

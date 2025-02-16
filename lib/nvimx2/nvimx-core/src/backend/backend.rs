@@ -12,8 +12,6 @@ use crate::backend::{
     MapAccess,
     Value,
 };
-use crate::fs;
-use crate::module::Module;
 use crate::notify::{self, Emitter, MaybeResult};
 use crate::plugin::Plugin;
 
@@ -45,9 +43,6 @@ pub trait Backend: 'static + Sized {
 
     /// TODO: docs.
     type DeserializeError: notify::Error;
-
-    /// TODO: docs.
-    fn api<M: Module<Self>>(&mut self) -> Self::Api;
 
     /// TODO: docs.
     fn buffer(&mut self, id: BufferId<Self>) -> Option<Self::Buffer<'_>>;

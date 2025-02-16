@@ -50,4 +50,8 @@ impl Api for TestApi {
         Completions: IntoIterator<Item = CommandCompletion>,
     {
     }
+
+    fn new(_: Name) -> Self {
+        Self::default()
+    }
 }

@@ -3,10 +3,8 @@
 use nvimx_core::ByteOffset;
 use nvimx_core::backend::Api;
 use nvimx_core::command::{CommandArgs, CommandCompletion};
-use nvimx_core::module::Module;
 use nvimx_core::notify::Name;
 
-use crate::Neovim;
 use crate::oxi::{Dictionary, Function, Object, api};
 use crate::value::NeovimValue;
 
@@ -17,11 +15,6 @@ pub struct NeovimApi {
 }
 
 impl NeovimApi {
-    #[inline]
-    pub(crate) fn new<M: Module<Neovim>>() -> Self {
-        Self { dictionary: Dictionary::new(), module_name: M::NAME }
-    }
-
     #[track_caller]
     #[inline]
     fn insert(
@@ -126,6 +119,11 @@ impl Api for NeovimApi {
         if !module_api.dictionary.is_empty() {
             self.insert(module_name, module_api);
         }
+    }
+
+    #[inline]
+    fn new(module_name: Name) -> Self {
+        Self { dictionary: Dictionary::new(), module_name }
     }
 }
 

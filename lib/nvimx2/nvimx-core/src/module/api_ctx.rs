@@ -22,7 +22,7 @@ where
     let mut namespace = Namespace::new(P::NAME);
     let mut api_ctx = ApiCtx {
         plugin_id: TypeId::of::<P>(),
-        module_api: state.api::<P>(),
+        module_api: B::Api::new(P::NAME),
         command_builder: &mut command_builder,
         completions_builder: &mut command_completions_builder,
         config_builder: &mut config_builder,
@@ -179,7 +179,7 @@ impl<B: Backend> ApiCtx<'_, B> {
     fn add_submodule<S: Module<B>>(&mut self, sub: S) -> B::Api {
         let sub = self.state.add_module(sub);
         let mut ctx = ApiCtx {
-            module_api: self.state.api::<S>(),
+            module_api: B::Api::new(S::NAME),
             command_builder: self.command_builder.add_module::<S>(),
             completions_builder: self.completions_builder.add_module::<S, _>(),
             config_builder: self.config_builder.add_module(sub),

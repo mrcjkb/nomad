@@ -31,4 +31,7 @@ pub trait Api: 'static + Sized {
         Command: FnMut(CommandArgs) + 'static,
         CompletionFn: FnMut(CommandArgs, ByteOffset) -> Completions + 'static,
         Completions: IntoIterator<Item = CommandCompletion>;
+
+    /// TODO: docs.
+    fn new(module_name: Name) -> Self;
 }

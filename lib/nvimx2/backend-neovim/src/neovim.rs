@@ -1,6 +1,5 @@
 use ::serde::{Deserialize, Serialize};
 use nvimx_core::backend::Backend;
-use nvimx_core::module::Module;
 use nvimx_core::notify::Namespace;
 use nvimx_core::plugin::Plugin;
 
@@ -44,11 +43,6 @@ impl Backend for Neovim {
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
     type SerializeError = serde::NeovimSerializeError;
     type DeserializeError = serde::NeovimDeserializeError;
-
-    #[inline]
-    fn api<M: Module<Self>>(&mut self) -> Self::Api {
-        api::NeovimApi::new::<M>()
-    }
 
     #[inline]
     fn buffer(&mut self, buf: NeovimBuffer) -> Option<Self::Buffer<'_>> {
