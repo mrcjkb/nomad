@@ -1,3 +1,5 @@
+use core::any;
+
 use smol_str::ToSmolStr;
 
 use crate::backend::Backend;
@@ -17,12 +19,6 @@ pub trait Plugin<B: Backend>: Module<B> {
     /// TODO: docs.
     const CONFIG_FN_NAME: Name = "setup";
 
-    #[doc(hidden)]
-    #[track_caller]
-    fn api(self, backend: B) -> B::Api {
-        StateHandle::new(backend).with_mut(|s| module::build_api(self, s))
-    }
-
     /// TODO: docs.
     fn handle_panic(&self, panic_info: PanicInfo, ctx: &mut NeovimCtx<B>) {
         let mut message = notify::Message::from_str("panicked");
@@ -36,4 +32,22 @@ pub trait Plugin<B: Backend>: Module<B> {
 
         ctx.emit_error(message);
     }
+
+    #[doc(hidden)]
+    #[track_caller]
+    fn api(self, backend: B) -> B::Api {
+        StateHandle::new(backend).with_mut(|s| module::build_api(self, s))
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    #[allow(private_interfaces)]
+    fn id() -> PluginId {
+        PluginId { type_id: any::TypeId::of::<Self>() }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub(crate) struct PluginId {
+    pub(crate) type_id: any::TypeId,
 }

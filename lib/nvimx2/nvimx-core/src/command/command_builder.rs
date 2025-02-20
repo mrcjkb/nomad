@@ -1,5 +1,3 @@
-use core::any::TypeId;
-
 use smallvec::SmallVec;
 
 use crate::backend::Backend;
@@ -12,7 +10,7 @@ use crate::command::{
 };
 use crate::module::Module;
 use crate::notify::{self, MaybeResult, Name, Namespace};
-use crate::plugin::Plugin;
+use crate::plugin::{Plugin, PluginId};
 use crate::state::{StateHandle, StateMut};
 use crate::util::OrderedMap;
 use crate::{ByteOffset, NeovimCtx};
@@ -23,7 +21,7 @@ type CommandCompletionFn =
     Box<dyn FnMut(CommandArgs, ByteOffset) -> Vec<CommandCompletion>>;
 
 pub(crate) struct CommandBuilder<B: Backend> {
-    plugin_id: TypeId,
+    plugin_id: PluginId,
     /// Map from command name to the handler for that command.
     handlers: OrderedMap<Name, CommandHandler<B>>,
     module_name: Name,
@@ -94,7 +92,7 @@ impl<B: Backend> CommandBuilder<B> {
     #[inline]
     pub(crate) fn new<P: Plugin<B>>() -> Self {
         Self {
-            plugin_id: TypeId::of::<P>(),
+            plugin_id: <P as Plugin<_>>::id(),
             module_name: P::NAME,
             handlers: Default::default(),
             submodules: Default::default(),

@@ -1,11 +1,9 @@
-use core::any::TypeId;
-
 use crate::NeovimCtx;
 use crate::backend::{Api, ApiValue, Backend, Key, MapAccess, Value};
 use crate::command::{Command, CommandBuilder, CommandCompletionsBuilder};
 use crate::module::{Constant, Function, Module};
 use crate::notify::{self, Error, MaybeResult, Name, Namespace};
-use crate::plugin::{self, Plugin};
+use crate::plugin::{self, Plugin, PluginId};
 use crate::state::{StateHandle, StateMut};
 use crate::util::OrderedMap;
 
@@ -21,7 +19,7 @@ where
     let mut config_builder = ConfigBuilder::new(plugin);
     let mut namespace = Namespace::new(P::NAME);
     let mut api_ctx = ApiCtx {
-        plugin_id: TypeId::of::<P>(),
+        plugin_id: <P as Plugin<_>>::id(),
         module_api: B::Api::new(P::NAME),
         command_builder: &mut command_builder,
         completions_builder: &mut command_completions_builder,
@@ -56,7 +54,7 @@ where
 
 /// TODO: docs.
 pub struct ApiCtx<'a, B: Backend> {
-    plugin_id: TypeId,
+    plugin_id: PluginId,
     command_builder: &'a mut CommandBuilder<B>,
     completions_builder: &'a mut CommandCompletionsBuilder,
     config_builder: &'a mut ConfigBuilder<B>,
@@ -277,7 +275,7 @@ impl<B: Backend> ConfigBuilder<B> {
         }
         drop(map_access);
         if let Some(Err(err)) = state.with_ctx::<(_, _, _)>((
-            TypeId::of::<P>(),
+            <P as Plugin<_>>::id(),
             config_path,
             |ctx: &mut NeovimCtx<B>| (self.handler)(config, ctx),
         )) {

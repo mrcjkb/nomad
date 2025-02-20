@@ -57,7 +57,7 @@ impl<B: Backend> State<B> {
     where
         M: Module<B>,
     {
-        match self.modules.entry(ModuleId::of::<M>()) {
+        match self.modules.entry(M::id()) {
             Entry::Vacant(entry) => {
                 let module = Box::leak(Box::new(module));
                 entry.insert(ModuleState { module, panic_handler: None });
@@ -76,7 +76,7 @@ impl<B: Backend> State<B> {
     where
         P: Plugin<B>,
     {
-        match self.modules.entry(ModuleId::of::<P>()) {
+        match self.modules.entry(<P as Plugin<_>>::id().into()) {
             Entry::Vacant(entry) => {
                 let plugin = Box::leak(Box::new(plugin));
                 entry.insert(ModuleState {
@@ -97,8 +97,8 @@ impl<B: Backend> State<B> {
     where
         M: Module<B>,
     {
-        self.modules.get(&ModuleId::of::<M>()).map(|module_state| {
-            // SAFETY: the TypeId matched.
+        self.modules.get(&M::id()).map(|module_state| {
+            // SAFETY: the ModuleId matched.
             unsafe { downcast_ref_unchecked(module_state.module) }
         })
     }
@@ -144,15 +144,15 @@ impl<B: Backend> StateMut<'_, B> {
     pub(crate) fn handle_panic(
         &mut self,
         namespace: &Namespace,
-        plugin_id: ModuleId,
+        plugin_id: PluginId,
         payload: Box<dyn Any + Send>,
     ) {
         let handler = self
             .modules
-            .get(&plugin_id)
-            .expect("no plugin matching the given TypeId")
+            .get(&plugin_id.into())
+            .expect("no plugin matching the given PluginId")
             .panic_handler
-            .expect("TypeId is of a Module, not a Plugin");
+            .expect("all plugins have panic handlers");
         let info = self.panic_hook.to_info(payload);
         todo!();
         // #[allow(deprecated)]

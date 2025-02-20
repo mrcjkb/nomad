@@ -197,9 +197,9 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     #[deprecated(note = "use `StateMut::with_ctx()` instead")]
     #[inline]
     pub(crate) fn new(
-        _namespace: &'a Namespace,
-        _state: StateMut<'a, B>,
+        namespace: &'a Namespace,
+        state: StateMut<'a, B>,
     ) -> Self {
-        todo!();
+        Self { namespace, state }
     }
 }
