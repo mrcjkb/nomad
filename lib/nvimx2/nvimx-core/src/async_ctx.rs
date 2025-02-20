@@ -2,12 +2,14 @@ use core::marker::PhantomData;
 
 use crate::backend::{Backend, BackgroundExecutor, TaskBackground, TaskLocal};
 use crate::notify::{Namespace, NotificationId};
+use crate::plugin::PluginId;
 use crate::state::StateHandle;
 use crate::{BufferCtx, NeovimCtx, notify};
 
 /// TODO: docs.
 pub struct AsyncCtx<'a, B: Backend> {
     namespace: Namespace,
+    plugin_id: PluginId,
     state: StateHandle<B>,
     _non_static: PhantomData<&'a ()>,
 }
@@ -89,7 +91,7 @@ impl<B: Backend> AsyncCtx<'_, B> {
             // is already catching unwinding panics, so we can directly create
             // a `NeovimCtx` here.
             #[allow(deprecated)]
-            fun(&mut NeovimCtx::new(&self.namespace, state))
+            fun(&mut NeovimCtx::new(&self.namespace, self.plugin_id, state))
         })
     }
 
@@ -103,13 +105,22 @@ impl<B: Backend> AsyncCtx<'_, B> {
     }
 
     #[inline]
-    pub(crate) fn new(namespace: Namespace, state: StateHandle<B>) -> Self {
-        Self { namespace, state, _non_static: PhantomData }
+    pub(crate) fn new(
+        namespace: Namespace,
+        plugin_id: PluginId,
+        state: StateHandle<B>,
+    ) -> Self {
+        Self { namespace, plugin_id, state, _non_static: PhantomData }
     }
 
     #[inline]
     pub(crate) fn namespace(&self) -> &Namespace {
         &self.namespace
+    }
+
+    #[inline]
+    pub(crate) fn plugin_id(&self) -> PluginId {
+        self.plugin_id
     }
 
     #[inline]

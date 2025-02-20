@@ -9,14 +9,15 @@ use fxhash::FxHashMap;
 
 use crate::backend::Backend;
 use crate::module::{Module, ModuleId};
-use crate::notify::Namespace;
+use crate::notify::{Name, Namespace};
 use crate::plugin::{PanicInfo, PanicLocation, Plugin, PluginId};
 use crate::{NeovimCtx, Shared};
 
 /// TODO: docs.
 pub(crate) struct State<B: Backend> {
     backend: B,
-    modules: FxHashMap<ModuleId, ModuleState<B>>,
+    modules: FxHashMap<ModuleId, &'static dyn Any>,
+    panic_handlers: FxHashMap<PluginId, &'static dyn PanicHandler<B>>,
     panic_hook: PanicHook,
 }
 
@@ -31,18 +32,8 @@ pub(crate) struct StateMut<'a, B: Backend> {
     handle: &'a StateHandle<B>,
 }
 
-/// A trait implemented by types that can be passed to
-/// [`StateMut::with_ctx()`].
-pub(crate) trait StateMutWithCtxArgs<B: Backend>: Sized {
-    type Output;
-
-    fn call(self, ctx: &mut StateMut<'_, B>) -> Self::Output;
-}
-
-struct ModuleState<B: Backend> {
-    module: &'static dyn Any,
-    panic_handler: Option<&'static dyn PanicHandler<B>>,
-}
+/// A `PanicHandler` that handles panics by resuming to unwind the stack.
+pub(crate) struct ResumeUnwinding;
 
 struct PanicHook {}
 
@@ -60,7 +51,7 @@ impl<B: Backend> State<B> {
         match self.modules.entry(M::id()) {
             Entry::Vacant(entry) => {
                 let module = Box::leak(Box::new(module));
-                entry.insert(ModuleState { module, panic_handler: None });
+                entry.insert(module);
                 module
             },
             Entry::Occupied(_) => unreachable!(
@@ -76,20 +67,17 @@ impl<B: Backend> State<B> {
     where
         P: Plugin<B>,
     {
-        match self.modules.entry(<P as Plugin<_>>::id().into()) {
-            Entry::Vacant(entry) => {
-                let plugin = Box::leak(Box::new(plugin));
-                entry.insert(ModuleState {
-                    module: plugin,
-                    panic_handler: Some(plugin),
-                });
-                plugin
-            },
+        let vacancy = match self.modules.entry(<P as Plugin<_>>::id().into()) {
+            Entry::Vacant(entry) => entry,
             Entry::Occupied(_) => unreachable!(
                 "a plugin of type {:?} has already been added",
                 any::type_name::<P>()
             ),
-        }
+        };
+        let plugin = Box::leak(Box::new(plugin));
+        vacancy.insert(plugin);
+        self.panic_handlers.insert(<P as Plugin<_>>::id().into(), plugin);
+        plugin
     }
 
     #[inline]
@@ -97,17 +85,22 @@ impl<B: Backend> State<B> {
     where
         M: Module<B>,
     {
-        self.modules.get(&M::id()).map(|module_state| {
+        self.modules.get(&M::id()).map(|module| {
             // SAFETY: the ModuleId matched.
-            unsafe { downcast_ref_unchecked(module_state.module) }
+            unsafe { downcast_ref_unchecked(*module) }
         })
     }
 
     #[inline]
     pub(crate) fn new(backend: B) -> Self {
+        const RESUME_UNWINDING: &ResumeUnwinding = &ResumeUnwinding;
         Self {
             backend,
             modules: FxHashMap::default(),
+            panic_handlers: FxHashMap::from_iter(core::iter::once((
+                <ResumeUnwinding as Plugin<B>>::id(),
+                RESUME_UNWINDING as &'static dyn PanicHandler<B>,
+            ))),
             panic_hook: PanicHook::set(),
         }
     }
@@ -147,26 +140,33 @@ impl<B: Backend> StateMut<'_, B> {
         plugin_id: PluginId,
         payload: Box<dyn Any + Send>,
     ) {
-        let handler = self
-            .modules
-            .get(&plugin_id.into())
-            .expect("no plugin matching the given PluginId")
-            .panic_handler
-            .expect("all plugins have panic handlers");
+        let handler = *self
+            .panic_handlers
+            .get(&plugin_id)
+            .expect("no handler matching the given ID");
         let info = self.panic_hook.to_info(payload);
-        todo!();
-        // #[allow(deprecated)]
-        // let mut ctx = NeovimCtx::new(namespace, plugin_id, self.as_mut());
-        // handler.handle_panic(info, &mut ctx);
+        #[allow(deprecated)]
+        let mut ctx = NeovimCtx::new(namespace, plugin_id, self.as_mut());
+        handler.handle_panic(info, &mut ctx);
     }
 
     #[track_caller]
     #[inline]
-    pub(crate) fn with_ctx<A: StateMutWithCtxArgs<B>>(
+    pub(crate) fn with_ctx<R>(
         &mut self,
-        args: A,
-    ) -> A::Output {
-        args.call(self)
+        namespace: &Namespace,
+        plugin_id: PluginId,
+        fun: impl FnOnce(&mut NeovimCtx<B>) -> R,
+    ) -> Option<R> {
+        #[allow(deprecated)]
+        let mut ctx = NeovimCtx::new(namespace, plugin_id, self.as_mut());
+        match panic::catch_unwind(panic::AssertUnwindSafe(|| fun(&mut ctx))) {
+            Ok(ret) => Some(ret),
+            Err(payload) => {
+                self.handle_panic(namespace, plugin_id, payload);
+                None
+            },
+        }
     }
 }
 
@@ -244,59 +244,6 @@ impl<B: Backend> DerefMut for StateMut<'_, B> {
     }
 }
 
-impl<F, R, B> StateMutWithCtxArgs<B> for (PluginId, &Namespace, F)
-where
-    F: FnOnce(&mut NeovimCtx<B>) -> R,
-    B: Backend,
-{
-    type Output = Option<R>;
-
-    #[inline]
-    fn call(self, state: &mut StateMut<'_, B>) -> Self::Output {
-        let (plugin_id, namespace, callback) = self;
-        #[allow(deprecated)]
-        let mut ctx = NeovimCtx::new(namespace, state.as_mut());
-        match panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            callback(&mut ctx)
-        })) {
-            Ok(ret) => Some(ret),
-            Err(payload) => {
-                state.handle_panic(namespace, plugin_id, payload);
-                None
-            },
-        }
-    }
-}
-
-impl<F, R, B> StateMutWithCtxArgs<B> for (&Namespace, F)
-where
-    F: FnOnce(&mut NeovimCtx<B>) -> R,
-    B: Backend,
-{
-    type Output = R;
-
-    #[inline]
-    fn call(self, state: &mut StateMut<'_, B>) -> Self::Output {
-        let (namespace, callback) = self;
-        #[allow(deprecated)]
-        callback(&mut NeovimCtx::new(namespace, state.as_mut()))
-    }
-}
-
-impl<F, R, B> StateMutWithCtxArgs<B> for F
-where
-    F: FnOnce(&mut NeovimCtx<B>) -> R,
-    B: Backend,
-{
-    type Output = R;
-
-    #[inline]
-    fn call(self, state: &mut StateMut<'_, B>) -> Self::Output {
-        #[allow(deprecated)]
-        self(&mut NeovimCtx::new(&Namespace::default(), state.as_mut()))
-    }
-}
-
 impl<P, B> PanicHandler<B> for P
 where
     P: Plugin<B>,
@@ -305,5 +252,24 @@ where
     #[inline]
     fn handle_panic(&self, info: PanicInfo, ctx: &mut NeovimCtx<B>) {
         Plugin::handle_panic(self, info, ctx);
+    }
+}
+
+impl<B: Backend> Module<B> for ResumeUnwinding {
+    const NAME: Name = "";
+    type Config = ();
+
+    fn api(&self, _: &mut crate::module::ApiCtx<B>) {
+        unreachable!()
+    }
+    fn on_new_config(&self, _: Self::Config, _: &mut NeovimCtx<B>) {
+        unreachable!()
+    }
+}
+
+impl<B: Backend> Plugin<B> for ResumeUnwinding {
+    #[inline]
+    fn handle_panic(&self, info: PanicInfo, _: &mut NeovimCtx<B>) {
+        panic::resume_unwind(info.payload);
     }
 }

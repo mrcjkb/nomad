@@ -134,9 +134,8 @@ impl<B: Backend> CommandBuilder<B> {
             self.handlers.get_key_value_mut(arg.as_str())
         {
             namespace.push(command_name);
-            state.with_ctx::<(_, _, _)>((self.plugin_id, namespace, |ctx| {
-                handler(args, ctx)
-            }));
+            state
+                .with_ctx(namespace, self.plugin_id, |ctx| handler(args, ctx));
             namespace.pop();
         } else if let Some(module) = self.submodules.get_mut(arg.as_str()) {
             namespace.push(module.module_name);

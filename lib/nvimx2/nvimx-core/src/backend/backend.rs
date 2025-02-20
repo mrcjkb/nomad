@@ -161,6 +161,13 @@ pub trait Backend: 'static + Sized {
     /// TODO: docs.
     #[inline]
     fn with_ctx<R>(self, fun: impl FnOnce(&mut NeovimCtx<Self>) -> R) -> R {
-        StateHandle::new(self).with_mut(|mut s| s.with_ctx(fun))
+        StateHandle::new(self).with_mut(|mut s| {
+            s.with_ctx(
+                &notify::Namespace::default(),
+                <crate::state::ResumeUnwinding as Plugin<Self>>::id(),
+                fun,
+            )
+            .expect("panics are resumed")
+        })
     }
 }

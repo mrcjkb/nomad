@@ -28,13 +28,9 @@ where
         state: state.as_mut(),
     };
     Module::api(plugin, &mut api_ctx);
-    api_ctx.state.with_ctx::<(_, _, _)>((
-        api_ctx.plugin_id,
-        api_ctx.namespace,
-        |ctx| {
-            plugin.on_init(ctx);
-        },
-    ));
+    api_ctx.state.with_ctx(api_ctx.namespace, api_ctx.plugin_id, |ctx| {
+        plugin.on_init(ctx);
+    });
     let mut plugin_api = api_ctx.module_api;
     plugin_api.add_function(
         P::CONFIG_FN_NAME,
@@ -139,11 +135,9 @@ impl<B: Backend> ApiCtx<'_, B> {
                         return None;
                     },
                 };
-                let res = state.with_ctx::<(_, _, _)>((
-                    plugin_id,
-                    namespace,
-                    |ctx| fun.call(args, ctx).into_result(),
-                ));
+                let res = state.with_ctx(namespace, plugin_id, |ctx| {
+                    fun.call(args, ctx).into_result()
+                });
                 let ret = match res? {
                     Ok(ret) => ret,
                     Err(err) => {
@@ -192,13 +186,9 @@ impl<B: Backend> ApiCtx<'_, B> {
             state: self.state.as_mut(),
         };
         sub.api(&mut ctx);
-        ctx.state.with_ctx::<(_, _, _)>((
-            ctx.plugin_id,
-            ctx.namespace,
-            |ctx| {
-                sub.on_init(ctx);
-            },
-        ));
+        ctx.state.with_ctx(ctx.namespace, ctx.plugin_id, |ctx| {
+            sub.on_init(ctx);
+        });
         ctx.module_api
     }
 }
@@ -274,11 +264,11 @@ impl<B: Backend> ConfigBuilder<B> {
             config_path.pop();
         }
         drop(map_access);
-        if let Some(Err(err)) = state.with_ctx::<(_, _, _)>((
-            <P as Plugin<_>>::id(),
+        if let Some(Err(err)) = state.with_ctx(
             config_path,
+            <P as Plugin<_>>::id(),
             |ctx: &mut NeovimCtx<B>| (self.handler)(config, ctx),
-        )) {
+        ) {
             state.emit_deserialize_error_in_config::<P>(
                 config_path,
                 namespace,

@@ -12,12 +12,14 @@ use crate::backend::{
 };
 use crate::module::Module;
 use crate::notify::{self, Emitter, Namespace, NotificationId};
+use crate::plugin::PluginId;
 use crate::state::StateMut;
 use crate::{AsyncCtx, BufferCtx};
 
 /// TODO: docs.
 pub struct NeovimCtx<'a, B: Backend> {
     namespace: &'a Namespace,
+    plugin_id: PluginId,
     state: StateMut<'a, B>,
 }
 
@@ -107,16 +109,21 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
         Out: 'static,
     {
         let fun = async move |ctx: &mut AsyncCtx<B>| {
-            match panic::AssertUnwindSafe(fun(ctx)).catch_unwind().await {
-                Ok(ret) => Some(ret),
-                Err(_payload) => {
-                    ctx.state().with_mut(|_state| {
-                        // state.handle_panic(ctx.namespace(), payload);
-                        todo!();
-                    });
-                    None
-                },
-            }
+            let panic_payload =
+                match panic::AssertUnwindSafe(fun(ctx)).catch_unwind().await {
+                    Ok(ret) => return Some(ret),
+                    Err(payload) => payload,
+                };
+
+            ctx.state().with_mut(|mut state| {
+                state.handle_panic(
+                    ctx.namespace(),
+                    ctx.plugin_id(),
+                    panic_payload,
+                );
+            });
+
+            None
         };
 
         self.spawn_local_unprotected(fun)
@@ -132,8 +139,11 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     where
         Out: 'static,
     {
-        let mut ctx =
-            AsyncCtx::new(self.namespace.clone(), self.state.handle());
+        let mut ctx = AsyncCtx::new(
+            self.namespace.clone(),
+            self.plugin_id,
+            self.state.handle(),
+        );
 
         let task = self.local_executor().spawn(async move {
             // Yielding prevents a panic that would occur when:
@@ -198,8 +208,9 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
     #[inline]
     pub(crate) fn new(
         namespace: &'a Namespace,
+        plugin_id: PluginId,
         state: StateMut<'a, B>,
     ) -> Self {
-        Self { namespace, state }
+        Self { namespace, plugin_id: plugin_id.into(), state }
     }
 }

@@ -47,7 +47,7 @@ pub trait Plugin<B: Backend>: Module<B> {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PluginId {
     pub(crate) type_id: any::TypeId,
 }
