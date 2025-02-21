@@ -22,14 +22,25 @@ use crate::backend::{
     default_search_project_root,
 };
 
+#[allow(clippy::type_complexity)]
 pub struct CollabTestBackend<T> {
     inner: T,
+    confirm_start: Option<Box<dyn FnMut(&fs::AbsPath) -> bool>>,
     clipboard: Option<SessionId>,
 }
 
 impl<T> CollabTestBackend<T> {
+    pub fn confirm_start_with(
+        mut self,
+        fun: impl FnMut(&fs::AbsPath) -> bool + 'static,
+    ) -> Self
+where {
+        self.confirm_start = Some(Box::new(fun) as _);
+        self
+    }
+
     pub fn new(inner: T) -> Self {
-        Self { inner, clipboard: None }
+        Self { inner, clipboard: None, confirm_start: None }
     }
 }
 
@@ -49,10 +60,13 @@ where
     type BufferLspRootError = Infallible;
 
     async fn confirm_start(
-        _project_root: &fs::AbsPath,
-        _ctx: &mut AsyncCtx<'_, Self>,
+        project_root: &fs::AbsPath,
+        ctx: &mut AsyncCtx<'_, Self>,
     ) -> bool {
-        todo!()
+        ctx.with_backend(|this| match &mut this.confirm_start {
+            Some(fun) => fun(project_root),
+            None => true,
+        })
     }
 
     async fn copy_session_id(
