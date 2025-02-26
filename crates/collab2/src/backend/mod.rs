@@ -248,6 +248,22 @@ mod default_read_replica {
         Directory(AbsPathBuf),
     }
 
+    impl<B: CollabBackend> PartialEq for Error<B>
+        where
+            WalkErrorKind<B::Fs>: PartialEq,
+            <<<B::Fs as fs::Fs>::Directory as fs::Directory>::Metadata as fs::Metadata>::Error: PartialEq
+    {
+        fn eq(&self, other: &Self) -> bool {
+            use Error::*;
+
+            match (self, other) {
+                (Walk(l), Walk(r)) => l == r,
+                (Len(l), Len(r)) => l == r,
+                _ => false,
+            }
+        }
+    }
+
     impl<B: CollabBackend> fmt::Display for Error<B> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
@@ -325,6 +341,30 @@ mod default_search_project_root {
         HomeDir(B::HomeDirError),
         InvalidBufId(BufferId<B>),
         Lsp(B::LspRootError),
+    }
+
+    impl<B: CollabBackend> PartialEq for Error<B>
+    where
+        B::BufferId: PartialEq,
+        B::HomeDirError: PartialEq,
+        B::LspRootError: PartialEq,
+        root_markers::FindRootError<B::Fs, Markers>: PartialEq,
+    {
+        fn eq(&self, other: &Self) -> bool {
+            use Error::*;
+
+            match (self, other) {
+                (BufNameNotAbsolutePath(l), BufNameNotAbsolutePath(r)) => {
+                    l == r
+                },
+                (CouldntFindRoot(l), CouldntFindRoot(r)) => l == r,
+                (FindRoot(l), FindRoot(r)) => l == r,
+                (HomeDir(l), HomeDir(r)) => l == r,
+                (InvalidBufId(l), InvalidBufId(r)) => l == r,
+                (Lsp(l), Lsp(r)) => l == r,
+                _ => false,
+            }
+        }
     }
 
     impl<B: CollabBackend> fmt::Display for Error<B>
@@ -577,6 +617,15 @@ mod root_markers {
         }
     }
 
+    impl<Fs: fs::Fs, M: RootMarker<Fs>> PartialEq for FindRootError<Fs, M>
+    where
+        FindRootErrorKind<Fs, M>: PartialEq,
+    {
+        fn eq(&self, other: &Self) -> bool {
+            self.path == other.path && self.kind == other.kind
+        }
+    }
+
     impl<Fs, M> notify::Error for FindRootError<Fs, M>
     where
         Fs: fs::Fs,
@@ -639,6 +688,51 @@ mod root_markers {
                 .push_str(err.to_smolstr());
 
             (notify::Level::Error, message)
+        }
+    }
+
+    impl<Fs: fs::Fs, M: RootMarker<Fs>> PartialEq for FindRootErrorKind<Fs, M>
+    where
+        DirEntryError<Fs>: PartialEq,
+        <Fs::Symlink as fs::Symlink>::FollowError: PartialEq,
+        M::Error: PartialEq,
+        Fs::NodeAtPathError: PartialEq,
+        <Fs::Directory as fs::Directory>::ReadError: PartialEq,
+    {
+        fn eq(&self, other: &Self) -> bool {
+            use FindRootErrorKind::*;
+
+            match (self, other) {
+                (DirEntry(l), DirEntry(r)) => l == r,
+                (FollowSymlink(l), FollowSymlink(r)) => l == r,
+                (
+                    Marker { dir_entry_name: l, err: l_err },
+                    Marker { dir_entry_name: r, err: r_err },
+                ) => l == r && l_err == r_err,
+                (NodeAtStartPath(l), NodeAtStartPath(r)) => l == r,
+                (ReadDir(l), ReadDir(r)) => l == r,
+                (StartPathNotFound, StartPathNotFound) => true,
+                (StartsAtDanglingSymlink, StartsAtDanglingSymlink) => true,
+                _ => false,
+            }
+        }
+    }
+
+    impl<Fs: fs::Fs> PartialEq for DirEntryError<Fs>
+    where
+        <Fs::Directory as fs::Directory>::ReadEntryError: PartialEq,
+        <<Fs::Directory as fs::Directory>::Metadata as fs::Metadata>::NameError: PartialEq,
+        <<Fs::Directory as fs::Directory>::Metadata as fs::Metadata>::NodeKindError: PartialEq,
+    {
+        fn eq(&self, other: &Self) -> bool {
+            use DirEntryError::*;
+
+            match (self, other) {
+                (Access(l), Access(r)) => l == r,
+                (Name(l), Name(r)) => l == r,
+                (NodeKind(l), NodeKind(r)) => l == r,
+                _ => false,
+            }
         }
     }
 

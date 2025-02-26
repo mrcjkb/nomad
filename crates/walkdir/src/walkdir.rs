@@ -176,7 +176,7 @@ pub type ForEachError<W, E> = WalkError<Either<WalkErrorKind<W>, E>>;
 pub type PathsError<W> = WalkError<WalkErrorKind<W>>;
 
 /// TODO: docs.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct WalkError<K> {
     /// TODO: docs.
     pub dir_path: fs::AbsPathBuf,
@@ -253,6 +253,27 @@ impl<W: WalkDir> fmt::Display for WalkErrorKind<W> {
             WalkErrorKind::DirEntryName(err) => err.fmt(f),
             WalkErrorKind::DirEntryNodeKind(err) => err.fmt(f),
             WalkErrorKind::ReadDir(err) => err.fmt(f),
+        }
+    }
+}
+
+impl<W> PartialEq for WalkErrorKind<W>
+where
+    W: WalkDir,
+    W::ReadDirError: PartialEq,
+    W::ReadDirEntryError: PartialEq,
+    <W::DirEntry as fs::Metadata>::NameError: PartialEq,
+    <W::DirEntry as fs::Metadata>::NodeKindError: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        use WalkErrorKind::*;
+
+        match (self, other) {
+            (DirEntry(l), DirEntry(r)) => l == r,
+            (DirEntryName(l), DirEntryName(r)) => l == r,
+            (DirEntryNodeKind(l), DirEntryNodeKind(r)) => l == r,
+            (ReadDir(l), ReadDir(r)) => l == r,
+            _ => false,
         }
     }
 }

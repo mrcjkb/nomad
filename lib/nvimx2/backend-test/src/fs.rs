@@ -516,11 +516,11 @@ impl Default for TestFsInner {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("dir entry does not exist")]
 pub struct TestDirEntryDoesNotExistError;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum TestReadDirError {
     #[error("no node at path")]
     NoNodeAtPath,
@@ -528,7 +528,7 @@ pub enum TestReadDirError {
     NoDirAtPath,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum TestReadDirNextError {
     #[error("directory has been deleted")]
     DirWasDeleted,
