@@ -60,10 +60,10 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     type ServerTx = futures_util::sink::Drain<Message>;
 
     type CopySessionIdError = Infallible;
-    type HomeDirError = ();
+    type HomeDirError = &'static str;
     type LspRootError = Infallible;
-    type ReadReplicaError = Infallible;
-    type SearchProjectRootError = Infallible;
+    type ReadReplicaError = default_read_replica::Error<Self>;
+    type SearchProjectRootError = default_search_project_root::Error<Self>;
     type ServerRxError = Infallible;
     type ServerTxError = Infallible;
     type StartSessionError = Infallible;
@@ -91,7 +91,7 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     ) -> Result<fs::AbsPathBuf, Self::HomeDirError> {
         ctx.with_backend(|this| match &mut this.home_dir_with {
             Some(fun) => Ok(fun(this.inner.fs())),
-            None => Err(()),
+            None => Err("no home directory configured"),
         })
     }
 
@@ -107,21 +107,19 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
         project_root: &fs::AbsPath,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> Result<eerie::Replica, Self::ReadReplicaError> {
-        let _ = default_read_replica::read_replica(
+        default_read_replica::read_replica(
             peer_id,
             project_root.to_owned(),
             ctx,
         )
-        .await;
-        todo!();
+        .await
     }
 
     async fn search_project_root(
         buffer_id: BufferId<Self>,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> Result<eerie::fs::AbsPathBuf, Self::SearchProjectRootError> {
-        let _ = default_search_project_root::search(buffer_id, ctx).await;
-        todo!()
+        default_search_project_root::search(buffer_id, ctx).await
     }
 
     async fn select_session<'pairs>(

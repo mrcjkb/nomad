@@ -149,6 +149,7 @@ pub struct StartInfos<B: CollabBackend> {
 
 #[cfg(any(feature = "neovim", feature = "test"))]
 mod default_read_replica {
+    use core::fmt;
     use std::sync::Arc;
 
     use concurrent_queue::{ConcurrentQueue, PushError};
@@ -233,7 +234,7 @@ mod default_read_replica {
 
     #[derive(derive_more::Debug)]
     #[debug(bound(B: CollabBackend))]
-    pub(super) enum Error<B: CollabBackend> {
+    pub enum Error<B: CollabBackend> {
         Walk(WalkError<WalkErrorKind<B::Fs>>),
         Len(
             WalkError<
@@ -246,10 +247,27 @@ mod default_read_replica {
         File(AbsPathBuf, ByteOffset),
         Directory(AbsPathBuf),
     }
+
+    impl<B: CollabBackend> fmt::Display for Error<B> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Error::Walk(err) => fmt::Display::fmt(err, f),
+                Error::Len(err) => fmt::Display::fmt(err, f),
+            }
+        }
+    }
+
+    impl<B: CollabBackend> notify::Error for Error<B> {
+        fn to_message(&self) -> (notify::Level, notify::Message) {
+            (notify::Level::Error, notify::Message::from_display(self))
+        }
+    }
 }
 
 #[cfg(any(feature = "neovim", feature = "test"))]
 mod default_search_project_root {
+    use core::fmt;
+
     use super::*;
 
     const MARKERS: Markers = root_markers::GitDirectory;
@@ -300,13 +318,50 @@ mod default_search_project_root {
 
     #[derive(derive_more::Debug)]
     #[debug(bound(B: CollabBackend))]
-    pub(super) enum Error<B: CollabBackend> {
+    pub enum Error<B: CollabBackend> {
         BufNameNotAbsolutePath(String),
         CouldntFindRoot(fs::AbsPathBuf),
         FindRoot(root_markers::FindRootError<B::Fs, Markers>),
         HomeDir(B::HomeDirError),
         InvalidBufId(BufferId<B>),
         Lsp(B::LspRootError),
+    }
+
+    impl<B: CollabBackend> fmt::Display for Error<B>
+    where
+        B::HomeDirError: fmt::Display,
+        B::LspRootError: fmt::Display,
+    {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Error::BufNameNotAbsolutePath(str) => {
+                    write!(f, "buffer name {:?} is not an absolute path", str)
+                },
+                Error::CouldntFindRoot(abs_path_buf) => {
+                    write!(
+                        f,
+                        "couldn't find project root for buffer at {:?}",
+                        abs_path_buf
+                    )
+                },
+                Error::FindRoot(_err) => todo!(),
+                Error::HomeDir(err) => fmt::Display::fmt(err, f),
+                Error::InvalidBufId(buf_id) => {
+                    write!(f, "there's no buffer whose ID is {:?}", buf_id)
+                },
+                Error::Lsp(err) => fmt::Display::fmt(err, f),
+            }
+        }
+    }
+
+    impl<B: CollabBackend> notify::Error for Error<B>
+    where
+        B::HomeDirError: fmt::Display,
+        B::LspRootError: fmt::Display,
+    {
+        fn to_message(&self) -> (notify::Level, notify::Message) {
+            (notify::Level::Error, notify::Message::from_display(self))
+        }
     }
 }
 
