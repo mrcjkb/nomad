@@ -1648,6 +1648,7 @@ dependencies = [
  "eerie",
  "flume",
  "futures-lite",
+ "futures-util",
  "fxhash",
  "notify",
  "pin-project-lite",

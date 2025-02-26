@@ -7,9 +7,11 @@ use core::task::{Context, Poll, ready};
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::io;
+use std::path::PathBuf;
 use std::time::SystemTime;
 
-use futures_lite::{Stream, StreamExt};
+use futures_util::select;
+use futures_util::stream::{self, Stream, StreamExt};
 use notify::{RecursiveMode, Watcher};
 
 use crate::ByteOffset;
@@ -51,6 +53,7 @@ pub struct OsSymlink {
 /// TODO: docs.
 pub struct OsMetadata {
     metadata: async_fs::Metadata,
+    node_kind: FsNodeKind,
     node_name: OsString,
 }
 
@@ -183,14 +186,57 @@ impl Directory for OsDirectory {
         impl Stream<Item = Result<OsMetadata, Self::ReadEntryError>> + use<>,
         Self::ReadError,
     > {
-        async_fs::read_dir(self.path()).await.map(|read_dir| {
-            read_dir.map(|res| {
-                res.map(|dir_entry| OsMetadata {
-                    metadata: todo!(),
-                    node_name: dir_entry.file_name(),
-                })
-            })
-        })
+        let read_dir = async_fs::read_dir(self.path()).await?.fuse();
+        let get_metadata = stream::FuturesUnordered::new();
+        Ok(stream::unfold(
+            (read_dir, get_metadata, self.path().to_owned()),
+            move |(mut read_dir, mut get_metadata, dir_path)| async move {
+                let metadata_res = loop {
+                    select! {
+                        res = read_dir.select_next_some() => {
+                            let dir_entry = match res {
+                                Ok(entry) => entry,
+                                Err(err) => break Err(err),
+                            };
+                            let dir_path = dir_path.clone();
+                            get_metadata.push(async move {
+                                let node_name = dir_entry.file_name();
+                                let entry_path =
+                                    PathBuf::from(dir_path.as_str())
+                                        .join(&node_name);
+                                let meta =
+                                    async_fs::symlink_metadata(entry_path)
+                                        .await?;
+                                Ok((meta, node_name))
+                            });
+                        },
+                        res = get_metadata.select_next_some() => {
+                            let (metadata, node_name) = match res {
+                                Ok(tuple) => tuple,
+                                Err(err) => break Err(err),
+                            };
+                            let file_type = metadata.file_type();
+                            let node_kind = if file_type.is_dir() {
+                                FsNodeKind::Directory
+                            } else if file_type.is_file() {
+                                FsNodeKind::File
+                            } else if file_type.is_symlink() {
+                                FsNodeKind::Symlink
+                            } else {
+                                continue
+                            };
+                            break Ok(OsMetadata {
+                                metadata,
+                                node_kind,
+                                node_name,
+                            })
+                        },
+                        complete => return None,
+                    }
+                };
+                Some((metadata_res, (read_dir, get_metadata, dir_path)))
+            },
+        ))
     }
 
     async fn parent(&self) -> Option<Self> {
@@ -296,16 +342,6 @@ impl Metadata for OsMetadata {
     }
 
     async fn node_kind(&self) -> Result<FsNodeKind, Self::NodeKindError> {
-        let file_type = self.metadata.file_type();
-
-        Ok(if file_type.is_dir() {
-            FsNodeKind::Directory
-        } else if file_type.is_file() {
-            FsNodeKind::File
-        } else if file_type.is_symlink() {
-            FsNodeKind::Symlink
-        } else {
-            unreachable!("checked when creating it")
-        })
+        Ok(self.node_kind)
     }
 }

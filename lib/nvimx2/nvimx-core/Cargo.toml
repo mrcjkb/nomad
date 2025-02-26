@@ -14,6 +14,7 @@ compact_str = { workspace = true }
 eerie = { workspace = true }
 flume = { workspace = true, features = ["async"] }
 futures-lite = { workspace = true, features = ["std"] }
+futures-util = { workspace = true, features = ["async-await-macro"] }
 fxhash = { workspace = true }
 pin-project-lite = { workspace = true }
 serde = { workspace = true }
