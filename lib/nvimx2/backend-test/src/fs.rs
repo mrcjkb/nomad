@@ -487,6 +487,10 @@ impl File for TestFileHandle {
             path: self.path.parent().expect("has a parent").to_owned(),
         }
     }
+
+    fn path(&self) -> &AbsPath {
+        &self.path
+    }
 }
 
 impl Symlink for TestSymlinkHandle {

@@ -1,5 +1,6 @@
 //! TODO: docs.
 
+use core::cell::RefCell;
 use core::convert::Infallible;
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
@@ -29,18 +30,16 @@ use crate::fs::{
 
 /// TODO: docs.
 #[derive(Debug, Default, Copy, Clone)]
-pub struct OsFs;
+pub struct OsFs {}
 
 /// TODO: docs.
 pub struct OsDirectory {
-    _metadata: Option<async_fs::Metadata>,
-    path: AbsPathBuf,
+    metadata: LazyOsMetadata,
 }
 
 /// TODO: docs.
 pub struct OsFile {
-    metadata: Option<async_fs::Metadata>,
-    path: AbsPathBuf,
+    metadata: LazyOsMetadata,
 }
 
 /// TODO: docs.
@@ -79,12 +78,30 @@ pub enum OsNameError {
     Invalid(#[from] InvalidFsNodeNameError),
 }
 
-impl OsFile {
-    async fn with_metadata<R>(
+struct LazyOsMetadata {
+    metadata: RefCell<Option<async_fs::Metadata>>,
+    path: AbsPathBuf,
+}
+
+impl LazyOsMetadata {
+    fn lazy(path: AbsPathBuf) -> Self {
+        Self { metadata: RefCell::new(None), path }
+    }
+
+    fn new(metadata: async_fs::Metadata, path: AbsPathBuf) -> Self {
+        Self { metadata: RefCell::new(Some(metadata)), path }
+    }
+
+    async fn with<R>(
         &self,
-        _fun: impl FnOnce(&async_fs::Metadata) -> R,
+        fun: impl FnOnce(&async_fs::Metadata) -> R,
     ) -> Result<R, io::Error> {
-        todo!();
+        if let Some(meta) = &*self.metadata.borrow() {
+            return Ok(fun(meta));
+        }
+        let metadata = async_fs::metadata(&*self.path).await?;
+        *self.metadata.borrow_mut() = Some(metadata);
+        Ok(fun(self.metadata.borrow().as_ref().expect("just set it")))
     }
 }
 
@@ -114,12 +131,10 @@ impl Fs for OsFs {
         };
         Ok(Some(match file_type {
             FsNodeKind::File => FsNode::File(OsFile {
-                metadata: Some(metadata),
-                path: path.to_owned(),
+                metadata: LazyOsMetadata::new(metadata, path.to_owned()),
             }),
             FsNodeKind::Directory => FsNode::Directory(OsDirectory {
-                _metadata: Some(metadata),
-                path: path.to_owned(),
+                metadata: LazyOsMetadata::new(metadata, path.to_owned()),
             }),
             FsNodeKind::Symlink => FsNode::Symlink(OsSymlink {
                 _metadata: metadata,
@@ -168,7 +183,7 @@ impl Directory for OsDirectory {
         impl Stream<Item = Result<OsMetadata, Self::ReadEntryError>> + use<>,
         Self::ReadError,
     > {
-        async_fs::read_dir(&*self.path).await.map(|read_dir| {
+        async_fs::read_dir(self.path()).await.map(|read_dir| {
             read_dir.map(|res| {
                 res.map(|dir_entry| OsMetadata {
                     metadata: todo!(),
@@ -179,13 +194,13 @@ impl Directory for OsDirectory {
     }
 
     async fn parent(&self) -> Option<Self> {
-        self.path
-            .parent()
-            .map(|path| Self { _metadata: None, path: path.to_owned() })
+        self.path().parent().map(|parent| Self {
+            metadata: LazyOsMetadata::lazy(parent.to_owned()),
+        })
     }
 
     fn path(&self) -> &AbsPath {
-        &self.path
+        &self.metadata.path
     }
 }
 
@@ -194,14 +209,19 @@ impl File for OsFile {
     type Error = io::Error;
 
     async fn len(&self) -> Result<ByteOffset, Self::Error> {
-        self.with_metadata(|meta| meta.len().into()).await
+        self.metadata.with(|meta| meta.len().into()).await
     }
 
     async fn parent(&self) -> <Self::Fs as Fs>::Directory {
         OsDirectory {
-            _metadata: None,
-            path: self.path.parent().expect("has a parent").to_owned(),
+            metadata: LazyOsMetadata::lazy(
+                self.path().parent().expect("has a parent").to_owned(),
+            ),
         }
+    }
+
+    fn path(&self) -> &AbsPath {
+        &self.metadata.path
     }
 }
 
@@ -214,7 +234,7 @@ impl Symlink for OsSymlink {
         let target_path = async_fs::read_link(&*self.path).await?;
         let path = <&AbsPath>::try_from(&*target_path)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-        OsFs.node_at_path(path).await
+        OsFs::default().node_at_path(path).await
     }
 
     #[inline]
@@ -224,7 +244,7 @@ impl Symlink for OsSymlink {
         let target_path = async_fs::canonicalize(&*self.path).await?;
         let path = <&AbsPath>::try_from(&*target_path)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-        OsFs.node_at_path(path).await
+        OsFs::default().node_at_path(path).await
     }
 }
 

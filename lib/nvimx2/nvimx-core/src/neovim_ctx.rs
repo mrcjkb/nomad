@@ -211,6 +211,6 @@ impl<'a, B: Backend> NeovimCtx<'a, B> {
         plugin_id: PluginId,
         state: StateMut<'a, B>,
     ) -> Self {
-        Self { namespace, plugin_id: plugin_id.into(), state }
+        Self { namespace, plugin_id, state }
     }
 }

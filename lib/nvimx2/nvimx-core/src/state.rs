@@ -79,7 +79,7 @@ impl<B: Backend> State<B> {
         };
         let plugin = Box::leak(Box::new(plugin));
         vacancy.insert(plugin);
-        self.panic_handlers.insert(<P as Plugin<_>>::id().into(), plugin);
+        self.panic_handlers.insert(<P as Plugin<_>>::id(), plugin);
         plugin
     }
 

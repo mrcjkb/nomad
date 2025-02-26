@@ -1,7 +1,7 @@
 use core::error::Error;
 
 use crate::ByteOffset;
-use crate::fs::Fs;
+use crate::fs::{AbsPath, Fs};
 
 /// TODO: docs.
 pub trait File {
@@ -16,4 +16,7 @@ pub trait File {
 
     /// TODO: docs.
     fn parent(&self) -> impl Future<Output = <Self::Fs as Fs>::Directory>;
+
+    /// TODO: docs.
+    fn path(&self) -> &AbsPath;
 }
