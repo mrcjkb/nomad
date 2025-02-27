@@ -30,13 +30,6 @@ impl<'a, W: WalkDir> DirEntry<'a, W> {
     }
 
     /// TODO: docs.
-    pub async fn len(
-        &self,
-    ) -> Result<ByteOffset, <W::DirEntry as fs::Metadata>::Error> {
-        todo!()
-    }
-
-    /// TODO: docs.
     #[allow(clippy::same_name_method)]
     pub fn name(&self) -> &FsNodeName {
         &self.name
@@ -81,16 +74,16 @@ impl<W: WalkDir> fs::Metadata for DirEntry<'_, W> {
     type NameError = Infallible;
     type NodeKindError = Infallible;
 
-    async fn created_at(
-        &self,
-    ) -> Result<Option<Self::Timestamp>, Self::Error> {
-        self.inner.created_at().await
+    fn created_at(&self) -> Option<Self::Timestamp> {
+        self.inner.created_at()
     }
 
-    async fn last_modified_at(
-        &self,
-    ) -> Result<Option<Self::Timestamp>, Self::Error> {
-        self.inner.last_modified_at().await
+    fn last_modified_at(&self) -> Option<Self::Timestamp> {
+        self.inner.last_modified_at()
+    }
+
+    fn len(&self) -> ByteOffset {
+        self.inner.len()
     }
 
     async fn name(&self) -> Result<FsNodeNameBuf, Self::NameError> {

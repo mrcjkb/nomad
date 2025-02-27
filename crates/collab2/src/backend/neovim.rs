@@ -360,10 +360,6 @@ impl notify::Error for NeovimReadReplicaError {
                 msg.push_info(&err.dir_path);
                 &err.kind
             },
-            Len(err) => {
-                msg.push_info(&err.dir_path);
-                &err.kind
-            },
         };
 
         msg.push_str(": ").push_str(err.to_smolstr());

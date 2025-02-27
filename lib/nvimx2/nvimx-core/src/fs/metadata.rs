@@ -1,5 +1,6 @@
 use core::error::Error;
 
+use crate::ByteOffset;
 use crate::fs::{FsNodeKind, FsNodeNameBuf};
 
 /// TODO: docs.
@@ -17,14 +18,13 @@ pub trait Metadata {
     type NodeKindError: Error;
 
     /// TODO: docs.
-    fn created_at(
-        &self,
-    ) -> impl Future<Output = Result<Option<Self::Timestamp>, Self::Error>>;
+    fn created_at(&self) -> Option<Self::Timestamp>;
 
     /// TODO: docs.
-    fn last_modified_at(
-        &self,
-    ) -> impl Future<Output = Result<Option<Self::Timestamp>, Self::Error>>;
+    fn last_modified_at(&self) -> Option<Self::Timestamp>;
+
+    /// TODO: docs.
+    fn len(&self) -> ByteOffset;
 
     /// TODO: docs.
     fn name(

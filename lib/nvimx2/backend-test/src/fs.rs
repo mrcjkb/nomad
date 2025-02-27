@@ -463,14 +463,22 @@ impl Metadata for TestDirEntry {
     type NameError = TestDirEntryDoesNotExistError;
     type NodeKindError = TestDirEntryDoesNotExistError;
 
-    async fn created_at(&self) -> Result<Option<TestTimestamp>, Self::Error> {
-        Ok(None)
+    fn created_at(&self) -> Option<TestTimestamp> {
+        None
     }
 
-    async fn last_modified_at(
-        &self,
-    ) -> Result<Option<TestTimestamp>, Self::Error> {
-        Ok(None)
+    fn last_modified_at(&self) -> Option<TestTimestamp> {
+        None
+    }
+
+    #[track_caller]
+    fn len(&self) -> ByteOffset {
+        match self {
+            TestDirEntry::Directory(_) => 0usize.into(),
+            TestDirEntry::File(file) => file
+                .with_file(|file| file.len())
+                .expect("file has been deleted"),
+        }
     }
 
     async fn name(&self) -> Result<FsNodeNameBuf, Self::NameError> {

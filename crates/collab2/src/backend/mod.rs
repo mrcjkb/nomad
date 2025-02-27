@@ -149,12 +149,13 @@ pub struct StartInfos<B: CollabBackend> {
 
 #[cfg(any(feature = "neovim", feature = "test"))]
 mod default_read_replica {
+    use core::convert::Infallible;
     use core::fmt;
     use std::sync::Arc;
 
     use concurrent_queue::{ConcurrentQueue, PushError};
     use eerie::ReplicaBuilder;
-    use fs::FsNodeKind;
+    use fs::{FsNodeKind, Metadata};
     use nvimx2::ByteOffset;
     use walkdir::{Either, WalkDir, WalkError, WalkErrorKind};
 
@@ -175,7 +176,7 @@ mod default_read_replica {
             let handler = async move |entry: walkdir::DirEntry<'_, _>| {
                 let op = match entry.node_kind() {
                     FsNodeKind::File => {
-                        PushNode::File(entry.path(), entry.len().await?)
+                        PushNode::File(entry.path(), entry.len())
                     },
                     FsNodeKind::Directory => PushNode::Directory(entry.path()),
                     FsNodeKind::Symlink => return Ok(()),
@@ -186,7 +187,7 @@ mod default_read_replica {
                     Err(PushError::Closed(_)) => unreachable!("never closed"),
                 }
             };
-            fs.for_each(&project_root, handler).await?;
+            fs.for_each::<_, Infallible>(&project_root, handler).await?;
             let mut builder = ReplicaBuilder::new(peer_id);
             while let Ok(op) = op_queue.pop() {
                 let _ = match op {
@@ -208,12 +209,7 @@ mod default_read_replica {
                         kind: left,
                     }));
                 },
-                Either::Right(right) => {
-                    return Err(Error::Len(WalkError {
-                        dir_path: err.dir_path,
-                        kind: right,
-                    }));
-                },
+                Either::Right(_infallible) => unreachable!(),
             },
         };
 
@@ -236,11 +232,6 @@ mod default_read_replica {
     #[debug(bound(B: CollabBackend))]
     pub enum Error<B: CollabBackend> {
         Walk(WalkError<WalkErrorKind<B::Fs>>),
-        Len(
-            WalkError<
-<<<B::Fs as fs::Fs>::Directory as fs::Directory>::Metadata as fs::Metadata>::Error
-            >,
-        ),
     }
 
     enum PushNode {
@@ -258,8 +249,6 @@ mod default_read_replica {
 
             match (self, other) {
                 (Walk(l), Walk(r)) => l == r,
-                (Len(l), Len(r)) => l == r,
-                _ => false,
             }
         }
     }
@@ -268,7 +257,6 @@ mod default_read_replica {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Error::Walk(err) => fmt::Display::fmt(err, f),
-                Error::Len(err) => fmt::Display::fmt(err, f),
             }
         }
     }

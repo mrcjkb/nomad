@@ -353,14 +353,16 @@ impl Metadata for OsMetadata {
     type NameError = OsNameError;
     type NodeKindError = Infallible;
 
-    async fn created_at(&self) -> Result<Option<SystemTime>, Self::Error> {
-        Ok(self.metadata.created().ok())
+    fn created_at(&self) -> Option<SystemTime> {
+        self.metadata.created().ok()
     }
 
-    async fn last_modified_at(
-        &self,
-    ) -> Result<Option<SystemTime>, Self::Error> {
-        Ok(self.metadata.modified().ok())
+    fn last_modified_at(&self) -> Option<SystemTime> {
+        self.metadata.modified().ok()
+    }
+
+    fn len(&self) -> ByteOffset {
+        self.metadata.len().into()
     }
 
     async fn name(&self) -> Result<FsNodeNameBuf, Self::NameError> {
