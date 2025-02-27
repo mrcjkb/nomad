@@ -384,7 +384,7 @@ mod default_search_project_root {
                         abs_path_buf
                     )
                 },
-                Error::FindRoot(_err) => todo!(),
+                Error::FindRoot(err) => fmt::Display::fmt(err, f),
                 Error::HomeDir(err) => fmt::Display::fmt(err, f),
                 Error::InvalidBufId(buf_id) => {
                     write!(f, "there's no buffer whose ID is {:?}", buf_id)
@@ -732,6 +732,67 @@ mod root_markers {
                 (Name(l), Name(r)) => l == r,
                 (NodeKind(l), NodeKind(r)) => l == r,
                 _ => false,
+            }
+        }
+    }
+
+    impl<Fs: fs::Fs, M: RootMarker<Fs>> fmt::Display for FindRootError<Fs, M> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match &self.kind {
+                FindRootErrorKind::DirEntry(err) => {
+                    write!(
+                        f,
+                        "couldn't read file or directory at {:?}: {}",
+                        self.path, err
+                    )
+                },
+                FindRootErrorKind::FollowSymlink(err) => {
+                    write!(
+                        f,
+                        "couldn't follow symlink at {:?}: {}",
+                        self.path, err
+                    )
+                },
+                FindRootErrorKind::Marker { dir_entry_name, err } => {
+                    let path = match dir_entry_name {
+                        Some(name) => {
+                            let mut path = self.path.clone();
+                            path.push(name);
+                            path
+                        },
+                        None => self.path.clone(),
+                    };
+                    write!(
+                        f,
+                        "couldn't match marker with file or directory at \
+                         {:?}: {}",
+                        path, err
+                    )
+                },
+                FindRootErrorKind::NodeAtStartPath(err) => {
+                    write!(
+                        f,
+                        "couldn't read file or directory at {:?}: {}",
+                        self.path, err
+                    )
+                },
+                FindRootErrorKind::ReadDir(err) => {
+                    write!(
+                        f,
+                        "couldn't read directory at {:?}: {}",
+                        self.path, err
+                    )
+                },
+                FindRootErrorKind::StartPathNotFound => {
+                    write!(f, "no file or directory found at {:?}", self.path)
+                },
+                FindRootErrorKind::StartsAtDanglingSymlink => {
+                    write!(
+                        f,
+                        "starting point at {:?} is a dangling symlink",
+                        self.path
+                    )
+                },
             }
         }
     }
