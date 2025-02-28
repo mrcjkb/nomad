@@ -3,8 +3,9 @@
 use core::marker::PhantomData;
 
 use auth::AuthInfos;
+use collab_server::SessionId;
 use nvimx2::action::AsyncAction;
-use nvimx2::command::ToCompletionFn;
+use nvimx2::command::{Parse, ToCompletionFn};
 use nvimx2::notify::Name;
 use nvimx2::{AsyncCtx, Shared, notify};
 
@@ -27,11 +28,11 @@ pub struct Join<B: CollabBackend> {
 impl<B: CollabBackend> AsyncAction<B> for Join<B> {
     const NAME: Name = "join";
 
-    type Args = ();
+    type Args = Parse<SessionId>;
 
     async fn call(
         &mut self,
-        _args: Self::Args,
+        args: Self::Args,
         _ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), JoinError<B>> {
         let _auth_infos = self
@@ -39,7 +40,9 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
             .with(|infos| infos.as_ref().cloned())
             .ok_or_else(JoinError::user_not_logged_in)?;
 
-        todo!()
+        let _session_id = args.into_inner();
+
+        todo!();
     }
 }
 

@@ -13,5 +13,6 @@ pub use command_args::{
     CommandArgsIter,
     CommandArgsWrongNumError,
     CommandCursor,
+    Parse,
 };
 pub(crate) use command_builder::{CommandBuilder, CommandCompletionsBuilder};

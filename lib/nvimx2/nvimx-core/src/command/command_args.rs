@@ -1,6 +1,8 @@
+use core::error::Error;
 use core::fmt;
 use core::mem::{self, MaybeUninit};
 use core::ops::Deref;
+use core::str::FromStr;
 
 use smol_str::ToSmolStr;
 
@@ -56,6 +58,24 @@ pub enum CommandCursor<'a> {
 }
 
 /// TODO: docs.
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(transparent)]
+pub struct Parse<T> {
+    inner: T,
+}
+
+/// TODO: docs.
 #[derive(Debug, Copy, Clone)]
 pub enum CommandArgsIntoSeqError<'a, T> {
     /// TODO: docs.
@@ -71,6 +91,16 @@ pub struct CommandArgsWrongNumError<'a> {
     args: CommandArgs<'a>,
     actual_num: usize,
     expected_num: usize,
+}
+
+/// TODO: docs.
+#[derive(Debug, Copy, Clone)]
+pub enum ParseFromCommandArgsError<'a, T> {
+    /// TODO: docs.
+    FromStr(CommandArg<'a>, T),
+
+    /// TODO: docs.
+    WrongNum(CommandArgsWrongNumError<'a>),
 }
 
 impl<'a> CommandArgs<'a> {
@@ -173,6 +203,19 @@ impl<'a> CommandArg<'a> {
     #[inline]
     pub fn start(&self) -> ByteOffset {
         self.idx.start
+    }
+}
+
+impl<T> Parse<T> {
+    /// TODO: docs.
+    #[inline]
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
+
+    #[inline]
+    fn new(inner: T) -> Self {
+        Self { inner }
     }
 }
 
@@ -358,6 +401,30 @@ where
     }
 }
 
+impl<'a, T: FromStr> TryFrom<CommandArgs<'a>> for Parse<T> {
+    type Error = ParseFromCommandArgsError<'a, T::Err>;
+
+    #[inline]
+    fn try_from(args: CommandArgs<'a>) -> Result<Self, Self::Error> {
+        let [arg] =
+            <[CommandArg<'a>; 1]>::try_from(args).map_err(
+                |err| match err {
+                    CommandArgsIntoSeqError::Item(_never) => {
+                        unreachable!()
+                    },
+                    CommandArgsIntoSeqError::WrongNum(err) => {
+                        ParseFromCommandArgsError::WrongNum(err)
+                    },
+                },
+            )?;
+
+        arg.as_str()
+            .parse()
+            .map(Parse::new)
+            .map_err(|err| ParseFromCommandArgsError::FromStr(arg, err))
+    }
+}
+
 impl<T: notify::Error> notify::Error for CommandArgsIntoSeqError<'_, T> {
     #[inline]
     fn to_message(&self) -> (notify::Level, notify::Message) {
@@ -390,6 +457,23 @@ impl notify::Error for CommandArgsWrongNumError<'_> {
         }
 
         (notify::Level::Error, message)
+    }
+}
+
+impl<T: Error> notify::Error for ParseFromCommandArgsError<'_, T> {
+    #[inline]
+    fn to_message(&self) -> (notify::Level, notify::Message) {
+        match self {
+            Self::FromStr(arg, err) => {
+                let mut message = notify::Message::from_str("couldn't parse ");
+                message
+                    .push_invalid(arg.as_str())
+                    .push_str(": ")
+                    .push_str(err.to_smolstr());
+                (notify::Level::Error, message)
+            },
+            Self::WrongNum(err) => err.to_message(),
+        }
     }
 }
 
