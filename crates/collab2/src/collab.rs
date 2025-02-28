@@ -8,6 +8,7 @@ use nvimx2::{NeovimCtx, Shared};
 
 use crate::backend::CollabBackend;
 use crate::config::Config;
+use crate::join::Join;
 use crate::leave::{Leave, StopChannels};
 use crate::session::Session;
 use crate::sessions::Sessions;
@@ -25,6 +26,11 @@ pub struct Collab<B: CollabBackend> {
 }
 
 impl<B: CollabBackend> Collab<B> {
+    /// Returns a new instance of the [`Join`] action.
+    pub fn join(&self) -> Join<B> {
+        self.into()
+    }
+
     /// Returns a new instance of the [`Leave`] action.
     pub fn leave(&self) -> Leave {
         self.into()
@@ -47,9 +53,11 @@ impl<B: CollabBackend> Module<B> for Collab<B> {
     type Config = Config;
 
     fn api(&self, ctx: &mut ApiCtx<B>) {
-        ctx.with_command(self.leave())
+        ctx.with_command(self.join())
+            .with_command(self.leave())
             .with_command(self.start())
             .with_command(self.yank())
+            .with_function(self.join())
             .with_function(self.leave())
             .with_function(self.start())
             .with_function(self.yank());

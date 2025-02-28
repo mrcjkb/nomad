@@ -4,7 +4,6 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use auth::AuthInfos;
-use flume::Sender;
 use nvimx2::action::AsyncAction;
 use nvimx2::command::ToCompletionFn;
 use nvimx2::notify::{self, Name};
@@ -22,7 +21,7 @@ pub struct Start<B: CollabBackend> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
     sessions: Sessions,
-    session_tx: Sender<Session<B>>,
+    session_tx: flume::Sender<Session<B>>,
     stop_channels: StopChannels,
 }
 
@@ -93,7 +92,7 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
     }
 }
 
-/// The type of error that can occur when [`Start`]ing a new session fails.
+/// The type of error that can occur when [`Start`]ing a session fails.
 #[derive(derive_more::Debug)]
 #[debug(bound(B: CollabBackend))]
 pub enum StartError<B: CollabBackend> {
@@ -123,10 +122,10 @@ pub enum StartError<B: CollabBackend> {
 pub struct NoBufferFocusedError<B>(PhantomData<B>);
 
 /// TODO: docs.
-pub struct SessionRxDroppedError<B>(PhantomData<B>);
+pub struct SessionRxDroppedError<B>(pub(crate) PhantomData<B>);
 
 /// TODO: docs.
-pub struct UserNotLoggedInError<B>(PhantomData<B>);
+pub struct UserNotLoggedInError<B>(pub(crate) PhantomData<B>);
 
 impl<B: CollabBackend> Clone for Start<B> {
     fn clone(&self) -> Self {
@@ -199,13 +198,13 @@ where
 impl<B: CollabBackend> notify::Error for StartError<B> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
-            StartError::NoBufferFocused(err) => err.to_message(),
-            StartError::OverlappingSession(err) => err.to_message(),
-            StartError::ReadReplica(err) => err.to_message(),
-            StartError::SearchProjectRoot(err) => err.to_message(),
-            StartError::SessionRxDropped(err) => err.to_message(),
-            StartError::StartSession(err) => err.to_message(),
-            StartError::UserNotLoggedIn(err) => err.to_message(),
+            Self::NoBufferFocused(err) => err.to_message(),
+            Self::OverlappingSession(err) => err.to_message(),
+            Self::ReadReplica(err) => err.to_message(),
+            Self::SearchProjectRoot(err) => err.to_message(),
+            Self::SessionRxDropped(err) => err.to_message(),
+            Self::StartSession(err) => err.to_message(),
+            Self::UserNotLoggedIn(err) => err.to_message(),
         }
     }
 }

@@ -6,6 +6,7 @@
 pub mod backend;
 mod collab;
 mod config;
+pub mod join;
 mod leave;
 mod session;
 mod sessions;
