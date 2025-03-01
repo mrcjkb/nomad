@@ -39,7 +39,7 @@ impl<B: CollabBackend> Project<B> {
     /// TODO: docs.
     pub(crate) async fn flush(
         &self,
-        _project_root: <B::Fs as Fs>::Directory,
+        _project_root: &<B::Fs as Fs>::Directory,
         _fs: B::Fs,
     ) {
     }

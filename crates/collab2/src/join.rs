@@ -6,6 +6,7 @@ use auth::AuthInfos;
 use collab_server::SessionId;
 use nvimx2::action::AsyncAction;
 use nvimx2::command::{Parse, ToCompletionFn};
+use nvimx2::fs::Directory;
 use nvimx2::notify::Name;
 use nvimx2::{AsyncCtx, Shared, notify};
 
@@ -14,16 +15,15 @@ use crate::backend::{CollabBackend, JoinArgs, JoinInfos};
 use crate::collab::Collab;
 use crate::config::Config;
 use crate::leave::StopChannels;
-use crate::project::{OverlappingProjectError, Projects};
+use crate::project::{NewProjectArgs, OverlappingProjectError, Projects};
 use crate::session::{NewSessionArgs, Session};
-use crate::start::{SessionRxDroppedError, UserNotLoggedInError};
+use crate::start::UserNotLoggedInError;
 
 /// The `Action` used to join an existing collaborative editing session.
 pub struct Join<B: CollabBackend> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
     projects: Projects<B>,
-    session_tx: flume::Sender<Session<B>>,
     stop_channels: StopChannels,
 }
 
@@ -70,22 +70,35 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
             .await
             .map_err(JoinError::RootForRemoteProject)?;
 
-        project.flush(project_root, ctx.fs()).await;
+        project.flush(&project_root, ctx.fs()).await;
+
+        let project = self
+            .projects
+            .insert(NewProjectArgs {
+                replica: project.replica,
+                root: project_root.path().to_owned(),
+                session_id: join_infos.session_id,
+            })
+            .map_err(JoinError::OverlappingProject)?;
 
         let session = Session::new(NewSessionArgs {
             _is_host: false,
             _local_peer: join_infos.local_peer,
+            _project: project,
             _remote_peers: join_infos.remote_peers,
-            _replica: project.replica,
             server_rx: join_infos.server_rx,
             server_tx: join_infos.server_tx,
             stop_rx: self.stop_channels.insert(join_infos.session_id),
         });
 
-        self.session_tx
-            .send_async(session)
-            .await
-            .map_err(|_| JoinError::session_rx_dropped())
+        ctx.spawn_local(async move |ctx| {
+            if let Err(err) = session.run(ctx).await {
+                ctx.emit_err(err);
+            }
+        })
+        .detach();
+
+        Ok(())
     }
 }
 
@@ -106,9 +119,6 @@ pub enum JoinError<B: CollabBackend> {
     RootForRemoteProject(B::RootForRemoteProjectError),
 
     /// TODO: docs.
-    SessionRxDropped(SessionRxDroppedError<B>),
-
-    /// TODO: docs.
     UserNotLoggedIn(UserNotLoggedInError<B>),
 }
 
@@ -126,7 +136,6 @@ impl<B: CollabBackend> Clone for Join<B> {
             config: self.config.clone(),
             stop_channels: self.stop_channels.clone(),
             projects: self.projects.clone(),
-            session_tx: self.session_tx.clone(),
         }
     }
 }
@@ -137,7 +146,6 @@ impl<B: CollabBackend> From<&Collab<B>> for Join<B> {
             auth_infos: collab.auth_infos.clone(),
             config: collab.config.clone(),
             projects: collab.projects.clone(),
-            session_tx: collab.session_tx.clone(),
             stop_channels: collab.stop_channels.clone(),
         }
     }
@@ -148,11 +156,6 @@ impl<B: CollabBackend> ToCompletionFn<B> for Join<B> {
 }
 
 impl<B: CollabBackend> JoinError<B> {
-    /// Creates a new [`JoinError::SessionRxDropped`] variant.
-    pub fn session_rx_dropped() -> Self {
-        Self::SessionRxDropped(SessionRxDroppedError(PhantomData))
-    }
-
     /// Creates a new [`JoinError::UserNotLoggedIn`] variant.
     pub fn user_not_logged_in() -> Self {
         Self::UserNotLoggedIn(UserNotLoggedInError(PhantomData))
@@ -173,7 +176,6 @@ where
             (OverlappingProject(l), OverlappingProject(r)) => l == r,
             (RequestProject(_), RequestProject(_)) => todo!(),
             (RootForRemoteProject(l), RootForRemoteProject(r)) => l == r,
-            (SessionRxDropped(_), SessionRxDropped(_)) => true,
             (UserNotLoggedIn(_), UserNotLoggedIn(_)) => true,
             _ => false,
         }
@@ -187,7 +189,6 @@ impl<B: CollabBackend> notify::Error for JoinError<B> {
             Self::OverlappingProject(err) => err.to_message(),
             Self::RequestProject(_) => todo!(),
             Self::RootForRemoteProject(err) => err.to_message(),
-            Self::SessionRxDropped(err) => err.to_message(),
             Self::UserNotLoggedIn(err) => err.to_message(),
         }
     }

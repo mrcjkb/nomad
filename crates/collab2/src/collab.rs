@@ -1,7 +1,4 @@
-use core::cell::Cell;
-
 use auth::AuthInfos;
-use flume::{Receiver, Sender};
 use nvimx2::module::{ApiCtx, Module};
 use nvimx2::notify::Name;
 use nvimx2::{NeovimCtx, Shared};
@@ -11,7 +8,6 @@ use crate::config::Config;
 use crate::join::Join;
 use crate::leave::{Leave, StopChannels};
 use crate::project::Projects;
-use crate::session::Session;
 use crate::start::Start;
 use crate::yank::Yank;
 
@@ -20,9 +16,7 @@ pub struct Collab<B: CollabBackend> {
     pub(crate) auth_infos: Shared<Option<AuthInfos>>,
     pub(crate) config: Shared<Config>,
     pub(crate) projects: Projects<B>,
-    pub(crate) session_tx: Sender<Session<B>>,
     pub(crate) stop_channels: StopChannels,
-    session_rx: Cell<Option<Receiver<Session<B>>>>,
 }
 
 impl<B: CollabBackend> Collab<B> {
@@ -63,25 +57,6 @@ impl<B: CollabBackend> Module<B> for Collab<B> {
             .with_function(self.yank());
     }
 
-    fn on_init(&self, ctx: &mut NeovimCtx<B>) {
-        let session_rx = self
-            .session_rx
-            .replace(None)
-            .expect("`Module::on_init()` is only called once");
-
-        ctx.spawn_local(async move |ctx| {
-            while let Ok(session) = session_rx.recv_async().await {
-                ctx.spawn_local(async move |ctx| {
-                    if let Err(err) = session.run(ctx).await {
-                        ctx.emit_err(err);
-                    }
-                })
-                .detach();
-            }
-        })
-        .detach();
-    }
-
     fn on_new_config(&self, new_config: Self::Config, _: &mut NeovimCtx<B>) {
         self.config.set(new_config);
     }
@@ -89,14 +64,11 @@ impl<B: CollabBackend> Module<B> for Collab<B> {
 
 impl<B: CollabBackend> From<&auth::Auth> for Collab<B> {
     fn from(auth: &auth::Auth) -> Self {
-        let (session_tx, session_rx) = flume::bounded(1);
         Self {
             auth_infos: auth.infos().clone(),
             config: Default::default(),
             projects: Default::default(),
-            session_tx,
             stop_channels: Default::default(),
-            session_rx: Cell::new(Some(session_rx)),
         }
     }
 }

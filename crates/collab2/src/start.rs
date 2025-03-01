@@ -13,7 +13,7 @@ use crate::backend::{CollabBackend, StartArgs};
 use crate::collab::Collab;
 use crate::config::Config;
 use crate::leave::StopChannels;
-use crate::project::{OverlappingProjectError, Projects};
+use crate::project::{NewProjectArgs, OverlappingProjectError, Projects};
 use crate::session::{NewSessionArgs, Session};
 
 /// The `Action` used to start a new collaborative editing session.
@@ -21,7 +21,6 @@ pub struct Start<B: CollabBackend> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
     projects: Projects<B>,
-    session_tx: flume::Sender<Session<B>>,
     stop_channels: StopChannels,
 }
 
@@ -69,20 +68,33 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
                 .await
                 .map_err(StartError::ReadReplica)?;
 
+        let project = self
+            .projects
+            .insert(NewProjectArgs {
+                replica,
+                root: project_root,
+                session_id: start_infos.session_id,
+            })
+            .map_err(StartError::OverlappingProject)?;
+
         let session = Session::new(NewSessionArgs {
             _is_host: true,
             _local_peer: start_infos.local_peer,
+            _project: project,
             _remote_peers: start_infos.remote_peers,
-            _replica: replica,
             server_rx: start_infos.server_rx,
             server_tx: start_infos.server_tx,
             stop_rx: self.stop_channels.insert(start_infos.session_id),
         });
 
-        self.session_tx
-            .send_async(session)
-            .await
-            .map_err(|_| StartError::session_rx_dropped())
+        ctx.spawn_local(async move |ctx| {
+            if let Err(err) = session.run(ctx).await {
+                ctx.emit_err(err);
+            }
+        })
+        .detach();
+
+        Ok(())
     }
 }
 
@@ -103,9 +115,6 @@ pub enum StartError<B: CollabBackend> {
     SearchProjectRoot(B::SearchProjectRootError),
 
     /// TODO: docs.
-    SessionRxDropped(SessionRxDroppedError<B>),
-
-    /// TODO: docs.
     StartSession(B::StartSessionError),
 
     /// TODO: docs.
@@ -114,9 +123,6 @@ pub enum StartError<B: CollabBackend> {
 
 /// TODO: docs.
 pub struct NoBufferFocusedError<B>(PhantomData<B>);
-
-/// TODO: docs.
-pub struct SessionRxDroppedError<B>(pub(crate) PhantomData<B>);
 
 /// TODO: docs.
 pub struct UserNotLoggedInError<B>(pub(crate) PhantomData<B>);
@@ -128,7 +134,6 @@ impl<B: CollabBackend> Clone for Start<B> {
             config: self.config.clone(),
             stop_channels: self.stop_channels.clone(),
             projects: self.projects.clone(),
-            session_tx: self.session_tx.clone(),
         }
     }
 }
@@ -139,7 +144,6 @@ impl<B: CollabBackend> From<&Collab<B>> for Start<B> {
             auth_infos: collab.auth_infos.clone(),
             config: collab.config.clone(),
             projects: collab.projects.clone(),
-            session_tx: collab.session_tx.clone(),
             stop_channels: collab.stop_channels.clone(),
         }
     }
@@ -153,11 +157,6 @@ impl<B: CollabBackend> StartError<B> {
     /// Creates a new [`StartError::NoBufferFocused`] variant.
     pub fn no_buffer_focused() -> Self {
         Self::NoBufferFocused(NoBufferFocusedError(PhantomData))
-    }
-
-    /// Creates a new [`StartError::SessionRxDropped`] variant.
-    pub fn session_rx_dropped() -> Self {
-        Self::SessionRxDropped(SessionRxDroppedError(PhantomData))
     }
 
     /// Creates a new [`StartError::UserNotLoggedIn`] variant.
@@ -181,7 +180,6 @@ where
             (OverlappingProject(l), OverlappingProject(r)) => l == r,
             (ReadReplica(l), ReadReplica(r)) => l == r,
             (SearchProjectRoot(l), SearchProjectRoot(r)) => l == r,
-            (SessionRxDropped(_), SessionRxDropped(_)) => true,
             (StartSession(l), StartSession(r)) => l == r,
             (UserNotLoggedIn(_), UserNotLoggedIn(_)) => true,
             _ => false,
@@ -196,7 +194,6 @@ impl<B: CollabBackend> notify::Error for StartError<B> {
             Self::OverlappingProject(err) => err.to_message(),
             Self::ReadReplica(err) => err.to_message(),
             Self::SearchProjectRoot(err) => err.to_message(),
-            Self::SessionRxDropped(err) => err.to_message(),
             Self::StartSession(err) => err.to_message(),
             Self::UserNotLoggedIn(err) => err.to_message(),
         }
@@ -209,12 +206,6 @@ impl<B> fmt::Debug for NoBufferFocusedError<B> {
     }
 }
 
-impl<B> fmt::Debug for SessionRxDroppedError<B> {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(())
-    }
-}
-
 impl<B> fmt::Debug for UserNotLoggedInError<B> {
     fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         Ok(())
@@ -222,12 +213,6 @@ impl<B> fmt::Debug for UserNotLoggedInError<B> {
 }
 
 impl<B> notify::Error for NoBufferFocusedError<B> {
-    default fn to_message(&self) -> (notify::Level, notify::Message) {
-        (notify::Level::Off, notify::Message::new())
-    }
-}
-
-impl<B> notify::Error for SessionRxDroppedError<B> {
     default fn to_message(&self) -> (notify::Level, notify::Message) {
         (notify::Level::Off, notify::Message::new())
     }

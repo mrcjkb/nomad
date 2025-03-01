@@ -1,11 +1,11 @@
 use core::marker::PhantomData;
 
 use collab_server::message::{Peer, Peers};
-use eerie::Replica;
 use flume::Receiver;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select};
-use nvimx2::{AsyncCtx, notify};
+use nvimx2::{AsyncCtx, Shared, notify};
 
+use crate::Project;
 use crate::backend::CollabBackend;
 use crate::leave::StopSession;
 
@@ -21,14 +21,11 @@ pub(crate) struct NewSessionArgs<B: CollabBackend> {
     /// The local [`Peer`].
     pub(crate) _local_peer: Peer,
 
+    /// TODO: docs.
+    pub(crate) _project: Shared<Project<B>>,
+
     /// The remote [`Peers`].
     pub(crate) _remote_peers: Peers,
-
-    /// The [`replica`](Self::replica) of the project.
-    ///
-    /// The files and directories in it are assumed to be in sync with the
-    /// ones under the project root.
-    pub(crate) _replica: Replica,
 
     /// TODO: docs.
     pub(crate) stop_rx: Receiver<StopSession>,
