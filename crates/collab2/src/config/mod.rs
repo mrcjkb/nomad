@@ -1,5 +1,6 @@
 mod server_address;
 
+use nvimx2::fs::AbsPathBuf;
 pub(crate) use server_address::ServerAddress;
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -9,4 +10,7 @@ pub struct Config {
     /// The address of the server to connect to when starting or joining an
     /// editing session.
     pub(crate) server_address: ServerAddress,
+
+    /// TODO: docs.
+    pub(crate) store_remote_projects_under: Option<AbsPathBuf>,
 }
