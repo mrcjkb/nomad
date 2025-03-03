@@ -1,9 +1,9 @@
-use core::convert::Infallible;
 use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::io;
+use std::ffi::OsString;
 use std::path::PathBuf;
+use std::{env, io};
 
 use async_net::TcpStream;
 use collab_server::configs::nomad;
@@ -12,7 +12,7 @@ use eerie::Replica;
 use futures_util::io::{ReadHalf, WriteHalf};
 use futures_util::{AsyncReadExt, Sink, Stream};
 use mlua::{Function, Table};
-use nvimx2::fs::{self, AbsPath};
+use nvimx2::fs::{self, AbsPath, FsNodeName};
 use nvimx2::neovim::{Neovim, NeovimBuffer, mlua, oxi};
 use smol_str::ToSmolStr;
 
@@ -44,6 +44,20 @@ pin_project_lite::pin_project! {
 }
 
 #[derive(Debug)]
+pub enum NeovimDataDirError {
+    Home(NeovimHomeDirError),
+    XdgDataHomeNotAbsolute(String),
+    XdgDataHomeNotUtf8(OsString),
+}
+
+#[derive(Debug)]
+pub enum NeovimHomeDirError {
+    CouldntFindHome,
+    HomeDirNotAbsolute(PathBuf),
+    HomeDirNotUtf8(PathBuf),
+}
+
+#[derive(Debug)]
 pub struct NeovimServerTxError {
     inner: io::Error,
 }
@@ -64,12 +78,6 @@ pub enum NeovimNewSessionError {
     TcpConnect(io::Error),
 }
 
-#[derive(Debug)]
-pub enum NeovimHomeDirError {
-    CouldntFindHome,
-    InvalidHomeDir(PathBuf, fs::AbsPathFromPathError),
-}
-
 /// An [`AbsPath`] wrapper whose `Display` impl replaces the path's home
 /// directory with `~`.
 struct TildePath<'a> {
@@ -82,7 +90,7 @@ impl CollabBackend for Neovim {
     type ServerTx = NeovimServerTx;
 
     type CopySessionIdError = NeovimCopySessionIdError;
-    type DefaultDirForRemoteProjectsError = Infallible;
+    type DefaultDirForRemoteProjectsError = NeovimDataDirError;
     type HomeDirError = NeovimHomeDirError;
     type JoinSessionError = NeovimNewSessionError;
     type LspRootError = String;
@@ -129,9 +137,29 @@ impl CollabBackend for Neovim {
     }
 
     async fn default_dir_for_remote_projects(
-        _: &mut AsyncCtx<'_, Self>,
+        ctx: &mut AsyncCtx<'_, Self>,
     ) -> Result<AbsPathBuf, Self::DefaultDirForRemoteProjectsError> {
-        todo!()
+        let data_dir = match env::var("XDG_DATA_HOME") {
+            Ok(xdg_data_home) => {
+                xdg_data_home.parse::<AbsPathBuf>().map_err(|_| {
+                    NeovimDataDirError::XdgDataHomeNotAbsolute(xdg_data_home)
+                })?
+            },
+            Err(env::VarError::NotPresent) => Self::home_dir(ctx)
+                .await
+                .map_err(NeovimDataDirError::Home)?
+                .join(<&FsNodeName>::try_from(".local").expect("valid"))
+                .join(<&FsNodeName>::try_from("share").expect("valid")),
+            Err(env::VarError::NotUnicode(xdg_data_home)) => {
+                return Err(NeovimDataDirError::XdgDataHomeNotUtf8(
+                    xdg_data_home,
+                ));
+            },
+        };
+
+        Ok(data_dir
+            .join(<&FsNodeName>::try_from("nomad").expect("valid"))
+            .join(<&FsNodeName>::try_from("remote-projects").expect("valid")))
     }
 
     async fn home_dir(
@@ -139,8 +167,13 @@ impl CollabBackend for Neovim {
     ) -> Result<AbsPathBuf, Self::HomeDirError> {
         match home::home_dir() {
             Some(home_dir) if !home_dir.as_os_str().is_empty() => {
-                home_dir.as_path().try_into().map_err(|err| {
-                    NeovimHomeDirError::InvalidHomeDir(home_dir, err)
+                home_dir.as_path().try_into().map_err(|err| match err {
+                    fs::AbsPathFromPathError::NotAbsolute => {
+                        NeovimHomeDirError::HomeDirNotAbsolute(home_dir)
+                    },
+                    fs::AbsPathFromPathError::NotUtf8 => {
+                        NeovimHomeDirError::HomeDirNotUtf8(home_dir)
+                    },
                 })
             },
             _ => Err(NeovimHomeDirError::CouldntFindHome),
@@ -485,28 +518,44 @@ impl notify::Error for NeovimNewSessionError {
     }
 }
 
+impl notify::Error for NeovimDataDirError {
+    fn to_message(&self) -> (notify::Level, notify::Message) {
+        let mut msg = notify::Message::new();
+
+        match self {
+            Self::Home(err) => return err.to_message(),
+            Self::XdgDataHomeNotAbsolute(data_dir) => {
+                msg.push_str("found data directory at ")
+                    .push_invalid(data_dir)
+                    .push_str(", but it's not an absolute path");
+            },
+            Self::XdgDataHomeNotUtf8(data_dir) => {
+                msg.push_str("found data directory at ")
+                    .push_invalid(data_dir.display().to_smolstr())
+                    .push_str(", but it's not a valid UTF-8 string");
+            },
+        }
+
+        (notify::Level::Error, msg)
+    }
+}
+
 impl notify::Error for NeovimHomeDirError {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         let mut msg = notify::Message::new();
 
         match self {
-            NeovimHomeDirError::CouldntFindHome => {
+            Self::CouldntFindHome => {
                 msg.push_str("couldn't find home directory");
             },
-            NeovimHomeDirError::InvalidHomeDir(
-                home_dir,
-                fs::AbsPathFromPathError::NotAbsolute,
-            ) => {
+            Self::HomeDirNotAbsolute(home_dir) => {
                 msg.push_str("found home directory at ")
-                    .push_str(home_dir.display().to_smolstr())
+                    .push_invalid(home_dir.display().to_smolstr())
                     .push_str(", but it's not an absolute path");
             },
-            NeovimHomeDirError::InvalidHomeDir(
-                home_dir,
-                fs::AbsPathFromPathError::NotUtf8,
-            ) => {
+            Self::HomeDirNotUtf8(home_dir) => {
                 msg.push_str("found home directory at ")
-                    .push_str(home_dir.display().to_smolstr())
+                    .push_invalid(home_dir.display().to_smolstr())
                     .push_str(", but it's not a valid UTF-8 string");
             },
         }
