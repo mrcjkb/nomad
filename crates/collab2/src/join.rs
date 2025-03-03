@@ -276,12 +276,24 @@ impl<B: CollabBackend> notify::Error for JoinError<B> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
             Self::DefaultDirForRemoteProjects(err) => err.to_message(),
-            Self::FlushProject(_) => todo!(),
+            Self::FlushProject(err) => err.to_message(),
             Self::JoinSession(err) => err.to_message(),
             Self::OverlappingProject(err) => err.to_message(),
-            Self::RequestProject(_) => todo!(),
+            Self::RequestProject(err) => err.to_message(),
             Self::UserNotLoggedIn(err) => err.to_message(),
         }
+    }
+}
+
+impl<Fs: fs::Fs> PartialEq for FlushProjectError<Fs> {
+    fn eq(&self, _other: &Self) -> bool {
+        todo!();
+    }
+}
+
+impl<Fs: fs::Fs> notify::Error for FlushProjectError<Fs> {
+    fn to_message(&self) -> (notify::Level, notify::Message) {
+        todo!();
     }
 }
 
