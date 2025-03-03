@@ -164,7 +164,7 @@ pub struct JoinArgs<'a> {
 /// TODO: docs.
 pub struct SessionInfos<B: CollabBackend> {
     /// TODO: docs.
-    pub(crate) host: Peer,
+    pub(crate) host_id: PeerId,
 
     /// TODO: docs.
     pub(crate) local_peer: Peer,

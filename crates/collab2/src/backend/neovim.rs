@@ -279,7 +279,7 @@ impl CollabBackend for Neovim {
                 .map_err(NeovimNewSessionError::Knock)?;
 
         Ok(SessionInfos {
-            host: todo!(),
+            host_id: todo!(),
             local_peer: Peer::new(welcome.peer_id, github_handle),
             project_name: todo!(),
             remote_peers: welcome.other_peers,

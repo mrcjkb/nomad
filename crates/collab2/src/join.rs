@@ -85,7 +85,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
         .map_err(JoinError::FlushProject)?;
 
         let project_handle = project_guard.activate(NewProjectArgs {
-            host: sesh_infos.host,
+            host_id: sesh_infos.host_id,
             local_peer: sesh_infos.local_peer,
             replica,
             remote_peers: sesh_infos.remote_peers,
@@ -117,28 +117,28 @@ struct ProjectResponse {
 }
 
 async fn request_project<B: CollabBackend>(
-    join_infos: &mut SessionInfos<B>,
+    infos: &mut SessionInfos<B>,
 ) -> Result<ProjectResponse, RequestProjectError<B>> {
-    let request_from = join_infos
-        .remote_peers
-        .as_slice()
-        .first()
-        .expect("can't be empty")
-        .id();
+    let request = ProjectRequest {
+        requested_by: infos.local_peer.clone(),
+        request_from: infos
+            .remote_peers
+            .as_slice()
+            .first()
+            .expect("can't be empty")
+            .id(),
+    };
 
-    join_infos
+    infos
         .server_tx
-        .send(Message::ProjectRequest(ProjectRequest {
-            requested_by: join_infos.local_peer.clone(),
-            request_from,
-        }))
+        .send(Message::ProjectRequest(request))
         .await
         .map_err(RequestProjectError::SendRequest)?;
 
     let mut buffered = Vec::new();
 
     let response = loop {
-        let message = join_infos
+        let message = infos
             .server_rx
             .next()
             .await
@@ -154,7 +154,7 @@ async fn request_project<B: CollabBackend>(
     Ok(ProjectResponse {
         buffered,
         file_contents: response.file_contents,
-        replica: Replica::decode(join_infos.local_peer.id(), response.replica),
+        replica: Replica::decode(infos.local_peer.id(), response.replica),
     })
 }
 

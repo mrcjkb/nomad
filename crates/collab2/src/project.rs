@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use collab_server::SessionId;
 use collab_server::message::{Peer, Peers};
-use eerie::Replica;
+use eerie::{PeerId, Replica};
 use fxhash::{FxHashMap, FxHashSet};
 use nvimx2::fs::{AbsPath, AbsPathBuf};
 use nvimx2::{AsyncCtx, Shared, notify};
@@ -12,7 +12,7 @@ use crate::CollabBackend;
 
 /// TODO: docs.
 pub struct Project<B: CollabBackend> {
-    host: Peer,
+    host_id: PeerId,
     local_peer: Peer,
     remote_peers: Peers,
     replica: Replica,
@@ -47,7 +47,7 @@ pub(crate) struct ProjectGuard<B: CollabBackend> {
 }
 
 pub(crate) struct NewProjectArgs {
-    pub(crate) host: Peer,
+    pub(crate) host_id: PeerId,
     pub(crate) local_peer: Peer,
     pub(crate) remote_peers: Peers,
     pub(crate) replica: Replica,
@@ -57,7 +57,7 @@ pub(crate) struct NewProjectArgs {
 impl<B: CollabBackend> Project<B> {
     /// TODO: docs.
     pub fn is_host(&self) -> bool {
-        self.local_peer.id() == self.host.id()
+        self.local_peer.id() == self.host_id
     }
 }
 
@@ -145,7 +145,7 @@ impl<B: CollabBackend> ProjectGuard<B> {
         });
 
         self.projects.insert(Project {
-            host: args.host,
+            host_id: args.host_id,
             local_peer: args.local_peer,
             remote_peers: args.remote_peers,
             replica: args.replica,
