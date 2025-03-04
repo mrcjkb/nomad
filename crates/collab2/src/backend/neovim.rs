@@ -203,9 +203,9 @@ impl CollabBackend for Neovim {
                 .map_err(NeovimNewSessionError::Knock)?;
 
         Ok(SessionInfos {
-            host_id: todo!(),
+            host_id: welcome.host_id,
             local_peer: Peer::new(welcome.peer_id, github_handle),
-            project_name: todo!(),
+            project_name: welcome.project_name,
             remote_peers: welcome.other_peers,
             server_rx: NeovimServerRx { inner: welcome.rx },
             server_tx: NeovimServerTx { inner: welcome.tx },
@@ -329,7 +329,9 @@ impl CollabBackend for Neovim {
 
         let knock = collab_server::Knock::<nomad::NomadAuthenticateInfos> {
             auth_infos: args.auth_infos.clone().into(),
-            session_intent: SessionIntent::StartNew,
+            session_intent: SessionIntent::StartNew(
+                args.project_name.to_owned(),
+            ),
         };
 
         let github_handle = knock.auth_infos.github_handle.clone();
@@ -341,9 +343,9 @@ impl CollabBackend for Neovim {
                 .map_err(NeovimNewSessionError::Knock)?;
 
         Ok(SessionInfos {
-            host_id: todo!(),
+            host_id: welcome.host_id,
             local_peer: Peer::new(welcome.peer_id, github_handle),
-            project_name: todo!(),
+            project_name: welcome.project_name,
             remote_peers: welcome.other_peers,
             server_rx: NeovimServerRx { inner: welcome.rx },
             server_tx: NeovimServerTx { inner: welcome.tx },

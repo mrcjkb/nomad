@@ -499,7 +499,7 @@ dependencies = [
 [[package]]
 name = "codecs"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#8b1829f210a321a532a35f6f7ac0adb8c7ff34a6"
+source = "git+ssh://git@github.com/nomad/collab.git#ac3a64f67b19f8317bc573d5520285b0fc1bdcf5"
 dependencies = [
  "bincode",
  "bytes",
@@ -553,7 +553,7 @@ dependencies = [
 [[package]]
 name = "collab-message"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#8b1829f210a321a532a35f6f7ac0adb8c7ff34a6"
+source = "git+ssh://git@github.com/nomad/collab.git#ac3a64f67b19f8317bc573d5520285b0fc1bdcf5"
 dependencies = [
  "codecs",
  "eerie",
@@ -566,11 +566,12 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#8b1829f210a321a532a35f6f7ac0adb8c7ff34a6"
+source = "git+ssh://git@github.com/nomad/collab.git#ac3a64f67b19f8317bc573d5520285b0fc1bdcf5"
 dependencies = [
  "codecs",
  "collab-message",
  "derive_more",
+ "eerie",
  "futures-util",
  "nohash",
  "pin-project-lite",
@@ -1330,7 +1331,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
