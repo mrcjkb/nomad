@@ -389,6 +389,13 @@ impl Fs for TestFs {
         Ok(TestFileHandle { fs: self.clone(), path: path.to_owned() })
     }
 
+    async fn get_or_create_directory<P: AsRef<AbsPath>>(
+        &self,
+        _path: P,
+    ) -> Result<Self::Directory, Self::CreateDirectoryError> {
+        todo!();
+    }
+
     async fn node_at_path<P: AsRef<AbsPath>>(
         &self,
         path: P,

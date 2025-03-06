@@ -121,6 +121,7 @@ impl Fs for OsFs {
     type NodeAtPathError = io::Error;
     type WatchError = notify::Error;
 
+    #[inline]
     async fn create_directory<P: AsRef<AbsPath>>(
         &self,
         path: P,
@@ -130,6 +131,7 @@ impl Fs for OsFs {
         Ok(Self::Directory { metadata: LazyOsMetadata::lazy(path.to_owned()) })
     }
 
+    #[inline]
     async fn create_file<P: AsRef<AbsPath>>(
         &self,
         path: P,
@@ -145,6 +147,18 @@ impl Fs for OsFs {
             _file: RefCell::new(Some(file)),
             metadata: LazyOsMetadata::lazy(path.to_owned()),
         })
+    }
+
+    #[inline]
+    async fn get_or_create_directory<P: AsRef<AbsPath>>(
+        &self,
+        path: P,
+    ) -> Result<Self::Directory, Self::CreateDirectoryError> {
+        let path = path.as_ref();
+        // FIXME: what if the path already exists?;
+        // FIXME: what if the existing node is not a directory;
+        async_fs::create_dir_all(path).await?;
+        Ok(Self::Directory { metadata: LazyOsMetadata::lazy(path.to_owned()) })
     }
 
     #[inline]
