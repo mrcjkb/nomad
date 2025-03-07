@@ -389,13 +389,6 @@ impl Fs for TestFs {
         Ok(TestFileHandle { fs: self.clone(), path: path.to_owned() })
     }
 
-    async fn get_or_create_directory<P: AsRef<AbsPath>>(
-        &self,
-        _path: P,
-    ) -> Result<Self::Directory, Self::CreateDirectoryError> {
-        todo!();
-    }
-
     async fn node_at_path<P: AsRef<AbsPath>>(
         &self,
         path: P,
@@ -563,6 +556,7 @@ impl Directory for TestDirectoryHandle {
     type CreateDirectoryError = Infallible;
     type CreateFileError = Infallible;
     type ClearError = Infallible;
+    type DeleteError = Infallible;
     type ReadEntryError = TestReadDirNextError;
     type ReadError = TestReadDirError;
 
@@ -581,6 +575,10 @@ impl Directory for TestDirectoryHandle {
     }
 
     async fn clear(&self) -> Result<(), Self::ClearError> {
+        todo!();
+    }
+
+    async fn delete(self) -> Result<(), Self::DeleteError> {
         todo!();
     }
 
@@ -609,11 +607,17 @@ impl Directory for TestDirectoryHandle {
 
 impl File for TestFileHandle {
     type Fs = TestFs;
+
+    type DeleteError = Infallible;
     type Error = TestDirEntryDoesNotExistError;
     type WriteError = Infallible;
 
     async fn len(&self) -> Result<ByteOffset, Self::Error> {
         self.with_file(|file| file.len())
+    }
+
+    async fn delete(self) -> Result<(), Self::DeleteError> {
+        todo!()
     }
 
     async fn parent(&self) -> <Self::Fs as Fs>::Directory {
@@ -637,6 +641,8 @@ impl File for TestFileHandle {
 
 impl Symlink for TestSymlinkHandle {
     type Fs = TestFs;
+
+    type DeleteError = Infallible;
     type FollowError = Infallible;
 
     async fn follow(
@@ -649,6 +655,10 @@ impl Symlink for TestSymlinkHandle {
         &self,
     ) -> Result<Option<FsNode<TestFs>>, Self::FollowError> {
         unreachable!()
+    }
+
+    async fn delete(self) -> Result<(), Self::DeleteError> {
+        todo!()
     }
 }
 

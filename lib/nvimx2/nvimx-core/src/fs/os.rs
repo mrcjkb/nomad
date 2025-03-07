@@ -151,18 +151,6 @@ impl Fs for OsFs {
     }
 
     #[inline]
-    async fn get_or_create_directory<P: AsRef<AbsPath>>(
-        &self,
-        path: P,
-    ) -> Result<Self::Directory, Self::CreateDirectoryError> {
-        let path = path.as_ref();
-        // FIXME: what if the path already exists?;
-        // FIXME: what if the existing node is not a directory;
-        async_fs::create_dir_all(path).await?;
-        Ok(Self::Directory { metadata: LazyOsMetadata::lazy(path.to_owned()) })
-    }
-
-    #[inline]
     async fn node_at_path<P: AsRef<AbsPath>>(
         &self,
         path: P,
@@ -226,6 +214,7 @@ impl Directory for OsDirectory {
     type ClearError = io::Error;
     type CreateDirectoryError = io::Error;
     type CreateFileError = io::Error;
+    type DeleteError = io::Error;
     type ReadEntryError = io::Error;
     type ReadError = io::Error;
 
@@ -249,6 +238,11 @@ impl Directory for OsDirectory {
         async_fs::remove_dir_all(self.path()).await?;
         async_fs::create_dir(self.path()).await?;
         Ok(())
+    }
+
+    #[inline]
+    async fn delete(self) -> Result<(), Self::DeleteError> {
+        async_fs::remove_dir_all(self.path()).await
     }
 
     async fn read(
@@ -323,11 +317,17 @@ impl Directory for OsDirectory {
 
 impl File for OsFile {
     type Fs = OsFs;
+
+    type DeleteError = io::Error;
     type Error = io::Error;
     type WriteError = io::Error;
 
     async fn len(&self) -> Result<ByteOffset, Self::Error> {
         self.metadata.with(|meta| meta.len().into()).await
+    }
+
+    async fn delete(self) -> Result<(), Self::DeleteError> {
+        async_fs::remove_file(self.path()).await
     }
 
     async fn parent(&self) -> <Self::Fs as Fs>::Directory {
@@ -352,7 +352,14 @@ impl File for OsFile {
 
 impl Symlink for OsSymlink {
     type Fs = OsFs;
+
+    type DeleteError = io::Error;
     type FollowError = io::Error;
+
+    #[inline]
+    async fn delete(self) -> Result<(), Self::DeleteError> {
+        async_fs::remove_file(self.path).await
+    }
 
     #[inline]
     async fn follow(&self) -> Result<Option<FsNode<OsFs>>, Self::FollowError> {

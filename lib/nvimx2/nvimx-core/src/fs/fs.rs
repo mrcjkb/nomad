@@ -49,12 +49,6 @@ pub trait Fs: Sized + Send + 'static {
     ) -> impl Future<Output = Result<Self::File, Self::CreateFileError>>;
 
     /// TODO: docs.
-    fn get_or_create_directory<P: AsRef<AbsPath>>(
-        &self,
-        path: P,
-    ) -> impl Future<Output = Result<Self::Directory, Self::CreateDirectoryError>>;
-
-    /// TODO: docs.
     fn node_at_path<P: AsRef<AbsPath>>(
         &self,
         path: P,

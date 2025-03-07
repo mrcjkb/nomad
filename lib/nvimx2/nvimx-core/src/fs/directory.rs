@@ -22,6 +22,9 @@ pub trait Directory: Sized {
     type ClearError: Error;
 
     /// TODO: docs.
+    type DeleteError: Error;
+
+    /// TODO: docs.
     type ReadEntryError: Error;
 
     /// TODO: docs.
@@ -41,6 +44,9 @@ pub trait Directory: Sized {
 
     /// TODO: docs.
     fn clear(&self) -> impl Future<Output = Result<(), Self::ClearError>>;
+
+    /// TODO: docs.
+    fn delete(self) -> impl Future<Output = Result<(), Self::DeleteError>>;
 
     /// TODO: docs.
     fn read(

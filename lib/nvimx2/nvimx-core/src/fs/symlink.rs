@@ -8,7 +8,13 @@ pub trait Symlink {
     type Fs: fs::Fs;
 
     /// TODO: docs.
+    type DeleteError: Error;
+
+    /// TODO: docs.
     type FollowError: Error;
+
+    /// TODO: docs.
+    fn delete(self) -> impl Future<Output = Result<(), Self::DeleteError>>;
 
     /// TODO: docs.
     fn follow(

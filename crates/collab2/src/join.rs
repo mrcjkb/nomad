@@ -165,8 +165,16 @@ impl<'a> ProjectTree<'a> {
         flush_under: &AbsPath,
         fs: Fs,
     ) -> Result<(), FlushProjectError<Fs>> {
+        if let Some(node) = fs
+            .node_at_path(flush_under)
+            .await
+            .map_err(FlushProjectError::GetNodeAtRoot)?
+        {
+            node.delete().await.map_err(FlushProjectError::DeleteNodeAtRoot)?
+        }
+
         let root = fs
-            .get_or_create_directory(flush_under)
+            .create_directory(flush_under)
             .await
             .map_err(FlushProjectError::GetOrCreateRoot)?;
 
@@ -286,7 +294,13 @@ pub enum FlushProjectError<Fs: fs::Fs> {
     ClearRoot(<Fs::Directory as fs::Directory>::ClearError),
 
     /// TODO: docs.
+    DeleteNodeAtRoot(fs::DeleteNodeError<Fs>),
+
+    /// TODO: docs.
     GetOrCreateRoot(Fs::CreateDirectoryError),
+
+    /// TODO: docs.
+    GetNodeAtRoot(Fs::NodeAtPathError),
 
     /// TODO: docs.
     WriteToFile(<Fs::File as fs::File>::WriteError),
@@ -361,10 +375,12 @@ impl<B: CollabBackend> notify::Error for JoinError<B> {
 
 impl<Fs: fs::Fs> PartialEq for FlushProjectError<Fs>
 where
-    Fs::CreateDirectoryError: PartialEq,
     <Fs::Directory as fs::Directory>::CreateDirectoryError: PartialEq,
     <Fs::Directory as fs::Directory>::CreateFileError: PartialEq,
     <Fs::Directory as fs::Directory>::ClearError: PartialEq,
+    fs::DeleteNodeError<Fs>: PartialEq,
+    Fs::CreateDirectoryError: PartialEq,
+    Fs::NodeAtPathError: PartialEq,
     <Fs::File as fs::File>::WriteError: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
@@ -374,7 +390,9 @@ where
             (CreateDirectory(l), CreateDirectory(r)) => l == r,
             (CreateFile(l), CreateFile(r)) => l == r,
             (ClearRoot(l), ClearRoot(r)) => l == r,
+            (DeleteNodeAtRoot(l), DeleteNodeAtRoot(r)) => l == r,
             (GetOrCreateRoot(l), GetOrCreateRoot(r)) => l == r,
+            (GetNodeAtRoot(l), GetNodeAtRoot(r)) => l == r,
             (WriteToFile(l), WriteToFile(r)) => l == r,
             _ => false,
         }
@@ -387,7 +405,9 @@ impl<Fs: fs::Fs> notify::Error for FlushProjectError<Fs> {
             Self::CreateDirectory(err) => err,
             Self::CreateFile(err) => err,
             Self::ClearRoot(err) => err,
+            Self::DeleteNodeAtRoot(err) => err,
             Self::GetOrCreateRoot(err) => err,
+            Self::GetNodeAtRoot(err) => err,
             Self::WriteToFile(err) => err,
         };
         (notify::Level::Error, notify::Message::from_display(err))

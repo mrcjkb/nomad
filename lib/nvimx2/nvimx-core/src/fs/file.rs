@@ -9,10 +9,16 @@ pub trait File {
     type Fs: Fs;
 
     /// TODO: docs.
+    type DeleteError: Error;
+
+    /// TODO: docs.
     type Error: Error;
 
     /// TODO: docs.
     type WriteError: Error;
+
+    /// TODO: docs.
+    fn delete(self) -> impl Future<Output = Result<(), Self::DeleteError>>;
 
     /// TODO: docs.
     fn len(&self) -> impl Future<Output = Result<ByteOffset, Self::Error>>;
