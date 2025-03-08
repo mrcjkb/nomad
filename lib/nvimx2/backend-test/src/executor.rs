@@ -33,11 +33,7 @@ impl TestExecutor {
 }
 
 impl Runner {
-    pub(crate) fn block_on<Fut: Future>(&self, future: Fut) -> Fut::Output {
-        futures_lite::future::block_on(self.run(future))
-    }
-
-    async fn run<Fut: Future>(&self, future: Fut) -> Fut::Output {
+    pub(crate) async fn run<Fut: Future>(&self, future: Fut) -> Fut::Output {
         let keep_polling_runnables = async {
             loop {
                 self.runnable_rx
