@@ -4,7 +4,7 @@ use auth::Auth;
 use collab2::Collab;
 use collab2::backend::test::{CollabTestBackend, CollabTestServer, SessionId};
 use collab2::start::StartError;
-use futures_lite::future;
+use futures_lite::future::{self, FutureExt};
 use nvimx2::action::AsyncAction;
 use nvimx2::fs::AbsPathBuf;
 use nvimx2::tests::{self, BackendExt, TestBackend};
@@ -82,7 +82,7 @@ fn cannot_start_session_if_root_overlaps_existing_project() {
         assert_eq!(err.new_root, "/a");
     });
 
-    future::block_on(future::race(run_test, server.run()));
+    future::block_on(run_test.race(server.run()));
 }
 
 fn path(path: &str) -> AbsPathBuf {

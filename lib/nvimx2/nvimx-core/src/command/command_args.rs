@@ -212,8 +212,9 @@ impl<T> Parse<T> {
         self.inner
     }
 
+    /// TODO: docs.
     #[inline]
-    fn new(inner: T) -> Self {
+    pub fn new(inner: T) -> Self {
         Self { inner }
     }
 }

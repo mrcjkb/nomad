@@ -58,5 +58,9 @@ nvimx2 = { workspace = true, features = ["tests"] }
 workspace = true
 
 [[test]]
+name = "join"
+required-features = ["test"]
+
+[[test]]
 name = "start"
 required-features = ["test"]

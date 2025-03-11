@@ -141,9 +141,10 @@ impl<B: Backend> CollabTestBackend<B> {
 
     pub fn with_default_dir_for_remote_projects(
         mut self,
-        dir_path: AbsPathBuf,
+        dir_path: impl AsRef<AbsPath>,
     ) -> Self {
-        self.default_dir_for_remote_projects = Some(dir_path);
+        self.default_dir_for_remote_projects =
+            Some(dir_path.as_ref().to_owned());
         self
     }
 
