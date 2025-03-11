@@ -1,3 +1,4 @@
+use core::fmt;
 use core::marker::PhantomData;
 
 use collab_server::message::{Peer, Peers};
@@ -247,6 +248,12 @@ impl notify::Error for OverlappingProjectError {
             .push_info(self.existing_root.to_smolstr())
             .push_str(" (sessions cannot overlap)");
         (notify::Level::Error, msg)
+    }
+}
+
+impl<B> fmt::Debug for NoActiveSessionError<B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("NoActiveSessionError")
     }
 }
 

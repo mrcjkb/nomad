@@ -165,7 +165,7 @@ impl CollabTestServer {
 
         std::thread::spawn(move || {
             self.inner.run(self.conn_rx.into_stream());
-            done_tx.send(()).expect("rx is still alive");
+            let _ = done_tx.send(());
         });
 
         done_rx.recv_async().await.expect("tx is still alive");
