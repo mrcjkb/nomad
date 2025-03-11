@@ -69,6 +69,41 @@ impl<Fs: fs::Fs> FsNode<Fs> {
     }
 }
 
+impl<Fs: fs::Fs> fmt::Debug for FsNode<Fs>
+where
+    Fs::File: fmt::Debug,
+    Fs::Directory: fmt::Debug,
+    Fs::Symlink: fmt::Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::File(file) => fmt::Debug::fmt(file, f),
+            Self::Directory(dir) => fmt::Debug::fmt(dir, f),
+            Self::Symlink(symlink) => fmt::Debug::fmt(symlink, f),
+        }
+    }
+}
+
+impl<Fs: fs::Fs> PartialEq for FsNode<Fs>
+where
+    Fs::File: PartialEq,
+    Fs::Directory: PartialEq,
+    Fs::Symlink: PartialEq,
+{
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        use FsNode::*;
+
+        match (self, other) {
+            (File(l), File(r)) => l == r,
+            (Directory(l), Directory(r)) => l == r,
+            (Symlink(l), Symlink(r)) => l == r,
+            _ => false,
+        }
+    }
+}
+
 impl<Fs: fs::Fs> PartialEq for DeleteNodeError<Fs>
 where
     <Fs::File as File>::DeleteError: PartialEq,

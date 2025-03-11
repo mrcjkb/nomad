@@ -1,4 +1,5 @@
 use core::convert::Infallible;
+use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::sync::{Arc, Mutex};
@@ -32,17 +33,18 @@ pub struct TestFs {
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TestTimestamp(u64);
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum TestFsNode {
     File(TestFile),
     Directory(TestDirectory),
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TestDirectory {
     children: IndexMap<FsNodeNameBuf, TestFsNode>,
 }
 
+#[derive(Debug)]
 pub struct TestFile {
     contents: Vec<u8>,
 }
@@ -173,7 +175,7 @@ impl TestDirectoryHandle {
         })
     }
 
-    fn with_inner<T>(
+    fn with_dir<T>(
         &self,
         f: impl FnOnce(&mut TestDirectory) -> T,
     ) -> Result<T, TestDirEntryDoesNotExistError> {
@@ -610,6 +612,22 @@ impl Stream for TestWatcher {
     }
 }
 
+impl fmt::Debug for TestDirectoryHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.with_dir(|dir| fmt::Debug::fmt(dir, f)) {
+            Ok(res) => res,
+            Err(err) => fmt::Debug::fmt(&err, f),
+        }
+    }
+}
+
+impl PartialEq for TestDirectoryHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.with_dir(|l| other.with_dir(|r| l == r).unwrap_or(false))
+            .unwrap_or(false)
+    }
+}
+
 impl Directory for TestDirectoryHandle {
     type Fs = TestFs;
     type Metadata = TestDirEntry;
@@ -636,7 +654,7 @@ impl Directory for TestDirectoryHandle {
     }
 
     async fn clear(&self) -> Result<(), Self::ClearError> {
-        self.with_inner(|dir| dir.clear())
+        self.with_dir(|dir| dir.clear())
     }
 
     async fn delete(self) -> Result<(), Self::DeleteError> {
@@ -663,6 +681,22 @@ impl Directory for TestDirectoryHandle {
 
     fn path(&self) -> &AbsPath {
         &self.path
+    }
+}
+
+impl fmt::Debug for TestFileHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.with_file(|dir| fmt::Debug::fmt(dir, f)) {
+            Ok(res) => res,
+            Err(err) => fmt::Debug::fmt(&err, f),
+        }
+    }
+}
+
+impl PartialEq for TestFileHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.with_file(|l| other.with_file(|r| l == r).unwrap_or(false))
+            .unwrap_or(false)
     }
 }
 
@@ -697,6 +731,18 @@ impl File for TestFileHandle {
         new_contents: C,
     ) -> Result<(), Self::WriteError> {
         self.with_file(|file| file.write(new_contents.as_ref()))
+    }
+}
+
+impl fmt::Debug for TestSymlinkHandle {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+
+impl PartialEq for TestSymlinkHandle {
+    fn eq(&self, _: &Self) -> bool {
+        unreachable!()
     }
 }
 
