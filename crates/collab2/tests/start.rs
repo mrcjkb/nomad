@@ -84,7 +84,7 @@ fn cannot_start_session_if_root_overlaps_existing_project() {
         collab.leave().call((), ctx).await.unwrap();
     });
 
-    future::block_on(run_test.race(server.run()));
+    future::block_on(run_test.or(server.run()));
 }
 
 fn path(path: &str) -> AbsPathBuf {

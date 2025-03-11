@@ -35,7 +35,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
 
     async fn call(
         &mut self,
-        args: Self::Args,
+        Parse(session_id): Self::Args,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), JoinError<B>> {
         let auth_infos = self
@@ -45,7 +45,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
 
         let join_args = JoinArgs {
             auth_infos: &auth_infos,
-            session_id: args.into_inner(),
+            session_id,
             server_address: &self.config.with(|c| c.server_address.clone()),
         };
 
