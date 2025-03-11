@@ -21,7 +21,7 @@ fn cannot_start_session_if_not_logged_in() {
 #[test]
 fn cannot_start_session_if_no_buffer_is_focused() {
     CollabTestBackend::<TestBackend>::default().block_on(async |ctx| {
-        let collab = Collab::from(&Auth::dummy("peer-1"));
+        let collab = Collab::from(&Auth::dummy("peer1"));
         let err = collab.start().call((), ctx).await.unwrap_err();
         assert_eq!(err, StartError::NoBufferFocused);
     });
@@ -37,7 +37,7 @@ fn cannot_start_session_if_project_root_is_fs_root() {
         .with_home_dir(AbsPathBuf::root());
 
     backend.block_on(async |ctx| {
-        let collab = Collab::from(&Auth::dummy("peer-1"));
+        let collab = Collab::from(&Auth::dummy("peer1"));
         ctx.focus_buffer_at(&path("/foo.txt")).unwrap();
         let err = collab.start().call((), ctx).await.unwrap_err();
         assert_eq!(err, StartError::ProjectRootIsFsRoot);
@@ -64,7 +64,7 @@ fn cannot_start_session_if_root_overlaps_existing_project() {
         .with_server(&server);
 
     let run_test = backend.run(async |ctx| {
-        let collab = Collab::from(&Auth::dummy("peer-1"));
+        let collab = Collab::from(&Auth::dummy("peer1"));
 
         // Start session at "/a/b".
         ctx.focus_buffer_at(&path("/a/b/bar.txt")).unwrap();

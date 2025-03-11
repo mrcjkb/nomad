@@ -29,14 +29,14 @@ fn replicate_simple_project() {
         .with_server(&server);
 
     let run_peer1 = peer1.run(async |ctx| {
-        let collab = Collab::from(&Auth::dummy("peer-1"));
+        let collab = Collab::from(&Auth::dummy("peer1"));
         ctx.focus_buffer_at(&path("/foo/mars.txt")).unwrap();
         collab.start().call((), ctx).await.unwrap();
     });
 
     let run_peer2 = peer2.run(async move |ctx| {
-        let collab = Collab::from(&Auth::dummy("peer-2"));
-        collab.join().call(Parse::new(SessionId(1)), ctx).await.unwrap();
+        let collab = Collab::from(&Auth::dummy("peer2"));
+        collab.join().call(Parse(SessionId(1)), ctx).await.unwrap();
         let fs2 = ctx.fs();
         assert_eq!(
             fs1.node_at_path(path("/foo")).await.unwrap().unwrap(),

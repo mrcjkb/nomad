@@ -70,9 +70,7 @@ pub enum CommandCursor<'a> {
     serde::Deserialize,
 )]
 #[serde(transparent)]
-pub struct Parse<T> {
-    inner: T,
-}
+pub struct Parse<T>(pub T);
 
 /// TODO: docs.
 #[derive(Debug, Copy, Clone)]
@@ -202,20 +200,6 @@ impl<'a> CommandArg<'a> {
     #[inline]
     pub fn start(&self) -> ByteOffset {
         self.idx.start
-    }
-}
-
-impl<T> Parse<T> {
-    /// TODO: docs.
-    #[inline]
-    pub fn into_inner(self) -> T {
-        self.inner
-    }
-
-    /// TODO: docs.
-    #[inline]
-    pub fn new(inner: T) -> Self {
-        Self { inner }
     }
 }
 
@@ -420,7 +404,7 @@ impl<'a, T: FromStr> TryFrom<CommandArgs<'a>> for Parse<T> {
 
         arg.as_str()
             .parse()
-            .map(Parse::new)
+            .map(Parse)
             .map_err(|err| ParseFromCommandArgsError::FromStr(arg, err))
     }
 }
