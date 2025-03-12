@@ -5,8 +5,11 @@ use core::marker::PhantomData;
 use std::sync::Arc;
 
 use auth::AuthInfos;
+use collab_server::message::Peer;
+use collab_server::{SessionIntent, client};
 use concurrent_queue::{ConcurrentQueue, PushError};
 use eerie::{PeerId, Replica, ReplicaBuilder};
+use futures_util::AsyncReadExt;
 use nvimx2::action::AsyncAction;
 use nvimx2::command::ToCompletionFn;
 use nvimx2::fs::{self, AbsPath, AbsPathBuf, Directory, FsNodeKind, Metadata};
@@ -15,7 +18,7 @@ use nvimx2::{AsyncCtx, ByteOffset, Shared};
 use smol_str::ToSmolStr;
 use walkdir::{Either, WalkDir, WalkError, WalkErrorKind};
 
-use crate::backend::{CollabBackend, StartArgs};
+use crate::backend::CollabBackend;
 use crate::collab::Collab;
 use crate::config::Config;
 use crate::leave::StopChannels;
@@ -70,18 +73,27 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
             .node_name()
             .ok_or(StartError::ProjectRootIsFsRoot)?;
 
-        let start_args = StartArgs {
-            auth_infos: &auth_infos,
-            project_name,
-            server_address: &self.config.with(|c| c.server_address.clone()),
+        let server_addr = self.config.with(|c| c.server_address.clone());
+
+        let (reader, writer) = B::connect_to_server(server_addr, ctx)
+            .await
+            .map_err(StartError::ConnectToServer)?
+            .split();
+
+        let github_handle = auth_infos.handle().clone();
+
+        let knock = collab_server::Knock::<B::ServerConfig> {
+            auth_infos: auth_infos.into(),
+            session_intent: SessionIntent::StartNew(project_name.to_owned()),
         };
 
-        let sesh_infos = B::start_session(start_args, ctx)
+        let welcome = client::Knocker::new(reader, writer)
+            .knock(knock)
             .await
-            .map_err(StartError::StartSession)?;
+            .map_err(StartError::Knock)?;
 
         let replica = read_replica(
-            sesh_infos.local_peer.id(),
+            welcome.host_id,
             project_guard.root().to_owned(),
             ctx,
         )
@@ -89,18 +101,18 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
         .map_err(StartError::ReadReplica)?;
 
         let project_handle = project_guard.activate(NewProjectArgs {
-            host_id: sesh_infos.host_id,
-            local_peer: sesh_infos.local_peer,
+            host_id: welcome.host_id,
+            local_peer: Peer::new(welcome.peer_id, github_handle),
             replica,
-            remote_peers: sesh_infos.remote_peers,
-            session_id: sesh_infos.session_id,
+            remote_peers: welcome.other_peers,
+            session_id: welcome.session_id,
         });
 
         let session = Session::new(NewSessionArgs {
+            server_rx: welcome.rx,
+            server_tx: welcome.tx,
             project_handle,
-            server_rx: sesh_infos.server_rx,
-            server_tx: sesh_infos.server_tx,
-            stop_rx: self.stop_channels.insert(sesh_infos.session_id),
+            stop_rx: self.stop_channels.insert(welcome.session_id),
         });
 
         ctx.spawn_local(async move |ctx| {
@@ -232,6 +244,12 @@ async fn search_project_root<B: CollabBackend>(
 #[debug(bound(B: CollabBackend))]
 pub enum StartError<B: CollabBackend> {
     /// TODO: docs.
+    ConnectToServer(B::ConnectToServerError),
+
+    /// TODO: docs.
+    Knock(client::KnockError<B::ServerConfig>),
+
+    /// TODO: docs.
     NoBufferFocused,
 
     /// TODO: docs.
@@ -245,9 +263,6 @@ pub enum StartError<B: CollabBackend> {
 
     /// TODO: docs.
     SearchProjectRoot(SearchProjectRootError<B>),
-
-    /// TODO: docs.
-    StartSession(B::StartSessionError),
 
     /// TODO: docs.
     UserNotLoggedIn,
@@ -331,20 +346,22 @@ impl<B> UserNotLoggedInError<B> {
 impl<B> PartialEq for StartError<B>
 where
     B: CollabBackend,
+    B::ConnectToServerError: PartialEq,
+    // client::KnockError<B::ServerConfig>: PartialEq,
     ReadReplicaError<B>: PartialEq,
     SearchProjectRootError<B>: PartialEq,
-    B::StartSessionError: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         use StartError::*;
 
         match (self, other) {
+            (ConnectToServer(l), ConnectToServer(r)) => l == r,
+            (Knock(_l), Knock(_r)) => todo!() == todo!(),
             (NoBufferFocused, NoBufferFocused) => true,
             (OverlappingProject(l), OverlappingProject(r)) => l == r,
             (ProjectRootIsFsRoot, ProjectRootIsFsRoot) => true,
             (ReadReplica(l), ReadReplica(r)) => l == r,
             (SearchProjectRoot(l), SearchProjectRoot(r)) => l == r,
-            (StartSession(l), StartSession(r)) => l == r,
             (UserNotLoggedIn, UserNotLoggedIn) => true,
             _ => false,
         }
@@ -354,6 +371,8 @@ where
 impl<B: CollabBackend> notify::Error for StartError<B> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
+            Self::ConnectToServer(err) => err.to_message(),
+            Self::Knock(_err) => todo!(),
             Self::NoBufferFocused => {
                 NoBufferFocusedError::<B>::new().to_message()
             },
@@ -367,7 +386,6 @@ impl<B: CollabBackend> notify::Error for StartError<B> {
             ),
             Self::ReadReplica(err) => err.to_message(),
             Self::SearchProjectRoot(err) => err.to_message(),
-            Self::StartSession(err) => err.to_message(),
             Self::UserNotLoggedIn => {
                 UserNotLoggedInError::<B>::new().to_message()
             },

@@ -1,10 +1,11 @@
-use core::marker::PhantomData;
+use std::io;
 
+use collab_server::client::ClientRxError;
 use flume::Receiver;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select};
 use nvimx2::{AsyncCtx, notify};
 
-use crate::backend::CollabBackend;
+use crate::backend::{CollabBackend, MessageRx, MessageTx};
 use crate::leave::StopSession;
 use crate::project::ProjectHandle;
 
@@ -17,22 +18,20 @@ pub(crate) struct NewSessionArgs<B: CollabBackend> {
     pub(crate) project_handle: ProjectHandle<B>,
 
     /// TODO: docs..
-    pub(crate) server_rx: B::ServerRx,
+    pub(crate) server_rx: MessageRx<B>,
 
     /// TODO: docs..
-    pub(crate) server_tx: B::ServerTx,
+    pub(crate) server_tx: MessageTx<B>,
 
     /// TODO: docs.
     pub(crate) stop_rx: Receiver<StopSession>,
 }
 
-pub(crate) enum RunSessionError<B: CollabBackend> {
-    Rx(B::ServerRxError),
-    RxExhausted(RxExhaustedError<B>),
-    Tx(B::ServerTxError),
+pub(crate) enum RunSessionError {
+    Rx(ClientRxError),
+    RxExhausted,
+    Tx(io::Error),
 }
-
-pub(crate) struct RxExhaustedError<B>(PhantomData<B>);
 
 impl<B: CollabBackend> Session<B> {
     pub(crate) fn new(args: NewSessionArgs<B>) -> Self {
@@ -42,7 +41,7 @@ impl<B: CollabBackend> Session<B> {
     pub(crate) async fn run(
         self,
         _ctx: &mut AsyncCtx<'_, B>,
-    ) -> Result<(), RunSessionError<B>> {
+    ) -> Result<(), RunSessionError> {
         let NewSessionArgs { stop_rx, server_rx, server_tx, .. } = self.args;
 
         pin_mut!(server_rx);
@@ -52,7 +51,7 @@ impl<B: CollabBackend> Session<B> {
             select! {
                 maybe_msg_res = server_rx.next().fuse() => {
                     let msg = maybe_msg_res
-                        .ok_or(RunSessionError::rx_exhausted())?
+                        .ok_or(RunSessionError::RxExhausted)?
                         .map_err(RunSessionError::Rx)?;
 
                     // Echo it back. Just a placeholder for now.
@@ -70,38 +69,15 @@ impl<B: CollabBackend> Session<B> {
     }
 }
 
-impl<B: CollabBackend> RunSessionError<B> {
-    fn rx_exhausted() -> Self {
-        Self::RxExhausted(RxExhaustedError(PhantomData))
-    }
-}
-
-impl<B: CollabBackend> notify::Error for RunSessionError<B> {
+impl notify::Error for RunSessionError {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
-            RunSessionError::Rx(err) => err.to_message(),
-            RunSessionError::RxExhausted(err) => err.to_message(),
-            RunSessionError::Tx(err) => err.to_message(),
-        }
-    }
-}
-
-impl<B> notify::Error for RxExhaustedError<B> {
-    default fn to_message(&self) -> (notify::Level, notify::Message) {
-        (notify::Level::Off, notify::Message::new())
-    }
-}
-
-#[cfg(feature = "neovim")]
-mod neovim_error_impls {
-    use nvimx2::neovim::Neovim;
-
-    use super::*;
-
-    impl notify::Error for RxExhaustedError<Neovim> {
-        fn to_message(&self) -> (notify::Level, notify::Message) {
-            let msg = "the server kicked this peer out of the session";
-            (notify::Level::Warn, notify::Message::from_str(msg))
+            RunSessionError::Rx(_) => todo!(),
+            RunSessionError::RxExhausted => {
+                let msg = "the server kicked this peer out of the session";
+                (notify::Level::Warn, notify::Message::from_str(msg))
+            },
+            RunSessionError::Tx(_) => todo!(),
         }
     }
 }

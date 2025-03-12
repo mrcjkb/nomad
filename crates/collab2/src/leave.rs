@@ -7,7 +7,7 @@ use nvimx2::command::ToCompletionFn;
 use nvimx2::notify::Name;
 use nvimx2::{AsyncCtx, Shared};
 
-use crate::backend::{ActionForSelectedSession, CollabBackend};
+use crate::backend::{ActionForSelectedSession, CollabBackend, SessionId};
 use crate::collab::Collab;
 use crate::project::{NoActiveSessionError, Projects};
 
@@ -18,7 +18,7 @@ pub struct Leave<B: CollabBackend> {
 }
 
 pub(crate) struct StopChannels<B: CollabBackend> {
-    inner: Shared<FxHashMap<B::SessionId, Sender<StopSession>>>,
+    inner: Shared<FxHashMap<SessionId<B>, Sender<StopSession>>>,
 }
 
 pub(crate) struct StopSession;
@@ -49,7 +49,7 @@ impl<B: CollabBackend> StopChannels<B> {
     #[track_caller]
     pub(crate) fn insert(
         &self,
-        session_id: B::SessionId,
+        session_id: SessionId<B>,
     ) -> Receiver<StopSession> {
         let (tx, rx) = flume::bounded(1);
         self.inner.with_mut(move |inner| match inner.entry(session_id) {
@@ -63,7 +63,7 @@ impl<B: CollabBackend> StopChannels<B> {
         rx
     }
 
-    fn take(&self, session_id: B::SessionId) -> Option<Sender<StopSession>> {
+    fn take(&self, session_id: SessionId<B>) -> Option<Sender<StopSession>> {
         self.inner.with_mut(|inner| inner.remove(&session_id))
     }
 }

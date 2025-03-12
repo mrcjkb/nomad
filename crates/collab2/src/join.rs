@@ -7,12 +7,12 @@ use collab_server::message::{FileContents, Message, ProjectRequest};
 use eerie::{DirectoryId, FileId, Replica};
 use futures_util::{SinkExt, StreamExt, future, stream};
 use nvimx2::action::AsyncAction;
-use nvimx2::command::{Parse, ToCompletionFn};
+use nvimx2::command::ToCompletionFn;
 use nvimx2::fs::{self, AbsPath, Directory, File};
 use nvimx2::notify::Name;
 use nvimx2::{AsyncCtx, Shared, notify};
 
-use crate::backend::{CollabBackend, JoinArgs, SessionInfos};
+use crate::backend::{CollabBackend, JoinArgs, SessionId, SessionInfos};
 use crate::collab::Collab;
 use crate::config::Config;
 use crate::leave::StopChannels;
@@ -31,11 +31,11 @@ pub struct Join<B: CollabBackend> {
 impl<B: CollabBackend> AsyncAction<B> for Join<B> {
     const NAME: Name = "join";
 
-    type Args = Parse<B::SessionId>;
+    type Args = SessionId<B>;
 
     async fn call(
         &mut self,
-        Parse(session_id): Self::Args,
+        session_id: Self::Args,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), JoinError<B>> {
         let auth_infos =
@@ -82,13 +82,13 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
             local_peer: sesh_infos.local_peer,
             replica,
             remote_peers: sesh_infos.remote_peers,
-            session_id: sesh_infos.session_id,
+            session_id: todo!(),
         });
 
         let session = Session::new(NewSessionArgs {
             project_handle,
-            server_rx: sesh_infos.server_rx,
-            server_tx: sesh_infos.server_tx,
+            server_rx: todo!(),
+            server_tx: todo!(),
             stop_rx: self.stop_channels.insert(sesh_infos.session_id),
         });
 

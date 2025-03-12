@@ -9,7 +9,7 @@ use std::{env, io};
 use async_net::TcpStream;
 use collab_server::message::Message;
 use collab_server::nomad::{NomadConfig, NomadSessionId};
-use collab_server::{Config, SessionIntent, client};
+use collab_server::{Config, client};
 use futures_util::io::{ReadHalf, WriteHalf};
 use futures_util::{AsyncReadExt, Sink, Stream};
 use mlua::{Function, Table};
@@ -52,7 +52,7 @@ pin_project_lite::pin_project! {
 #[derive(Debug)]
 pub struct NeovimCopySessionIdError {
     inner: clipboard::ClipboardError,
-    session_id: NomadSessionId,
+    session_id: SessionId,
 }
 
 #[derive(Debug)]
@@ -105,7 +105,6 @@ struct TildePath<'a> {
 impl CollabBackend for Neovim {
     type ServerRx = NeovimServerRx;
     type ServerTx = NeovimServerTx;
-    type SessionId = NomadSessionId;
 
     type Io = async_net::TcpStream;
     type ServerConfig = ServerConfig;
@@ -118,7 +117,6 @@ impl CollabBackend for Neovim {
     type LspRootError = NeovimLspRootError;
     type ServerRxError = NeovimServerRxError;
     type ServerTxError = NeovimServerTxError;
-    type StartSessionError = NeovimNewSessionError;
 
     async fn confirm_start(
         project_root: &fs::AbsPath,
@@ -158,7 +156,7 @@ impl CollabBackend for Neovim {
     }
 
     async fn copy_session_id(
-        session_id: Self::SessionId,
+        session_id: SessionId,
         _: &mut AsyncCtx<'_, Self>,
     ) -> Result<(), Self::CopySessionIdError> {
         clipboard::set(session_id)
@@ -222,7 +220,7 @@ impl CollabBackend for Neovim {
 
         let knock = collab_server::Knock::<NomadConfig> {
             auth_infos: args.auth_infos.clone().into(),
-            session_intent: SessionIntent::JoinExisting(args.session_id),
+            session_intent: todo!(),
         };
 
         let welcome = client::Knocker::new(reader, writer)
@@ -237,7 +235,7 @@ impl CollabBackend for Neovim {
             remote_peers: welcome.other_peers,
             server_rx: NeovimServerRx { inner: welcome.rx },
             server_tx: NeovimServerTx { inner: welcome.tx },
-            session_id: welcome.session_id,
+            session_id: todo!(),
         })
     }
 
@@ -273,10 +271,10 @@ impl CollabBackend for Neovim {
     }
 
     async fn select_session<'pairs>(
-        sessions: &'pairs [(fs::AbsPathBuf, Self::SessionId)],
+        sessions: &'pairs [(fs::AbsPathBuf, SessionId)],
         action: ActionForSelectedSession,
         ctx: &mut AsyncCtx<'_, Self>,
-    ) -> Option<&'pairs (fs::AbsPathBuf, Self::SessionId)> {
+    ) -> Option<&'pairs (fs::AbsPathBuf, SessionId)> {
         let select = get_lua_value::<Function>(&["vim", "ui", "select"])?;
 
         let home_dir = Self::home_dir(ctx).await.ok();
@@ -325,40 +323,6 @@ impl CollabBackend for Neovim {
             .ok()?
             .and_then(|idx| sessions.get(idx as usize))
     }
-
-    async fn start_session(
-        args: StartArgs<'_>,
-        _: &mut AsyncCtx<'_, Self>,
-    ) -> Result<SessionInfos<Self>, Self::StartSessionError> {
-        let (reader, writer) = TcpStream::connect(&**args.server_address)
-            .await
-            .map_err(NeovimNewSessionError::TcpConnect)?
-            .split();
-
-        let github_handle = args.auth_infos.handle().clone();
-
-        let knock = collab_server::Knock::<NomadConfig> {
-            auth_infos: args.auth_infos.clone().into(),
-            session_intent: SessionIntent::StartNew(
-                args.project_name.to_owned(),
-            ),
-        };
-
-        let welcome = client::Knocker::new(reader, writer)
-            .knock(knock)
-            .await
-            .map_err(NeovimNewSessionError::Knock)?;
-
-        Ok(SessionInfos {
-            host_id: welcome.host_id,
-            local_peer: Peer::new(welcome.peer_id, github_handle),
-            project_name: welcome.project_name,
-            remote_peers: welcome.other_peers,
-            server_rx: NeovimServerRx { inner: welcome.rx },
-            server_tx: NeovimServerTx { inner: welcome.tx },
-            session_id: welcome.session_id,
-        })
-    }
 }
 
 impl Config for ServerConfig {
@@ -381,6 +345,12 @@ impl Config for ServerConfig {
     #[cfg(feature = "test")]
     fn new_session_id(&self) -> Self::SessionId {
         unreachable!()
+    }
+}
+
+impl fmt::Display for SessionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
     }
 }
 

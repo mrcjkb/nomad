@@ -3,7 +3,7 @@ use nvimx2::module::{ApiCtx, Module};
 use nvimx2::notify::Name;
 use nvimx2::{NeovimCtx, Shared};
 
-use crate::backend::CollabBackend;
+use crate::backend::{CollabBackend, SessionId};
 use crate::config::Config;
 use crate::join::Join;
 use crate::leave::{Leave, StopChannels};
@@ -33,7 +33,7 @@ impl<B: CollabBackend> Collab<B> {
     /// Returns a handle to the project for the given [`SessionId`], if any.
     pub fn project(
         &self,
-        session_id: B::SessionId,
+        session_id: SessionId<B>,
     ) -> Option<ProjectHandle<B>> {
         self.projects.get(session_id)
     }

@@ -5,21 +5,37 @@ mod neovim;
 #[cfg(feature = "test")]
 pub mod test;
 
-use core::error::Error as StdError;
 use core::fmt::Debug;
-use core::hash::Hash;
-use core::str::FromStr;
 
 use collab_server::Authenticator;
+use collab_server::client::{ClientRx, ClientTx};
 use collab_server::message::{Message, Peer, Peers};
 use eerie::PeerId;
+use futures_util::io::{ReadHalf, WriteHalf};
 use futures_util::{AsyncRead, AsyncWrite, Sink, Stream};
 use nvimx2::backend::{Backend, Buffer};
 use nvimx2::command::CommandArgs;
-use nvimx2::fs::{self, AbsPath, AbsPathBuf, FsNodeNameBuf};
+use nvimx2::fs::{AbsPath, AbsPathBuf, FsNodeNameBuf};
 use nvimx2::{AsyncCtx, notify};
 
 use crate::config;
+
+/// TODO: docs.
+pub(crate) type MessageRx<B> = ClientRx<ReadHalf<<B as CollabBackend>::Io>>;
+
+/// TODO: docs.
+pub(crate) type MessageTx<B> = ClientTx<WriteHalf<<B as CollabBackend>::Io>>;
+
+/// TODO: docs.
+pub(crate) type SessionId<B> =
+    <<B as CollabBackend>::ServerConfig as collab_server::Config>::SessionId;
+
+/// TODO: docs.
+pub(crate) type Welcome<B> = collab_server::client::Welcome<
+    ReadHalf<<B as CollabBackend>::Io>,
+    WriteHalf<<B as CollabBackend>::Io>,
+    SessionId<B>,
+>;
 
 /// A [`Backend`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
@@ -29,14 +45,6 @@ pub trait CollabBackend: Backend {
 
     /// TODO: docs.
     type ServerTx: Sink<Message, Error = Self::ServerTxError> + Unpin;
-
-    /// TODO: docs.
-    type SessionId: Debug
-        + Copy
-        + FromStr<Err: StdError>
-        + Eq
-        + Hash
-        + serde::de::DeserializeOwned;
 
     /// TODO: docs.
     type Io: AsyncRead + AsyncWrite + Unpin;
@@ -75,10 +83,6 @@ pub trait CollabBackend: Backend {
     /// TODO: docs.
     type ServerRxError: Debug + notify::Error;
 
-    /// The type of error returned by
-    /// [`start_session`](CollabBackend::start_session).
-    type StartSessionError: Debug + notify::Error;
-
     /// Asks the user to confirm starting a new collaborative editing session
     /// rooted at the given path.
     fn confirm_start(
@@ -92,9 +96,9 @@ pub trait CollabBackend: Backend {
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> impl Future<Output = Result<Self::Io, Self::ConnectToServerError>>;
 
-    /// Copies the given [`SessionId`](Self::SessionId) to the user's clipboard.
+    /// Copies the given [`SessionId`] to the user's clipboard.
     fn copy_session_id(
-        session_id: Self::SessionId,
+        session_id: SessionId<Self>,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> impl Future<Output = Result<(), Self::CopySessionIdError>>;
 
@@ -127,16 +131,10 @@ pub trait CollabBackend: Backend {
     /// Prompts the user to select one of the given `(project_root,
     /// session_id)` pairs.
     fn select_session<'pairs>(
-        sessions: &'pairs [(AbsPathBuf, Self::SessionId)],
+        sessions: &'pairs [(AbsPathBuf, SessionId<Self>)],
         action: ActionForSelectedSession,
         ctx: &mut AsyncCtx<'_, Self>,
-    ) -> impl Future<Output = Option<&'pairs (AbsPathBuf, Self::SessionId)>>;
-
-    /// TODO: docs.
-    fn start_session(
-        args: StartArgs<'_>,
-        ctx: &mut AsyncCtx<'_, Self>,
-    ) -> impl Future<Output = Result<SessionInfos<Self>, Self::StartSessionError>>;
+    ) -> impl Future<Output = Option<&'pairs (AbsPathBuf, SessionId<Self>)>>;
 }
 
 /// TODO: docs
@@ -149,25 +147,12 @@ pub enum ActionForSelectedSession {
 }
 
 /// TODO: docs.
-#[allow(dead_code)]
-pub struct StartArgs<'a> {
-    /// TODO: docs.
-    pub auth_infos: &'a auth::AuthInfos,
-
-    /// TODO: docs.
-    pub project_name: &'a fs::FsNodeName,
-
-    /// TODO: docs.
-    pub server_address: &'a config::ServerAddress,
-}
-
-/// TODO: docs.
 pub struct JoinArgs<'a, B: CollabBackend> {
     /// TODO: docs.
     pub auth_infos: &'a auth::AuthInfos,
 
     /// TODO: docs.
-    pub session_id: B::SessionId,
+    pub session_id: SessionId<B>,
 
     /// TODO: docs.
     pub server_address: &'a config::ServerAddress,
@@ -194,5 +179,5 @@ pub struct SessionInfos<B: CollabBackend> {
     pub server_rx: B::ServerRx,
 
     /// TODO: docs.
-    pub session_id: B::SessionId,
+    pub session_id: SessionId<B>,
 }

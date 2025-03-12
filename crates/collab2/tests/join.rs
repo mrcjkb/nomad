@@ -5,7 +5,6 @@ use collab2::Collab;
 use collab2::backend::test::{CollabServer, CollabTestBackend, SessionId};
 use futures_lite::future::{self, FutureExt};
 use nvimx2::action::AsyncAction;
-use nvimx2::command::Parse;
 use nvimx2::fs::{AbsPathBuf, Fs};
 use nvimx2::tests::{self, BackendExt, TestBackend};
 
@@ -40,7 +39,7 @@ fn replicate_simple_project() {
     let run_peer2 = peer2.run(async move |ctx| {
         let collab = Collab::from(&Auth::dummy("peer2"));
         let session_id = started_rx.recv_async().await.unwrap();
-        collab.join().call(Parse(session_id), ctx).await.unwrap();
+        collab.join().call(session_id, ctx).await.unwrap();
         let fs2 = ctx.fs();
         assert_eq!(
             fs1.node_at_path(path("/foo")).await.unwrap().unwrap(),

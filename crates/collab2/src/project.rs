@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 use smol_str::ToSmolStr;
 
 use crate::CollabBackend;
-use crate::backend::ActionForSelectedSession;
+use crate::backend::{ActionForSelectedSession, SessionId};
 
 /// TODO: docs.
 pub struct Project<B: CollabBackend> {
@@ -19,7 +19,7 @@ pub struct Project<B: CollabBackend> {
     _remote_peers: Peers,
     _replica: Replica,
     root: AbsPathBuf,
-    session_id: B::SessionId,
+    session_id: SessionId<B>,
 }
 
 /// TODO: docs.
@@ -42,7 +42,7 @@ pub struct OverlappingProjectError {
 pub struct NoActiveSessionError<B>(PhantomData<B>);
 
 pub(crate) struct Projects<B: CollabBackend> {
-    active: Shared<FxHashMap<B::SessionId, ProjectHandle<B>>>,
+    active: Shared<FxHashMap<SessionId<B>, ProjectHandle<B>>>,
     starting: Shared<FxHashSet<AbsPathBuf>>,
 }
 
@@ -56,7 +56,7 @@ pub(crate) struct NewProjectArgs<B: CollabBackend> {
     pub(crate) local_peer: Peer,
     pub(crate) remote_peers: Peers,
     pub(crate) replica: Replica,
-    pub(crate) session_id: B::SessionId,
+    pub(crate) session_id: SessionId<B>,
 }
 
 impl<B: CollabBackend> Project<B> {
@@ -73,7 +73,7 @@ impl<B: CollabBackend> ProjectHandle<B> {
     }
 
     /// TODO: docs.
-    pub fn session_id(&self) -> B::SessionId {
+    pub fn session_id(&self) -> SessionId<B> {
         self.with(|proj| proj.session_id)
     }
 
@@ -86,7 +86,7 @@ impl<B: CollabBackend> ProjectHandle<B> {
 impl<B: CollabBackend> Projects<B> {
     pub(crate) fn get(
         &self,
-        session_id: B::SessionId,
+        session_id: SessionId<B>,
     ) -> Option<ProjectHandle<B>> {
         self.active.with(|map| map.get(&session_id).cloned())
     }
@@ -141,7 +141,7 @@ impl<B: CollabBackend> Projects<B> {
         &self,
         action: ActionForSelectedSession,
         ctx: &mut AsyncCtx<'_, B>,
-    ) -> Result<Option<(AbsPathBuf, B::SessionId)>, NoActiveSessionError<B>>
+    ) -> Result<Option<(AbsPathBuf, SessionId<B>)>, NoActiveSessionError<B>>
     {
         let active_sessions = self.active.with(|map| {
             map.iter()

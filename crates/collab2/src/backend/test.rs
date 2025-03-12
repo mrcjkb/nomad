@@ -28,7 +28,6 @@ use crate::backend::{
     CollabBackend,
     JoinArgs,
     SessionInfos,
-    StartArgs,
 };
 use crate::config;
 
@@ -221,7 +220,6 @@ impl AnyError {
 impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     type ServerRx = TestRx;
     type ServerTx = TestTx;
-    type SessionId = SessionId;
 
     type Io = DuplexStream;
     type ServerConfig = ServerConfig;
@@ -234,7 +232,6 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     type LspRootError = Infallible;
     type ServerRxError = TestRxError;
     type ServerTxError = TestTxError;
-    type StartSessionError = AnyError;
 
     async fn confirm_start(
         project_root: &AbsPath,
@@ -262,7 +259,7 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     }
 
     async fn copy_session_id(
-        session_id: Self::SessionId,
+        session_id: SessionId,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> Result<(), Self::CopySessionIdError> {
         ctx.with_backend(|this| this.clipboard = Some(session_id));
@@ -333,49 +330,12 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     }
 
     async fn select_session<'pairs>(
-        sessions: &'pairs [(AbsPathBuf, Self::SessionId)],
+        sessions: &'pairs [(AbsPathBuf, SessionId)],
         action: ActionForSelectedSession,
         ctx: &mut AsyncCtx<'_, Self>,
-    ) -> Option<&'pairs (AbsPathBuf, Self::SessionId)> {
+    ) -> Option<&'pairs (AbsPathBuf, SessionId)> {
         ctx.with_backend(|this| {
             this.select_session_with.as_mut()?(sessions, action)
-        })
-    }
-
-    async fn start_session(
-        args: StartArgs<'_>,
-        ctx: &mut AsyncCtx<'_, Self>,
-    ) -> Result<SessionInfos<Self>, Self::StartSessionError> {
-        let server_tx = ctx
-            .with_backend(|this| this.server_tx.clone())
-            .ok_or(AnyError::from_str("no server set"))?;
-
-        let (client_io, server_io) = duplex(usize::MAX);
-
-        server_tx.send(server_io)?;
-
-        let (reader, writer) = client_io.split();
-
-        let github_handle = args.auth_infos.handle().clone();
-
-        let knock = Knock::<InnerConfig> {
-            auth_infos: github_handle.clone(),
-            session_intent: SessionIntent::StartNew(
-                args.project_name.to_owned(),
-            ),
-        };
-
-        let welcome =
-            client::Knocker::new(reader, writer).knock(knock).await?;
-
-        Ok(SessionInfos {
-            host_id: welcome.host_id,
-            local_peer: Peer::new(welcome.peer_id, github_handle),
-            project_name: welcome.project_name,
-            remote_peers: welcome.other_peers,
-            server_rx: TestRx { inner: welcome.rx },
-            server_tx: TestTx { inner: welcome.tx },
-            session_id: welcome.session_id.into(),
         })
     }
 }
