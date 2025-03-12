@@ -38,10 +38,8 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
         Parse(session_id): Self::Args,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), JoinError<B>> {
-        let auth_infos = self
-            .auth_infos
-            .with(|infos| infos.as_ref().cloned())
-            .ok_or(JoinError::UserNotLoggedIn)?;
+        let auth_infos =
+            self.auth_infos.cloned().ok_or(JoinError::UserNotLoggedIn)?;
 
         let join_args = JoinArgs {
             auth_infos: &auth_infos,

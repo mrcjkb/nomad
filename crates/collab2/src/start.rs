@@ -43,10 +43,8 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
         _: Self::Args,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), StartError<B>> {
-        let auth_infos = self
-            .auth_infos
-            .with(|infos| infos.as_ref().cloned())
-            .ok_or(StartError::UserNotLoggedIn)?;
+        let auth_infos =
+            self.auth_infos.cloned().ok_or(StartError::UserNotLoggedIn)?;
 
         let buffer_id = ctx.with_ctx(|ctx| {
             ctx.current_buffer()

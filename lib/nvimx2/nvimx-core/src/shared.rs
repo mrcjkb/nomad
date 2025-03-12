@@ -19,8 +19,16 @@ impl<T> Clone for Shared<T> {
 }
 
 impl<T> Shared<T> {
-    /// Returns a copy of the value.
-    pub fn get(&self) -> T
+    /// Returns a cloned instance of the value.
+    pub fn cloned(&self) -> T
+    where
+        T: Clone,
+    {
+        self.inner.with(T::clone)
+    }
+
+    /// Returns a copied instance of the value.
+    pub fn copied(&self) -> T
     where
         T: Copy,
     {

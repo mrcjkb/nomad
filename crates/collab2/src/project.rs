@@ -219,7 +219,7 @@ impl<B: CollabBackend> Clone for ProjectHandle<B> {
 impl<B: CollabBackend> Drop for ProjectHandle<B> {
     fn drop(&mut self) {
         if self.inner.strong_count() == 2
-            && !self.is_dropping_last_instance.get()
+            && !self.is_dropping_last_instance.copied()
         {
             self.is_dropping_last_instance.set(true);
 

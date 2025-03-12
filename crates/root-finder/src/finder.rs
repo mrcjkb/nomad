@@ -81,7 +81,7 @@ async fn contains_marker<Fs: fs::Fs>(
             FindRootError::DirEntryNodeKind { entry_path, err }
         })?;
 
-        if marker.matches(&*fs_node_name, fs_node_kind) {
+        if marker.matches(&fs_node_name, fs_node_kind) {
             return Ok(true);
         }
     }
