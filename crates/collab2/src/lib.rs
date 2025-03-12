@@ -3,19 +3,18 @@
 #![feature(min_specialization)]
 #![feature(precise_capturing_in_traits)]
 
-pub mod backend;
+mod backend;
 mod collab;
-mod config;
+pub mod config;
 pub mod join;
-mod leave;
-mod project;
+pub mod leave;
+pub mod project;
 mod root_markers;
 mod session;
 pub mod start;
-mod yank;
+pub mod yank;
 
 pub use backend::CollabBackend;
+#[cfg(feature = "mock")]
+pub use backend::mock;
 pub use collab::Collab;
-pub use leave::Leave;
-pub use project::Project;
-pub use yank::Yank;

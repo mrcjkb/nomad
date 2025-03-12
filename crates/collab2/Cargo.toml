@@ -7,6 +7,13 @@ license.workspace = true
 publish.workspace = true
 
 [features]
+mock = [
+  "dep:duplex-stream",
+  "auth/test",
+  "collab-server/server",
+  "collab-server/test",
+  "nvimx2/tests",
+]
 neovim = [
   "dep:async-net",
   "dep:clipboard",
@@ -15,13 +22,6 @@ neovim = [
   "futures-util/async-await-macro",
   "nvimx2/neovim-0-10",
   "nvimx2/neovim-mlua",
-]
-test = [
-  "dep:duplex-stream",
-  "auth/test",
-  "collab-server/server",
-  "collab-server/test",
-  "nvimx2/tests",
 ]
 
 [dependencies]
@@ -42,13 +42,13 @@ smallvec = { workspace = true }
 smol_str = { workspace = true }
 walkdir = { workspace = true }
 
+# Mock-only dependencies.
+duplex-stream = { git = "ssh://git@github.com/nomad/collab.git", optional = true }
+
 # Neovim-only dependencies.
 async-net = { workspace = true, optional = true }
 clipboard = { workspace = true, optional = true }
 home = { version = "0.5", optional = true }
-
-# Test-only dependencies.
-duplex-stream = { git = "ssh://git@github.com/nomad/collab.git", optional = true }
 
 [dev-dependencies]
 futures-lite = { workspace = true, features = ["default"] }
@@ -59,8 +59,8 @@ workspace = true
 
 [[test]]
 name = "join"
-required-features = ["test"]
+required-features = ["mock"]
 
 [[test]]
 name = "start"
-required-features = ["test"]
+required-features = ["mock"]

@@ -14,14 +14,14 @@ pub(crate) struct Session<B: CollabBackend> {
 }
 
 pub(crate) struct NewSessionArgs<B: CollabBackend> {
+    /// TODO: docs..
+    pub(crate) message_rx: MessageRx<B>,
+
+    /// TODO: docs..
+    pub(crate) message_tx: MessageTx<B>,
+
     /// TODO: docs.
     pub(crate) project_handle: ProjectHandle<B>,
-
-    /// TODO: docs..
-    pub(crate) server_rx: MessageRx<B>,
-
-    /// TODO: docs..
-    pub(crate) server_tx: MessageTx<B>,
 
     /// TODO: docs.
     pub(crate) stop_rx: Receiver<StopSession>,
@@ -42,20 +42,20 @@ impl<B: CollabBackend> Session<B> {
         self,
         _ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), RunSessionError> {
-        let NewSessionArgs { stop_rx, server_rx, server_tx, .. } = self.args;
+        let NewSessionArgs { stop_rx, message_rx, message_tx, .. } = self.args;
 
-        pin_mut!(server_rx);
-        pin_mut!(server_tx);
+        pin_mut!(message_rx);
+        pin_mut!(message_tx);
 
         loop {
             select! {
-                maybe_msg_res = server_rx.next().fuse() => {
+                maybe_msg_res = message_rx.next().fuse() => {
                     let msg = maybe_msg_res
                         .ok_or(RunSessionError::RxExhausted)?
                         .map_err(RunSessionError::Rx)?;
 
                     // Echo it back. Just a placeholder for now.
-                    server_tx
+                    message_tx
                         .send(msg)
                         .await
                         .map_err(RunSessionError::Tx)?;

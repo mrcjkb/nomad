@@ -2,7 +2,7 @@
 
 use auth::Auth;
 use collab2::Collab;
-use collab2::backend::test::{CollabTestBackend, CollabServer, SessionId};
+use collab2::mock::{CollabServer, CollabMock, SessionId};
 use collab2::start::StartError;
 use futures_lite::future::{self, FutureExt};
 use nvimx2::action::AsyncAction;
@@ -11,7 +11,7 @@ use nvimx2::tests::{self, BackendExt, TestBackend};
 
 #[test]
 fn cannot_start_session_if_not_logged_in() {
-    CollabTestBackend::<TestBackend>::default().block_on(async |ctx| {
+    CollabMock::<TestBackend>::default().block_on(async |ctx| {
         let collab = Collab::from(&Auth::default());
         let err = collab.start().call((), ctx).await.unwrap_err();
         assert_eq!(err, StartError::UserNotLoggedIn);
@@ -20,7 +20,7 @@ fn cannot_start_session_if_not_logged_in() {
 
 #[test]
 fn cannot_start_session_if_no_buffer_is_focused() {
-    CollabTestBackend::<TestBackend>::default().block_on(async |ctx| {
+    CollabMock::<TestBackend>::default().block_on(async |ctx| {
         let collab = Collab::from(&Auth::dummy("peer1"));
         let err = collab.start().call((), ctx).await.unwrap_err();
         assert_eq!(err, StartError::NoBufferFocused);
@@ -33,7 +33,7 @@ fn cannot_start_session_if_project_root_is_fs_root() {
         "foo.txt": "",
     };
 
-    let backend = CollabTestBackend::new(TestBackend::new(fs))
+    let backend = CollabMock::new(TestBackend::new(fs))
         .with_home_dir(AbsPathBuf::root());
 
     backend.block_on(async |ctx| {
@@ -59,7 +59,7 @@ fn cannot_start_session_if_root_overlaps_existing_project() {
 
     let server = CollabServer::default();
 
-    let backend = CollabTestBackend::new(TestBackend::new(fs))
+    let backend = CollabMock::new(TestBackend::new(fs))
         .with_home_dir(AbsPathBuf::root())
         .with_server(&server);
 

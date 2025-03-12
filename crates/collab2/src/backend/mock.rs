@@ -22,7 +22,7 @@ use crate::backend::{ActionForSelectedSession, CollabBackend};
 use crate::config;
 
 #[allow(clippy::type_complexity)]
-pub struct CollabTestBackend<B: Backend> {
+pub struct CollabMock<B: Backend> {
     inner: B,
     confirm_start_with: Option<Box<dyn FnMut(&AbsPath) -> bool>>,
     clipboard: Option<SessionId>,
@@ -77,7 +77,7 @@ pub struct AnyError {
 #[derive(Debug)]
 pub struct NoDefaultDirForRemoteProjectsError;
 
-impl<B: Backend> CollabTestBackend<B> {
+impl<B: Backend> CollabMock<B> {
     pub fn confirm_start_with(
         mut self,
         fun: impl FnMut(&AbsPath) -> bool + 'static,
@@ -183,7 +183,7 @@ impl AnyError {
     }
 }
 
-impl<B: Backend> CollabBackend for CollabTestBackend<B> {
+impl<B: Backend> CollabBackend for CollabMock<B> {
     type Io = DuplexStream;
     type ServerConfig = ServerConfig;
     type ConnectToServerError = AnyError;
@@ -263,7 +263,7 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     }
 }
 
-impl<B: Backend> Backend for CollabTestBackend<B> {
+impl<B: Backend> Backend for CollabMock<B> {
     const REINSTATE_PANIC_HOOK: bool = B::REINSTATE_PANIC_HOOK;
 
     type Api = <B as Backend>::Api;
@@ -355,7 +355,7 @@ impl Default for CollabServer {
     }
 }
 
-impl<B: Backend + Default> Default for CollabTestBackend<B> {
+impl<B: Backend + Default> Default for CollabMock<B> {
     fn default() -> Self {
         Self::new(B::default())
     }
@@ -396,12 +396,6 @@ impl TryFrom<nvimx2::command::CommandArgs<'_>> for SessionId {
         _: nvimx2::command::CommandArgs<'_>,
     ) -> Result<Self, Self::Error> {
         unreachable!()
-    }
-}
-
-impl From<SessionId> for TestSessionId {
-    fn from(SessionId(session_id): SessionId) -> Self {
-        Self(session_id)
     }
 }
 

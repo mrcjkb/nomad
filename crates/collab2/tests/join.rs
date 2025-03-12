@@ -2,7 +2,7 @@
 
 use auth::Auth;
 use collab2::Collab;
-use collab2::backend::test::{CollabServer, CollabTestBackend, SessionId};
+use collab2::mock::{CollabServer, CollabMock, SessionId};
 use futures_lite::future::{self, FutureExt};
 use nvimx2::action::AsyncAction;
 use nvimx2::fs::{AbsPathBuf, Fs};
@@ -19,11 +19,11 @@ fn replicate_simple_project() {
 
     let server = CollabServer::default();
 
-    let peer1 = CollabTestBackend::new(TestBackend::new(fs1.clone()))
+    let peer1 = CollabMock::new(TestBackend::new(fs1.clone()))
         .with_home_dir(AbsPathBuf::root())
         .with_server(&server);
 
-    let peer2 = CollabTestBackend::<TestBackend>::default()
+    let peer2 = CollabMock::<TestBackend>::default()
         .with_default_dir_for_remote_projects(path("/remote"))
         .with_server(&server);
 

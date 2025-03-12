@@ -35,6 +35,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
 
     type Args = SessionId<B>;
 
+    #[allow(clippy::too_many_lines)]
     async fn call(
         &mut self,
         session_id: Self::Args,
@@ -99,9 +100,9 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
         });
 
         let session = Session::new(NewSessionArgs {
+            message_rx: welcome.rx,
+            message_tx: welcome.tx,
             project_handle,
-            server_rx: welcome.rx,
-            server_tx: welcome.tx,
             stop_rx: self.stop_channels.insert(welcome.session_id),
         });
 

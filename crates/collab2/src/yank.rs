@@ -1,3 +1,5 @@
+//! TODO: docs.
+
 use nvimx2::AsyncCtx;
 use nvimx2::action::AsyncAction;
 use nvimx2::command::ToCompletionFn;
@@ -40,7 +42,10 @@ impl<B: CollabBackend> AsyncAction<B> for Yank<B> {
 
 /// The type of error that can occur when [`Yank`]ing fails.
 pub enum YankError<B: CollabBackend> {
+    /// TODO: docs.
     NoActiveSession(NoActiveSessionError<B>),
+
+    /// TODO: docs.
     PasteSessionId(B::CopySessionIdError),
 }
 

@@ -1,3 +1,5 @@
+//! TODO: docs.
+
 use core::fmt;
 use core::marker::PhantomData;
 
@@ -39,6 +41,7 @@ pub struct OverlappingProjectError {
     pub new_root: AbsPathBuf,
 }
 
+/// TODO: docs.
 pub struct NoActiveSessionError<B>(PhantomData<B>);
 
 pub(crate) struct Projects<B: CollabBackend> {

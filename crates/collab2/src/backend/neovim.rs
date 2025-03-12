@@ -4,9 +4,9 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::{env, io};
 
+use collab_server::Config;
 use collab_server::message::PeerId;
 use collab_server::nomad::{NomadConfig, NomadSessionId};
-use collab_server::{Config, client};
 use mlua::{Function, Table};
 use nvimx2::command::{CommandArgs, Parse};
 use nvimx2::fs::{self, AbsPath, AbsPathBuf, FsNodeName};
@@ -259,19 +259,19 @@ impl Config for ServerConfig {
     const SERVER_PEER_ID: PeerId = <NomadConfig as Config>::SERVER_PEER_ID;
 
     type Authenticator = <NomadConfig as Config>::Authenticator;
-    #[cfg(feature = "test")]
+    #[cfg(feature = "mock")]
     type Executor = <NomadConfig as Config>::Executor;
     type SessionId = SessionId;
 
-    #[cfg(feature = "test")]
+    #[cfg(feature = "mock")]
     fn authenticator(&self) -> &Self::Authenticator {
         unreachable!()
     }
-    #[cfg(feature = "test")]
+    #[cfg(feature = "mock")]
     fn executor(&self) -> &Self::Executor {
         unreachable!()
     }
-    #[cfg(feature = "test")]
+    #[cfg(feature = "mock")]
     fn new_session_id(&self) -> Self::SessionId {
         unreachable!()
     }

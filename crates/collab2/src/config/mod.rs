@@ -1,8 +1,11 @@
+//! TODO: docs.
+
 mod server_address;
 
 use nvimx2::fs::AbsPathBuf;
 pub(crate) use server_address::ServerAddress;
 
+/// TODO: docs.
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]

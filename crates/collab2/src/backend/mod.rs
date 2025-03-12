@@ -1,9 +1,9 @@
 //! TODO: docs.
 
+#[cfg(feature = "mock")]
+pub mod mock;
 #[cfg(feature = "neovim")]
 mod neovim;
-#[cfg(feature = "test")]
-pub mod test;
 
 use core::fmt::Debug;
 

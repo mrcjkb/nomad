@@ -1,3 +1,5 @@
+//! TODO: docs.
+
 use std::collections::hash_map::Entry;
 
 use flume::{Receiver, Sender};
