@@ -356,7 +356,7 @@ where
 
         match (self, other) {
             (ConnectToServer(l), ConnectToServer(r)) => l == r,
-            (Knock(_l), Knock(_r)) => todo!() == todo!(),
+            (Knock(_l), Knock(_r)) => todo!(),
             (NoBufferFocused, NoBufferFocused) => true,
             (OverlappingProject(l), OverlappingProject(r)) => l == r,
             (ProjectRootIsFsRoot, ProjectRootIsFsRoot) => true,

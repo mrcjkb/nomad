@@ -6,29 +6,19 @@ use core::convert::Infallible;
 use core::error::Error;
 use core::fmt;
 use core::num::NonZeroU32;
-use core::pin::Pin;
 use core::str::FromStr;
-use core::task::{Context, Poll};
-use std::io;
 
-use collab_server::message::{Message, Peer, PeerId};
+use collab_server::Config;
+use collab_server::message::PeerId;
 use collab_server::test::{TestConfig as InnerConfig, TestSessionId};
-use collab_server::{Config, Knock, SessionIntent, client};
 use duplex_stream::{DuplexStream, duplex};
-use futures_util::io::{ReadHalf, WriteHalf};
-use futures_util::{AsyncReadExt, Sink, Stream};
 use nvimx2::AsyncCtx;
 use nvimx2::backend::{ApiValue, Backend, Buffer, BufferId};
 use nvimx2::fs::{AbsPath, AbsPathBuf};
 use nvimx2::notify::{self, MaybeResult};
 use serde::{Deserialize, Serialize};
 
-use crate::backend::{
-    ActionForSelectedSession,
-    CollabBackend,
-    JoinArgs,
-    SessionInfos,
-};
+use crate::backend::{ActionForSelectedSession, CollabBackend};
 use crate::config;
 
 #[allow(clippy::type_complexity)]
@@ -79,20 +69,6 @@ pub struct ServerConfig {
 #[serde(transparent)]
 pub struct SessionId(pub u64);
 
-pin_project_lite::pin_project! {
-    pub struct TestRx {
-        #[pin]
-        inner: client::ClientRx<ReadHalf<DuplexStream>>,
-    }
-}
-
-pin_project_lite::pin_project! {
-    pub struct TestTx {
-        #[pin]
-        inner: client::ClientTx<WriteHalf<DuplexStream>>,
-    }
-}
-
 #[derive(Debug)]
 pub struct AnyError {
     inner: Box<dyn Error>,
@@ -100,16 +76,6 @@ pub struct AnyError {
 
 #[derive(Debug)]
 pub struct NoDefaultDirForRemoteProjectsError;
-
-#[derive(Debug)]
-pub struct TestTxError {
-    inner: io::Error,
-}
-
-#[derive(Debug)]
-pub struct TestRxError {
-    inner: client::ClientRxError,
-}
 
 impl<B: Backend> CollabTestBackend<B> {
     pub fn confirm_start_with(
@@ -218,9 +184,6 @@ impl AnyError {
 }
 
 impl<B: Backend> CollabBackend for CollabTestBackend<B> {
-    type ServerRx = TestRx;
-    type ServerTx = TestTx;
-
     type Io = DuplexStream;
     type ServerConfig = ServerConfig;
     type ConnectToServerError = AnyError;
@@ -228,10 +191,7 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
     type CopySessionIdError = Infallible;
     type DefaultDirForRemoteProjectsError = NoDefaultDirForRemoteProjectsError;
     type HomeDirError = AnyError;
-    type JoinSessionError = AnyError;
     type LspRootError = Infallible;
-    type ServerRxError = TestRxError;
-    type ServerTxError = TestTxError;
 
     async fn confirm_start(
         project_root: &AbsPath,
@@ -282,43 +242,6 @@ impl<B: Backend> CollabBackend for CollabTestBackend<B> {
         ctx.with_backend(|this| match &this.home_dir {
             Some(path) => Ok(path.clone()),
             None => Err(AnyError::from_str("no home directory configured")),
-        })
-    }
-
-    async fn join_session(
-        args: JoinArgs<'_, Self>,
-        ctx: &mut AsyncCtx<'_, Self>,
-    ) -> Result<SessionInfos<Self>, Self::JoinSessionError> {
-        let server_tx = ctx
-            .with_backend(|this| this.server_tx.clone())
-            .ok_or(AnyError::from_str("no server set"))?;
-
-        let (client_io, server_io) = duplex(usize::MAX);
-
-        server_tx.send(server_io)?;
-
-        let (reader, writer) = client_io.split();
-
-        let github_handle = args.auth_infos.handle().clone();
-
-        let knock = Knock::<InnerConfig> {
-            auth_infos: github_handle.clone(),
-            session_intent: SessionIntent::JoinExisting(
-                args.session_id.into(),
-            ),
-        };
-
-        let welcome =
-            client::Knocker::new(reader, writer).knock(knock).await?;
-
-        Ok(SessionInfos {
-            host_id: welcome.host_id,
-            local_peer: Peer::new(welcome.peer_id, github_handle),
-            project_name: welcome.project_name,
-            remote_peers: welcome.other_peers,
-            server_rx: TestRx { inner: welcome.rx },
-            server_tx: TestTx { inner: welcome.tx },
-            session_id: welcome.session_id.into(),
         })
     }
 
@@ -488,56 +411,6 @@ impl From<TestSessionId> for SessionId {
     }
 }
 
-impl Sink<Message> for TestTx {
-    type Error = TestTxError;
-
-    fn poll_ready(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        Sink::<Message>::poll_ready(self.project().inner, ctx)
-            .map_err(|err| TestTxError { inner: err })
-    }
-
-    fn start_send(
-        self: Pin<&mut Self>,
-        item: Message,
-    ) -> Result<(), Self::Error> {
-        Sink::<Message>::start_send(self.project().inner, item)
-            .map_err(|err| TestTxError { inner: err })
-    }
-
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        Sink::<Message>::poll_flush(self.project().inner, ctx)
-            .map_err(|err| TestTxError { inner: err })
-    }
-
-    fn poll_close(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        Sink::<Message>::poll_close(self.project().inner, ctx)
-            .map_err(|err| TestTxError { inner: err })
-    }
-}
-
-impl Stream for TestRx {
-    type Item = Result<Message, TestRxError>;
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        self.project()
-            .inner
-            .poll_next(ctx)
-            .map_err(|err| TestRxError { inner: err })
-    }
-}
-
 impl<E: Error + 'static> From<E> for AnyError {
     fn from(err: E) -> Self {
         Self::new(err)
@@ -564,17 +437,5 @@ impl notify::Error for NoDefaultDirForRemoteProjectsError {
                 "no default directory for remote projects configured",
             ),
         )
-    }
-}
-
-impl notify::Error for TestRxError {
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        (notify::Level::Error, notify::Message::from_display(&self.inner))
-    }
-}
-
-impl notify::Error for TestTxError {
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        (notify::Level::Error, notify::Message::from_display(&self.inner))
     }
 }

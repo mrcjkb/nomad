@@ -1,24 +1,21 @@
 use core::fmt;
 use core::num::NonZeroU32;
-use core::pin::Pin;
-use core::task::{Context, Poll};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::{env, io};
 
-use async_net::TcpStream;
-use collab_server::message::Message;
+use collab_server::message::PeerId;
 use collab_server::nomad::{NomadConfig, NomadSessionId};
 use collab_server::{Config, client};
-use futures_util::io::{ReadHalf, WriteHalf};
-use futures_util::{AsyncReadExt, Sink, Stream};
 use mlua::{Function, Table};
 use nvimx2::command::{CommandArgs, Parse};
-use nvimx2::fs::{self, AbsPath, FsNodeName};
+use nvimx2::fs::{self, AbsPath, AbsPathBuf, FsNodeName};
 use nvimx2::neovim::{Neovim, NeovimBuffer, mlua, oxi};
+use nvimx2::{AsyncCtx, notify};
 use smol_str::ToSmolStr;
 
-use crate::backend::*;
+use crate::backend::{ActionForSelectedSession, CollabBackend};
+use crate::config;
 
 pub struct ServerConfig;
 
@@ -34,20 +31,6 @@ pub struct ServerConfig;
 )]
 #[serde(transparent)]
 pub struct SessionId(NomadSessionId);
-
-pin_project_lite::pin_project! {
-    pub struct NeovimServerTx {
-        #[pin]
-        inner: client::ClientTx<WriteHalf<TcpStream>>,
-    }
-}
-
-pin_project_lite::pin_project! {
-    pub struct NeovimServerRx {
-        #[pin]
-        inner: client::ClientRx<ReadHalf<TcpStream>>,
-    }
-}
 
 #[derive(Debug)]
 pub struct NeovimCopySessionIdError {
@@ -79,22 +62,6 @@ pub struct NeovimLspRootError {
     root_dir: String,
 }
 
-#[derive(Debug)]
-pub enum NeovimNewSessionError {
-    Knock(client::KnockError<NomadConfig>),
-    TcpConnect(io::Error),
-}
-
-#[derive(Debug)]
-pub struct NeovimServerRxError {
-    inner: client::ClientRxError,
-}
-
-#[derive(Debug)]
-pub struct NeovimServerTxError {
-    inner: io::Error,
-}
-
 /// An [`AbsPath`] wrapper whose `Display` impl replaces the path's home
 /// directory with `~`.
 struct TildePath<'a> {
@@ -103,9 +70,6 @@ struct TildePath<'a> {
 }
 
 impl CollabBackend for Neovim {
-    type ServerRx = NeovimServerRx;
-    type ServerTx = NeovimServerTx;
-
     type Io = async_net::TcpStream;
     type ServerConfig = ServerConfig;
     type ConnectToServerError = NeovimConnectToServerError;
@@ -113,10 +77,7 @@ impl CollabBackend for Neovim {
     type CopySessionIdError = NeovimCopySessionIdError;
     type DefaultDirForRemoteProjectsError = NeovimDataDirError;
     type HomeDirError = NeovimHomeDirError;
-    type JoinSessionError = NeovimNewSessionError;
     type LspRootError = NeovimLspRootError;
-    type ServerRxError = NeovimServerRxError;
-    type ServerTxError = NeovimServerTxError;
 
     async fn confirm_start(
         project_root: &fs::AbsPath,
@@ -205,38 +166,6 @@ impl CollabBackend for Neovim {
             },
             _ => Err(NeovimHomeDirError::CouldntFindHome),
         }
-    }
-
-    async fn join_session(
-        args: JoinArgs<'_, Self>,
-        _: &mut AsyncCtx<'_, Self>,
-    ) -> Result<SessionInfos<Self>, Self::JoinSessionError> {
-        let (reader, writer) = TcpStream::connect(&**args.server_address)
-            .await
-            .map_err(NeovimNewSessionError::TcpConnect)?
-            .split();
-
-        let github_handle = args.auth_infos.handle().clone();
-
-        let knock = collab_server::Knock::<NomadConfig> {
-            auth_infos: args.auth_infos.clone().into(),
-            session_intent: todo!(),
-        };
-
-        let welcome = client::Knocker::new(reader, writer)
-            .knock(knock)
-            .await
-            .map_err(NeovimNewSessionError::Knock)?;
-
-        Ok(SessionInfos {
-            host_id: welcome.host_id,
-            local_peer: Peer::new(welcome.peer_id, github_handle),
-            project_name: welcome.project_name,
-            remote_peers: welcome.other_peers,
-            server_rx: NeovimServerRx { inner: welcome.rx },
-            server_tx: NeovimServerTx { inner: welcome.tx },
-            session_id: todo!(),
-        })
     }
 
     fn lsp_root(
@@ -362,56 +291,6 @@ impl<'a> TryFrom<CommandArgs<'a>> for SessionId {
     }
 }
 
-impl Sink<Message> for NeovimServerTx {
-    type Error = NeovimServerTxError;
-
-    fn poll_ready(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        Sink::<Message>::poll_ready(self.project().inner, ctx)
-            .map_err(|err| NeovimServerTxError { inner: err })
-    }
-
-    fn start_send(
-        self: Pin<&mut Self>,
-        item: Message,
-    ) -> Result<(), Self::Error> {
-        Sink::<Message>::start_send(self.project().inner, item)
-            .map_err(|err| NeovimServerTxError { inner: err })
-    }
-
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        Sink::<Message>::poll_flush(self.project().inner, ctx)
-            .map_err(|err| NeovimServerTxError { inner: err })
-    }
-
-    fn poll_close(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        Sink::<Message>::poll_close(self.project().inner, ctx)
-            .map_err(|err| NeovimServerTxError { inner: err })
-    }
-}
-
-impl Stream for NeovimServerRx {
-    type Item = Result<Message, NeovimServerRxError>;
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        self.project()
-            .inner
-            .poll_next(ctx)
-            .map_err(|err| NeovimServerRxError { inner: err })
-    }
-}
-
 #[track_caller]
 fn get_lua_value<T: mlua::FromLua>(namespace: &[&str]) -> Option<T> {
     assert!(!namespace.is_empty());
@@ -456,37 +335,37 @@ impl notify::Error for NeovimLspRootError {
     }
 }
 
-impl notify::Error for NeovimNewSessionError {
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        let mut msg = notify::Message::new();
-        match self {
-            Self::Knock(err) => match err {
-                client::KnockError::SendKnock(err) => {
-                    msg.push_str("couldn't send start request to server: ")
-                        .push_str(err.to_smolstr());
-                },
-                client::KnockError::RecvWelcome(err) => {
-                    msg.push_str(
-                        "couldn't receive start response from server: ",
-                    )
-                    .push_str(err.to_smolstr());
-                },
-                client::KnockError::Bouncer(err) => {
-                    msg.push_str("authentication failed: ")
-                        .push_str(err.to_smolstr());
-                },
-                client::KnockError::SessionEndedBeforeJoining => {
-                    unreachable!();
-                },
-            },
-            Self::TcpConnect(err) => {
-                msg.push_str("couldn't connect to the server: ")
-                    .push_str(err.to_smolstr());
-            },
-        }
-        (notify::Level::Error, msg)
-    }
-}
+// impl notify::Error for NeovimNewSessionError {
+//     fn to_message(&self) -> (notify::Level, notify::Message) {
+//         let mut msg = notify::Message::new();
+//         match self {
+//             Self::Knock(err) => match err {
+//                 client::KnockError::SendKnock(err) => {
+//                     msg.push_str("couldn't send start request to server: ")
+//                         .push_str(err.to_smolstr());
+//                 },
+//                 client::KnockError::RecvWelcome(err) => {
+//                     msg.push_str(
+//                         "couldn't receive start response from server: ",
+//                     )
+//                     .push_str(err.to_smolstr());
+//                 },
+//                 client::KnockError::Bouncer(err) => {
+//                     msg.push_str("authentication failed: ")
+//                         .push_str(err.to_smolstr());
+//                 },
+//                 client::KnockError::SessionEndedBeforeJoining => {
+//                     unreachable!();
+//                 },
+//             },
+//             Self::TcpConnect(err) => {
+//                 msg.push_str("couldn't connect to the server: ")
+//                     .push_str(err.to_smolstr());
+//             },
+//         }
+//         (notify::Level::Error, msg)
+//     }
+// }
 
 impl notify::Error for NeovimDataDirError {
     fn to_message(&self) -> (notify::Level, notify::Message) {
@@ -530,24 +409,6 @@ impl notify::Error for NeovimHomeDirError {
             },
         }
 
-        (notify::Level::Error, msg)
-    }
-}
-
-impl notify::Error for NeovimServerTxError {
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        let mut msg = notify::Message::new();
-        msg.push_str("couldn't send message to the server: ")
-            .push_str(self.inner.to_string());
-        (notify::Level::Error, msg)
-    }
-}
-
-impl notify::Error for NeovimServerRxError {
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        let mut msg = notify::Message::new();
-        msg.push_str("couldn't receive message from the server: ")
-            .push_str(self.inner.to_string());
         (notify::Level::Error, msg)
     }
 }

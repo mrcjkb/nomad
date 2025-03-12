@@ -1,18 +1,20 @@
 //! TODO: docs.
 
 use core::fmt;
+use std::io;
 
 use auth::AuthInfos;
-use collab_server::message::{FileContents, Message, ProjectRequest};
+use collab_server::message::{FileContents, Message, Peer, ProjectRequest};
+use collab_server::{SessionIntent, client};
 use eerie::{DirectoryId, FileId, Replica};
-use futures_util::{SinkExt, StreamExt, future, stream};
+use futures_util::{AsyncReadExt, SinkExt, StreamExt, future, stream};
 use nvimx2::action::AsyncAction;
 use nvimx2::command::ToCompletionFn;
 use nvimx2::fs::{self, AbsPath, Directory, File};
 use nvimx2::notify::Name;
 use nvimx2::{AsyncCtx, Shared, notify};
 
-use crate::backend::{CollabBackend, JoinArgs, SessionId, SessionInfos};
+use crate::backend::{CollabBackend, SessionId, Welcome};
 use crate::collab::Collab;
 use crate::config::Config;
 use crate::leave::StopChannels;
@@ -41,15 +43,24 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
         let auth_infos =
             self.auth_infos.cloned().ok_or(JoinError::UserNotLoggedIn)?;
 
-        let join_args = JoinArgs {
-            auth_infos: &auth_infos,
-            session_id,
-            server_address: &self.config.with(|c| c.server_address.clone()),
+        let server_addr = self.config.with(|c| c.server_address.clone());
+
+        let (reader, writer) = B::connect_to_server(server_addr, ctx)
+            .await
+            .map_err(JoinError::ConnectToServer)?
+            .split();
+
+        let github_handle = auth_infos.handle().clone();
+
+        let knock = collab_server::Knock::<B::ServerConfig> {
+            auth_infos: auth_infos.into(),
+            session_intent: SessionIntent::JoinExisting(session_id),
         };
 
-        let mut sesh_infos = B::join_session(join_args, ctx)
+        let mut welcome = client::Knocker::new(reader, writer)
+            .knock(knock)
             .await
-            .map_err(JoinError::JoinSession)?;
+            .map_err(JoinError::Knock)?;
 
         let project_root = match self
             .config
@@ -60,15 +71,17 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
                 .await
                 .map_err(JoinError::DefaultDirForRemoteProjects)?,
         }
-        .join(&sesh_infos.project_name);
+        .join(&welcome.project_name);
 
         let project_guard = self
             .projects
             .new_guard(project_root)
             .map_err(JoinError::OverlappingProject)?;
 
+        let local_peer = Peer::new(welcome.peer_id, github_handle);
+
         let ProjectResponse { buffered, file_contents, replica } =
-            request_project(&mut sesh_infos)
+            request_project::<B>(local_peer.clone(), &mut welcome)
                 .await
                 .map_err(JoinError::RequestProject)?;
 
@@ -78,18 +91,18 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
             .map_err(JoinError::FlushProject)?;
 
         let project_handle = project_guard.activate(NewProjectArgs {
-            host_id: sesh_infos.host_id,
-            local_peer: sesh_infos.local_peer,
+            host_id: welcome.host_id,
+            local_peer,
             replica,
-            remote_peers: sesh_infos.remote_peers,
-            session_id: todo!(),
+            remote_peers: welcome.other_peers,
+            session_id: welcome.session_id,
         });
 
         let session = Session::new(NewSessionArgs {
             project_handle,
-            server_rx: todo!(),
-            server_tx: todo!(),
-            stop_rx: self.stop_channels.insert(sesh_infos.session_id),
+            server_rx: welcome.rx,
+            server_tx: welcome.tx,
+            stop_rx: self.stop_channels.insert(welcome.session_id),
         });
 
         ctx.spawn_local(async move |ctx| {
@@ -115,20 +128,23 @@ struct ProjectTree<'a> {
 }
 
 async fn request_project<B: CollabBackend>(
-    infos: &mut SessionInfos<B>,
-) -> Result<ProjectResponse, RequestProjectError<B>> {
+    local_peer: Peer,
+    welcome: &mut Welcome<B>,
+) -> Result<ProjectResponse, RequestProjectError> {
+    let local_id = local_peer.id();
+
     let request = ProjectRequest {
-        requested_by: infos.local_peer.clone(),
-        request_from: infos
-            .remote_peers
+        requested_by: local_peer,
+        request_from: welcome
+            .other_peers
             .as_slice()
             .first()
             .expect("can't be empty")
             .id(),
     };
 
-    infos
-        .server_tx
+    welcome
+        .tx
         .send(Message::ProjectRequest(request))
         .await
         .map_err(RequestProjectError::SendRequest)?;
@@ -136,8 +152,8 @@ async fn request_project<B: CollabBackend>(
     let mut buffered = Vec::new();
 
     let response = loop {
-        let message = infos
-            .server_rx
+        let message = welcome
+            .rx
             .next()
             .await
             .ok_or(RequestProjectError::SessionEnded)?
@@ -152,7 +168,7 @@ async fn request_project<B: CollabBackend>(
     Ok(ProjectResponse {
         buffered,
         file_contents: response.file_contents,
-        replica: Replica::decode(infos.local_peer.id(), response.replica),
+        replica: Replica::decode(local_id, response.replica),
     })
 }
 
@@ -244,19 +260,22 @@ impl<'a> ProjectTree<'a> {
 #[debug(bound(B: CollabBackend))]
 pub enum JoinError<B: CollabBackend> {
     /// TODO: docs.
+    ConnectToServer(B::ConnectToServerError),
+
+    /// TODO: docs.
     DefaultDirForRemoteProjects(B::DefaultDirForRemoteProjectsError),
 
     /// TODO: docs.
     FlushProject(FlushProjectError<B::Fs>),
 
     /// TODO: docs.
-    JoinSession(B::JoinSessionError),
+    Knock(client::KnockError<B::ServerConfig>),
 
     /// TODO: docs.
     OverlappingProject(OverlappingProjectError),
 
     /// TODO: docs.
-    RequestProject(RequestProjectError<B>),
+    RequestProject(RequestProjectError),
 
     /// TODO: docs.
     UserNotLoggedIn,
@@ -264,14 +283,13 @@ pub enum JoinError<B: CollabBackend> {
 
 /// The type of error that can occur when requesting the state of the project
 /// from another peer in a session fails.
-#[derive(derive_more::Debug)]
-#[debug(bound(B: CollabBackend))]
-pub enum RequestProjectError<B: CollabBackend> {
+#[derive(Debug)]
+pub enum RequestProjectError {
     /// TODO: docs.
-    RecvResponse(B::ServerRxError),
+    RecvResponse(client::ClientRxError),
 
     /// TODO: docs.
-    SendRequest(B::ServerTxError),
+    SendRequest(io::Error),
 
     /// TODO: docs.
     SessionEnded,
@@ -332,23 +350,24 @@ impl<B: CollabBackend> ToCompletionFn<B> for Join<B> {
 impl<B> PartialEq for JoinError<B>
 where
     B: CollabBackend,
+    B::ConnectToServerError: PartialEq,
     B::DefaultDirForRemoteProjectsError: PartialEq,
-    B::JoinSessionError: PartialEq,
     FlushProjectError<B::Fs>: PartialEq,
-    RequestProjectError<B>: PartialEq,
+    // client::KnockError<B::ServerConfig>: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         use JoinError::*;
 
         match (self, other) {
+            (ConnectToServer(l), ConnectToServer(r)) => l == r,
             (
                 DefaultDirForRemoteProjects(l),
                 DefaultDirForRemoteProjects(r),
             ) => l == r,
             (FlushProject(l), FlushProject(r)) => l == r,
-            (JoinSession(l), JoinSession(r)) => l == r,
+            (Knock(_l), Knock(_r)) => todo!(),
             (OverlappingProject(l), OverlappingProject(r)) => l == r,
-            (RequestProject(l), RequestProject(r)) => l == r,
+            (RequestProject(_l), RequestProject(_r)) => todo!(),
             (UserNotLoggedIn, UserNotLoggedIn) => true,
             _ => false,
         }
@@ -358,9 +377,10 @@ where
 impl<B: CollabBackend> notify::Error for JoinError<B> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
+            Self::ConnectToServer(err) => err.to_message(),
             Self::DefaultDirForRemoteProjects(err) => err.to_message(),
             Self::FlushProject(err) => err.to_message(),
-            Self::JoinSession(err) => err.to_message(),
+            Self::Knock(_err) => todo!(),
             Self::OverlappingProject(err) => err.to_message(),
             Self::RequestProject(err) => err.to_message(),
             Self::UserNotLoggedIn => {
@@ -411,28 +431,24 @@ impl<Fs: fs::Fs> notify::Error for FlushProjectError<Fs> {
     }
 }
 
-impl<B: CollabBackend> PartialEq for RequestProjectError<B>
-where
-    B::ServerRxError: PartialEq,
-    B::ServerTxError: PartialEq,
-{
+impl PartialEq for RequestProjectError {
     fn eq(&self, other: &Self) -> bool {
         use RequestProjectError::*;
 
         match (self, other) {
-            (RecvResponse(l), RecvResponse(r)) => l == r,
-            (SendRequest(l), SendRequest(r)) => l == r,
+            (RecvResponse(_l), RecvResponse(_r)) => todo!(),
+            (SendRequest(l), SendRequest(r)) => l.kind() == r.kind(),
             (SessionEnded, SessionEnded) => true,
             _ => false,
         }
     }
 }
 
-impl<B: CollabBackend> notify::Error for RequestProjectError<B> {
+impl notify::Error for RequestProjectError {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
-            Self::RecvResponse(err) => err.to_message(),
-            Self::SendRequest(err) => err.to_message(),
+            Self::RecvResponse(_err) => todo!(),
+            Self::SendRequest(_err) => todo!(),
             Self::SessionEnded => (
                 notify::Level::Error,
                 notify::Message::from_str(
