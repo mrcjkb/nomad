@@ -15,4 +15,4 @@ pub mod value;
 
 pub use backend::TestBackend;
 pub use backend_ext::BackendExt;
-pub use backend_mock_macros::fs;
+pub use mock_macros::fs;

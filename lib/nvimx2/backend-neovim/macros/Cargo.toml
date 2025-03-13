@@ -1,5 +1,5 @@
 [package]
-name = "nvimx2-macros"
+name = "neovim-macros"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,9 +8,6 @@ publish.workspace = true
 
 [lib]
 proc-macro = true
-
-[features]
-plugin = []
 
 [dependencies]
 quote = "1.0"

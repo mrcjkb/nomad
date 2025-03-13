@@ -242,26 +242,17 @@ version = "0.1.0-dev"
 dependencies = [
  "async-broadcast",
  "async-task",
- "backend-mock-macros",
  "crop",
  "flume",
  "futures-lite",
  "fxhash",
  "indexmap",
+ "mock-macros",
  "nvimx-core",
  "pin-project-lite",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
-]
-
-[[package]]
-name = "backend-mock-macros"
-version = "0.1.0-dev"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.100",
 ]
 
 [[package]]
@@ -272,9 +263,9 @@ dependencies = [
  "async-task",
  "concurrent-queue",
  "futures-executor",
+ "neovim-macros",
  "nvim-oxi",
  "nvimx-core",
- "nvimx2-macros",
  "pin-project-lite",
  "serde",
  "serde_path_to_error",
@@ -1582,12 +1573,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock-macros"
+version = "0.1.0-dev"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "nanorand"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
 dependencies = [
  "getrandom 0.2.15",
+]
+
+[[package]]
+name = "neovim-macros"
+version = "0.1.0-dev"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1901,16 +1910,6 @@ dependencies = [
  "backend-mock",
  "backend-neovim",
  "nvimx-core",
- "nvimx2-macros",
-]
-
-[[package]]
-name = "nvimx2-macros"
-version = "0.1.0-dev"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.100",
 ]
 
 [[package]]

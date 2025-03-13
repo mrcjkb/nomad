@@ -11,12 +11,12 @@ publish.workspace = true
 [dependencies]
 async-broadcast = "0.7"
 async-task = "4.7"
-backend-mock-macros = { path = "./macros" }
 crop = "0.4"
 flume = { workspace = true, features = ["async"] }
 futures-lite = { workspace = true, features = ["std"] }
 fxhash = { workspace = true }
 indexmap = "2.7"
+mock-macros = { path = "./macros" }
 nvimx-core = { path = "../nvimx-core" }
 pin-project-lite = { workspace = true }
 serde = { workspace = true }
