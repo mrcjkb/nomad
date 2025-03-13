@@ -5,10 +5,10 @@ use core::marker::PhantomData;
 use std::sync::Arc;
 
 use auth::AuthInfos;
-use collab_server::message::Peer;
+use collab_server::message::{Peer, PeerId};
 use collab_server::{SessionIntent, client};
 use concurrent_queue::{ConcurrentQueue, PushError};
-use eerie::{PeerId, Replica, ReplicaBuilder};
+use eerie::{Replica, ReplicaBuilder};
 use futures_util::AsyncReadExt;
 use nvimx2::action::AsyncAction;
 use nvimx2::command::ToCompletionFn;

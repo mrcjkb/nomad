@@ -1,5 +1,3 @@
-//! TODO: docs.
-
 #[cfg(feature = "mock")]
 pub mod mock;
 #[cfg(feature = "neovim")]

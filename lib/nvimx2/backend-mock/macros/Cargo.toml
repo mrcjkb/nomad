@@ -1,5 +1,5 @@
 [package]
-name = "backend-test-macros"
+name = "backend-mock-macros"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

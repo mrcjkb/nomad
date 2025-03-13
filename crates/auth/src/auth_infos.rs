@@ -14,7 +14,7 @@ impl AuthInfos {
         &self.inner.github_handle
     }
 
-    #[cfg(any(test, feature = "test"))]
+    #[cfg(any(test, feature = "mock"))]
     #[track_caller]
     pub(crate) fn dummy<Gh>(github_handle: Gh) -> Self
     where

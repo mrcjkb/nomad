@@ -1,5 +1,3 @@
-//! TODO: docs.
-
 #![allow(missing_docs)]
 
 use core::convert::Infallible;

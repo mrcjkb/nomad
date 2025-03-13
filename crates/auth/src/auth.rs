@@ -31,7 +31,7 @@ impl Auth {
     }
 
     /// TODO: docs.
-    #[cfg(any(test, feature = "test"))]
+    #[cfg(any(test, feature = "mock"))]
     #[track_caller]
     pub fn dummy<Gh>(github_handle: Gh) -> Self
     where

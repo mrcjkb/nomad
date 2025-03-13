@@ -9,10 +9,10 @@ publish.workspace = true
 [features]
 mock = [
   "dep:duplex-stream",
-  "auth/test",
+  "auth/mock",
   "collab-server/server",
   "collab-server/test",
-  "nvimx2/tests",
+  "nvimx2/mock",
 ]
 neovim = [
   "dep:async-net",
@@ -52,7 +52,6 @@ home = { version = "0.5", optional = true }
 
 [dev-dependencies]
 futures-lite = { workspace = true, features = ["default"] }
-nvimx2 = { workspace = true, features = ["tests"] }
 
 [lints]
 workspace = true

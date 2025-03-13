@@ -7,17 +7,17 @@ license.workspace = true
 publish.workspace = true
 
 [features]
+mock = ["dep:backend-mock"]
 neovim-mlua = ["backend-neovim/mlua"]
 neovim-0-10 = ["__neovim", "backend-neovim/neovim-0-10"]
 neovim-nightly = ["__neovim", "backend-neovim/neovim-nightly"]
-tests = ["dep:backend-test"]
 __neovim = ["dep:backend-neovim", "nvimx2-macros/plugin"]
 
 [dependencies]
 nvimx-core = { path = "./nvimx-core" }
 nvimx2-macros = { path = "./nvimx-macros" }
+backend-mock = { path = "./backend-mock", optional = true }
 backend-neovim = { path = "./backend-neovim", optional = true }
-backend-test = { path = "./backend-test", optional = true }
 
 [lints]
 workspace = true
