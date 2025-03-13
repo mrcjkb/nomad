@@ -1,9 +1,9 @@
-use nvimx2::EditorCtx;
-use nvimx2::backend::Backend;
-use nvimx2::module::{ApiCtx, Empty, Module};
-use nvimx2::neovim::{self, Neovim};
-use nvimx2::notify::Name;
-use nvimx2::plugin::Plugin;
+use ed::EditorCtx;
+use ed::backend::Backend;
+use ed::module::{ApiCtx, Empty, Module};
+use ed::neovim::{self, Neovim};
+use ed::notify::Name;
+use ed::plugin::Plugin;
 
 #[neovim::plugin]
 fn mad() -> Mad {

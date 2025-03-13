@@ -1,9 +1,9 @@
 use std::io;
 
 use collab_server::client::ClientRxError;
+use ed::{AsyncCtx, notify};
 use flume::Receiver;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select};
-use nvimx2::{AsyncCtx, notify};
 
 use crate::backend::{CollabBackend, MessageRx, MessageTx};
 use crate::leave::StopSession;

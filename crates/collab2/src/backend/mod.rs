@@ -6,11 +6,11 @@ mod neovim;
 use core::fmt::Debug;
 
 use collab_server::Authenticator;
+use ed::backend::{Backend, Buffer};
+use ed::command::CommandArgs;
+use ed::fs::{AbsPath, AbsPathBuf};
+use ed::{AsyncCtx, notify};
 use futures_util::{AsyncRead, AsyncWrite};
-use nvimx2::backend::{Backend, Buffer};
-use nvimx2::command::CommandArgs;
-use nvimx2::fs::{AbsPath, AbsPathBuf};
-use nvimx2::{AsyncCtx, notify};
 
 use crate::config;
 

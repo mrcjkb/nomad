@@ -1,9 +1,9 @@
 //! TODO: docs.
 
-use nvimx2::AsyncCtx;
-use nvimx2::action::AsyncAction;
-use nvimx2::command::ToCompletionFn;
-use nvimx2::notify::{self, Name};
+use ed::AsyncCtx;
+use ed::action::AsyncAction;
+use ed::command::ToCompletionFn;
+use ed::notify::{self, Name};
 
 use crate::backend::{ActionForSelectedSession, CollabBackend};
 use crate::collab::Collab;

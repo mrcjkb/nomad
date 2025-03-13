@@ -1,9 +1,9 @@
 use core::error::Error;
 use core::fmt;
 
+use ed::fs;
 use futures_util::stream::{self, Stream, StreamExt};
 use futures_util::{FutureExt, pin_mut, select};
-use nvimx2::fs;
 
 use crate::WalkDir;
 

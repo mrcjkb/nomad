@@ -1,8 +1,8 @@
-use nvimx2::action::AsyncAction;
-use nvimx2::backend::Backend;
-use nvimx2::command::ToCompletionFn;
-use nvimx2::notify::Name;
-use nvimx2::{AsyncCtx, Shared};
+use ed::action::AsyncAction;
+use ed::backend::Backend;
+use ed::command::ToCompletionFn;
+use ed::notify::Name;
+use ed::{AsyncCtx, Shared};
 
 use crate::{Auth, AuthInfos};
 

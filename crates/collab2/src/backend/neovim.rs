@@ -7,11 +7,11 @@ use std::{env, io};
 use collab_server::Config;
 use collab_server::message::PeerId;
 use collab_server::nomad::{NomadConfig, NomadSessionId};
+use ed::command::{CommandArgs, Parse};
+use ed::fs::{self, AbsPath, AbsPathBuf, FsNodeName};
+use ed::neovim::{Neovim, NeovimBuffer, mlua, oxi};
+use ed::{AsyncCtx, notify};
 use mlua::{Function, Table};
-use nvimx2::command::{CommandArgs, Parse};
-use nvimx2::fs::{self, AbsPath, AbsPathBuf, FsNodeName};
-use nvimx2::neovim::{Neovim, NeovimBuffer, mlua, oxi};
-use nvimx2::{AsyncCtx, notify};
 use smol_str::ToSmolStr;
 
 use crate::backend::{ActionForSelectedSession, CollabBackend};

@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/*", "lib/*", "lib/nvimx2/*", "lib/nvimx2/*/macros", "xtask"]
-exclude = ["lib/nvimx2/src"]
+members = ["crates/*", "lib/*", "lib/ed/*", "lib/ed/*/macros", "xtask"]
+exclude = ["lib/ed/src"]
 
 [workspace.package]
 version = "0.1.0-dev"
@@ -27,7 +27,7 @@ strsim = "0.11"
 thiserror = "2"
 tracing = "0.1"
 
-nvimx2 = { path = "./lib/nvimx2" }
+ed = { path = "./lib/ed" }
 
 auth = { path = "./crates/auth" }
 clipboard = { path = "./crates/clipboard" }
@@ -83,10 +83,10 @@ authors.workspace = true
 crate-type = ["cdylib"]
 
 [features]
-neovim-nightly = ["nvimx2/neovim-nightly"]
+neovim-nightly = ["ed/neovim-nightly"]
 
 [dependencies]
 auth = { workspace = true }
 collab2 = { workspace = true, features = ["neovim"] }
-nvimx2 = { workspace = true, features = ["neovim"] }
+ed = { workspace = true, features = ["neovim"] }
 version = { workspace = true }

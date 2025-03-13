@@ -4,10 +4,10 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use collab_server::message::{Peer, Peers};
+use ed::fs::{AbsPath, AbsPathBuf};
+use ed::{AsyncCtx, Shared, notify};
 use eerie::{PeerId, Replica};
 use fxhash::{FxHashMap, FxHashSet};
-use nvimx2::fs::{AbsPath, AbsPathBuf};
-use nvimx2::{AsyncCtx, Shared, notify};
 use smallvec::SmallVec;
 use smol_str::ToSmolStr;
 

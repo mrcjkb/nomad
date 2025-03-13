@@ -7,14 +7,14 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-mock = ["nvimx2/mock"]
+mock = ["ed/mock"]
 
 [dependencies]
 collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = [
   "client",
   "nomad",
 ] }
-nvimx2 = { workspace = true }
+ed = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
 [lints]

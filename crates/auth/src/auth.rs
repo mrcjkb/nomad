@@ -1,7 +1,7 @@
-use nvimx2::backend::Backend;
-use nvimx2::module::{ApiCtx, Module};
-use nvimx2::notify::Name;
-use nvimx2::{EditorCtx, Shared};
+use ed::backend::Backend;
+use ed::module::{ApiCtx, Module};
+use ed::notify::Name;
+use ed::{EditorCtx, Shared};
 
 use crate::auth_infos::AuthInfos;
 use crate::login::Login;

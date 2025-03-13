@@ -2,10 +2,10 @@ use core::error::Error;
 use core::fmt;
 use std::borrow::Cow;
 
+use ed::fs::{self, Directory, File, Symlink};
+use ed::notify;
 use futures_util::stream::{self, StreamExt};
 use futures_util::{pin_mut, select};
-use nvimx2::fs::{self, Directory, File, Symlink};
-use nvimx2::notify;
 use smol_str::ToSmolStr;
 
 pub struct FindRootArgs<'a, M> {

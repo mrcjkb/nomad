@@ -1,8 +1,8 @@
-use nvimx2::EditorCtx;
-use nvimx2::action::Action;
-use nvimx2::backend::Backend;
-use nvimx2::command::ToCompletionFn;
-use nvimx2::notify::{Message, Name};
+use ed::EditorCtx;
+use ed::action::Action;
+use ed::backend::Backend;
+use ed::command::ToCompletionFn;
+use ed::notify::{Message, Name};
 
 use crate::VERSION;
 

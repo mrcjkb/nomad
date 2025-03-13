@@ -4,10 +4,10 @@ use auth::Auth;
 use collab2::Collab;
 use collab2::mock::{CollabMock, CollabServer, SessionId};
 use collab2::start::StartError;
+use ed::action::AsyncAction;
+use ed::fs::AbsPathBuf;
+use ed::mock::{self, BackendExt, Mock};
 use futures_lite::future::{self, FutureExt};
-use nvimx2::action::AsyncAction;
-use nvimx2::fs::AbsPathBuf;
-use nvimx2::mock::{self, BackendExt, Mock};
 
 #[test]
 fn cannot_start_session_if_not_logged_in() {

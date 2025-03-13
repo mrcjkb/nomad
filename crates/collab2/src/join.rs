@@ -6,13 +6,13 @@ use std::io;
 use auth::AuthInfos;
 use collab_server::message::{FileContents, Message, Peer, ProjectRequest};
 use collab_server::{SessionIntent, client};
+use ed::action::AsyncAction;
+use ed::command::ToCompletionFn;
+use ed::fs::{self, AbsPath, Directory, File};
+use ed::notify::Name;
+use ed::{AsyncCtx, Shared, notify};
 use eerie::{DirectoryId, FileId, Replica};
 use futures_util::{AsyncReadExt, SinkExt, StreamExt, future, stream};
-use nvimx2::action::AsyncAction;
-use nvimx2::command::ToCompletionFn;
-use nvimx2::fs::{self, AbsPath, Directory, File};
-use nvimx2::notify::Name;
-use nvimx2::{AsyncCtx, Shared, notify};
 
 use crate::backend::{CollabBackend, SessionId, Welcome};
 use crate::collab::Collab;

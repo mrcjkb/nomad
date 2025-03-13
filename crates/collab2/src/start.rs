@@ -8,13 +8,13 @@ use auth::AuthInfos;
 use collab_server::message::{Peer, PeerId};
 use collab_server::{SessionIntent, client};
 use concurrent_queue::{ConcurrentQueue, PushError};
+use ed::action::AsyncAction;
+use ed::command::ToCompletionFn;
+use ed::fs::{self, AbsPath, AbsPathBuf, Directory, FsNodeKind, Metadata};
+use ed::notify::{self, Name};
+use ed::{AsyncCtx, ByteOffset, Shared};
 use eerie::{Replica, ReplicaBuilder};
 use futures_util::AsyncReadExt;
-use nvimx2::action::AsyncAction;
-use nvimx2::command::ToCompletionFn;
-use nvimx2::fs::{self, AbsPath, AbsPathBuf, Directory, FsNodeKind, Metadata};
-use nvimx2::notify::{self, Name};
-use nvimx2::{AsyncCtx, ByteOffset, Shared};
 use smol_str::ToSmolStr;
 use walkdir::{Either, WalkDir, WalkError, WalkErrorKind};
 
@@ -487,7 +487,7 @@ impl<B> notify::Error for UserNotLoggedInError<B> {
 mod neovim_error_impls {
     use core::fmt;
 
-    use nvimx2::neovim::Neovim;
+    use ed::neovim::Neovim;
 
     use super::*;
 

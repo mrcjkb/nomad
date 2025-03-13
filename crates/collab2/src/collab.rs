@@ -1,7 +1,7 @@
 use auth::AuthInfos;
-use nvimx2::module::{ApiCtx, Module};
-use nvimx2::notify::Name;
-use nvimx2::{EditorCtx, Shared};
+use ed::module::{ApiCtx, Module};
+use ed::notify::Name;
+use ed::{EditorCtx, Shared};
 
 use crate::backend::{CollabBackend, SessionId};
 use crate::config::Config;

@@ -1,7 +1,7 @@
 use core::convert::Infallible;
 
-use nvimx2::ByteOffset;
-use nvimx2::fs::{self, FsNodeKind, FsNodeName, FsNodeNameBuf};
+use ed::ByteOffset;
+use ed::fs::{self, FsNodeKind, FsNodeName, FsNodeNameBuf};
 
 use crate::{WalkDir, WalkErrorKind};
 

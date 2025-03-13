@@ -10,10 +10,10 @@ use collab_server::Config;
 use collab_server::message::PeerId;
 use collab_server::test::{TestConfig as InnerConfig, TestSessionId};
 use duplex_stream::{DuplexStream, duplex};
-use nvimx2::AsyncCtx;
-use nvimx2::backend::{ApiValue, Backend, Buffer, BufferId};
-use nvimx2::fs::{AbsPath, AbsPathBuf};
-use nvimx2::notify::{self, MaybeResult};
+use ed::AsyncCtx;
+use ed::backend::{ApiValue, Backend, Buffer, BufferId};
+use ed::fs::{AbsPath, AbsPathBuf};
+use ed::notify::{self, MaybeResult};
 use serde::{Deserialize, Serialize};
 
 use crate::backend::{ActionForSelectedSession, CollabBackend};
@@ -387,12 +387,10 @@ impl FromStr for SessionId {
     }
 }
 
-impl TryFrom<nvimx2::command::CommandArgs<'_>> for SessionId {
+impl TryFrom<ed::command::CommandArgs<'_>> for SessionId {
     type Error = Infallible;
 
-    fn try_from(
-        _: nvimx2::command::CommandArgs<'_>,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(_: ed::command::CommandArgs<'_>) -> Result<Self, Self::Error> {
         unreachable!()
     }
 }

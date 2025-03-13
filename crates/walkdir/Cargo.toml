@@ -8,9 +8,9 @@ publish.workspace = true
 
 [dependencies]
 derive_more = { workspace = true }
+ed = { workspace = true }
 flume = { workspace = true, features = ["async"] }
 futures-util = { workspace = true, features = ["default"] }
-nvimx2 = { workspace = true }
 
 [lints]
 workspace = true

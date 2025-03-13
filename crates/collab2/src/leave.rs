@@ -2,12 +2,12 @@
 
 use std::collections::hash_map::Entry;
 
+use ed::action::AsyncAction;
+use ed::command::ToCompletionFn;
+use ed::notify::Name;
+use ed::{AsyncCtx, Shared};
 use flume::{Receiver, Sender};
 use fxhash::FxHashMap;
-use nvimx2::action::AsyncAction;
-use nvimx2::command::ToCompletionFn;
-use nvimx2::notify::Name;
-use nvimx2::{AsyncCtx, Shared};
 
 use crate::backend::{ActionForSelectedSession, CollabBackend, SessionId};
 use crate::collab::Collab;

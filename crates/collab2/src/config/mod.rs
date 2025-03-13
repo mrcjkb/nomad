@@ -2,7 +2,7 @@
 
 mod server_address;
 
-use nvimx2::fs::AbsPathBuf;
+use ed::fs::AbsPathBuf;
 pub(crate) use server_address::ServerAddress;
 
 /// TODO: docs.

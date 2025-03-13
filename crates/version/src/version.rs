@@ -1,7 +1,7 @@
 use core::fmt;
 
-use nvimx2::module::Constant;
-use nvimx2::notify::Name;
+use ed::module::Constant;
+use ed::notify::Name;
 
 use crate::generated;
 

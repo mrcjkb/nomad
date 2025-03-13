@@ -12,15 +12,15 @@ mock = [
   "auth/mock",
   "collab-server/server",
   "collab-server/test",
-  "nvimx2/mock",
+  "ed/mock",
 ]
 neovim = [
   "dep:async-net",
   "dep:clipboard",
   "dep:home",
   "collab-server/nomad",
-  "nvimx2/neovim",
-  "nvimx2/neovim-mlua",
+  "ed/neovim",
+  "ed/neovim-mlua",
 ]
 
 [dependencies]
@@ -30,11 +30,11 @@ collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-feature
 ] }
 concurrent-queue = "2.5"
 derive_more = { workspace = true }
+ed = { workspace = true }
 eerie = { workspace = true }
 flume = { workspace = true, features = ["async"] }
 futures-util = { workspace = true }
 fxhash = { workspace = true }
-nvimx2 = { workspace = true }
 pin-project-lite = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 smallvec = { workspace = true }
