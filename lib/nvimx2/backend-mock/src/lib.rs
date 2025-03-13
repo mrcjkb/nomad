@@ -13,6 +13,6 @@ pub mod fs;
 pub mod serde;
 pub mod value;
 
-pub use backend::TestBackend;
+pub use backend::Mock;
 pub use backend_ext::BackendExt;
 pub use mock_macros::fs;

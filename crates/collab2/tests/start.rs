@@ -2,16 +2,16 @@
 
 use auth::Auth;
 use collab2::Collab;
-use collab2::mock::{CollabServer, CollabMock, SessionId};
+use collab2::mock::{CollabMock, CollabServer, SessionId};
 use collab2::start::StartError;
 use futures_lite::future::{self, FutureExt};
 use nvimx2::action::AsyncAction;
 use nvimx2::fs::AbsPathBuf;
-use nvimx2::tests::{self, BackendExt, TestBackend};
+use nvimx2::mock::{self, BackendExt, Mock};
 
 #[test]
 fn cannot_start_session_if_not_logged_in() {
-    CollabMock::<TestBackend>::default().block_on(async |ctx| {
+    CollabMock::<Mock>::default().block_on(async |ctx| {
         let collab = Collab::from(&Auth::default());
         let err = collab.start().call((), ctx).await.unwrap_err();
         assert_eq!(err, StartError::UserNotLoggedIn);
@@ -20,7 +20,7 @@ fn cannot_start_session_if_not_logged_in() {
 
 #[test]
 fn cannot_start_session_if_no_buffer_is_focused() {
-    CollabMock::<TestBackend>::default().block_on(async |ctx| {
+    CollabMock::<Mock>::default().block_on(async |ctx| {
         let collab = Collab::from(&Auth::dummy("peer1"));
         let err = collab.start().call((), ctx).await.unwrap_err();
         assert_eq!(err, StartError::NoBufferFocused);
@@ -29,12 +29,12 @@ fn cannot_start_session_if_no_buffer_is_focused() {
 
 #[test]
 fn cannot_start_session_if_project_root_is_fs_root() {
-    let fs = tests::fs! {
+    let fs = mock::fs! {
         "foo.txt": "",
     };
 
-    let backend = CollabMock::new(TestBackend::new(fs))
-        .with_home_dir(AbsPathBuf::root());
+    let backend =
+        CollabMock::new(Mock::new(fs)).with_home_dir(AbsPathBuf::root());
 
     backend.block_on(async |ctx| {
         let collab = Collab::from(&Auth::dummy("peer1"));
@@ -46,7 +46,7 @@ fn cannot_start_session_if_project_root_is_fs_root() {
 
 #[test]
 fn cannot_start_session_if_root_overlaps_existing_project() {
-    let fs = tests::fs! {
+    let fs = mock::fs! {
         "a": {
             ".git": {},
             "foo.txt": "",
@@ -59,7 +59,7 @@ fn cannot_start_session_if_root_overlaps_existing_project() {
 
     let server = CollabServer::default();
 
-    let backend = CollabMock::new(TestBackend::new(fs))
+    let backend = CollabMock::new(Mock::new(fs))
         .with_home_dir(AbsPathBuf::root())
         .with_server(&server);
 

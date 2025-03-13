@@ -1,7 +1,7 @@
-use nvimx_core::notify::{self, Emitter, NotificationId};
+use nvimx_core::notify::{self, NotificationId};
 
 #[derive(Default)]
-pub struct TestEmitter {
+pub struct Emitter {
     notifications: Vec<Notification>,
 }
 
@@ -11,7 +11,7 @@ pub struct Notification {
     pub namespace: notify::Namespace,
 }
 
-impl Emitter for TestEmitter {
+impl notify::Emitter for Emitter {
     fn emit(&mut self, notification: notify::Notification) -> NotificationId {
         match notification.updates_prev {
             Some(id) => {

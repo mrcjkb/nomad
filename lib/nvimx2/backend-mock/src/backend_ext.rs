@@ -1,7 +1,7 @@
 use nvimx_core::AsyncCtx;
 use nvimx_core::backend::Backend;
 
-use crate::executor::TestExecutor;
+use crate::executor::Executor;
 
 /// TODO: docs.
 pub trait BackendExt: Backend {
@@ -11,7 +11,7 @@ pub trait BackendExt: Backend {
         fun: impl AsyncFnOnce(&mut AsyncCtx<Self>) -> R + 'static,
     ) -> R
     where
-        Self::LocalExecutor: AsMut<TestExecutor>,
+        Self::LocalExecutor: AsMut<Executor>,
     {
         futures_lite::future::block_on(self.run(fun))
     }
@@ -22,7 +22,7 @@ pub trait BackendExt: Backend {
         fun: impl AsyncFnOnce(&mut AsyncCtx<Self>) -> R + 'static,
     ) -> R
     where
-        Self::LocalExecutor: AsMut<TestExecutor>,
+        Self::LocalExecutor: AsMut<Executor>,
     {
         futures_lite::future::block_on(self.run_all(fun))
     }
@@ -33,7 +33,7 @@ pub trait BackendExt: Backend {
         fun: impl AsyncFnOnce(&mut AsyncCtx<Self>) -> R + 'static,
     ) -> impl Future<Output = R>
     where
-        Self::LocalExecutor: AsMut<TestExecutor>,
+        Self::LocalExecutor: AsMut<Executor>,
     {
         self.run_inner(fun, false)
     }
@@ -44,7 +44,7 @@ pub trait BackendExt: Backend {
         fun: impl AsyncFnOnce(&mut AsyncCtx<Self>) -> R + 'static,
     ) -> impl Future<Output = R>
     where
-        Self::LocalExecutor: AsMut<TestExecutor>,
+        Self::LocalExecutor: AsMut<Executor>,
     {
         self.run_inner(fun, true)
     }
@@ -56,7 +56,7 @@ pub trait BackendExt: Backend {
         run_all: bool,
     ) -> impl Future<Output = R>
     where
-        Self::LocalExecutor: AsMut<TestExecutor>,
+        Self::LocalExecutor: AsMut<Executor>,
     {
         let runner = self
             .local_executor()

@@ -2,15 +2,15 @@
 
 use auth::Auth;
 use collab2::Collab;
-use collab2::mock::{CollabServer, CollabMock, SessionId};
+use collab2::mock::{CollabMock, CollabServer, SessionId};
 use futures_lite::future::{self, FutureExt};
 use nvimx2::action::AsyncAction;
 use nvimx2::fs::{AbsPathBuf, Fs};
-use nvimx2::tests::{self, BackendExt, TestBackend};
+use nvimx2::mock::{self, BackendExt, Mock};
 
 #[test]
 fn replicate_simple_project() {
-    let fs1 = tests::fs! {
+    let fs1 = mock::fs! {
         "foo": {
             "world.txt": "Hello, world!",
             "mars.txt": "Hello, mars!",
@@ -19,11 +19,11 @@ fn replicate_simple_project() {
 
     let server = CollabServer::default();
 
-    let peer1 = CollabMock::new(TestBackend::new(fs1.clone()))
+    let peer1 = CollabMock::new(Mock::new(fs1.clone()))
         .with_home_dir(AbsPathBuf::root())
         .with_server(&server);
 
-    let peer2 = CollabMock::<TestBackend>::default()
+    let peer2 = CollabMock::<Mock>::default()
         .with_default_dir_for_remote_projects(path("/remote"))
         .with_server(&server);
 

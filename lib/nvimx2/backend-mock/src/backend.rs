@@ -1,48 +1,49 @@
 use fxhash::FxHashMap;
-use nvimx_core::backend::{ApiValue, Backend, BufferId};
+use nvimx_core::backend::{ApiValue, Backend};
 use nvimx_core::fs::{AbsPath, FsNode};
 use nvimx_core::notify::MaybeResult;
 use serde::{Deserialize, Serialize};
 
-use crate::buffer::{TestBuffer, TestBufferId};
-use crate::emitter::TestEmitter;
-use crate::executor::TestExecutor;
-use crate::fs::TestFs;
-use crate::serde::{TestDeserializeError, TestSerializeError};
+use crate::api::Api;
+use crate::buffer::{Buffer, BufferId};
+use crate::emitter::Emitter;
+use crate::executor::Executor;
+use crate::fs::MockFs;
+use crate::serde::{DeserializeError, SerializeError};
 
 /// TODO: docs.
-pub struct TestBackend {
-    buffers: FxHashMap<TestBufferId, TestBuffer>,
-    current_buffer: Option<TestBufferId>,
-    emitter: TestEmitter,
-    executor: TestExecutor,
-    fs: TestFs,
-    next_buffer_id: TestBufferId,
+pub struct Mock {
+    buffers: FxHashMap<BufferId, Buffer>,
+    current_buffer: Option<BufferId>,
+    emitter: Emitter,
+    executor: Executor,
+    fs: MockFs,
+    next_buffer_id: BufferId,
 }
 
-impl TestBackend {
-    pub fn new(fs: TestFs) -> Self {
+impl Mock {
+    pub fn new(fs: MockFs) -> Self {
         Self {
             buffers: Default::default(),
             current_buffer: None,
             emitter: Default::default(),
             executor: Default::default(),
             fs,
-            next_buffer_id: TestBufferId(1),
+            next_buffer_id: BufferId(1),
         }
     }
 
-    fn buffer_at(&self, path: &AbsPath) -> Option<&TestBuffer> {
+    fn buffer_at(&self, path: &AbsPath) -> Option<&Buffer> {
         self.buffers.values().find(|buf| path.as_str() == buf.name)
     }
 
     #[track_caller]
-    fn buffer_mut(&mut self, id: TestBufferId) -> &mut TestBuffer {
+    fn buffer_mut(&mut self, id: BufferId) -> &mut Buffer {
         self.buffers.get_mut(&id).expect("buffer exists")
     }
 
     #[track_caller]
-    fn open_buffer(&mut self, path: &AbsPath) -> &mut TestBuffer {
+    fn open_buffer(&mut self, path: &AbsPath) -> &mut Buffer {
         assert!(self.buffer_at(path).is_none());
 
         let file =
@@ -56,7 +57,7 @@ impl TestBackend {
                 .expect("file is not valid UTF-8")
                 .into();
 
-        let buffer = TestBuffer {
+        let buffer = Buffer {
             contents,
             id: self.next_buffer_id.post_inc(),
             name: path.to_string(),
@@ -70,24 +71,24 @@ impl TestBackend {
     }
 }
 
-impl Backend for TestBackend {
+impl Backend for Mock {
     const REINSTATE_PANIC_HOOK: bool = true;
 
-    type Api = crate::api::TestApi;
-    type Buffer<'a> = &'a mut TestBuffer;
-    type BufferId = TestBufferId;
-    type LocalExecutor = TestExecutor;
-    type BackgroundExecutor = TestExecutor;
-    type Fs = TestFs;
-    type Emitter<'this> = &'this mut TestEmitter;
-    type SerializeError = TestSerializeError;
-    type DeserializeError = TestDeserializeError;
+    type Api = Api;
+    type Buffer<'a> = &'a mut Buffer;
+    type BufferId = BufferId;
+    type LocalExecutor = Executor;
+    type BackgroundExecutor = Executor;
+    type Fs = MockFs;
+    type Emitter<'this> = &'this mut Emitter;
+    type SerializeError = SerializeError;
+    type DeserializeError = DeserializeError;
 
-    fn buffer(&mut self, id: BufferId<Self>) -> Option<Self::Buffer<'_>> {
+    fn buffer(&mut self, id: BufferId) -> Option<Self::Buffer<'_>> {
         self.buffers.get_mut(&id)
     }
 
-    fn buffer_ids(&mut self) -> impl Iterator<Item = BufferId<Self>> + use<> {
+    fn buffer_ids(&mut self) -> impl Iterator<Item = BufferId> + use<> {
         self.buffers.keys().copied().collect::<Vec<_>>().into_iter()
     }
 
@@ -141,8 +142,8 @@ impl Backend for TestBackend {
     }
 }
 
-impl Default for TestBackend {
+impl Default for Mock {
     fn default() -> Self {
-        Self::new(TestFs::default())
+        Self::new(MockFs::default())
     }
 }

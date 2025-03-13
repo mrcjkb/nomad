@@ -1,34 +1,33 @@
 use indexmap::IndexMap;
-use nvimx_core::backend::{MapAccess, Value};
-use nvimx_core::notify;
+use nvimx_core::{backend, notify};
 use serde_json::Number;
 
 /// TODO: docs.
-pub enum TestValue {
+pub enum Value {
     Null,
     Bool(bool),
     Number(Number),
     String(String),
     List(Vec<Self>),
-    Map(TestMap),
+    Map(Map),
     Function(Box<dyn FnMut(Self) -> Self>),
 }
 
 #[derive(Default)]
-pub struct TestMap {
-    inner: IndexMap<String, TestValue>,
+pub struct Map {
+    inner: IndexMap<String, Value>,
 }
 
-pub struct TestMapAccess<'a> {
-    map: &'a mut TestMap,
+pub struct MapAccess<'a> {
+    map: &'a mut Map,
     idx: Option<usize>,
 }
 
-pub struct TestMapAccessError {
+pub struct MapAccessError {
     kind: &'static str,
 }
 
-impl TestValue {
+impl Value {
     fn kind(&self) -> &'static str {
         match self {
             Self::Null => "null",
@@ -42,7 +41,7 @@ impl TestValue {
     }
 }
 
-impl TestMap {
+impl Map {
     pub(crate) fn contains_key(&mut self, key: impl AsRef<str>) -> bool {
         self.inner.contains_key(key.as_ref())
     }
@@ -50,38 +49,38 @@ impl TestMap {
     pub(crate) fn insert(
         &mut self,
         key: impl AsRef<str>,
-        value: impl Into<TestValue>,
+        value: impl Into<Value>,
     ) {
         self.inner.insert(key.as_ref().to_owned(), value.into());
     }
 }
 
-impl Value for TestValue {
-    type MapAccess<'a> = TestMapAccess<'a>;
-    type MapAccessError<'a> = TestMapAccessError;
+impl backend::Value for Value {
+    type MapAccess<'a> = MapAccess<'a>;
+    type MapAccessError<'a> = MapAccessError;
 
     fn map_access(
         &mut self,
     ) -> Result<Self::MapAccess<'_>, Self::MapAccessError<'_>> {
         match self {
-            Self::Map(map) => Ok(TestMapAccess { map, idx: None }),
-            _ => Err(TestMapAccessError { kind: self.kind() }),
+            Self::Map(map) => Ok(MapAccess { map, idx: None }),
+            _ => Err(MapAccessError { kind: self.kind() }),
         }
     }
 }
 
-impl Default for TestValue {
+impl Default for Value {
     fn default() -> Self {
         Self::Null
     }
 }
 
-impl MapAccess for TestMapAccess<'_> {
+impl backend::MapAccess for MapAccess<'_> {
     type Key<'a>
         = &'a str
     where
         Self: 'a;
-    type Value = TestValue;
+    type Value = Value;
 
     fn next_key(&mut self) -> Option<Self::Key<'_>> {
         let mut is_first_access = false;
@@ -102,7 +101,7 @@ impl MapAccess for TestMapAccess<'_> {
     }
 }
 
-impl From<serde_json::Value> for TestValue {
+impl From<serde_json::Value> for Value {
     fn from(value: serde_json::Value) -> Self {
         match value {
             serde_json::Value::Null => Self::Null,
@@ -119,51 +118,49 @@ impl From<serde_json::Value> for TestValue {
     }
 }
 
-impl TryFrom<TestValue> for serde_json::Value {
+impl TryFrom<Value> for serde_json::Value {
     type Error = serde_json::Error;
 
-    fn try_from(value: TestValue) -> Result<Self, Self::Error> {
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
         use serde::de::Error;
         match value {
-            TestValue::Null => Ok(serde_json::Value::Null),
-            TestValue::Bool(bool) => Ok(serde_json::Value::Bool(bool)),
-            TestValue::Number(number) => Ok(serde_json::Value::Number(number)),
-            TestValue::String(string) => Ok(serde_json::Value::String(string)),
-            TestValue::List(list) => Ok(serde_json::Value::Array(
+            Value::Null => Ok(serde_json::Value::Null),
+            Value::Bool(bool) => Ok(serde_json::Value::Bool(bool)),
+            Value::Number(number) => Ok(serde_json::Value::Number(number)),
+            Value::String(string) => Ok(serde_json::Value::String(string)),
+            Value::List(list) => Ok(serde_json::Value::Array(
                 list.into_iter()
                     .map(TryInto::try_into)
                     .collect::<Result<_, _>>()?,
             )),
-            TestValue::Map(map) => Ok(serde_json::Value::Object(
+            Value::Map(map) => Ok(serde_json::Value::Object(
                 map.into_iter()
                     .map(|(k, v)| v.try_into().map(|v| (k, v)))
                     .collect::<Result<_, _>>()?,
             )),
-            TestValue::Function(_) => Err(serde_json::Error::custom(
+            Value::Function(_) => Err(serde_json::Error::custom(
                 "cannot convert function to JSON value",
             )),
         }
     }
 }
 
-impl IntoIterator for TestMap {
-    type Item = (String, TestValue);
-    type IntoIter = indexmap::map::IntoIter<String, TestValue>;
+impl IntoIterator for Map {
+    type Item = (String, Value);
+    type IntoIter = indexmap::map::IntoIter<String, Value>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.into_iter()
     }
 }
 
-impl FromIterator<(String, TestValue)> for TestMap {
-    fn from_iter<T: IntoIterator<Item = (String, TestValue)>>(
-        iter: T,
-    ) -> Self {
+impl FromIterator<(String, Value)> for Map {
+    fn from_iter<T: IntoIterator<Item = (String, Value)>>(iter: T) -> Self {
         Self { inner: IndexMap::from_iter(iter) }
     }
 }
 
-impl notify::Error for TestMapAccessError {
+impl notify::Error for MapAccessError {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         let msg = format!("expected a map, got {} instead", self.kind);
         (notify::Level::Error, notify::Message::from_str(msg))

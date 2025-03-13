@@ -5,7 +5,7 @@ use syn::{Expr, Ident, Token, braced, parse_macro_input, token};
 
 pub(crate) fn fs(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let root = parse_macro_input!(input as RootDirectory);
-    quote! { ::nvimx2::tests::fs::TestFs::new(#root) }.into()
+    quote! { ::nvimx2::mock::fs::MockFs::new(#root) }.into()
 }
 
 struct RootDirectory {
@@ -87,7 +87,7 @@ impl ToTokens for Directory {
         let variable_name = Ident::new("__dir", Span::call_site());
 
         let mut definition = quote! {
-            let mut #variable_name = ::nvimx2::tests::fs::TestDirectory::new();
+            let mut #variable_name = ::nvimx2::mock::fs::MockDirectory::new();
         };
 
         for (child_name, child) in self.children.iter() {
@@ -110,7 +110,7 @@ impl ToTokens for Directory {
 impl ToTokens for File {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let contents = &self.contents;
-        quote! { ::nvimx2::tests::fs::TestFile::new(#contents) }
+        quote! { ::nvimx2::mock::fs::MockFile::new(#contents) }
             .to_tokens(tokens);
     }
 }

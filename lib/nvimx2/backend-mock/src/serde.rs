@@ -1,39 +1,37 @@
 use nvimx_core::notify;
 use serde::{Deserialize, Serialize};
 
-use crate::value::TestValue;
+use crate::value::Value;
 
 /// TODO: docs.
-pub struct TestSerializeError {
+pub struct SerializeError {
     inner: serde_json::Error,
 }
 
 /// TODO: docs.
-pub struct TestDeserializeError {
+pub struct DeserializeError {
     inner: serde_json::Error,
 }
 
-pub(crate) fn serialize<T>(value: &T) -> Result<TestValue, TestSerializeError>
+pub(crate) fn serialize<T>(value: &T) -> Result<Value, SerializeError>
 where
     T: ?Sized + Serialize,
 {
     serde_json::to_value(value)
         .map(Into::into)
-        .map_err(|inner| TestSerializeError { inner })
+        .map_err(|inner| SerializeError { inner })
 }
 
-pub(crate) fn deserialize<'de, T>(
-    value: TestValue,
-) -> Result<T, TestDeserializeError>
+pub(crate) fn deserialize<'de, T>(value: Value) -> Result<T, DeserializeError>
 where
     T: Deserialize<'de>,
 {
     serde_json::Value::try_from(value)
         .and_then(T::deserialize)
-        .map_err(|inner| TestDeserializeError { inner })
+        .map_err(|inner| DeserializeError { inner })
 }
 
-impl notify::Error for TestSerializeError {
+impl notify::Error for SerializeError {
     #[inline]
     fn to_message(&self) -> (notify::Level, notify::Message) {
         (
@@ -43,7 +41,7 @@ impl notify::Error for TestSerializeError {
     }
 }
 
-impl notify::Error for TestDeserializeError {
+impl notify::Error for DeserializeError {
     #[inline]
     fn to_message(&self) -> (notify::Level, notify::Message) {
         (

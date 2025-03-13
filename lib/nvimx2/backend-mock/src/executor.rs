@@ -4,15 +4,15 @@ use core::task::{Context, Poll};
 use async_task::Runnable;
 use flume::{Receiver, Sender};
 use futures_lite::future::{self, FutureExt};
-use nvimx_core::backend::{BackgroundExecutor, LocalExecutor, Task};
+use nvimx_core::backend::{self, BackgroundExecutor, LocalExecutor};
 
-pub struct TestExecutor {
+pub struct Executor {
     runner: Option<Runner>,
     spawner: Spawner,
 }
 
 pin_project_lite::pin_project! {
-    pub struct TestTask<T> {
+    pub struct Task<T> {
         #[pin]
         inner: async_task::Task<T>,
     }
@@ -26,7 +26,7 @@ pub(crate) struct Runner {
     runnable_rx: Receiver<Runnable>,
 }
 
-impl TestExecutor {
+impl Executor {
     pub(crate) fn take_runner(&mut self) -> Option<Runner> {
         self.runner.take()
     }
@@ -65,29 +65,29 @@ impl Spawner {
         }
     }
 
-    fn spawn_background<Fut>(&self, fut: Fut) -> TestTask<Fut::Output>
+    fn spawn_background<Fut>(&self, fut: Fut) -> Task<Fut::Output>
     where
         Fut: Future + Send + 'static,
         Fut::Output: Send + 'static,
     {
         let (runnable, task) = async_task::spawn(fut, self.schedule());
         runnable.schedule();
-        TestTask { inner: task }
+        Task { inner: task }
     }
 
-    fn spawn_local<Fut>(&self, fut: Fut) -> TestTask<Fut::Output>
+    fn spawn_local<Fut>(&self, fut: Fut) -> Task<Fut::Output>
     where
         Fut: Future + 'static,
         Fut::Output: 'static,
     {
         let (runnable, task) = async_task::spawn_local(fut, self.schedule());
         runnable.schedule();
-        TestTask { inner: task }
+        Task { inner: task }
     }
 }
 
-impl LocalExecutor for TestExecutor {
-    type Task<T> = TestTask<T>;
+impl LocalExecutor for Executor {
+    type Task<T> = Task<T>;
 
     fn spawn<Fut>(&mut self, fut: Fut) -> Self::Task<Fut::Output>
     where
@@ -98,8 +98,8 @@ impl LocalExecutor for TestExecutor {
     }
 }
 
-impl BackgroundExecutor for TestExecutor {
-    type Task<T> = TestTask<T>;
+impl BackgroundExecutor for Executor {
+    type Task<T> = Task<T>;
 
     fn spawn<Fut>(&mut self, fut: Fut) -> Self::Task<Fut::Output>
     where
@@ -110,19 +110,19 @@ impl BackgroundExecutor for TestExecutor {
     }
 }
 
-impl AsRef<Self> for TestExecutor {
+impl AsRef<Self> for Executor {
     fn as_ref(&self) -> &Self {
         self
     }
 }
 
-impl AsMut<Self> for TestExecutor {
+impl AsMut<Self> for Executor {
     fn as_mut(&mut self) -> &mut Self {
         self
     }
 }
 
-impl Default for TestExecutor {
+impl Default for Executor {
     fn default() -> Self {
         let (runnable_tx, runnable_rx) = flume::unbounded();
         Self {
@@ -132,7 +132,7 @@ impl Default for TestExecutor {
     }
 }
 
-impl<T> Future for TestTask<T> {
+impl<T> Future for Task<T> {
     type Output = T;
 
     fn poll(
@@ -143,7 +143,7 @@ impl<T> Future for TestTask<T> {
     }
 }
 
-impl<T> Task<T> for TestTask<T> {
+impl<T> backend::Task<T> for Task<T> {
     fn detach(self) {
         self.inner.detach();
     }

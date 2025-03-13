@@ -1,21 +1,20 @@
 use std::borrow::Cow;
 
 use crop::Rope;
-use nvimx_core::ByteOffset;
-use nvimx_core::backend::Buffer;
+use nvimx_core::{ByteOffset, backend};
 
 /// TODO: docs.
-pub struct TestBuffer {
+pub struct Buffer {
     pub(crate) contents: Rope,
-    pub(crate) id: TestBufferId,
+    pub(crate) id: BufferId,
     pub(crate) name: String,
 }
 
 /// TODO: docs.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct TestBufferId(pub(crate) u64);
+pub struct BufferId(pub(crate) u64);
 
-impl TestBufferId {
+impl BufferId {
     pub(crate) fn post_inc(&mut self) -> Self {
         let id = *self;
         self.0 += 1;
@@ -23,8 +22,8 @@ impl TestBufferId {
     }
 }
 
-impl Buffer for TestBuffer {
-    type Id = TestBufferId;
+impl backend::Buffer for Buffer {
+    type Id = BufferId;
 
     fn byte_len(&self) -> ByteOffset {
         self.contents.byte_len().into()

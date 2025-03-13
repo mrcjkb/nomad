@@ -1,18 +1,17 @@
-use nvimx_core::ByteOffset;
-use nvimx_core::backend::Api;
 use nvimx_core::command::{CommandArgs, CommandCompletion};
 use nvimx_core::notify::Name;
+use nvimx_core::{ByteOffset, backend};
 
-use crate::value::{TestMap, TestValue};
+use crate::value::{Map, Value};
 
 /// TODO: docs.
 #[derive(Default)]
-pub struct TestApi {
-    map: TestMap,
+pub struct Api {
+    map: Map,
 }
 
-impl Api for TestApi {
-    type Value = TestValue;
+impl backend::Api for Api {
+    type Value = Value;
 
     #[track_caller]
     fn add_constant(&mut self, constant_name: Name, value: Self::Value) {
@@ -26,7 +25,7 @@ impl Api for TestApi {
         Fun: FnMut(Self::Value) -> Option<Self::Value> + 'static,
     {
         assert!(!self.map.contains_key(function_name));
-        let value = TestValue::Function(Box::new(move |value| {
+        let value = Value::Function(Box::new(move |value| {
             function(value).unwrap_or_default()
         }));
         self.map.insert(function_name, value);
@@ -35,7 +34,7 @@ impl Api for TestApi {
     #[track_caller]
     fn add_submodule(&mut self, module_name: Name, module_api: Self) {
         assert!(!self.map.contains_key(module_name));
-        let value = TestValue::Map(module_api.map);
+        let value = Value::Map(module_api.map);
         self.map.insert(module_name, value);
     }
 
