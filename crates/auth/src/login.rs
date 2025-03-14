@@ -6,12 +6,14 @@ use ed::command::ToCompletionFn;
 use ed::notify::{self, Name};
 use ed::{AsyncCtx, Shared};
 
+use crate::credential_store::CredentialStore;
 use crate::{Auth, AuthBackend, AuthInfos};
 
 /// TODO: docs.
 #[derive(Clone, Default)]
 pub struct Login {
-    _infos: Shared<Option<AuthInfos>>,
+    credential_store: CredentialStore,
+    infos: Shared<Option<AuthInfos>>,
 }
 
 impl<B: AuthBackend> AsyncAction<B> for Login {
@@ -22,9 +24,25 @@ impl<B: AuthBackend> AsyncAction<B> for Login {
     async fn call(
         &mut self,
         _: Self::Args,
-        _: &mut AsyncCtx<'_, B>,
+        ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), LoginError<B>> {
-        todo!();
+        if let Some(handle) = self.infos.with(|maybe_infos| {
+            maybe_infos.as_ref().map(|infos| infos.handle().clone())
+        }) {
+            return Err(LoginError::AlreadyLoggedIn(handle));
+        }
+
+        let entry = self
+            .credential_store
+            .get_entry()
+            .await
+            .map_err(LoginError::GetCredentialEntry)?;
+
+        let auth_infos = B::login(ctx).await.map_err(LoginError::Login)?;
+
+        self.infos.set(Some(auth_infos.clone()));
+
+        entry.persist(auth_infos).await.map_err(LoginError::PersistAuthInfos)
     }
 }
 
@@ -34,18 +52,21 @@ pub enum LoginError<B: AuthBackend> {
     AlreadyLoggedIn(GitHubHandle),
 
     /// TODO: docs.
-    BuildCredentialEntry(keyring::Error),
+    GetCredentialEntry(keyring::Error),
 
     /// TODO: docs.
     Login(B::LoginError),
 
     /// TODO: docs.
-    StoreAuthInfos(keyring::Error),
+    PersistAuthInfos(keyring::Error),
 }
 
 impl From<&Auth> for Login {
     fn from(auth: &Auth) -> Self {
-        Self { _infos: auth.infos().clone() }
+        Self {
+            credential_store: auth.credential_store.clone(),
+            infos: auth.infos().clone(),
+        }
     }
 }
 

@@ -16,7 +16,7 @@ pub trait AuthBackend: Backend {
     type LoginError: Debug + notify::Error;
 
     /// TODO: docs.
-    fn credential_store(
+    fn credential_builder(
         ctx: &mut EditorCtx<Self>,
     ) -> impl Future<Output = Box<keyring::CredentialBuilder>> + Send + 'static;
 

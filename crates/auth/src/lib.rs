@@ -5,6 +5,7 @@
 mod auth;
 mod auth_infos;
 mod backend;
+mod credential_store;
 pub mod login;
 pub mod logout;
 

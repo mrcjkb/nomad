@@ -4,12 +4,14 @@ use ed::{EditorCtx, Shared};
 
 use crate::AuthBackend;
 use crate::auth_infos::AuthInfos;
+use crate::credential_store::CredentialStore;
 use crate::login::Login;
 use crate::logout::Logout;
 
 /// TODO: docs.
 #[derive(Default)]
 pub struct Auth {
+    pub(crate) credential_store: CredentialStore,
     pub(crate) infos: Shared<Option<AuthInfos>>,
 }
 
@@ -38,7 +40,10 @@ impl Auth {
         Gh: TryInto<collab_server::message::GitHubHandle>,
         Gh::Error: core::fmt::Debug,
     {
-        Self { infos: Shared::new(Some(AuthInfos::dummy(github_handle))) }
+        Self {
+            credential_store: CredentialStore::default(),
+            infos: Shared::new(Some(AuthInfos::dummy(github_handle))),
+        }
     }
 }
 
@@ -52,10 +57,10 @@ impl<B: AuthBackend> Module<B> for Auth {
     }
 
     fn on_init(&self, ctx: &mut EditorCtx<B>) {
-        let fut = B::credential_store(ctx);
-
+        let credential_store = self.credential_store.clone();
+        let credential_builder = B::credential_builder(ctx);
         ctx.spawn_background(async move {
-            let _store = fut.await;
+            credential_store.run(credential_builder.await).await;
         })
         .detach();
     }

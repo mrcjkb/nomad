@@ -8,7 +8,7 @@ impl AuthBackend for Neovim {
     type LoginError = core::convert::Infallible;
 
     #[allow(clippy::manual_async_fn)]
-    fn credential_store(
+    fn credential_builder(
         _: &mut ed::EditorCtx<Self>,
     ) -> impl Future<Output = Box<keyring::CredentialBuilder>> + Send + 'static
     {
