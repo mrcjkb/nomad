@@ -61,7 +61,7 @@ impl CredentialStore {
                         &*maybe_entry.insert(entry)
                     },
                     Err(err) => {
-                        req.query_err(err);
+                        req.respond_with_get_credential_err(err);
                         continue;
                     },
                 },
@@ -73,16 +73,19 @@ impl CredentialStore {
                     let _ = tx.send(msg);
                 },
                 Request::Persist(infos, tx) => {
-                    let json =
-                        serde_json::to_string(&infos).expect("never fails");
+                    let json = match serde_json::to_string(&infos) {
+                        Ok(json) => json,
+                        Err(_) => unreachable!("Serialize impl never fails"),
+                    };
                     let msg = entry.set_password(&json).map_err(Error::Op);
                     let _ = tx.send(msg);
                 },
                 Request::Retrieve(tx) => {
-                    let msg = entry
-                        .get_password()
-                        .map(|json| serde_json::from_str(&json).ok())
-                        .map_err(Error::Op);
+                    let msg = match entry.get_password() {
+                        Ok(json) => Ok(serde_json::from_str(&json).ok()),
+                        Err(keyring::Error::NoEntry) => Ok(None),
+                        Err(err) => Err(Error::Op(err)),
+                    };
                     let _ = tx.send(msg);
                 },
             }
@@ -90,6 +93,10 @@ impl CredentialStore {
     }
 
     async fn send_request(&self, req: Request) {
+        // NOTE: once https://github.com/zesterer/flume/issues/155 is addrssed
+        // and we no longer store the Receiver in Self, we'll have to send it
+        // via a method that, if all receivers have been dropped, will wait for
+        // one to be constructed from a Sender.
         self.tx
             .send_async(req)
             .await
@@ -98,7 +105,7 @@ impl CredentialStore {
 }
 
 impl Request {
-    fn query_err(&self, err: keyring::Error) {
+    fn respond_with_get_credential_err(&self, err: keyring::Error) {
         match self {
             Request::Delete(tx) => {
                 let _ = tx.send(Err(Error::GetCredential(err)));
