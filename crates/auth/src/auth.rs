@@ -67,15 +67,11 @@ impl<B: AuthBackend> Module<B> for Auth {
         let auth_infos = self.infos.clone();
         let credential_store = self.credential_store.clone();
         ctx.spawn_local(async move |_| {
-            let Some(entry) = credential_store.get_entry().await.ok() else {
-                return;
-            };
-            let Some(persisted) =
-                entry.retrieve_persisted().await.ok().flatten()
-            else {
-                return;
-            };
-            auth_infos.set(Some(persisted));
+            if let Some(infos) =
+                credential_store.retrieve().await.ok().flatten()
+            {
+                auth_infos.set(Some(infos));
+            }
         })
         .detach();
     }

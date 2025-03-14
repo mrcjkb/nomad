@@ -238,8 +238,10 @@ version = "0.1.0-dev"
 dependencies = [
  "collab-server",
  "ed",
+ "flume",
  "keyring",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

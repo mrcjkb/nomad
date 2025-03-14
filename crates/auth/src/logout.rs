@@ -6,7 +6,7 @@ use ed::command::ToCompletionFn;
 use ed::notify::{self, Name};
 use ed::{AsyncCtx, Shared};
 
-use crate::credential_store::CredentialStore;
+use crate::credential_store::{self, CredentialStore};
 use crate::{Auth, AuthInfos};
 
 /// TODO: docs.
@@ -35,13 +35,7 @@ impl<B: Backend> AsyncAction<B> for Logout {
             }
         })?;
 
-        self.credential_store
-            .get_entry()
-            .await
-            .map_err(LogoutError::GetCredential)?
-            .delete()
-            .await
-            .map_err(LogoutError::DeleteCredential)
+        self.credential_store.delete().await.map_err(Into::into)
     }
 }
 
@@ -68,6 +62,16 @@ impl From<&Auth> for Logout {
 
 impl<B: Backend> ToCompletionFn<B> for Logout {
     fn to_completion_fn(&self) {}
+}
+
+impl From<credential_store::Error> for LogoutError {
+    fn from(err: credential_store::Error) -> Self {
+        use credential_store::Error::*;
+        match err {
+            GetCredential(err) => Self::GetCredential(err),
+            Op(err) => Self::DeleteCredential(err),
+        }
+    }
 }
 
 impl notify::Error for LogoutError {

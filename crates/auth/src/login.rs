@@ -6,7 +6,7 @@ use ed::command::ToCompletionFn;
 use ed::notify::{self, Name};
 use ed::{AsyncCtx, Shared};
 
-use crate::credential_store::CredentialStore;
+use crate::credential_store::{self, CredentialStore};
 use crate::{Auth, AuthBackend, AuthInfos};
 
 /// TODO: docs.
@@ -36,13 +36,7 @@ impl<B: AuthBackend> AsyncAction<B> for Login {
 
         self.infos.set(Some(auth_infos.clone()));
 
-        self.credential_store
-            .get_entry()
-            .await
-            .map_err(LoginError::GetCredential)?
-            .persist(auth_infos)
-            .await
-            .map_err(LoginError::PersistAuthInfos)
+        self.credential_store.persist(auth_infos).await.map_err(Into::into)
     }
 }
 
@@ -72,6 +66,16 @@ impl From<&Auth> for Login {
 
 impl<B: AuthBackend> ToCompletionFn<B> for Login {
     fn to_completion_fn(&self) {}
+}
+
+impl<B: AuthBackend> From<credential_store::Error> for LoginError<B> {
+    fn from(err: credential_store::Error) -> Self {
+        use credential_store::Error::*;
+        match err {
+            GetCredential(err) => Self::GetCredential(err),
+            Op(err) => Self::PersistAuthInfos(err),
+        }
+    }
 }
 
 impl<B: AuthBackend> notify::Error for LoginError<B> {
