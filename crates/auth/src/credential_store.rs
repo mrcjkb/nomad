@@ -1,13 +1,12 @@
 use std::sync::{Arc, OnceLock};
 
 use crate::AuthInfos;
+use crate::async_once_lock::AsyncOnceLock;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct CredentialStore {
     entry: Arc<OnceLock<keyring::Entry>>,
-    builder: Arc<OnceLock<Box<keyring::CredentialBuilder>>>,
-    builder_rx: Arc<flume::Receiver<Box<keyring::CredentialBuilder>>>,
-    builder_tx: flume::Sender<Box<keyring::CredentialBuilder>>,
+    builder: Arc<AsyncOnceLock<Box<keyring::CredentialBuilder>>>,
 }
 
 pub(crate) enum Error {
@@ -44,21 +43,7 @@ impl CredentialStore {
         &self,
         builder: Box<keyring::CredentialBuilder>,
     ) {
-        self.builder_tx.send(builder).expect("rx is still alive");
-    }
-
-    async fn builder(&self) -> &keyring::CredentialBuilder {
-        match self.builder.get() {
-            Some(builder) => &**builder,
-            None => {
-                let builder = self
-                    .builder_rx
-                    .recv_async()
-                    .await
-                    .expect("tx is still alive");
-                &**self.builder.get_or_init(|| builder)
-            },
-        }
+        let _ = self.builder.set(builder);
     }
 
     async fn entry(&self) -> Result<&keyring::Entry, Error> {
@@ -66,25 +51,14 @@ impl CredentialStore {
             Some(entry) => Ok(entry),
             None => {
                 let entry = self
-                    .builder()
+                    .builder
+                    .wait()
                     .await
                     .build(None, Self::APP_NAME, Self::SECRET_NAME)
                     .map(keyring::Entry::new_with_credential)
                     .map_err(Error::GetCredential)?;
                 Ok(self.entry.get_or_init(|| entry))
             },
-        }
-    }
-}
-
-impl Default for CredentialStore {
-    fn default() -> Self {
-        let (builder_tx, builder_rx) = flume::bounded(1);
-        Self {
-            entry: Default::default(),
-            builder: Default::default(),
-            builder_rx: Arc::new(builder_rx),
-            builder_tx,
         }
     }
 }

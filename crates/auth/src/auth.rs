@@ -66,8 +66,15 @@ impl<B: AuthBackend> Module<B> for Auth {
 
         let auth_infos = self.infos.clone();
         let store = self.credential_store.clone();
-        ctx.spawn_local(async move |_| {
-            if let Some(infos) = store.retrieve().await.ok().flatten() {
+        ctx.spawn_local(async move |ctx| {
+            if let Some(infos) = ctx
+                // Retrieving the credentials blocks, so do it in the
+                // background.
+                .spawn_background(async move { store.retrieve().await })
+                .await
+                .ok()
+                .flatten()
+            {
                 auth_infos.set(Some(infos));
             }
         })

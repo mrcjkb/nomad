@@ -238,7 +238,7 @@ version = "0.1.0-dev"
 dependencies = [
  "collab-server",
  "ed",
- "flume",
+ "event-listener",
  "keyring",
  "serde",
  "serde_json",
@@ -1499,8 +1499,9 @@ dependencies = [
 
 [[package]]
 name = "keyring"
-version = "4.0.0-alpha.1"
-source = "git+ssh://git@github.com/noib3/keyring-rs.git#30a14b00bffa041c3626c58c767e5be2d32ae7eb"
+version = "4.0.0-beta.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f70d6b134469e0af30e16b3064aaf85e94f5ad1953c0a6e119110d9ebf373342"
 dependencies = [
  "dbus-secret-service",
  "log",

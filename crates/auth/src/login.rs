@@ -36,6 +36,7 @@ impl<B: AuthBackend> AsyncAction<B> for Login {
 
         self.infos.set(Some(auth_infos.clone()));
 
+        // Persisting the credentials blocks, so do it in the background.
         let credential_store = self.credential_store.clone();
         ctx.spawn_background(async move {
             credential_store.persist(auth_infos).await

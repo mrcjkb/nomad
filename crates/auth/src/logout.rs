@@ -35,6 +35,7 @@ impl<B: Backend> AsyncAction<B> for Logout {
             }
         })?;
 
+        // Deleting the credentials blocks, so do it in the background.
         let credential_store = self.credential_store.clone();
         ctx.spawn_background(async move { credential_store.delete().await })
             .await
