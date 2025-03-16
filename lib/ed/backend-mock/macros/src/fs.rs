@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{braced, parse_macro_input, token, Expr, Ident, Token};
+use syn::{Expr, Ident, Token, braced, parse_macro_input, token};
 
 pub(crate) fn fs(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let root = parse_macro_input!(input as RootDirectory);

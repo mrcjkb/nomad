@@ -1,7 +1,7 @@
 use core::error::Error;
 
-use crate::fs::{AbsPath, Fs, NodeName};
 use crate::ByteOffset;
+use crate::fs::{AbsPath, Fs, NodeName};
 
 /// TODO: docs.
 pub trait File {

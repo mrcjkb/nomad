@@ -1,7 +1,7 @@
 use core::error::Error;
 
-use crate::fs::{FsNodeKind, NodeNameBuf};
 use crate::ByteOffset;
+use crate::fs::{FsNodeKind, NodeNameBuf};
 
 /// TODO: docs.
 pub trait Metadata {

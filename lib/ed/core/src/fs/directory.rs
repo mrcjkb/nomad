@@ -68,7 +68,7 @@ pub trait Directory: Sized {
     ) -> impl Future<
         Output = Result<
             impl Stream<Item = Result<Self::Metadata, Self::ReadEntryError>>
-                + use<Self>,
+            + use<Self>,
             Self::ReadError,
         >,
     >;

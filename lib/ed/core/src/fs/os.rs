@@ -24,10 +24,10 @@ use crate::fs::{
     FsEvent,
     FsNode,
     FsNodeKind,
-    NodeName,
-    NodeNameBuf,
     InvalidNodeNameError,
     Metadata,
+    NodeName,
+    NodeNameBuf,
     Symlink,
 };
 
