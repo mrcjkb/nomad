@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 async-fs = { workspace = true }
-eerie = { workspace = true }
+eerie = { git = "ssh://git@github.com/nomad/eerie.git" }
 futures-util = { workspace = true }
 pin-project-lite = { workspace = true }
 thiserror = { workspace = true }

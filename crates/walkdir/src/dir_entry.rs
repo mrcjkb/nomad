@@ -1,14 +1,14 @@
 use core::convert::Infallible;
 
 use ed::ByteOffset;
-use ed::fs::{self, FsNodeKind, FsNodeName, FsNodeNameBuf};
+use ed::fs::{self, FsNodeKind, NodeName, NodeNameBuf};
 
 use crate::{WalkDir, WalkErrorKind};
 
 /// TODO: docs.
 pub struct DirEntry<'a, W: WalkDir> {
     inner: W::DirEntry,
-    name: FsNodeNameBuf,
+    name: NodeNameBuf,
     node_kind: FsNodeKind,
     parent_path: &'a fs::AbsPath,
 }
@@ -31,7 +31,7 @@ impl<'a, W: WalkDir> DirEntry<'a, W> {
 
     /// TODO: docs.
     #[allow(clippy::same_name_method)]
-    pub fn name(&self) -> &FsNodeName {
+    pub fn name(&self) -> &NodeName {
         &self.name
     }
 
@@ -86,7 +86,7 @@ impl<W: WalkDir> fs::Metadata for DirEntry<'_, W> {
         self.inner.byte_len()
     }
 
-    async fn name(&self) -> Result<FsNodeNameBuf, Self::NameError> {
+    async fn name(&self) -> Result<NodeNameBuf, Self::NameError> {
         Ok(self.name.clone())
     }
 

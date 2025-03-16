@@ -1,7 +1,7 @@
 use core::error::Error;
 
+use crate::fs::{AbsPath, Fs, NodeName};
 use crate::ByteOffset;
-use crate::fs::{AbsPath, Fs, FsNodeName};
 
 /// TODO: docs.
 pub trait File {
@@ -27,7 +27,7 @@ pub trait File {
 
     /// TODO: docs.
     #[inline]
-    fn name(&self) -> &FsNodeName {
+    fn name(&self) -> &NodeName {
         self.path().node_name().expect("path is not root")
     }
 

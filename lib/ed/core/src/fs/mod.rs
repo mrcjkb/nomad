@@ -11,18 +11,9 @@ mod metadata;
 pub mod os;
 mod symlink;
 
-pub use directory::Directory;
 #[doc(inline)]
-pub use eerie::fs::{
-    AbsPath,
-    AbsPathBuf,
-    AbsPathFromPathError,
-    AbsPathNotAbsoluteError,
-    AbsPathNotUtf8Error,
-    FsNodeName,
-    FsNodeNameBuf,
-    InvalidFsNodeNameError,
-};
+pub use abs_path::*;
+pub use directory::Directory;
 pub use file::File;
 pub use fs::Fs;
 pub use fs_event::{FsEvent, FsEventKind};

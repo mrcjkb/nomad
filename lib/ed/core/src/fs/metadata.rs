@@ -1,7 +1,7 @@
 use core::error::Error;
 
+use crate::fs::{FsNodeKind, NodeNameBuf};
 use crate::ByteOffset;
-use crate::fs::{FsNodeKind, FsNodeNameBuf};
 
 /// TODO: docs.
 pub trait Metadata {
@@ -29,7 +29,7 @@ pub trait Metadata {
     /// TODO: docs.
     fn name(
         &self,
-    ) -> impl Future<Output = Result<FsNodeNameBuf, Self::NameError>>;
+    ) -> impl Future<Output = Result<NodeNameBuf, Self::NameError>>;
 
     /// TODO: docs.
     fn node_kind(

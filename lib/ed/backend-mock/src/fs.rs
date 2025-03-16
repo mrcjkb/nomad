@@ -13,8 +13,8 @@ use ed_core::fs::{
     FsEvent,
     FsEventKind,
     FsNodeKind,
-    FsNodeName,
-    FsNodeNameBuf,
+    NodeName,
+    NodeNameBuf,
 };
 use futures_lite::Stream;
 use fxhash::FxHashMap;
@@ -37,7 +37,7 @@ pub enum MockFsNode {
 
 #[derive(Debug, Default)]
 pub struct MockDirectory {
-    children: IndexMap<FsNodeNameBuf, MockFsNode>,
+    children: IndexMap<NodeNameBuf, MockFsNode>,
 }
 
 #[derive(Debug)]
@@ -334,7 +334,7 @@ impl MockDirectory {
     #[track_caller]
     pub fn insert_child(
         &mut self,
-        name: impl AsRef<FsNodeName>,
+        name: impl AsRef<NodeName>,
         child: impl Into<MockFsNode>,
     ) -> &mut Self {
         let name = name.as_ref();
@@ -367,7 +367,7 @@ impl MockDirectory {
         self.children.clear();
     }
 
-    fn delete_child(&mut self, name: &FsNodeName) -> bool {
+    fn delete_child(&mut self, name: &NodeName) -> bool {
         self.children.swap_remove(name).is_some()
     }
 
@@ -534,7 +534,7 @@ impl fs::Metadata for DirEntry {
         }
     }
 
-    async fn name(&self) -> Result<FsNodeNameBuf, Self::NameError> {
+    async fn name(&self) -> Result<NodeNameBuf, Self::NameError> {
         self.exists()
             .then(|| self.path().node_name().expect("path is not root"))
             .map(ToOwned::to_owned)
@@ -627,14 +627,14 @@ impl fs::Directory for DirectoryHandle {
 
     async fn create_directory(
         &self,
-        directory_name: &FsNodeName,
+        directory_name: &NodeName,
     ) -> Result<Self, Self::CreateDirectoryError> {
         self.fs.create_directory(self.path.clone().join(directory_name)).await
     }
 
     async fn create_file(
         &self,
-        file_name: &FsNodeName,
+        file_name: &NodeName,
     ) -> Result<FileHandle, Self::CreateFileError> {
         self.fs.create_file(self.path.clone().join(file_name)).await
     }

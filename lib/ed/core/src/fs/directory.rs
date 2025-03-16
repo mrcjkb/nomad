@@ -2,7 +2,7 @@ use core::error::Error;
 
 use futures_lite::Stream;
 
-use crate::fs::{AbsPath, Fs, FsNodeName, Metadata};
+use crate::fs::{AbsPath, Fs, Metadata, NodeName};
 
 /// TODO: docs.
 pub trait Directory: Sized {
@@ -33,13 +33,13 @@ pub trait Directory: Sized {
     /// TODO: docs.
     fn create_directory(
         &self,
-        directory_name: &FsNodeName,
+        directory_name: &NodeName,
     ) -> impl Future<Output = Result<Self, Self::CreateDirectoryError>>;
 
     /// TODO: docs.
     fn create_file(
         &self,
-        file_name: &FsNodeName,
+        file_name: &NodeName,
     ) -> impl Future<Output = Result<<Self::Fs as Fs>::File, Self::CreateFileError>>;
 
     /// TODO: docs.
@@ -50,7 +50,7 @@ pub trait Directory: Sized {
 
     /// TODO: docs.
     #[inline]
-    fn name(&self) -> Option<&FsNodeName> {
+    fn name(&self) -> Option<&NodeName> {
         self.path().node_name()
     }
 
@@ -68,7 +68,7 @@ pub trait Directory: Sized {
     ) -> impl Future<
         Output = Result<
             impl Stream<Item = Result<Self::Metadata, Self::ReadEntryError>>
-            + use<Self>,
+                + use<Self>,
             Self::ReadError,
         >,
     >;

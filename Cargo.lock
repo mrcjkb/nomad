@@ -3,6 +3,35 @@
 version = 4
 
 [[package]]
+name = "abs-path"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/abs-path.git#f4264a40288600cc0db7ba3716893af767463255"
+dependencies = [
+ "abs-path-core",
+ "abs-path-macros",
+]
+
+[[package]]
+name = "abs-path-core"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/abs-path.git#f4264a40288600cc0db7ba3716893af767463255"
+dependencies = [
+ "compact_str 0.9.0",
+ "serde",
+ "smol_str",
+]
+
+[[package]]
+name = "abs-path-macros"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/abs-path.git#f4264a40288600cc0db7ba3716893af767463255"
+dependencies = [
+ "abs-path-core",
+ "quote",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -576,7 +605,7 @@ dependencies = [
 [[package]]
 name = "codecs"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#73751a9b090432aa51442cf525e64bea247d78c7"
+source = "git+ssh://git@github.com/nomad/collab.git#f424bc0c1ee6b2564fd3753a315e7b800091ab37"
 dependencies = [
  "bincode",
  "bytes",
@@ -605,6 +634,7 @@ dependencies = [
 name = "collab"
 version = "0.1.0-dev"
 dependencies = [
+ "abs-path",
  "async-net",
  "auth",
  "clipboard",
@@ -629,10 +659,11 @@ dependencies = [
 [[package]]
 name = "collab-message"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#73751a9b090432aa51442cf525e64bea247d78c7"
+source = "git+ssh://git@github.com/nomad/collab.git#f424bc0c1ee6b2564fd3753a315e7b800091ab37"
 dependencies = [
  "codecs",
  "eerie",
+ "flume",
  "fxhash",
  "serde",
  "smallvec",
@@ -668,13 +699,13 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#73751a9b090432aa51442cf525e64bea247d78c7"
+source = "git+ssh://git@github.com/nomad/collab.git#f424bc0c1ee6b2564fd3753a315e7b800091ab37"
 dependencies = [
+ "abs-path",
  "codecs",
  "collab-message",
  "derive_more",
  "duplex-stream",
- "eerie",
  "futures-executor",
  "futures-util",
  "generic-server",
@@ -909,7 +940,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "duplex-stream"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#73751a9b090432aa51442cf525e64bea247d78c7"
+source = "git+ssh://git@github.com/nomad/collab.git#f424bc0c1ee6b2564fd3753a315e7b800091ab37"
 dependencies = [
  "async-compat",
  "futures-util",
@@ -930,10 +961,10 @@ dependencies = [
 name = "ed-core"
 version = "0.1.0-dev"
 dependencies = [
+ "abs-path",
  "async-fs",
  "compact_str 0.9.0",
  "derive_more",
- "eerie",
  "flume",
  "futures-lite",
  "futures-util",
@@ -950,8 +981,9 @@ dependencies = [
 [[package]]
 name = "eerie"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/eerie.git#a5a395deb65526100b67916460a214c0f8c2b857"
+source = "git+ssh://git@github.com/nomad/eerie.git#f448f1398606d901187ff0dff65706b716e00b70"
 dependencies = [
+ "abs-path",
  "cola",
  "compact_str 0.9.0",
  "fxhash",
@@ -1167,7 +1199,7 @@ dependencies = [
 [[package]]
 name = "generic-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#73751a9b090432aa51442cf525e64bea247d78c7"
+source = "git+ssh://git@github.com/nomad/collab.git#f424bc0c1ee6b2564fd3753a315e7b800091ab37"
 dependencies = [
  "codecs",
  "collab-message",
@@ -1583,7 +1615,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]

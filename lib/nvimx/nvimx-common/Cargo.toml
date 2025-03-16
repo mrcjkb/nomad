@@ -12,7 +12,7 @@ neovim-nightly = ["nvim-oxi/neovim-nightly"]
 
 [dependencies]
 compact_str = { workspace = true }
-eerie = { workspace = true }
+eerie = { git = "ssh://git@github.com/nomad/eerie.git" }
 nvim-oxi = { workspace = true }
 nvimx-diagnostics = { workspace = true }
 smol_str = "0.3"

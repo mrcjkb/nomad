@@ -24,6 +24,7 @@ neovim = [
 ]
 
 [dependencies]
+abs-path = { workspace = true, features = ["macros"] }
 auth = { workspace = true }
 collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = [
   "client",
@@ -31,7 +32,7 @@ collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-feature
 concurrent-queue = "2.5"
 derive_more = { workspace = true }
 ed = { workspace = true }
-eerie = { workspace = true }
+eerie = { git = "ssh://git@github.com/nomad/eerie.git" }
 flume = { workspace = true, features = ["async"] }
 futures-util = { workspace = true }
 fxhash = { workspace = true }

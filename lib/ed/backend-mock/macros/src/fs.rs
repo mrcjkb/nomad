@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, quote};
+use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
-use syn::{Expr, Ident, Token, braced, parse_macro_input, token};
+use syn::{braced, parse_macro_input, token, Expr, Ident, Token};
 
 pub(crate) fn fs(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let root = parse_macro_input!(input as RootDirectory);
@@ -93,7 +93,7 @@ impl ToTokens for Directory {
         for (child_name, child) in self.children.iter() {
             definition.extend(quote! {
                 #variable_name.insert_child(
-                    <&::ed::fs::FsNodeName>::try_from(#child_name).unwrap(),
+                    <&::ed::fs::NodeName>::try_from(#child_name).unwrap(),
                     #child,
                 );
             });

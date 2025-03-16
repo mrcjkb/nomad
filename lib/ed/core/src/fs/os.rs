@@ -24,9 +24,9 @@ use crate::fs::{
     FsEvent,
     FsNode,
     FsNodeKind,
-    FsNodeName,
-    FsNodeNameBuf,
-    InvalidFsNodeNameError,
+    NodeName,
+    NodeNameBuf,
+    InvalidNodeNameError,
     Metadata,
     Symlink,
 };
@@ -80,7 +80,7 @@ pub enum OsNameError {
 
     /// TODO: docs.
     #[error(transparent)]
-    Invalid(#[from] InvalidFsNodeNameError),
+    Invalid(#[from] InvalidNodeNameError),
 }
 
 struct LazyOsMetadata {
@@ -241,7 +241,7 @@ impl Directory for OsDirectory {
     #[inline]
     async fn create_directory(
         &self,
-        directory_name: &FsNodeName,
+        directory_name: &NodeName,
     ) -> Result<Self, Self::CreateDirectoryError> {
         OsFs::default()
             .create_directory(self.path().join(directory_name))
@@ -251,7 +251,7 @@ impl Directory for OsDirectory {
     #[inline]
     async fn create_file(
         &self,
-        file_name: &FsNodeName,
+        file_name: &NodeName,
     ) -> Result<OsFile, Self::CreateFileError> {
         OsFs::default().create_file(self.path().join(file_name)).await
     }
@@ -464,7 +464,7 @@ impl Metadata for OsMetadata {
     }
 
     #[inline]
-    async fn name(&self) -> Result<FsNodeNameBuf, Self::NameError> {
+    async fn name(&self) -> Result<NodeNameBuf, Self::NameError> {
         self.node_name
             .to_str()
             .ok_or_else(|| OsNameError::NotUtf8(self.node_name.clone()))?

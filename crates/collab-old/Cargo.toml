@@ -16,7 +16,7 @@ collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-feature
   "client",
   "nomad",
 ] }
-eerie = { workspace = true }
+eerie = { git = "ssh://git@github.com/nomad/eerie.git" }
 flume = { workspace = true }
 futures-util = { workspace = true }
 fxhash = { workspace = true }

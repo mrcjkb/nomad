@@ -50,7 +50,7 @@ pub struct FindRootError<Fs: fs::Fs, M: RootMarker<Fs>> {
 pub enum FindRootErrorKind<Fs: fs::Fs, M: RootMarker<Fs>> {
     DirEntry(DirEntryError<Fs>),
     FollowSymlink(<Fs::Symlink as fs::Symlink>::FollowError),
-    Marker { dir_entry_name: Option<fs::FsNodeNameBuf>, err: M::Error },
+    Marker { dir_entry_name: Option<fs::NodeNameBuf>, err: M::Error },
     NodeAtStartPath(Fs::NodeAtPathError),
     ReadDir(<Fs::Directory as fs::Directory>::ReadError),
     StartPathNotFound,

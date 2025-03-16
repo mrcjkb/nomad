@@ -14,7 +14,7 @@ impl AuthBackend for Neovim {
         _: &mut EditorCtx<Self>,
     ) -> impl Future<Output = Box<keyring::CredentialBuilder>> + Send + 'static
     {
-        async move { keyring::builtin_credential_builder() }
+        async move { keyring::default_credential_builder() }
     }
 
     async fn login(

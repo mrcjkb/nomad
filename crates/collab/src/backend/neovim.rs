@@ -4,13 +4,13 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::{env, io};
 
+use abs_path::{AbsPath, AbsPathBuf, node};
 use collab_server::Config;
 use collab_server::message::PeerId;
 use collab_server::nomad::{NomadConfig, NomadSessionId};
 use ed::command::{CommandArgs, Parse};
-use ed::fs::{self, AbsPath, AbsPathBuf, FsNodeName};
 use ed::neovim::{Neovim, NeovimBuffer, mlua, oxi};
-use ed::{AsyncCtx, notify};
+use ed::{AsyncCtx, fs, notify};
 use mlua::{Function, Table};
 use smol_str::ToSmolStr;
 
@@ -136,8 +136,8 @@ impl CollabBackend for Neovim {
             Err(env::VarError::NotPresent) => Self::home_dir(ctx)
                 .await
                 .map_err(NeovimDataDirError::Home)?
-                .join(<&FsNodeName>::try_from(".local").expect("valid"))
-                .join(<&FsNodeName>::try_from("share").expect("valid")),
+                .join(node!(".local"))
+                .join(node!("share")),
             Err(env::VarError::NotUnicode(xdg_data_home)) => {
                 return Err(NeovimDataDirError::XdgDataHomeNotUtf8(
                     xdg_data_home,
@@ -145,9 +145,7 @@ impl CollabBackend for Neovim {
             },
         };
 
-        Ok(data_dir
-            .join(<&FsNodeName>::try_from("nomad").expect("valid"))
-            .join(<&FsNodeName>::try_from("remote-projects").expect("valid")))
+        Ok(data_dir.join(node!("nomad")).join(node!("remote-projects")))
     }
 
     async fn home_dir(
