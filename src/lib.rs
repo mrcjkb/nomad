@@ -34,7 +34,7 @@ impl Module<Neovim> for Mad {
     }
 
     fn on_init(&self, ctx: &mut EditorCtx<Neovim>) {
-        ctx.backend_mut().set_notify_provider(neovim::notify::detect());
+        ctx.backend_mut().set_emitter(neovim::notify::detect());
     }
 
     fn on_new_config(&self, _: Self::Config, _: &mut EditorCtx<Neovim>) {}

@@ -36,11 +36,8 @@ impl Neovim {
 
     /// TODO: docs.
     #[inline]
-    pub fn set_notify_provider<T>(&mut self, provider: T)
-    where
-        T: notify::VimNotifyProvider,
-    {
-        self.emitter = notify::NeovimEmitter::new(provider);
+    pub fn set_emitter(&mut self, emitter: impl Into<notify::NeovimEmitter>) {
+        self.emitter = emitter.into();
     }
 }
 

@@ -24,11 +24,11 @@ pub trait VimNotifyProvider: 'static {
 }
 
 /// TODO: docs.
-pub fn detect() -> impl VimNotifyProvider {
+pub fn detect() -> impl Into<NeovimEmitter> {
     if NvimNotify::is_installed() {
-        Box::new(NvimNotify) as Box<dyn VimNotifyProvider>
+        NeovimEmitter::new(NvimNotify)
     } else {
-        Box::new(VimNotify) as Box<dyn VimNotifyProvider>
+        NeovimEmitter::new(VimNotify)
     }
 }
 
@@ -69,6 +69,13 @@ impl Default for NeovimEmitter {
     #[inline]
     fn default() -> Self {
         Self::new(VimNotify)
+    }
+}
+
+impl<T: VimNotifyProvider> From<T> for NeovimEmitter {
+    #[inline]
+    fn from(provider: T) -> Self {
+        Self::new(provider)
     }
 }
 
