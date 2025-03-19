@@ -1,4 +1,7 @@
+use core::fmt;
+
 use smallvec::{SmallVec, smallvec};
+use smol_str::SmolStrBuilder;
 
 use crate::notify::Name;
 
@@ -9,6 +12,21 @@ pub struct Namespace {
 }
 
 impl Namespace {
+    /// TODO: docs.
+    #[inline]
+    pub fn dot_separated(&self) -> impl fmt::Display {
+        let mut builder = SmolStrBuilder::new();
+        let mut names = self.names();
+        if let Some(first) = names.next() {
+            builder.push_str(first);
+            for name in names {
+                builder.push('.');
+                builder.push_str(name);
+            }
+        }
+        builder.finish()
+    }
+
     /// TODO: docs.
     #[inline]
     pub fn names(&self) -> impl ExactSizeIterator<Item = Name> + '_ {

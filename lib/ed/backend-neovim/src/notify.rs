@@ -39,6 +39,9 @@ pub struct VimNotify {
 
 struct DefaultProvider;
 
+/// https://github.com/rcarriga/nvim-notify
+struct NvimNotify;
+
 impl VimNotify {
     /// TODO: docs.
     #[inline]
@@ -87,18 +90,11 @@ impl Default for VimNotify {
 impl VimNotifyProvider for DefaultProvider {
     #[inline]
     fn to_message(&mut self, notification: &Notification) -> String {
-        let mut msg = String::from("[");
-        let mut namespace = notification.namespace.names();
-        if let Some(first) = namespace.next() {
-            msg.push_str(first);
-            for name in namespace {
-                msg.push('.');
-                msg.push_str(name);
-            }
-        }
-        msg.push_str("] ");
-        msg.push_str(notification.message.as_str());
-        msg
+        format!(
+            "[{}] {}",
+            notification.namespace.dot_separated(),
+            notification.message.as_str()
+        )
     }
 
     #[inline]
@@ -110,6 +106,48 @@ impl VimNotifyProvider for DefaultProvider {
     fn to_notification_id(&mut self, obj: oxi::Object) -> NotificationId {
         debug_assert!(obj.is_nil());
         NotificationId::new(0)
+    }
+}
+
+impl VimNotifyProvider for NvimNotify {
+    #[inline]
+    fn to_message(&mut self, notification: &Notification) -> String {
+        notification.message.as_str().to_owned()
+    }
+
+    #[inline]
+    fn to_opts(&mut self, notification: &Notification) -> oxi::Dictionary {
+        let mut opts = oxi::Dictionary::new();
+        opts.insert(
+            "title",
+            notification.namespace.dot_separated().to_string(),
+        );
+        opts.insert(
+            "replace",
+            notification.updates_prev.map(|id| id.into_u64() as u32),
+        );
+        opts
+    }
+
+    #[inline]
+    fn to_notification_id(&mut self, record: oxi::Object) -> NotificationId {
+        fn inner(record: oxi::Object) -> Option<NotificationId> {
+            let dict = match record.kind() {
+                oxi::ObjectKind::Dictionary => unsafe {
+                    record.into_dictionary_unchecked()
+                },
+                _ => return None,
+            };
+            let id = dict.get("id")?;
+            let id = match id.kind() {
+                oxi::ObjectKind::Integer => unsafe {
+                    id.as_integer_unchecked()
+                },
+                _ => return None,
+            };
+            Some(NotificationId::new(id as u64))
+        }
+        inner(record).unwrap_or_else(|| NotificationId::new(0))
     }
 }
 
