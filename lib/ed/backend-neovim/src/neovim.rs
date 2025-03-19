@@ -33,6 +33,15 @@ impl Neovim {
             background_executor: executor::NeovimBackgroundExecutor::init(),
         }
     }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn set_notify_provider<T>(&mut self, provider: T)
+    where
+        T: notify::VimNotifyProvider,
+    {
+        self.emitter = notify::NeovimEmitter::new(provider);
+    }
 }
 
 impl Backend for Neovim {

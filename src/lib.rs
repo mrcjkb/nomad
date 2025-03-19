@@ -1,5 +1,4 @@
 use ed::EditorCtx;
-use ed::backend::Backend;
 use ed::module::{ApiCtx, Empty, Module};
 use ed::neovim::{self, Neovim};
 use ed::notify::Name;
@@ -10,22 +9,18 @@ fn mad() -> Mad {
     Mad
 }
 
-/// TODO: docs.
 struct Mad;
 
 impl Plugin<Neovim> for Mad {
     const COMMAND_NAME: Name = "Mad";
 }
 
-impl<B> Module<B> for Mad
-where
-    B: Backend + auth::AuthBackend + collab::CollabBackend,
-{
+impl Module<Neovim> for Mad {
     const NAME: Name = "mad";
 
     type Config = Empty;
 
-    fn api(&self, ctx: &mut ApiCtx<B>) {
+    fn api(&self, ctx: &mut ApiCtx<Neovim>) {
         let auth = auth::Auth::default();
         let collab = collab::Collab::from(&auth);
 
@@ -38,5 +33,9 @@ where
             .with_module(collab);
     }
 
-    fn on_new_config(&self, _: Self::Config, _: &mut EditorCtx<B>) {}
+    fn on_init(&self, ctx: &mut EditorCtx<Neovim>) {
+        ctx.backend_mut().set_notify_provider(neovim::notify::detect());
+    }
+
+    fn on_new_config(&self, _: Self::Config, _: &mut EditorCtx<Neovim>) {}
 }

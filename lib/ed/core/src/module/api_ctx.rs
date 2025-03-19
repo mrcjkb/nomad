@@ -76,6 +76,12 @@ struct ConfigBuilder<B: Backend> {
 }
 
 impl<B: Backend> ApiCtx<'_, B> {
+    /// Returns an exclusive reference to the backend.
+    #[inline]
+    pub fn backend_mut(&mut self) -> &mut B {
+        &mut self.state
+    }
+
     /// TODO: docs.
     #[track_caller]
     #[inline]

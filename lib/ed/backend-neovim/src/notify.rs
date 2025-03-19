@@ -24,6 +24,15 @@ pub trait VimNotifyProvider: 'static {
 }
 
 /// TODO: docs.
+pub fn detect() -> impl VimNotifyProvider {
+    if NvimNotify::is_installed() {
+        Box::new(NvimNotify) as Box<dyn VimNotifyProvider>
+    } else {
+        Box::new(VimNotify) as Box<dyn VimNotifyProvider>
+    }
+}
+
+/// TODO: docs.
 pub struct NeovimEmitter {
     inner: Box<dyn VimNotifyProvider>,
 }
@@ -37,8 +46,15 @@ pub struct VimNotify;
 impl NeovimEmitter {
     /// TODO: docs.
     #[inline]
-    pub fn new<P: VimNotifyProvider>(provider: P) -> Self {
+    pub(crate) fn new<P: VimNotifyProvider>(provider: P) -> Self {
         Self { inner: Box::new(provider) }
+    }
+}
+
+impl NvimNotify {
+    #[inline]
+    fn is_installed() -> bool {
+        true
     }
 }
 
