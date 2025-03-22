@@ -447,7 +447,6 @@ impl Stream for OsWatcher {
 
 impl Metadata for OsMetadata {
     type Timestamp = SystemTime;
-    type Error = io::Error;
     type NameError = OsNameError;
     type NodeKindError = Infallible;
 

@@ -9,9 +9,6 @@ pub trait Metadata {
     type Timestamp;
 
     /// TODO: docs.
-    type Error: Error;
-
-    /// TODO: docs.
     type NameError: Error;
 
     /// TODO: docs.

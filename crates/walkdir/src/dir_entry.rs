@@ -70,7 +70,6 @@ impl<'a, W: WalkDir> DirEntry<'a, W> {
 
 impl<W: WalkDir> fs::Metadata for DirEntry<'_, W> {
     type Timestamp = <W::Fs as fs::Fs>::Timestamp;
-    type Error = <W::DirEntry as fs::Metadata>::Error;
     type NameError = Infallible;
     type NodeKindError = Infallible;
 

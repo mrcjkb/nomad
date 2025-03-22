@@ -403,8 +403,6 @@ impl<B> notify::Error for NoBufferFocusedError<B> {
 impl<B: CollabBackend> PartialEq for ReadReplicaError<B>
 where
     WalkErrorKind<B::Fs>: PartialEq,
-    <<<B::Fs as fs::Fs>::Directory as Directory>::Metadata as Metadata>::Error:
-        PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         use ReadReplicaError::*;
