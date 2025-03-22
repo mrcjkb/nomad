@@ -1,6 +1,5 @@
 //! TODO: docs.
 
-use core::convert::Infallible;
 use core::marker::PhantomData;
 use std::sync::Arc;
 
@@ -9,14 +8,15 @@ use collab_server::message::{Peer, PeerId};
 use collab_server::{SessionIntent, client};
 use concurrent_queue::{ConcurrentQueue, PushError};
 use ed::action::AsyncAction;
+use ed::backend::Backend;
 use ed::command::ToCompletionFn;
-use ed::fs::{self, AbsPath, AbsPathBuf, Directory, FsNodeKind, Metadata};
+use ed::fs::{self, AbsPath, AbsPathBuf, FsNodeKind, Metadata};
 use ed::notify::{self, Name};
 use ed::{AsyncCtx, ByteOffset, Shared};
 use eerie::{Replica, ReplicaBuilder};
 use futures_util::AsyncReadExt;
 use smol_str::ToSmolStr;
-use walkdir::{Either, WalkDir, WalkError, WalkErrorKind};
+use walkdir::{DirEntry, Either, WalkDir};
 
 use crate::backend::CollabBackend;
 use crate::collab::Collab;
@@ -144,21 +144,27 @@ where
     let res = async move {
         let op_queue = Arc::new(ConcurrentQueue::unbounded());
         let op_queue2 = Arc::clone(&op_queue);
-        let handler = async move |entry: walkdir::DirEntry<'_, _>| {
-            let op = match entry.node_kind() {
-                FsNodeKind::File => {
-                    PushNode::File(entry.path(), entry.byte_len())
-                },
-                FsNodeKind::Directory => PushNode::Directory(entry.path()),
-                FsNodeKind::Symlink => return Ok(()),
+        let handler =
+            async move |dir_path: &AbsPath, entry: DirEntry<B::Fs>| {
+                let kind = entry.node_kind().await.map_err(Either::Left)?;
+                let name = entry.name().await.map_err(Either::Right)?;
+                let entry_path = dir_path.join(&name);
+                let op = match kind {
+                    FsNodeKind::File => {
+                        PushNode::File(entry_path, entry.byte_len())
+                    },
+                    FsNodeKind::Directory => PushNode::Directory(entry_path),
+                    FsNodeKind::Symlink => return Ok(()),
+                };
+                match op_queue2.push(op) {
+                    Ok(()) => Ok(()),
+                    Err(PushError::Full(_)) => unreachable!("unbounded"),
+                    Err(PushError::Closed(_)) => unreachable!("never closed"),
+                }
             };
-            match op_queue2.push(op) {
-                Ok(()) => Ok(()),
-                Err(PushError::Full(_)) => unreachable!("unbounded"),
-                Err(PushError::Closed(_)) => unreachable!("never closed"),
-            }
-        };
-        fs.for_each::<_, Infallible>(&project_root, handler).await?;
+
+        fs.for_each(&project_root, handler).await?;
+
         let mut builder = ReplicaBuilder::new(peer_id);
         while let Ok(op) = op_queue.pop() {
             let _ = match op {
@@ -168,21 +174,10 @@ where
                 PushNode::Directory(path) => builder.push_directory(path),
             };
         }
-        Ok::<_, walkdir::ForEachError<_, _>>(builder)
+        Ok::<_, WalkError<B>>(builder)
     };
 
-    let mut builder = match res.await {
-        Ok(builder) => builder,
-        Err(err) => match err.kind {
-            Either::Left(left) => {
-                return Err(ReadReplicaError::Walk(WalkError {
-                    dir_path: err.dir_path,
-                    kind: left,
-                }));
-            },
-            Either::Right(_infallible) => unreachable!(),
-        },
-    };
+    let mut builder = res.await.map_err(ReadReplicaError::Walk)?;
 
     // Update the lengths of the open buffers.
     //
@@ -270,11 +265,21 @@ pub enum StartError<B: CollabBackend> {
 }
 
 /// TODO: docs.
+pub type WalkError<B> = walkdir::WalkError<
+    <B as Backend>::Fs,
+    <B as Backend>::Fs,
+    Either<
+        <DirEntry<<B as Backend>::Fs> as Metadata>::NodeKindError,
+        <DirEntry<<B as Backend>::Fs> as Metadata>::NameError,
+    >,
+>;
+
+/// TODO: docs.
 #[derive(derive_more::Debug)]
 #[debug(bound(B: CollabBackend))]
 pub enum ReadReplicaError<B: CollabBackend> {
     /// TODO: docs.
-    Walk(WalkError<WalkErrorKind<B::Fs>>),
+    Walk(WalkError<B>),
 }
 
 /// TODO: docs.
@@ -402,7 +407,7 @@ impl<B> notify::Error for NoBufferFocusedError<B> {
 
 impl<B: CollabBackend> PartialEq for ReadReplicaError<B>
 where
-    WalkErrorKind<B::Fs>: PartialEq,
+    WalkError<B>: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         use ReadReplicaError::*;
@@ -483,8 +488,6 @@ impl<B> notify::Error for UserNotLoggedInError<B> {
 
 #[cfg(feature = "neovim")]
 mod neovim_error_impls {
-    use core::fmt;
-
     use ed::neovim::Neovim;
 
     use super::*;
@@ -499,18 +502,9 @@ mod neovim_error_impls {
 
     impl notify::Error for ReadReplicaError<Neovim> {
         fn to_message(&self) -> (notify::Level, notify::Message) {
-            use ReadReplicaError::*;
-
-            let mut msg = notify::Message::from_str("error at ");
-
-            let err: &dyn fmt::Display = match &self {
-                Walk(err) => {
-                    msg.push_info(&err.dir_path);
-                    &err.kind
-                },
+            let msg = match &self {
+                Self::Walk(err) => notify::Message::from_display(err),
             };
-
-            msg.push_str(": ").push_str(err.to_smolstr());
 
             (notify::Level::Error, msg)
         }
