@@ -19,14 +19,20 @@ pub struct GitIgnore {
 /// TODO: docs.
 #[derive(Debug, thiserror::Error)]
 pub enum GitIgnoreError {
-    #[error("Running {cmd:?} failed: {0}", cmd = GitIgnore::command())]
-    GitCommand(io::Error),
+    #[error(
+        "The stdout of {cmd:?} contained an empty line",
+        cmd = GitIgnore::command()
+    )]
+    EmptyPath,
 
     #[error(
         "Running {cmd:?} failed with exit code {0:?}",
         cmd = GitIgnore::command()
     )]
     FailedCommand(ExitStatus),
+
+    #[error("Running {cmd:?} failed: {0}", cmd = GitIgnore::command())]
+    GitCommand(io::Error),
 
     #[error("{node_name:?} is not a valid node name: {err:?}")]
     NotNodeName { node_name: String, err: fs::InvalidNodeNameError },
@@ -179,7 +185,7 @@ impl IgnoredPaths {
 
         let idx = loop {
             let Some(component) = components.next() else {
-                break cursor.insert_at();
+                break cursor.insert_at.ok_or(GitIgnoreError::EmptyPath)?;
             };
 
             let component =
@@ -218,14 +224,6 @@ enum SeekResult {
 }
 
 impl<'a> Cursor<'a> {
-    #[track_caller]
-    fn insert_at(&self) -> usize {
-        match self.insert_at {
-            Some(idx) => idx,
-            None => panic!("Cursor::seek was never called"),
-        }
-    }
-
     fn new(paths: &'a IgnoredPaths) -> Self {
         Self { _paths: paths.inner.as_slice(), insert_at: None }
     }
