@@ -512,7 +512,6 @@ impl PartialEq for MockDirectory {
 
 impl fs::Metadata for DirEntry {
     type Timestamp = Timestamp;
-    type Error = Infallible;
     type NameError = DirEntryDoesNotExistError;
     type NodeKindError = DirEntryDoesNotExistError;
 

@@ -10,6 +10,7 @@ publish.workspace = true
 mock = ["dep:backend-mock"]
 neovim = ["dep:backend-neovim"]
 neovim-nightly = ["backend-neovim?/nightly"]
+os-fs = ["ed-core/os-fs"]
 
 [dependencies]
 backend-mock = { path = "./backend-mock", optional = true }
