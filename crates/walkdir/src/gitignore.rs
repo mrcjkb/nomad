@@ -1,24 +1,54 @@
 use core::time::Duration;
+use core::{iter, str};
+use std::io;
+use std::process::{Command, ExitStatus};
 use std::sync::Mutex;
 use std::time::Instant;
 
-use ed::fs::{AbsPath, AbsPathBuf, Metadata, NodeName, os};
+use compact_str::CompactString;
+use ed::fs::{self, AbsPath, AbsPathBuf, Metadata, NodeName, os};
 
 use crate::{DirEntry, Either, Filter};
 
 /// TODO: docs.
 pub struct GitIgnore {
-    dir_path: AbsPathBuf,
-    ignored_paths: Mutex<(IgnoredPaths, Instant)>,
+    inner: Mutex<GitIgnoreInner>,
 }
 
 /// TODO: docs.
 #[derive(Debug, thiserror::Error)]
-pub enum GitIgnoreError {}
+pub enum GitIgnoreError {
+    #[error("Running {cmd:?} failed: {0}", cmd = GitIgnore::command())]
+    GitCommand(io::Error),
+
+    #[error(
+        "Running {cmd:?} failed with exit code {0:?}",
+        cmd = GitIgnore::command()
+    )]
+    FailedCommand(ExitStatus),
+
+    #[error("{node_name:?} is not a valid node name: {err:?}")]
+    NotNodeName { node_name: String, err: fs::InvalidNodeNameError },
+
+    #[error("{path:?} is not in {dir_path:?}")]
+    NotInDir { path: AbsPathBuf, dir_path: AbsPathBuf },
+
+    #[error(
+        "The stdout of {cmd:?} was not valid UTF-8",
+        cmd = GitIgnore::command()
+    )]
+    StdoutNotUtf8,
+}
+
+struct GitIgnoreInner {
+    dir_path: AbsPathBuf,
+    ignored_paths: IgnoredPaths,
+    last_refreshed_ignored_paths_at: Instant,
+}
 
 #[derive(Default)]
 struct IgnoredPaths {
-    _inner: Vec<AbsPathBuf>,
+    inner: Vec<CompactString>,
 }
 
 impl GitIgnore {
@@ -27,43 +57,125 @@ impl GitIgnore {
 
     /// TODO: docs.
     pub fn new(dir_path: AbsPathBuf) -> Self {
+        Self { inner: Mutex::new(GitIgnoreInner::new_outdated(dir_path)) }
+    }
+
+    fn command() -> Command {
+        let mut cmd = Command::new("git");
+        cmd.args(["ls-files", "--others", "--ignored", "--exclude-standard"]);
+        cmd
+    }
+
+    fn with_inner<R>(
+        &self,
+        f: impl FnOnce(&GitIgnoreInner) -> R,
+    ) -> Result<R, GitIgnoreError> {
+        let inner = &mut *self.inner.lock().expect("poisoned mutex");
+
+        if inner.is_outdated() {
+            inner.refresh()?;
+        }
+
+        Ok(f(inner))
+    }
+}
+
+/// TODO: docs.
+trait Path: Sized {
+    /// TODO: docs.
+    fn components(&self) -> impl Iterator<Item = &NodeName> + '_;
+
+    /// TODO: docs.
+    fn strip_prefix(&self, s: &AbsPath) -> Option<Self>;
+}
+
+impl GitIgnoreInner {
+    fn dir_path(&self) -> AbsPathBuf {
+        self.dir_path[..self.dir_path.len() - 1].parse().expect("it's valid")
+    }
+
+    fn is_ignored(&self, path: impl Path) -> Result<bool, GitIgnoreError> {
+        path.strip_prefix(&self.dir_path)
+            .map(|stripped| self.ignored_paths.contains(stripped.components()))
+            .ok_or_else(|| GitIgnoreError::NotInDir {
+                dir_path: self.dir_path(),
+                path: path.components().collect(),
+            })
+    }
+
+    fn is_outdated(&self) -> bool {
+        Instant::now() - self.last_refreshed_ignored_paths_at
+            > GitIgnore::REFRESH_IGNORED_PATHS_AFTER
+    }
+
+    fn new_outdated(dir_path: AbsPathBuf) -> Self {
         let outdated_time = Instant::now()
-            - Self::REFRESH_IGNORED_PATHS_AFTER
+            - GitIgnore::REFRESH_IGNORED_PATHS_AFTER
             - Duration::from_secs(1);
 
         Self {
             dir_path,
-            ignored_paths: Mutex::new((
-                IgnoredPaths::default(),
-                outdated_time,
-            )),
+            ignored_paths: Default::default(),
+            last_refreshed_ignored_paths_at: outdated_time,
         }
     }
 
-    fn with_ignored<R>(
-        &self,
-        f: impl FnOnce(&IgnoredPaths) -> R,
-    ) -> Result<R, GitIgnoreError> {
-        let (paths, last_refreshed_ignored_paths_at) =
-            &mut *self.ignored_paths.lock().expect("poisoned mutex");
+    fn refresh(&mut self) -> Result<(), GitIgnoreError> {
+        let output =
+            match GitIgnore::command().current_dir(&self.dir_path).output() {
+                Ok(out) => out,
 
-        if Instant::now() - *last_refreshed_ignored_paths_at
-            > Self::REFRESH_IGNORED_PATHS_AFTER
-        {
-            *paths = IgnoredPaths::get(&self.dir_path)?;
-            *last_refreshed_ignored_paths_at = Instant::now();
+                // The `git` executable is not in `$PATH`. This probably means
+                // the user is not using Git, which probably means the
+                // directory is not in a Git repository.
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                    return Ok(());
+                },
+
+                Err(err) => return Err(GitIgnoreError::GitCommand(err)),
+            };
+
+        if !output.status.success() {
+            // TODO: check if the reason is because the directory is not in a
+            // Git repository.
+            return Err(GitIgnoreError::FailedCommand(output.status));
         }
 
-        Ok(f(paths))
+        let stdout = str::from_utf8(&output.stdout)
+            .map_err(|_| GitIgnoreError::StdoutNotUtf8)?;
+
+        self.ignored_paths.clear();
+
+        for line in stdout.lines() {
+            if let Err(err) = self.ignored_paths.insert(line) {
+                self.ignored_paths.clear();
+                return Err(err);
+            }
+        }
+
+        self.last_refreshed_ignored_paths_at = Instant::now();
+
+        Ok(())
     }
 }
 
 impl IgnoredPaths {
-    fn contains(&self, _path: &impl PartialEq<AbsPath>) -> bool {
+    fn binary_search<'a>(
+        &self,
+        _components: impl Iterator<Item = &'a NodeName>,
+    ) -> Result<usize, usize> {
         todo!()
     }
 
-    fn get(_dir_path: &AbsPath) -> Result<Self, GitIgnoreError> {
+    fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    fn contains<'a>(&self, path: impl Iterator<Item = &'a NodeName>) -> bool {
+        self.binary_search(path).is_ok()
+    }
+
+    fn insert(&mut self, _path: &str) -> Result<(), GitIgnoreError> {
         todo!()
     }
 }
@@ -81,18 +193,21 @@ impl Filter<os::OsFs> for GitIgnore {
     ) -> Result<bool, Self::Error> {
         struct Concat<'a>(&'a AbsPath, &'a NodeName);
 
-        impl PartialEq<AbsPath> for Concat<'_> {
-            fn eq(&self, path: &AbsPath) -> bool {
+        impl Path for Concat<'_> {
+            fn components(&self) -> impl Iterator<Item = &NodeName> + '_ {
                 let &Self(parent, name) = self;
-                parent.len() + name.len() + 1 == path.len()
-                    && parent == &path[..parent.len()]
-                    && name == &path[parent.len() + 1..]
+                parent.components().chain(iter::once(name))
+            }
+            fn strip_prefix(&self, s: &AbsPath) -> Option<Self> {
+                let &Self(parent, name) = self;
+                parent.strip_prefix(s).map(|parent| Self(parent, name))
             }
         }
 
         let entry_name = entry.name().await.map_err(Either::Left)?;
         let path = Concat(dir_path, &entry_name);
-        self.with_ignored(|ignored| ignored.contains(&path))
+        self.with_inner(|inner| inner.is_ignored(path))
+            .map_err(Either::Right)?
             .map_err(Either::Right)
     }
 }
