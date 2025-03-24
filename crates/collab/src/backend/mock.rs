@@ -182,10 +182,11 @@ impl AnyError {
 }
 
 impl<B: Backend> CollabBackend for CollabMock<B> {
+    type FsFilter = ();
     type Io = DuplexStream;
     type ServerConfig = ServerConfig;
-    type ConnectToServerError = AnyError;
 
+    type ConnectToServerError = AnyError;
     type CopySessionIdError = Infallible;
     type DefaultDirForRemoteProjectsError = NoDefaultDirForRemoteProjectsError;
     type HomeDirError = AnyError;
@@ -233,6 +234,8 @@ impl<B: Backend> CollabBackend for CollabMock<B> {
                 .ok_or(NoDefaultDirForRemoteProjectsError)
         })
     }
+
+    fn fs_filter(_: &AbsPath, _: &mut AsyncCtx<'_, Self>) -> Self::FsFilter {}
 
     async fn home_dir(
         ctx: &mut AsyncCtx<'_, Self>,

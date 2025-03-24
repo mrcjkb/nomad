@@ -18,6 +18,9 @@ use crate::config;
 /// actions in this crate.
 pub trait CollabBackend: Backend {
     /// TODO: docs.
+    type FsFilter: walkdir::Filter<Self::Fs>;
+
+    /// TODO: docs.
     type Io: AsyncRead + AsyncWrite + Unpin;
 
     /// TODO: docs.
@@ -69,6 +72,12 @@ pub trait CollabBackend: Backend {
     ) -> impl Future<
         Output = Result<AbsPathBuf, Self::DefaultDirForRemoteProjectsError>,
     >;
+
+    /// TODO: docs.
+    fn fs_filter(
+        project_root: &AbsPath,
+        ctx: &mut AsyncCtx<'_, Self>,
+    ) -> Self::FsFilter;
 
     /// Returns the absolute path to the user's home directory.
     fn home_dir(

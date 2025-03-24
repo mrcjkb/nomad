@@ -20,6 +20,7 @@ neovim = [
   "dep:home",
   "collab-server/nomad",
   "ed/neovim",
+  "walkdir/gitignore",
 ]
 
 [dependencies]

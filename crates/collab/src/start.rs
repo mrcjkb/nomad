@@ -132,16 +132,18 @@ async fn read_replica2<B: CollabBackend>(
     project_root: &AbsPath,
     ctx: &mut AsyncCtx<'_, B>,
 ) -> Result<ReplicaBuilder, ReadReplicaError2<B>> {
-    let stream_builder = EventStream::<B::Fs>::builder(project_root);
+    let walkdir = ctx.fs().filter(B::fs_filter(project_root, ctx));
 
-    ctx.fs()
+    let event_stream_builder = EventStream::<B>::builder(project_root);
+
+    walkdir
         .for_each(project_root, async |dir_path, entry| {
-            stream_builder.push_node(dir_path, entry).await
+            event_stream_builder.push_node(dir_path, entry, ctx).await
         })
         .await
         .map_err(ReadReplicaError2::Walk)?;
 
-    let _event_stream = stream_builder.build();
+    let _event_stream = event_stream_builder.build(walkdir.into_filter());
 
     todo!();
 }

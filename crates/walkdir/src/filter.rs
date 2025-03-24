@@ -1,3 +1,4 @@
+use core::convert::Infallible;
 use core::error::Error;
 use core::fmt;
 
@@ -65,6 +66,12 @@ where
 }
 
 impl<F, W> Filtered<F, W> {
+    /// Consumes the `Filtered` and returns the underlying filter.
+    #[inline]
+    pub fn into_filter(self) -> F {
+        self.filter
+    }
+
     /// TODO: docs.
     #[inline]
     pub(crate) fn new(filter: F, walker: W) -> Self {
@@ -124,6 +131,34 @@ where
                 Some((item, (entries, filters)))
             },
         ))
+    }
+}
+
+impl<Fs: fs::Fs> Filter<Fs> for () {
+    type Error = Infallible;
+
+    async fn should_filter(
+        &self,
+        _: &AbsPath,
+        _: &DirEntry<Fs>,
+    ) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
+}
+
+impl<Fi, Fs> Filter<Fs> for &Fi
+where
+    Fi: Filter<Fs>,
+    Fs: fs::Fs,
+{
+    type Error = Fi::Error;
+
+    async fn should_filter(
+        &self,
+        dir_path: &AbsPath,
+        dir_entry: &DirEntry<Fs>,
+    ) -> Result<bool, Self::Error> {
+        (*self).should_filter(dir_path, dir_entry).await
     }
 }
 

@@ -70,10 +70,11 @@ struct TildePath<'a> {
 }
 
 impl CollabBackend for Neovim {
+    type FsFilter = walkdir::GitIgnore;
     type Io = async_net::TcpStream;
     type ServerConfig = ServerConfig;
-    type ConnectToServerError = NeovimConnectToServerError;
 
+    type ConnectToServerError = NeovimConnectToServerError;
     type CopySessionIdError = NeovimCopySessionIdError;
     type DefaultDirForRemoteProjectsError = NeovimDataDirError;
     type HomeDirError = NeovimHomeDirError;
@@ -146,6 +147,13 @@ impl CollabBackend for Neovim {
         };
 
         Ok(data_dir.join(node!("nomad")).join(node!("remote-projects")))
+    }
+
+    fn fs_filter(
+        project_root: &AbsPath,
+        _: &mut AsyncCtx<'_, Self>,
+    ) -> Self::FsFilter {
+        walkdir::GitIgnore::new(project_root.to_owned())
     }
 
     async fn home_dir(
