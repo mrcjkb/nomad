@@ -14,16 +14,16 @@ mod symlink;
 #[doc(inline)]
 pub use abs_path::*;
 pub use directory::{
-    NodeCreation,
     Directory,
     DirectoryDeletion,
     DirectoryEvent,
     DirectoryMove,
+    NodeCreation,
 };
 pub use file::File;
 pub use fs::Fs;
 pub use fs_event::{FsEvent, FsEventKind};
 pub use fs_node::{DeleteNodeError, FsNode};
 pub use fs_node_kind::FsNodeKind;
-pub use metadata::Metadata;
+pub use metadata::{Metadata, MetadataNameError};
 pub use symlink::Symlink;

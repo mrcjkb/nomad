@@ -1,7 +1,6 @@
 //! TODO: docs.
 
 use core::cell::RefCell;
-use core::convert::Infallible;
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
 use std::collections::VecDeque;
@@ -14,21 +13,20 @@ use futures_util::stream::{self, Stream, StreamExt};
 use futures_util::{AsyncWriteExt, select};
 use notify::{RecursiveMode, Watcher};
 
-use super::DirectoryEvent;
 use crate::ByteOffset;
 use crate::fs::{
     AbsPath,
     AbsPathBuf,
     Directory,
+    DirectoryEvent,
     File,
     Fs,
     FsEvent,
     FsNode,
     FsNodeKind,
-    InvalidNodeNameError,
     Metadata,
+    MetadataNameError,
     NodeName,
-    NodeNameBuf,
     Symlink,
 };
 
@@ -70,18 +68,6 @@ pin_project_lite::pin_project! {
             Result<(notify::Event, SystemTime), notify::Error>,
         >,
     }
-}
-
-/// TODO: docs.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-pub enum OsNameError {
-    /// TODO: docs.
-    #[error("file name {:?} is not valid UTF-8", .0)]
-    NotUtf8(OsString),
-
-    /// TODO: docs.
-    #[error(transparent)]
-    Invalid(#[from] InvalidNodeNameError),
 }
 
 struct LazyOsMetadata {
@@ -454,8 +440,6 @@ impl Stream for OsWatcher {
 
 impl Metadata for OsMetadata {
     type Fs = OsFs;
-    type NameError = OsNameError;
-    type NodeKindError = Infallible;
 
     #[inline]
     fn byte_len(&self) -> ByteOffset {
@@ -473,16 +457,18 @@ impl Metadata for OsMetadata {
     }
 
     #[inline]
-    async fn name(&self) -> Result<NodeNameBuf, Self::NameError> {
+    fn name(&self) -> Result<&NodeName, MetadataNameError> {
         self.node_name
             .to_str()
-            .ok_or_else(|| OsNameError::NotUtf8(self.node_name.clone()))?
-            .parse()
-            .map_err(OsNameError::Invalid)
+            .ok_or_else(|| {
+                MetadataNameError::NotUtf8(Some(self.node_name.clone()))
+            })?
+            .try_into()
+            .map_err(MetadataNameError::Invalid)
     }
 
     #[inline]
-    async fn node_kind(&self) -> Result<FsNodeKind, Self::NodeKindError> {
-        Ok(self.node_kind)
+    fn node_kind(&self) -> FsNodeKind {
+        self.node_kind
     }
 }

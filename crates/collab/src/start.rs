@@ -10,13 +10,21 @@ use concurrent_queue::{ConcurrentQueue, PushError};
 use ed::action::AsyncAction;
 use ed::backend::Backend;
 use ed::command::ToCompletionFn;
-use ed::fs::{self, AbsPath, AbsPathBuf, Fs, FsNodeKind, Metadata};
+use ed::fs::{
+    self,
+    AbsPath,
+    AbsPathBuf,
+    Fs,
+    FsNodeKind,
+    Metadata,
+    MetadataNameError,
+};
 use ed::notify::{self, Name};
 use ed::{AsyncCtx, ByteOffset, Shared};
 use eerie::{Replica, ReplicaBuilder};
 use futures_util::AsyncReadExt;
 use smol_str::ToSmolStr;
-use walkdir::{DirEntry, Either, WalkDir};
+use walkdir::{DirEntry, WalkDir};
 
 use crate::backend::CollabBackend;
 use crate::collab::Collab;
@@ -138,8 +146,7 @@ async fn read_replica2<B: CollabBackend>(
 
     walkdir
         .for_each(project_root, async |dir_path, meta| {
-            let node_name =
-                meta.name().await.map_err(VisitNodeError::NodeName)?;
+            let node_name = meta.name().map_err(VisitNodeError::NodeName)?;
 
             let Some(node) = ctx
                 .fs()
@@ -193,10 +200,8 @@ where
         let op_queue2 = Arc::clone(&op_queue);
         let handler =
             async move |dir_path: &AbsPath, entry: DirEntry<B::Fs>| {
-                let kind = entry.node_kind().await.map_err(Either::Left)?;
-                let name = entry.name().await.map_err(Either::Right)?;
-                let entry_path = dir_path.join(&name);
-                let op = match kind {
+                let entry_path = dir_path.join(entry.name()?);
+                let op = match entry.node_kind() {
                     FsNodeKind::File => {
                         PushNode::File(entry_path, entry.byte_len())
                     },
@@ -315,10 +320,7 @@ pub enum StartError<B: CollabBackend> {
 pub type WalkError<B> = walkdir::WalkError<
     <B as Backend>::Fs,
     <B as Backend>::Fs,
-    Either<
-        <DirEntry<<B as Backend>::Fs> as Metadata>::NodeKindError,
-        <DirEntry<<B as Backend>::Fs> as Metadata>::NameError,
-    >,
+    MetadataNameError,
 >;
 
 /// TODO: docs.

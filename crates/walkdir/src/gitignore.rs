@@ -8,9 +8,17 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use compact_str::CompactString;
-use ed::fs::{self, AbsPath, AbsPathBuf, Metadata, NodeName, os};
+use ed::fs::{
+    self,
+    AbsPath,
+    AbsPathBuf,
+    Metadata,
+    MetadataNameError,
+    NodeName,
+    os,
+};
 
-use crate::{DirEntry, Either, Filter};
+use crate::{Either, Filter};
 
 /// TODO: docs.
 pub struct GitIgnore {
@@ -309,8 +317,7 @@ impl<'a> Cursor<'a> {
 // We're shelling out to Git to get the list of ignored files, so this can only
 // be a filter on a real filesystem.
 impl Filter<os::OsFs> for GitIgnore {
-    type Error =
-        Either<<DirEntry<os::OsFs> as Metadata>::NameError, GitIgnoreError>;
+    type Error = Either<MetadataNameError, GitIgnoreError>;
 
     async fn should_filter(
         &self,
@@ -330,7 +337,7 @@ impl Filter<os::OsFs> for GitIgnore {
             }
         }
 
-        let node_name = node_meta.name().await.map_err(Either::Left)?;
+        let node_name = node_meta.name().map_err(Either::Left)?;
         let path = Concat(dir_path, &node_name);
         self.with_inner(|inner| inner.is_ignored(path))
             .map_err(Either::Right)?

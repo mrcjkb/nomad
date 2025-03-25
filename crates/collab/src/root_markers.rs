@@ -2,7 +2,7 @@ use core::error::Error;
 use core::fmt;
 use std::borrow::Cow;
 
-use ed::fs::{self, Directory, File, Symlink};
+use ed::fs::{self, Directory, File, MetadataNameError, Symlink};
 use ed::notify;
 use futures_util::stream::{self, StreamExt};
 use futures_util::{pin_mut, select};
@@ -61,13 +61,8 @@ pub enum FindRootErrorKind<Fs: fs::Fs, M: RootMarker<Fs>> {
 #[debug(bound(Fs: fs::Fs))]
 pub enum DirEntryError<Fs: fs::Fs> {
     Access(<Fs::Directory as fs::Directory>::ReadEntryError),
-        Name(
-            <<Fs::Directory as fs::Directory>::Metadata as fs::Metadata>::NameError,
-        ),
-        NodeKind(
-            <<Fs::Directory as fs::Directory>::Metadata as fs::Metadata>::NodeKindError,
-        ),
-    }
+    Name(MetadataNameError),
+}
 
 impl<M> FindRootArgs<'_, M> {
     pub(super) async fn find<Fs>(
@@ -160,13 +155,13 @@ impl<M> FindRootArgs<'_, M> {
                         match self.marker.matches(&dir_entry).await {
                             Ok(matches) => Ok(matches),
                             Err(err) => {
-                                let dir_entry_name = dir_entry.name()
-                                    .await
-                                    .ok();
                                 Err(FindRootError {
                                     path: dir.path().to_owned(),
                                     kind: FindRootErrorKind::Marker {
-                                        dir_entry_name,
+                                        dir_entry_name: dir_entry
+                                            .name()
+                                            .ok()
+                                            .map(ToOwned::to_owned),
                                         err
                                     },
                                 })
@@ -198,13 +193,8 @@ impl<Fs: fs::Fs> RootMarker<Fs> for GitDirectory {
         dir_entry: &<Fs::Directory as fs::Directory>::Metadata,
     ) -> Result<bool, Self::Error> {
         use fs::Metadata;
-        Ok(dir_entry.name().await.map_err(DirEntryError::Name)?.as_ref()
-            == ".git"
-            && dir_entry
-                .node_kind()
-                .await
-                .map(fs::FsNodeKind::is_dir)
-                .map_err(DirEntryError::NodeKind)?)
+        Ok(dir_entry.name().map_err(DirEntryError::Name)? == ".git"
+            && dir_entry.node_kind().is_dir())
     }
 }
 
@@ -310,22 +300,19 @@ where
 }
 
 impl<Fs: fs::Fs> PartialEq for DirEntryError<Fs>
-    where
-        <Fs::Directory as fs::Directory>::ReadEntryError: PartialEq,
-        <<Fs::Directory as fs::Directory>::Metadata as fs::Metadata>::NameError: PartialEq,
-        <<Fs::Directory as fs::Directory>::Metadata as fs::Metadata>::NodeKindError: PartialEq,
-    {
-        fn eq(&self, other: &Self) -> bool {
-            use DirEntryError::*;
+where
+    <Fs::Directory as fs::Directory>::ReadEntryError: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        use DirEntryError::*;
 
-            match (self, other) {
-                (Access(l), Access(r)) => l == r,
-                (Name(l), Name(r)) => l == r,
-                (NodeKind(l), NodeKind(r)) => l == r,
-                _ => false,
-            }
+        match (self, other) {
+            (Access(l), Access(r)) => l == r,
+            (Name(l), Name(r)) => l == r,
+            _ => false,
         }
     }
+}
 
 impl<Fs: fs::Fs, M: RootMarker<Fs>> fmt::Display for FindRootError<Fs, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -392,7 +379,6 @@ impl<Fs: fs::Fs> fmt::Display for DirEntryError<Fs> {
         match self {
             DirEntryError::Access(err) => err.fmt(f),
             DirEntryError::Name(err) => err.fmt(f),
-            DirEntryError::NodeKind(err) => err.fmt(f),
         }
     }
 }

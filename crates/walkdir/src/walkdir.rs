@@ -2,7 +2,14 @@ use core::error::Error;
 use core::fmt;
 use core::pin::Pin;
 
-use ed::fs::{self, AbsPath, AbsPathBuf, Directory, Metadata};
+use ed::fs::{
+    self,
+    AbsPath,
+    AbsPathBuf,
+    Directory,
+    Metadata,
+    MetadataNameError,
+};
 use futures_util::stream::{self, FusedStream, StreamExt};
 use futures_util::{FutureExt, pin_mut, select};
 
@@ -62,14 +69,10 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
                 select! {
                     res = entries.select_next_some() => {
                         let entry = res.map_err(WalkError::ReadEntry)?;
-                        let node_kind = entry
-                            .node_kind()
-                            .await
-                            .map_err(WalkError::NodeKind)?;
+                        let node_kind = entry.node_kind();
                         if node_kind.is_dir() {
                             let dir_name = entry
                                 .name()
-                                .await
                                 .map_err(WalkError::NodeName)?;
                             let dir_path = dir_path.join(&dir_name);
                             let handler = handler.clone();
@@ -98,13 +101,10 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
         &'a self,
         dir_path: &'a AbsPath,
     ) -> impl FusedStream<
-        Item = Result<
-            AbsPathBuf,
-            WalkError<Fs, Self, <DirEntry<Fs> as Metadata>::NameError>,
-        >,
+        Item = Result<AbsPathBuf, WalkError<Fs, Self, MetadataNameError>>,
     > + 'a {
         self.to_stream(dir_path, async |dir_path, entry| {
-            entry.name().await.map(|name| dir_path.join(&name))
+            entry.name().map(|name| dir_path.join(name))
         })
     }
 
@@ -157,10 +157,7 @@ where
     Other(T),
 
     /// TODO: docs.
-    NodeKind(<DirEntry<Fs> as Metadata>::NodeKindError),
-
-    /// TODO: docs.
-    NodeName(<DirEntry<Fs> as Metadata>::NameError),
+    NodeName(MetadataNameError),
 
     /// TODO: docs.
     ReadDir(W::ReadError),
@@ -225,8 +222,6 @@ where
     Fs: fs::Fs,
     W: WalkDir<Fs>,
     T: PartialEq,
-    <DirEntry<Fs> as Metadata>::NodeKindError: PartialEq,
-    <DirEntry<Fs> as Metadata>::NameError: PartialEq,
     W::ReadError: PartialEq,
     W::ReadEntryError: PartialEq,
 {
@@ -235,7 +230,6 @@ where
 
         match (self, other) {
             (Other(l), Other(r)) => l == r,
-            (NodeKind(l), NodeKind(r)) => l == r,
             (NodeName(l), NodeName(r)) => l == r,
             (ReadDir(l), ReadDir(r)) => l == r,
             (ReadEntry(l), ReadEntry(r)) => l == r,
@@ -253,7 +247,6 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Other(err) => fmt::Debug::fmt(err, f),
-            Self::NodeKind(err) => fmt::Debug::fmt(err, f),
             Self::NodeName(err) => fmt::Debug::fmt(err, f),
             Self::ReadDir(err) => fmt::Debug::fmt(err, f),
             Self::ReadEntry(err) => fmt::Debug::fmt(err, f),
@@ -270,7 +263,6 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Other(err) => fmt::Display::fmt(err, f),
-            Self::NodeKind(err) => fmt::Display::fmt(err, f),
             Self::NodeName(err) => fmt::Display::fmt(err, f),
             Self::ReadDir(err) => fmt::Display::fmt(err, f),
             Self::ReadEntry(err) => fmt::Display::fmt(err, f),
