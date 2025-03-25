@@ -31,7 +31,7 @@ pub trait RootMarker<Fs: fs::Fs> {
 
     fn matches(
         &self,
-        dir_entry: &<Fs::Directory as fs::Directory>::Metadata,
+        dir_entry: &Fs::Metadata,
     ) -> impl Future<Output = Result<bool, Self::Error>>;
 }
 
@@ -190,7 +190,7 @@ impl<Fs: fs::Fs> RootMarker<Fs> for GitDirectory {
 
     async fn matches(
         &self,
-        dir_entry: &<Fs::Directory as fs::Directory>::Metadata,
+        dir_entry: &Fs::Metadata,
     ) -> Result<bool, Self::Error> {
         use fs::Metadata;
         Ok(dir_entry.name().map_err(DirEntryError::Name)? == ".git"

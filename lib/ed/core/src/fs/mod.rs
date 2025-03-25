@@ -23,7 +23,7 @@ pub use directory::{
 pub use file::File;
 pub use fs::Fs;
 pub use fs_event::{FsEvent, FsEventKind};
-pub use fs_node::{DeleteNodeError, FsNode};
+pub use fs_node::{FsNode, NodeDeleteError, NodeMetadataError};
 pub use fs_node_kind::FsNodeKind;
 pub use metadata::{Metadata, MetadataNameError};
 pub use symlink::Symlink;

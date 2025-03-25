@@ -6,7 +6,7 @@ use ed::fs::{self, AbsPath, Metadata};
 use futures_util::stream::{self, FusedStream, StreamExt};
 use futures_util::{FutureExt, pin_mut, select};
 
-use crate::{DirEntry, WalkDir};
+use crate::WalkDir;
 
 /// TODO: docs.
 pub trait Filter<Fs: fs::Fs> {
@@ -92,7 +92,7 @@ where
         &self,
         dir_path: &AbsPath,
     ) -> Result<
-        impl FusedStream<Item = Result<DirEntry<Fs>, Self::ReadEntryError>>,
+        impl FusedStream<Item = Result<Fs::Metadata, Self::ReadEntryError>>,
         Self::ReadError,
     > {
         let entries = self.walker.read_dir(dir_path).await?;

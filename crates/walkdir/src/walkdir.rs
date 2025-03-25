@@ -16,9 +16,6 @@ use futures_util::{FutureExt, pin_mut, select};
 use crate::filter::{Filter, Filtered};
 
 /// TODO: docs.
-pub type DirEntry<Fs> = <<Fs as fs::Fs>::Directory as fs::Directory>::Metadata;
-
-/// TODO: docs.
 pub trait WalkDir<Fs: fs::Fs>: Sized {
     /// The type of error that can occur when reading a directory fails.
     type ReadError: Error;
@@ -33,7 +30,7 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
         dir_path: &AbsPath,
     ) -> impl Future<
         Output = Result<
-            impl FusedStream<Item = Result<DirEntry<Fs>, Self::ReadEntryError>>,
+            impl FusedStream<Item = Result<Fs::Metadata, Self::ReadEntryError>>,
             Self::ReadError,
         >,
     >;
@@ -56,7 +53,7 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
         handler: H,
     ) -> Pin<Box<dyn Future<Output = Result<(), WalkError<Fs, Self, E>>> + 'a>>
     where
-        H: AsyncFn(&AbsPath, DirEntry<Fs>) -> Result<(), E> + Clone + 'a,
+        H: AsyncFn(&AbsPath, Fs::Metadata) -> Result<(), E> + Clone + 'a,
         E: 'a,
     {
         Box::pin(async move {
@@ -116,7 +113,7 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
         handler: H,
     ) -> impl FusedStream<Item = Result<T, WalkError<Fs, Self, E>>> + 'a
     where
-        H: AsyncFn(&AbsPath, DirEntry<Fs>) -> Result<T, E> + Clone + 'a,
+        H: AsyncFn(&AbsPath, Fs::Metadata) -> Result<T, E> + Clone + 'a,
         T: 'a,
         E: 'a,
     {
@@ -194,7 +191,9 @@ impl<Fs: fs::Fs> WalkDir<Self> for Fs {
         &self,
         dir_path: &fs::AbsPath,
     ) -> Result<
-        impl FusedStream<Item = Result<DirEntry<Self>, Self::ReadEntryError>>,
+        impl FusedStream<
+            Item = Result<<Self as fs::Fs>::Metadata, Self::ReadEntryError>,
+        >,
         Self::ReadError,
     > {
         let Some(node) = self

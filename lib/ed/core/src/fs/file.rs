@@ -9,10 +9,13 @@ pub trait File {
     type Fs: Fs;
 
     /// TODO: docs.
+    type Error: Error;
+
+    /// TODO: docs.
     type DeleteError: Error;
 
     /// TODO: docs.
-    type Error: Error;
+    type MetadataError: Error;
 
     /// TODO: docs.
     type WriteError: Error;
@@ -24,6 +27,11 @@ pub trait File {
 
     /// TODO: docs.
     fn delete(self) -> impl Future<Output = Result<(), Self::DeleteError>>;
+
+    /// TODO: docs.
+    fn meta(
+        &self,
+    ) -> impl Future<Output = Result<<Self::Fs as Fs>::Metadata, Self::MetadataError>>;
 
     /// TODO: docs.
     #[inline]

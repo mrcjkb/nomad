@@ -8,4 +8,4 @@ mod walkdir;
 pub use filter::{And, Either, Filter, Filtered};
 #[cfg(feature = "gitignore")]
 pub use gitignore::GitIgnore;
-pub use walkdir::{DirEntry, WalkDir, WalkError};
+pub use walkdir::{WalkDir, WalkError};

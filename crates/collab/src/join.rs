@@ -310,7 +310,7 @@ pub enum FlushProjectError<Fs: fs::Fs> {
     ClearRoot(<Fs::Directory as fs::Directory>::ClearError),
 
     /// TODO: docs.
-    DeleteNodeAtRoot(fs::DeleteNodeError<Fs>),
+    DeleteNodeAtRoot(fs::NodeDeleteError<Fs>),
 
     /// TODO: docs.
     GetOrCreateRoot(Fs::CreateDirectoryError),
@@ -396,7 +396,7 @@ where
     <Fs::Directory as fs::Directory>::CreateDirectoryError: PartialEq,
     <Fs::Directory as fs::Directory>::CreateFileError: PartialEq,
     <Fs::Directory as fs::Directory>::ClearError: PartialEq,
-    fs::DeleteNodeError<Fs>: PartialEq,
+    fs::NodeDeleteError<Fs>: PartialEq,
     Fs::CreateDirectoryError: PartialEq,
     Fs::NodeAtPathError: PartialEq,
     <Fs::File as fs::File>::WriteError: PartialEq,

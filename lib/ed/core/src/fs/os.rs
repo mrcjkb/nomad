@@ -1,6 +1,7 @@
 //! TODO: docs.
 
 use core::cell::RefCell;
+use core::convert::Infallible;
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
 use std::collections::VecDeque;
@@ -47,7 +48,7 @@ pub struct OsFile {
 
 /// TODO: docs.
 pub struct OsSymlink {
-    _metadata: async_fs::Metadata,
+    metadata: async_fs::Metadata,
     path: AbsPathBuf,
 }
 
@@ -129,6 +130,7 @@ impl Fs for OsFs {
     type Directory = OsDirectory;
     type File = OsFile;
     type Symlink = OsSymlink;
+    type Metadata = OsMetadata;
     type Timestamp = SystemTime;
     type Watcher = OsWatcher;
 
@@ -182,10 +184,9 @@ impl Fs for OsFs {
             FsNodeKind::Directory => FsNode::Directory(OsDirectory {
                 metadata: LazyOsMetadata::new(metadata, path.to_owned()),
             }),
-            FsNodeKind::Symlink => FsNode::Symlink(OsSymlink {
-                _metadata: metadata,
-                path: path.to_owned(),
-            }),
+            FsNodeKind::Symlink => {
+                FsNode::Symlink(OsSymlink { metadata, path: path.to_owned() })
+            },
         }))
     }
 
@@ -220,12 +221,12 @@ impl Fs for OsFs {
 impl Directory for OsDirectory {
     type EventStream = futures_util::stream::Pending<DirectoryEvent<Self>>;
     type Fs = OsFs;
-    type Metadata = OsMetadata;
 
     type ClearError = io::Error;
     type CreateDirectoryError = io::Error;
     type CreateFileError = io::Error;
     type DeleteError = io::Error;
+    type MetadataError = io::Error;
     type ReadEntryError = io::Error;
     type ReadError = io::Error;
 
@@ -257,6 +258,20 @@ impl Directory for OsDirectory {
     #[inline]
     async fn delete(self) -> Result<(), Self::DeleteError> {
         async_fs::remove_dir_all(self.path()).await
+    }
+
+    #[inline]
+    async fn meta(&self) -> Result<OsMetadata, Self::MetadataError> {
+        self.metadata
+            .with(|inner| OsMetadata {
+                metadata: inner.clone(),
+                node_kind: FsNodeKind::Directory,
+                node_name: self
+                    .name()
+                    .map(|n| n.as_str().into())
+                    .unwrap_or_default(),
+            })
+            .await
     }
 
     #[inline]
@@ -340,8 +355,9 @@ impl Directory for OsDirectory {
 impl File for OsFile {
     type Fs = OsFs;
 
-    type DeleteError = io::Error;
     type Error = io::Error;
+    type DeleteError = io::Error;
+    type MetadataError = io::Error;
     type WriteError = io::Error;
 
     #[inline]
@@ -352,6 +368,17 @@ impl File for OsFile {
     #[inline]
     async fn delete(self) -> Result<(), Self::DeleteError> {
         async_fs::remove_file(self.path()).await
+    }
+
+    #[inline]
+    async fn meta(&self) -> Result<OsMetadata, Self::MetadataError> {
+        self.metadata
+            .with(|inner| OsMetadata {
+                metadata: inner.clone(),
+                node_kind: FsNodeKind::File,
+                node_name: self.name().as_str().into(),
+            })
+            .await
     }
 
     #[inline]
@@ -385,6 +412,7 @@ impl Symlink for OsSymlink {
 
     type DeleteError = io::Error;
     type FollowError = io::Error;
+    type MetadataError = Infallible;
 
     #[inline]
     async fn delete(self) -> Result<(), Self::DeleteError> {
@@ -407,6 +435,15 @@ impl Symlink for OsSymlink {
         let path = <&AbsPath>::try_from(&*target_path)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
         OsFs::default().node_at_path(path).await
+    }
+
+    #[inline]
+    async fn meta(&self) -> Result<OsMetadata, Self::MetadataError> {
+        Ok(OsMetadata {
+            metadata: self.metadata.clone(),
+            node_kind: FsNodeKind::Symlink,
+            node_name: self.name().as_str().into(),
+        })
     }
 
     #[inline]

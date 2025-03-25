@@ -4,7 +4,7 @@ use abs_path::AbsPathBuf;
 use futures_lite::Stream;
 
 use super::FsNode;
-use crate::fs::{self, AbsPath, Fs, Metadata, NodeName};
+use crate::fs::{self, AbsPath, Fs, NodeName};
 
 /// TODO: docs.
 pub trait Directory: Sized {
@@ -13,9 +13,6 @@ pub trait Directory: Sized {
 
     /// TODO: docs.
     type Fs: Fs;
-
-    /// TODO: docs.
-    type Metadata: Metadata<Fs = Self::Fs>;
 
     /// TODO: docs.
     type CreateDirectoryError: Error;
@@ -28,6 +25,9 @@ pub trait Directory: Sized {
 
     /// TODO: docs.
     type DeleteError: Error;
+
+    /// TODO: docs.
+    type MetadataError: Error;
 
     /// TODO: docs.
     type ReadEntryError: Error;
@@ -54,6 +54,11 @@ pub trait Directory: Sized {
     fn delete(self) -> impl Future<Output = Result<(), Self::DeleteError>>;
 
     /// TODO: docs.
+    fn meta(
+        &self,
+    ) -> impl Future<Output = Result<<Self::Fs as Fs>::Metadata, Self::MetadataError>>;
+
+    /// TODO: docs.
     #[inline]
     fn name(&self) -> Option<&NodeName> {
         self.path().node_name()
@@ -72,8 +77,12 @@ pub trait Directory: Sized {
         &self,
     ) -> impl Future<
         Output = Result<
-            impl Stream<Item = Result<Self::Metadata, Self::ReadEntryError>>
-            + use<Self>,
+            impl Stream<
+                Item = Result<
+                    <Self::Fs as Fs>::Metadata,
+                    Self::ReadEntryError,
+                >,
+            > + use<Self>,
             Self::ReadError,
         >,
     >;

@@ -1,17 +1,20 @@
 use core::error::Error;
 
-use crate::fs::{self, AbsPath, FsNode, NodeName};
+use crate::fs::{AbsPath, Fs, FsNode, NodeName};
 
 /// TODO: docs.
 pub trait Symlink {
     /// TODO: docs.
-    type Fs: fs::Fs;
+    type Fs: Fs;
 
     /// TODO: docs.
     type DeleteError: Error;
 
     /// TODO: docs.
     type FollowError: Error;
+
+    /// TODO: docs.
+    type MetadataError: Error;
 
     /// TODO: docs.
     fn delete(self) -> impl Future<Output = Result<(), Self::DeleteError>>;
@@ -25,6 +28,11 @@ pub trait Symlink {
     fn follow_recursively(
         &self,
     ) -> impl Future<Output = Result<Option<FsNode<Self::Fs>>, Self::FollowError>>;
+
+    /// TODO: docs.
+    fn meta(
+        &self,
+    ) -> impl Future<Output = Result<<Self::Fs as Fs>::Metadata, Self::MetadataError>>;
 
     /// TODO: docs.
     fn name(&self) -> &NodeName {

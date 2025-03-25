@@ -24,7 +24,7 @@ use ed::{AsyncCtx, ByteOffset, Shared};
 use eerie::{Replica, ReplicaBuilder};
 use futures_util::AsyncReadExt;
 use smol_str::ToSmolStr;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 
 use crate::backend::CollabBackend;
 use crate::collab::Collab;
@@ -177,9 +177,21 @@ enum ReadReplicaError2<B: CollabBackend> {
 /// TODO: docs.
 pub type WalkError2<B> = walkdir::WalkError<
     <B as Backend>::Fs,
-    <B as Backend>::Fs,
-    event_stream::PushError<<B as Backend>::Fs>,
+    walkdir::Filtered<<B as CollabBackend>::FsFilter, <B as Backend>::Fs>,
+    VisitNodeError<B>,
 >;
+
+/// TODO: docs.
+pub enum VisitNodeError<B: CollabBackend> {
+    /// TODO: docs.
+    Node(<<B as Backend>::Fs as fs::Fs>::NodeAtPathError),
+
+    /// TODO: docs.
+    NodeName(MetadataNameError),
+
+    /// TODO: docs.
+    PushToEventStream(event_stream::EventStreamError<B>),
+}
 
 async fn read_replica<B>(
     peer_id: PeerId,
@@ -199,7 +211,8 @@ where
         let op_queue = Arc::new(ConcurrentQueue::unbounded());
         let op_queue2 = Arc::clone(&op_queue);
         let handler =
-            async move |dir_path: &AbsPath, entry: DirEntry<B::Fs>| {
+            async move |dir_path: &AbsPath,
+                        entry: <B::Fs as fs::Fs>::Metadata| {
                 let entry_path = dir_path.join(entry.name()?);
                 let op = match entry.node_kind() {
                     FsNodeKind::File => {

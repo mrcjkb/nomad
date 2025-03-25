@@ -3,7 +3,15 @@ use core::future::Future;
 
 use futures_lite::Stream;
 
-use crate::fs::{AbsPath, Directory, File, FsEvent, FsNode, Symlink};
+use crate::fs::{
+    AbsPath,
+    Directory,
+    File,
+    FsEvent,
+    FsNode,
+    Metadata,
+    Symlink,
+};
 
 /// TODO: docs.
 pub trait Fs: Sized + Send + 'static {
@@ -15,6 +23,9 @@ pub trait Fs: Sized + Send + 'static {
 
     /// TODO: docs.
     type Symlink: Symlink<Fs = Self>;
+
+    /// TODO: docs.
+    type Metadata: Metadata<Fs = Self>;
 
     /// TODO: docs.
     type Timestamp: Clone + Ord;

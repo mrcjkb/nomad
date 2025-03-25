@@ -2,7 +2,14 @@ use std::sync::Mutex;
 
 use abs_path::AbsPath;
 use ed::AsyncCtx;
-use ed::fs::{self, Directory, FsNode, Symlink};
+use ed::fs::{
+    self,
+    Directory,
+    FsNode,
+    NodeCreation,
+    NodeMetadataError,
+    Symlink,
+};
 use futures_util::select;
 use futures_util::stream::{SelectAll, StreamExt};
 use walkdir::Filter;
@@ -31,6 +38,7 @@ pub(crate) struct EventStreamBuilder<B: CollabBackend> {
 pub(crate) enum EventStreamError<B: CollabBackend> {
     FollowSymlink(<<B::Fs as fs::Fs>::Symlink as Symlink>::FollowError),
     FsFilter(<B::FsFilter as Filter<B::Fs>>::Error),
+    Metadata(NodeMetadataError<B::Fs>),
 }
 
 impl<B: CollabBackend> EventStream<B> {
@@ -94,19 +102,22 @@ impl<B: CollabBackend> EventStream<B> {
 
     async fn on_node_creation(
         &mut self,
-        creation: &fs::NodeCreation<B::Fs>,
+        NodeCreation { child, parent }: &fs::NodeCreation<B::Fs>,
         _ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), EventStreamError<B>> {
+        let parent_path = parent.path();
+        let meta = child.meta().await.map_err(EventStreamError::Metadata)?;
+
         if self
             .fs_filter
-            .should_filter(creation.parent.path(), &creation.child)
+            .should_filter(parent_path, &meta)
             .await
             .map_err(EventStreamError::FsFilter)?
         {
             return Ok(());
         }
 
-        match &creation.child {
+        match child {
             FsNode::File(file) => todo!(),
             FsNode::Directory(dir) => {
                 self.directory_streams.push(dir.watch().await);
