@@ -65,7 +65,7 @@ impl<B: CollabBackend> EventStream<B> {
 
     async fn on_directory_event(
         &mut self,
-        event: &fs::DirectoryEvent<<B::Fs as fs::Fs>::Directory>,
+        event: &fs::DirectoryEvent<B::Fs>,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), EventStreamError<B>> {
         match event {
@@ -85,7 +85,7 @@ impl<B: CollabBackend> EventStream<B> {
 
     async fn on_directory_deletion(
         &mut self,
-        _deletion: &fs::DirectoryDeletion,
+        _deletion: &fs::DirectoryDeletion<B::Fs>,
         _ctx: &mut AsyncCtx<'_, B>,
     ) {
         // Many of the things discussed in `on_directory_move` apply here too.
@@ -94,7 +94,7 @@ impl<B: CollabBackend> EventStream<B> {
 
     async fn on_directory_move(
         &mut self,
-        _move: &fs::DirectoryMove<<B::Fs as fs::Fs>::Directory>,
+        _move: &fs::DirectoryMove<B::Fs>,
         _ctx: &mut AsyncCtx<'_, B>,
     ) {
         todo!()
@@ -102,29 +102,29 @@ impl<B: CollabBackend> EventStream<B> {
 
     async fn on_node_creation(
         &mut self,
-        NodeCreation { child, parent }: &fs::NodeCreation<B::Fs>,
+        creation: &fs::NodeCreation<B::Fs>,
         _ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), EventStreamError<B>> {
-        let parent_path = parent.path();
-        let meta = child.meta().await.map_err(EventStreamError::Metadata)?;
-
-        if self
-            .fs_filter
-            .should_filter(parent_path, &meta)
-            .await
-            .map_err(EventStreamError::FsFilter)?
-        {
-            return Ok(());
-        }
-
-        match child {
-            FsNode::File(file) => todo!(),
-            FsNode::Directory(dir) => {
-                self.directory_streams.push(dir.watch().await);
-                Ok(())
-            },
-            FsNode::Symlink(symlink) => todo!(),
-        }
+        // let meta = child.meta().await.map_err(EventStreamError::Metadata)?;
+        //
+        // if self
+        //     .fs_filter
+        //     .should_filter(parent.path(), &meta)
+        //     .await
+        //     .map_err(EventStreamError::FsFilter)?
+        // {
+        //     return Ok(());
+        // }
+        //
+        // match child {
+        //     FsNode::File(file) => todo!(),
+        //     FsNode::Directory(dir) => {
+        //         self.directory_streams.push(dir.watch().await);
+        //         Ok(())
+        //     },
+        //     FsNode::Symlink(symlink) => todo!(),
+        // }
+        todo!();
     }
 }
 

@@ -1,5 +1,7 @@
 use core::error::Error;
+use core::fmt::Debug;
 use core::future::Future;
+use core::hash::Hash;
 
 use futures_lite::Stream;
 
@@ -26,6 +28,9 @@ pub trait Fs: Sized + Send + 'static {
 
     /// TODO: docs.
     type Metadata: Metadata<Fs = Self>;
+
+    /// TODO: docs.
+    type NodeId: Debug + Clone + Eq + Hash;
 
     /// TODO: docs.
     type Timestamp: Clone + Ord;

@@ -32,6 +32,9 @@ use crate::fs::{
 };
 
 /// TODO: docs.
+pub type Inode = u64;
+
+/// TODO: docs.
 #[derive(Debug, Default, Copy, Clone)]
 pub struct OsFs {}
 
@@ -131,6 +134,7 @@ impl Fs for OsFs {
     type File = OsFile;
     type Symlink = OsSymlink;
     type Metadata = OsMetadata;
+    type NodeId = Inode;
     type Timestamp = SystemTime;
     type Watcher = OsWatcher;
 
@@ -219,7 +223,7 @@ impl Fs for OsFs {
 }
 
 impl Directory for OsDirectory {
-    type EventStream = futures_util::stream::Pending<DirectoryEvent<Self>>;
+    type EventStream = futures_util::stream::Pending<DirectoryEvent<OsFs>>;
     type Fs = OsFs;
 
     type ClearError = io::Error;

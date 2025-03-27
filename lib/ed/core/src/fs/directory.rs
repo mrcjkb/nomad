@@ -3,13 +3,12 @@ use core::error::Error;
 use abs_path::AbsPathBuf;
 use futures_lite::Stream;
 
-use super::FsNode;
 use crate::fs::{self, AbsPath, Fs, NodeName};
 
 /// TODO: docs.
 pub trait Directory: Sized {
     /// TODO: docs.
-    type EventStream: Stream<Item = DirectoryEvent<Self>> + Unpin;
+    type EventStream: Stream<Item = DirectoryEvent<Self::Fs>> + Unpin;
 
     /// TODO: docs.
     type Fs: Fs;
@@ -92,37 +91,52 @@ pub trait Directory: Sized {
 }
 
 /// TODO: docs.
-pub enum DirectoryEvent<Dir: Directory> {
+pub enum DirectoryEvent<Fs: fs::Fs> {
     /// TODO: docs.
-    Creation(NodeCreation<Dir::Fs>),
+    Creation(NodeCreation<Fs>),
 
     /// TODO: docs.
-    Deletion(DirectoryDeletion),
+    Deletion(DirectoryDeletion<Fs>),
 
     /// TODO: docs.
-    Move(DirectoryMove<Dir>),
+    Move(DirectoryMove<Fs>),
 }
 
 /// TODO: docs.
-pub struct DirectoryDeletion {
-    /// TODO: docs.
+pub struct DirectoryDeletion<Fs: fs::Fs> {
+    /// The node ID of the directory.
+    pub dir_id: Fs::NodeId,
+
+    /// The path to the directory at the time of its deletion.
     pub dir_path: AbsPathBuf,
+
+    /// TODO: docs.
+    pub deletion_root_id: Fs::NodeId,
 }
 
 /// TODO: docs.
-pub struct DirectoryMove<Dir: Directory> {
-    /// TODO: docs.
-    pub dir: Dir,
+pub struct DirectoryMove<Fs: fs::Fs> {
+    /// The node ID of the directory.
+    pub dir_id: Fs::NodeId,
+
+    /// The path to the directory before it was moved.
+    pub old_path: AbsPathBuf,
+
+    /// The path to the directory after it was moved.
+    pub new_path: AbsPathBuf,
 
     /// TODO: docs.
-    pub old_path: AbsPathBuf,
+    pub move_root_id: Fs::NodeId,
 }
 
 /// TODO: docs.
 pub struct NodeCreation<Fs: fs::Fs> {
     /// TODO: docs.
-    pub child: FsNode<Fs>,
+    pub node_id: Fs::NodeId,
 
     /// TODO: docs.
-    pub parent: Fs::Directory,
+    pub node_path: AbsPathBuf,
+
+    /// TODO: docs.
+    pub parent_id: Fs::NodeId,
 }
