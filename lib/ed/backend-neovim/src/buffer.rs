@@ -43,6 +43,12 @@ impl NeovimBuffer {
     }
 
     #[inline]
+    pub(crate) fn is_focused(self) -> bool {
+        oxi::api::Window::current().get_buf().expect("window is valid")
+            == self.inner()
+    }
+
+    #[inline]
     pub(crate) fn new(inner: oxi::api::Buffer) -> Self {
         Self(inner.handle())
     }

@@ -47,11 +47,13 @@ impl Backend for Neovim {
     type Api = api::NeovimApi;
     type Buffer<'a> = NeovimBuffer;
     type BufferId = NeovimBuffer;
+    type Cursor<'a> = NeovimBuffer;
     type CursorId = NeovimBuffer;
     type Fs = NeovimFs;
     type LocalExecutor = executor::NeovimLocalExecutor;
     type BackgroundExecutor = executor::NeovimBackgroundExecutor;
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
+    type Selection<'a> = NeovimBuffer;
     type SelectionId = NeovimBuffer;
 
     type SerializeError = serde::NeovimSerializeError;
@@ -75,6 +77,11 @@ impl Backend for Neovim {
     #[inline]
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
         Some(NeovimBuffer::current())
+    }
+
+    #[inline]
+    fn cursor(&mut self, buf: Self::CursorId) -> Option<Self::Cursor<'_>> {
+        (buf.exists() && buf.is_focused()).then_some(buf)
     }
 
     #[inline]
@@ -114,6 +121,14 @@ impl Backend for Neovim {
     #[inline]
     fn background_executor(&mut self) -> &mut Self::BackgroundExecutor {
         &mut self.background_executor
+    }
+
+    #[inline]
+    fn selection(
+        &mut self,
+        _buf: Self::SelectionId,
+    ) -> Option<Self::Selection<'_>> {
+        todo!()
     }
 
     #[inline]

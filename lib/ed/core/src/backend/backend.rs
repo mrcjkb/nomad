@@ -9,7 +9,6 @@ use crate::backend::{
     ApiValue,
     BackgroundExecutor,
     Buffer,
-    BufferId,
     Key,
     LocalExecutor,
     MapAccess,
@@ -35,6 +34,9 @@ pub trait Backend: 'static + Sized {
     type BufferId: Clone + Debug + Eq + Hash;
 
     /// TODO: docs.
+    type Cursor<'a>;
+
+    /// TODO: docs.
     type CursorId: Clone + Debug + Eq + Hash;
 
     /// TODO: docs.
@@ -50,6 +52,9 @@ pub trait Backend: 'static + Sized {
     type Emitter<'this>: notify::Emitter;
 
     /// TODO: docs.
+    type Selection<'a>;
+
+    /// TODO: docs.
     type SelectionId: Clone + Debug + Eq + Hash;
 
     /// TODO: docs.
@@ -59,15 +64,18 @@ pub trait Backend: 'static + Sized {
     type DeserializeError: notify::Error;
 
     /// TODO: docs.
-    fn buffer(&mut self, id: BufferId<Self>) -> Option<Self::Buffer<'_>>;
+    fn buffer(&mut self, id: Self::BufferId) -> Option<Self::Buffer<'_>>;
 
     /// TODO: docs.
     fn buffer_ids(
         &mut self,
-    ) -> impl Iterator<Item = BufferId<Self>> + use<Self>;
+    ) -> impl Iterator<Item = Self::BufferId> + use<Self>;
 
     /// TODO: docs.
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>>;
+
+    /// TODO: docs.
+    fn cursor(&mut self, id: Self::CursorId) -> Option<Self::Cursor<'_>>;
 
     /// TODO: docs.
     fn fs(&mut self) -> Self::Fs;
@@ -86,6 +94,12 @@ pub trait Backend: 'static + Sized {
 
     /// TODO: docs.
     fn background_executor(&mut self) -> &mut Self::BackgroundExecutor;
+
+    /// TODO: docs.
+    fn selection(
+        &mut self,
+        id: Self::SelectionId,
+    ) -> Option<Self::Selection<'_>>;
 
     /// TODO: docs.
     fn serialize<T>(
