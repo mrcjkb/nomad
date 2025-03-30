@@ -5,6 +5,9 @@ use ed::AsyncCtx;
 use ed::fs::{
     self,
     Directory,
+    DirectoryEvent,
+    File,
+    FileEvent,
     Fs,
     FsNode,
     NodeCreation,
@@ -13,6 +16,7 @@ use ed::fs::{
 };
 use futures_util::select;
 use futures_util::stream::{SelectAll, StreamExt};
+use fxhash::{FxHashMap, FxHashSet};
 use walkdir::Filter;
 
 use crate::CollabBackend;
@@ -21,15 +25,20 @@ use crate::event::Event;
 type DirEventStream<Fs> =
     <<Fs as fs::Fs>::Directory as Directory>::EventStream;
 
+type FileEventStream<Fs> = <<Fs as fs::Fs>::File as File>::EventStream;
+
 /// TODO: docs.
 pub(crate) struct EventStream<
     B: CollabBackend,
     FsFilter = <B as CollabBackend>::FsFilter,
 > {
+    buffer_ids: FxHashMap<<B::Fs as fs::Fs>::NodeId, B::BufferId>,
     directory_streams: SelectAll<DirEventStream<B::Fs>>,
+    file_streams: SelectAll<FileEventStream<B::Fs>>,
     fs_filter: FsFilter,
     root_id: <B::Fs as fs::Fs>::NodeId,
     root_path: AbsPathBuf,
+    saved_buffers: FxHashSet<B::BufferId>,
 }
 
 /// TODO: docs.
@@ -49,10 +58,13 @@ impl<B: CollabBackend> EventStream<B> {
     pub(crate) fn builder(project_root: AbsPathBuf) -> EventStreamBuilder<B> {
         EventStreamBuilder {
             stream: Mutex::new(EventStream {
+                buffer_ids: Default::default(),
                 directory_streams: SelectAll::new(),
+                file_streams: SelectAll::new(),
                 fs_filter: (),
                 root_id: todo!(),
                 root_path: project_root,
+                saved_buffers: Default::default(),
             }),
         }
     }
@@ -62,40 +74,45 @@ impl<B: CollabBackend> EventStream<B> {
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<Event<B>, EventStreamError<B>> {
         loop {
-            select! {
+            let event = select! {
                 dir_event = self.directory_streams.select_next_some() => {
-                    if self.on_directory_event(&dir_event, ctx).await? {
-                        return Ok(Event::Directory(dir_event))
-                    }
+                    Event::Directory(dir_event)
                 },
+                file_event = self.file_streams.select_next_some() => {
+                    Event::File(file_event)
+                },
+            };
+
+            self.on_event(&event, ctx).await?;
+
+            if self.should_emit(&event) {
+                return Ok(event);
             }
         }
     }
 
-    async fn on_directory_event(
+    async fn on_event(
         &mut self,
-        event: &fs::DirectoryEvent<B::Fs>,
+        event: &Event<B>,
         ctx: &mut AsyncCtx<'_, B>,
-    ) -> Result<bool, EventStreamError<B>> {
-        Ok(match event {
-            fs::DirectoryEvent::Deletion(deletion) => {
-                deletion.node_id == deletion.deletion_root_id
-                    || deletion.node_id == self.root_id
+    ) -> Result<(), EventStreamError<B>> {
+        match event {
+            Event::Directory(DirectoryEvent::Creation(creation)) => {
+                self.on_node_creation(creation, ctx).await?;
             },
-            fs::DirectoryEvent::Move(r#move) => {
+            Event::Directory(DirectoryEvent::Move(r#move)) => {
                 if !r#move.new_path.starts_with(&self.root_path) {
-                    // The directory was moved outside the project, so we can
-                    // drop its event stream.
                     todo!("drop dir's stream");
                 }
-                r#move.node_id == r#move.move_root_id
-                    || r#move.node_id == self.root_id
             },
-            fs::DirectoryEvent::Creation(creation) => {
-                self.on_node_creation(creation, ctx).await?;
-                true
+            Event::File(FileEvent::Move(r#move)) => {
+                if !r#move.new_path.starts_with(&self.root_path) {
+                    todo!("drop file's stream");
+                }
             },
-        })
+            _ => {},
+        }
+        Ok(())
     }
 
     async fn on_node_creation(
@@ -127,7 +144,9 @@ impl<B: CollabBackend> EventStream<B> {
         }
 
         match node {
-            FsNode::File(file) => todo!(),
+            FsNode::File(file) => {
+                todo!()
+            },
             FsNode::Directory(dir) => {
                 self.directory_streams.push(dir.watch().await);
             },
@@ -135,6 +154,30 @@ impl<B: CollabBackend> EventStream<B> {
         }
 
         Ok(())
+    }
+
+    fn should_emit(&mut self, event: &Event<B>) -> bool {
+        match event {
+            Event::Directory(DirectoryEvent::Deletion(deletion))
+            | Event::File(FileEvent::Deletion(deletion)) => {
+                deletion.node_id == deletion.deletion_root_id
+                    || deletion.node_id == self.root_id
+            },
+
+            Event::Directory(DirectoryEvent::Move(r#move))
+            | Event::File(FileEvent::Move(r#move)) => {
+                r#move.node_id == r#move.r#move_root_id
+                    || r#move.node_id == self.root_id
+            },
+
+            Event::File(FileEvent::Modification(modification)) => self
+                .buffer_ids
+                .get(&modification.file_id)
+                .map(|buf_id| self.saved_buffers.remove(buf_id))
+                .unwrap_or(true),
+
+            _ => true,
+        }
     }
 }
 
