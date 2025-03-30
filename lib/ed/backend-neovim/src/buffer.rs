@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 
 use ed_core::ByteOffset;
-use ed_core::backend::Buffer;
+use ed_core::backend::{Buffer, Edit};
 
 use crate::oxi;
 
@@ -109,6 +109,7 @@ impl Point {
 }
 
 impl Buffer for NeovimBuffer {
+    type EventHandle = ();
     type Id = Self;
 
     #[inline]
@@ -124,6 +125,22 @@ impl Buffer for NeovimBuffer {
     #[inline]
     fn name(&self) -> Cow<'_, str> {
         self.get_name().to_string_lossy().into_owned().into()
+    }
+
+    #[inline]
+    fn on_edited<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self, &Edit) + 'static,
+    {
+        todo!();
+    }
+
+    #[inline]
+    fn on_removed<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self) + 'static,
+    {
+        todo!();
     }
 }
 

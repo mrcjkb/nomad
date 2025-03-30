@@ -8,7 +8,7 @@ mod value;
 
 pub use api::Api;
 pub use backend::Backend;
-pub use buffer::Buffer;
+pub use buffer::{Buffer, Edit, Replacement};
 pub use executor::{
     BackgroundExecutor,
     LocalExecutor,
