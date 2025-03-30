@@ -5,6 +5,7 @@ use smallvec::SmallVec;
 use smol_str::SmolStr;
 
 use crate::ByteOffset;
+use crate::backend::AgentId;
 
 /// TODO: docs.
 pub trait Buffer {
@@ -31,13 +32,18 @@ pub trait Buffer {
     /// TODO: docs.
     fn on_removed<Fun>(&mut self, fun: Fun) -> Self::EventHandle
     where
-        Fun: FnMut(&Self) + 'static;
+        Fun: FnMut(&Self, AgentId) + 'static;
+
+    /// TODO: docs.
+    fn on_saved<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self, AgentId) + 'static;
 }
 
 /// TODO: docs.
 pub struct Edit {
     /// TODO: docs.
-    pub made_by: (),
+    pub made_by: AgentId,
 
     /// TODO: docs.
     pub replacements: SmallVec<[Replacement; 1]>,

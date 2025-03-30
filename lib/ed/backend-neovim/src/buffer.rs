@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 
 use ed_core::ByteOffset;
-use ed_core::backend::{Buffer, Edit};
+use ed_core::backend::{AgentId, Buffer, Edit};
 
 use crate::oxi;
 
@@ -138,7 +138,15 @@ impl Buffer for NeovimBuffer {
     #[inline]
     fn on_removed<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
     where
-        Fun: FnMut(&Self) + 'static,
+        Fun: FnMut(&Self, AgentId) + 'static,
+    {
+        todo!();
+    }
+
+    #[inline]
+    fn on_saved<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self, AgentId) + 'static,
     {
         todo!();
     }

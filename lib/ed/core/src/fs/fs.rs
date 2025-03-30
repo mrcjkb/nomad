@@ -16,7 +16,7 @@ use crate::fs::{
 };
 
 /// TODO: docs.
-pub trait Fs: Sized + Send + 'static {
+pub trait Fs: Clone + Send + 'static {
     /// TODO: docs.
     type Directory: Directory<Fs = Self>;
 
