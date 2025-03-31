@@ -1,6 +1,6 @@
 /// TODO: docs.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum FsNodeKind {
+pub enum NodeKind {
     /// TODO: docs.
     File,
 
@@ -11,7 +11,7 @@ pub enum FsNodeKind {
     Symlink,
 }
 
-impl FsNodeKind {
+impl NodeKind {
     /// TODO: docs.
     pub fn is_dir(self) -> bool {
         matches!(self, Self::Directory)
@@ -28,7 +28,7 @@ impl FsNodeKind {
     }
 }
 
-impl TryFrom<std::fs::FileType> for FsNodeKind {
+impl TryFrom<std::fs::FileType> for NodeKind {
     type Error = std::fs::FileType;
 
     fn try_from(file_type: std::fs::FileType) -> Result<Self, Self::Error> {

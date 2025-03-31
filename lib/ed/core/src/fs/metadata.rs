@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use abs_path::{InvalidNodeNameError, NodeName};
 
 use crate::ByteOffset;
-use crate::fs::{Fs, FsNodeKind};
+use crate::fs::{Fs, NodeKind};
 
 /// TODO: docs.
 pub trait Metadata {
@@ -25,7 +25,7 @@ pub trait Metadata {
     fn name(&self) -> Result<&NodeName, MetadataNameError>;
 
     /// TODO: docs.
-    fn node_kind(&self) -> FsNodeKind;
+    fn node_kind(&self) -> NodeKind;
 }
 
 /// TODO: docs.

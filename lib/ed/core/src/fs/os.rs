@@ -25,7 +25,7 @@ use crate::fs::{
     Fs,
     FsEvent,
     FsNode,
-    FsNodeKind,
+    NodeKind,
     Metadata,
     MetadataNameError,
     NodeName,
@@ -59,7 +59,7 @@ pub struct OsSymlink {
 /// TODO: docs.
 pub struct OsMetadata {
     metadata: async_fs::Metadata,
-    node_kind: FsNodeKind,
+    node_kind: NodeKind,
     node_name: OsString,
 }
 
@@ -182,14 +182,14 @@ impl Fs for OsFs {
             return Ok(None);
         };
         Ok(Some(match file_type {
-            FsNodeKind::File => FsNode::File(OsFile {
+            NodeKind::File => FsNode::File(OsFile {
                 file: None,
                 metadata: LazyOsMetadata::new(metadata, path.to_owned()),
             }),
-            FsNodeKind::Directory => FsNode::Directory(OsDirectory {
+            NodeKind::Directory => FsNode::Directory(OsDirectory {
                 metadata: LazyOsMetadata::new(metadata, path.to_owned()),
             }),
-            FsNodeKind::Symlink => {
+            NodeKind::Symlink => {
                 FsNode::Symlink(OsSymlink { metadata, path: path.to_owned() })
             },
         }))
@@ -275,7 +275,7 @@ impl Directory for OsDirectory {
         self.metadata
             .with(|inner| OsMetadata {
                 metadata: inner.clone(),
-                node_kind: FsNodeKind::Directory,
+                node_kind: NodeKind::Directory,
                 node_name: self
                     .name()
                     .map(|n| n.as_str().into())
@@ -334,11 +334,11 @@ impl Directory for OsDirectory {
                             };
                             let file_type = metadata.file_type();
                             let node_kind = if file_type.is_dir() {
-                                FsNodeKind::Directory
+                                NodeKind::Directory
                             } else if file_type.is_file() {
-                                FsNodeKind::File
+                                NodeKind::File
                             } else if file_type.is_symlink() {
-                                FsNodeKind::Symlink
+                                NodeKind::Symlink
                             } else {
                                 continue
                             };
@@ -391,7 +391,7 @@ impl File for OsFile {
         self.metadata
             .with(|inner| OsMetadata {
                 metadata: inner.clone(),
-                node_kind: FsNodeKind::File,
+                node_kind: NodeKind::File,
                 node_name: self.name().as_str().into(),
             })
             .await
@@ -462,7 +462,7 @@ impl Symlink for OsSymlink {
     async fn meta(&self) -> Result<OsMetadata, Self::MetadataError> {
         Ok(OsMetadata {
             metadata: self.metadata.clone(),
-            node_kind: FsNodeKind::Symlink,
+            node_kind: NodeKind::Symlink,
             node_name: self.name().as_str().into(),
         })
     }
@@ -526,7 +526,7 @@ impl Metadata for OsMetadata {
     }
 
     #[inline]
-    fn node_kind(&self) -> FsNodeKind {
+    fn node_kind(&self) -> NodeKind {
         self.node_kind
     }
 }

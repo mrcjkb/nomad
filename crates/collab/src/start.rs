@@ -15,7 +15,7 @@ use ed::fs::{
     AbsPath,
     AbsPathBuf,
     Fs,
-    FsNodeKind,
+    NodeKind,
     Metadata,
     MetadataNameError,
 };
@@ -216,11 +216,11 @@ where
                         entry: <B::Fs as fs::Fs>::Metadata| {
                 let entry_path = dir_path.join(entry.name()?);
                 let op = match entry.node_kind() {
-                    FsNodeKind::File => {
+                    NodeKind::File => {
                         PushNode::File(entry_path, entry.byte_len())
                     },
-                    FsNodeKind::Directory => PushNode::Directory(entry_path),
-                    FsNodeKind::Symlink => return Ok(()),
+                    NodeKind::Directory => PushNode::Directory(entry_path),
+                    NodeKind::Symlink => return Ok(()),
                 };
                 match op_queue2.push(op) {
                     Ok(()) => Ok(()),

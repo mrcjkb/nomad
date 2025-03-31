@@ -3,7 +3,7 @@ use core::fmt;
 
 use abs_path::AbsPath;
 
-use crate::fs::{self, Directory, File, FsNodeKind, Symlink};
+use crate::fs::{self, Directory, File, NodeKind, Symlink};
 
 /// TODO: docs.
 pub enum FsNode<Fs: fs::Fs> {
@@ -76,11 +76,11 @@ impl<Fs: fs::Fs> FsNode<Fs> {
 
     /// TODO: docs.
     #[inline]
-    pub fn kind(&self) -> FsNodeKind {
+    pub fn kind(&self) -> NodeKind {
         match self {
-            Self::File(_) => FsNodeKind::File,
-            Self::Directory(_) => FsNodeKind::Directory,
-            Self::Symlink(_) => FsNodeKind::Symlink,
+            Self::File(_) => NodeKind::File,
+            Self::Directory(_) => NodeKind::Directory,
+            Self::Symlink(_) => NodeKind::Symlink,
         }
     }
 

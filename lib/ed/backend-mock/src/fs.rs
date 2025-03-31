@@ -13,7 +13,7 @@ use ed_core::fs::{
     Fs,
     FsEvent,
     FsEventKind,
-    FsNodeKind,
+    NodeKind,
     NodeName,
     NodeNameBuf,
 };
@@ -112,15 +112,15 @@ impl MockFs {
             inner.node_at_path(path).as_deref().map(MockFsNode::kind)
         })?;
         let node = match kind {
-            FsNodeKind::File => fs::FsNode::File(FileHandle {
+            NodeKind::File => fs::FsNode::File(FileHandle {
                 fs: self.clone(),
                 path: path.to_owned(),
             }),
-            FsNodeKind::Directory => fs::FsNode::Directory(DirectoryHandle {
+            NodeKind::Directory => fs::FsNode::Directory(DirectoryHandle {
                 fs: self.clone(),
                 path: path.to_owned(),
             }),
-            FsNodeKind::Symlink => unreachable!(),
+            NodeKind::Symlink => unreachable!(),
         };
         Some(node)
     }
@@ -147,10 +147,10 @@ impl DirEntry {
         }
     }
 
-    fn kind(&self) -> FsNodeKind {
+    fn kind(&self) -> NodeKind {
         match self {
-            Self::Directory(_) => FsNodeKind::Directory,
-            Self::File(_) => FsNodeKind::File,
+            Self::Directory(_) => NodeKind::Directory,
+            Self::File(_) => NodeKind::File,
         }
     }
 
@@ -217,7 +217,7 @@ impl FsInner {
             _ => {
                 return Err(CreateNodeError::AlreadyExists(
                     NodeAlreadyExistsError {
-                        kind: FsNodeKind::File,
+                        kind: NodeKind::File,
                         path: path.to_owned(),
                     },
                 ));
@@ -251,9 +251,9 @@ impl FsInner {
 
         let event = FsEvent {
             kind: match node_kind {
-                FsNodeKind::File => FsEventKind::CreatedFile,
-                FsNodeKind::Directory => FsEventKind::CreatedDir,
-                FsNodeKind::Symlink => unreachable!(),
+                NodeKind::File => FsEventKind::CreatedFile,
+                NodeKind::Directory => FsEventKind::CreatedDir,
+                NodeKind::Symlink => unreachable!(),
             },
             path: path.to_owned(),
             timestamp: self.timestamp,
@@ -321,10 +321,10 @@ impl FsInner {
 }
 
 impl MockFsNode {
-    fn kind(&self) -> FsNodeKind {
+    fn kind(&self) -> NodeKind {
         match self {
-            Self::File(_) => FsNodeKind::File,
-            Self::Directory(_) => FsNodeKind::Directory,
+            Self::File(_) => NodeKind::File,
+            Self::Directory(_) => NodeKind::Directory,
         }
     }
 }
@@ -541,7 +541,7 @@ impl fs::Metadata for DirEntry {
             .ok_or(DirEntryDoesNotExistError)
     }
 
-    async fn node_kind(&self) -> Result<FsNodeKind, Self::NodeKindError> {
+    async fn node_kind(&self) -> Result<NodeKind, Self::NodeKindError> {
         self.exists().then_some(self.kind()).ok_or(DirEntryDoesNotExistError)
     }
 }
@@ -570,15 +570,15 @@ impl Stream for ReadDir {
         let mut child_path = this.dir_handle.path.clone();
         child_path.push(name);
         let entry = match kind {
-            FsNodeKind::File => DirEntry::File(FileHandle {
+            NodeKind::File => DirEntry::File(FileHandle {
                 fs: this.dir_handle.fs.clone(),
                 path: child_path,
             }),
-            FsNodeKind::Directory => DirEntry::Directory(DirectoryHandle {
+            NodeKind::Directory => DirEntry::Directory(DirectoryHandle {
                 fs: this.dir_handle.fs.clone(),
                 path: child_path,
             }),
-            FsNodeKind::Symlink => unreachable!(),
+            NodeKind::Symlink => unreachable!(),
         };
         Poll::Ready(Some(Ok(entry)))
     }
@@ -812,7 +812,7 @@ pub enum CreateNodeError {
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("a {:?} already exists at {:?}", .kind, .path)]
 pub struct NodeAlreadyExistsError {
-    kind: FsNodeKind,
+    kind: NodeKind,
     path: AbsPathBuf,
 }
 

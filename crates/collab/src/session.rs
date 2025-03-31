@@ -12,6 +12,8 @@ use ed::fs::{
     Fs,
     FsNode,
     Metadata,
+    NodeDeletion,
+    NodeKind,
 };
 use ed::{AsyncCtx, Shared, notify};
 use futures_util::{
@@ -226,35 +228,39 @@ impl<B: CollabBackend> EventRx<B> {
 
             DirectoryEvent::Deletion(ref deletion) => {
                 if deletion.node_id != deletion.deletion_root_id {
-                    // This event was caused by an ancestor of this directory
+                    // This event was caused by an ancestor of the directory
                     // being deleted. We should ignore it, unless it's about
                     // the root.
                     (deletion.node_id == self.root_id).then_some(event)
                 } else {
-                    None
+                    Some(event)
                 }
             },
 
-            DirectoryEvent::Move(ref r#move) => {
+            DirectoryEvent::Move(r#move) => {
                 if r#move.node_id != r#move.move_root_id {
-                    // This event was caused by an ancestor of this directory
+                    // This event was caused by an ancestor of the directory
                     // being moved. We should ignore it, unless it's about the
                     // root.
                     if r#move.node_id == self.root_id {
                         self.root_path = r#move.new_path.clone();
-                        return Ok(Some(event));
+                        return Ok(Some(DirectoryEvent::Move(r#move)));
                     } else {
                         return Ok(None);
                     }
                 }
 
                 if r#move.new_path.starts_with(&self.root_path) {
-                    Some(event)
+                    Some(DirectoryEvent::Move(r#move))
                 } else {
-                    // The node was moved outside the root's subtree, which is
-                    // effectively the same as it being deleted.
+                    // The directory was moved outside the root's subtree,
+                    // which is effectively the same as it being deleted.
                     self.directory_streams.remove(&r#move.node_id);
-                    None
+                    Some(DirectoryEvent::Deletion(NodeDeletion {
+                        node_id: r#move.node_id,
+                        node_path: r#move.old_path,
+                        deletion_root_id: r#move.move_root_id,
+                    }))
                 }
             },
         })
@@ -263,9 +269,49 @@ impl<B: CollabBackend> EventRx<B> {
     async fn handle_file_event(
         &mut self,
         event: FileEvent<B::Fs>,
-        ctx: &AsyncCtx<'_, B>,
     ) -> Result<Option<FileEvent<B::Fs>>, EventRxError<B>> {
-        todo!();
+        Ok(match event {
+            FileEvent::Deletion(ref deletion) => {
+                if deletion.node_id != deletion.deletion_root_id {
+                    // This event was caused by an ancestor of the file being
+                    // deleted. We should ignore it, unless it's about the
+                    // root.
+                    (deletion.node_id == self.root_id).then_some(event)
+                } else {
+                    Some(event)
+                }
+            },
+            FileEvent::Move(r#move) => {
+                if r#move.node_id != r#move.move_root_id {
+                    // This event was caused by an ancestor of the file being
+                    // moved. We should ignore it, unless it's about the root.
+                    if r#move.node_id == self.root_id {
+                        self.root_path = r#move.new_path.clone();
+                        return Ok(Some(FileEvent::Move(r#move)));
+                    } else {
+                        return Ok(None);
+                    }
+                }
+
+                if r#move.new_path.starts_with(&self.root_path) {
+                    Some(FileEvent::Move(r#move))
+                } else {
+                    // The file was moved outside the root's subtree, which is
+                    // effectively the same as it being deleted.
+                    self.file_streams.remove(&r#move.node_id);
+                    Some(FileEvent::Deletion(NodeDeletion {
+                        node_id: r#move.node_id,
+                        node_path: r#move.old_path,
+                        deletion_root_id: r#move.move_root_id,
+                    }))
+                }
+            },
+            FileEvent::Modification(_) => {
+                // TODO: should we deduplicate buffer saves here or should we
+                // let the Project handle that?
+                Some(event)
+            },
+        })
     }
 
     async fn next(
@@ -284,7 +330,7 @@ impl<B: CollabBackend> EventRx<B> {
                     }
                 },
                 event = file_stream.select_next_some() => {
-                    match self.handle_file_event(event, ctx).await? {
+                    match self.handle_file_event(event).await? {
                         Some(file_event) => Event::File(file_event),
                         None => continue,
                     }
