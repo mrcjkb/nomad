@@ -204,7 +204,60 @@ impl<B: CollabBackend> EventRx<B> {
         event: DirectoryEvent<B::Fs>,
         ctx: &AsyncCtx<'_, B>,
     ) -> Result<Option<DirectoryEvent<B::Fs>>, EventRxError<B>> {
-        todo!();
+        Ok(match event {
+            DirectoryEvent::Creation(ref creation) => {
+                let Some(node) = ctx
+                    .fs()
+                    .node_at_path(&creation.node_path)
+                    .await
+                    .map_err(EventRxError::NodeAtPath)?
+                else {
+                    // The node must've already been deleted.
+                    return Ok(None);
+                };
+
+                if self.should_watch(&node).await? {
+                    self.watch(&node, ctx);
+                    Some(event)
+                } else {
+                    None
+                }
+            },
+
+            DirectoryEvent::Deletion(ref deletion) => {
+                if deletion.node_id != deletion.deletion_root_id {
+                    // This event was caused by an ancestor of this directory
+                    // being deleted. We should ignore it, unless it's about
+                    // the root.
+                    (deletion.node_id == self.root_id).then_some(event)
+                } else {
+                    None
+                }
+            },
+
+            DirectoryEvent::Move(ref r#move) => {
+                if r#move.node_id != r#move.move_root_id {
+                    // This event was caused by an ancestor of this directory
+                    // being moved. We should ignore it, unless it's about the
+                    // root.
+                    if r#move.node_id == self.root_id {
+                        self.root_path = r#move.new_path.clone();
+                        return Ok(Some(event));
+                    } else {
+                        return Ok(None);
+                    }
+                }
+
+                if r#move.new_path.starts_with(&self.root_path) {
+                    Some(event)
+                } else {
+                    // The node was moved outside the root's subtree, which is
+                    // effectively the same as it being deleted.
+                    self.directory_streams.remove(&r#move.node_id);
+                    None
+                }
+            },
+        })
     }
 
     async fn handle_file_event(
