@@ -40,7 +40,7 @@ fxhash = { workspace = true }
 indexmap = { workspace = true }
 pin-project-lite = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-smallvec = { workspace = true }
+smallvec = { workspace = true, features = ["const_new"] }
 smol_str = { workspace = true }
 thiserror = { workspace = true }
 walkdir = { workspace = true }

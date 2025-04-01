@@ -24,7 +24,8 @@ use futures_util::{
     select,
     select_biased,
 };
-use fxhash::{FxBuildHasher, FxHashSet};
+use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
+use smallvec::{SmallVec, smallvec_inline};
 use walkdir::Filter;
 
 use crate::backend::{CollabBackend, MessageRx, MessageTx};
@@ -55,6 +56,7 @@ pub(crate) struct Session<B: CollabBackend> {
 pub(crate) struct EventRx<B: CollabBackend> {
     /// The `AgentId` of the `Session` that owns this `EventRx`.
     agent_id: AgentId,
+    buffer_handles: FxHashMap<B::BufferId, SmallVec<[B::EventHandle; 3]>>,
     buffer_rx: flume::r#async::RecvStream<'static, Event<B>>,
     buffer_tx: flume::Sender<Event<B>>,
     /// Map from a directory's node ID to its event stream.
@@ -71,6 +73,7 @@ pub(crate) struct EventRx<B: CollabBackend> {
     /// should be part of the project.
     fs_filter: B::FsFilter,
     new_buffer_rx: flume::r#async::RecvStream<'static, B::BufferId>,
+    new_buffers_handle: B::EventHandle,
     /// The ID of the root of the project.
     root_id: <B::Fs as Fs>::NodeId,
     /// The path to the root of the project.
@@ -156,7 +159,7 @@ impl<B: CollabBackend> EventRx<B> {
 
         let (new_buffer_tx, new_buffer_rx) = flume::unbounded();
 
-        let _handle = ctx.with_ctx(|ctx| {
+        let new_buffers_handle = ctx.with_ctx(|ctx| {
             ctx.on_buffer_created(move |buf| {
                 let _ = new_buffer_tx.send(buf.id());
             })
@@ -166,37 +169,18 @@ impl<B: CollabBackend> EventRx<B> {
 
         Self {
             agent_id: ctx.new_agent_id(),
+            buffer_handles: Default::default(),
             buffer_rx: buffer_rx.into_stream(),
             buffer_tx,
             directory_streams: Default::default(),
             file_streams: Default::default(),
             fs_filter: B::fs_filter(root.path(), ctx),
             new_buffer_rx: new_buffer_rx.into_stream(),
+            new_buffers_handle,
             root_id: root.id(),
             root_path: root.path().to_owned(),
             saved_buffers: Default::default(),
         }
-    }
-
-    /// Returns whether this `EventRx` should watch the given `FsNode`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the node is not in the root's subtree.
-    pub(crate) async fn should_watch(
-        &self,
-        node: &FsNode<B::Fs>,
-    ) -> Result<bool, EventRxError<B>> {
-        debug_assert!(node.path().starts_with(&self.root_path));
-
-        let Some(parent_path) = node.path().parent() else { return Ok(false) };
-        let meta = node.meta().await.map_err(EventRxError::Metadata)?;
-        Ok(!meta.node_kind().is_symlink()
-            && !self
-                .fs_filter
-                .should_filter(parent_path, &meta)
-                .await
-                .map_err(EventRxError::FsFilter)?)
     }
 
     pub(crate) fn watch(
@@ -397,13 +381,39 @@ impl<B: CollabBackend> EventRx<B> {
                         None => continue,
                     }
                 },
-                event = self.buffer_rx.select_next_some() => event,
+                event = self.buffer_rx.select_next_some() => {
+                    if let Event::Buffer(BufferEvent::Removed(id)) = &event {
+                        self.buffer_handles.remove(id);
+                    }
+                    event
+                },
                 buffer_id = self.new_buffer_rx.select_next_some() => {
                     self.handle_new_buffer(buffer_id, ctx).await?;
                     continue;
                 },
             });
         }
+    }
+
+    /// Returns whether this `EventRx` should watch the given `FsNode`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not in the root's subtree.
+    async fn should_watch(
+        &self,
+        node: &FsNode<B::Fs>,
+    ) -> Result<bool, EventRxError<B>> {
+        debug_assert!(node.path().starts_with(&self.root_path));
+
+        let Some(parent_path) = node.path().parent() else { return Ok(false) };
+        let meta = node.meta().await.map_err(EventRxError::Metadata)?;
+        Ok(!meta.node_kind().is_symlink()
+            && !self
+                .fs_filter
+                .should_filter(parent_path, &meta)
+                .await
+                .map_err(EventRxError::FsFilter)?)
     }
 
     fn watch_buffer(
@@ -416,7 +426,7 @@ impl<B: CollabBackend> EventRx<B> {
         let agent_id = self.agent_id;
 
         let tx = self.buffer_tx.clone();
-        let _handle = buffer.on_edited(move |buf, edit| {
+        let edits_handle = buffer.on_edited(move |buf, edit| {
             if edit.made_by != agent_id {
                 return;
             }
@@ -426,20 +436,25 @@ impl<B: CollabBackend> EventRx<B> {
         });
 
         let tx = self.buffer_tx.clone();
-        let _handle = buffer.on_removed(move |buf, _removed_by| {
+        let removed_handle = buffer.on_removed(move |buf, _removed_by| {
             let event = BufferEvent::Removed(buf.id());
             let _ = tx.send(Event::Buffer(event));
         });
 
         let saved_buffers = self.saved_buffers.clone();
         let tx = self.buffer_tx.clone();
-        let _handle = buffer.on_saved(move |buf, saved_by| {
+        let saved_handle = buffer.on_saved(move |buf, saved_by| {
             saved_buffers.with_mut(|buffers| buffers.insert(buf.id()));
             if saved_by != agent_id {
                 let event = BufferEvent::Saved(buf.id());
                 let _ = tx.send(Event::Buffer(event));
             }
         });
+
+        self.buffer_handles.insert(
+            buffer.id(),
+            smallvec_inline![edits_handle, removed_handle, saved_handle],
+        );
     }
 }
 
