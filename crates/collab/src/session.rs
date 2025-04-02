@@ -74,6 +74,8 @@ pub(crate) struct EventRx<B: CollabBackend> {
     fs_filter: B::FsFilter,
     new_buffer_rx: flume::r#async::RecvStream<'static, B::BufferId>,
     new_buffers_handle: B::EventHandle,
+    /// Map from a file's node ID to the ID of the corresponding buffer.
+    node_to_buf_ids: FxHashMap<<B::Fs as Fs>::NodeId, B::BufferId>,
     /// The ID of the root of the project.
     root_id: <B::Fs as Fs>::NodeId,
     /// The path to the root of the project.
@@ -177,6 +179,7 @@ impl<B: CollabBackend> EventRx<B> {
             fs_filter: B::fs_filter(root.path(), ctx),
             new_buffer_rx: new_buffer_rx.into_stream(),
             new_buffers_handle,
+            node_to_buf_ids: Default::default(),
             root_id: root.id(),
             root_path: root.path().to_owned(),
             saved_buffers: Default::default(),
@@ -275,6 +278,12 @@ impl<B: CollabBackend> EventRx<B> {
     ) -> Option<FileEvent<B::Fs>> {
         match event {
             FileEvent::Deletion(ref deletion) => {
+                if let Some(buf_id) =
+                    self.node_to_buf_ids.get(&deletion.node_id)
+                {
+                    self.buffer_handles.remove(buf_id);
+                }
+
                 if deletion.node_id != deletion.deletion_root_id {
                     // This event was caused by an ancestor of the file being
                     // deleted. We should ignore it, unless it's about the
@@ -302,6 +311,13 @@ impl<B: CollabBackend> EventRx<B> {
                     // The file was moved outside the root's subtree, which is
                     // effectively the same as it being deleted.
                     self.file_streams.remove(&r#move.node_id);
+
+                    if let Some(buf_id) =
+                        self.node_to_buf_ids.get(&r#move.node_id)
+                    {
+                        self.buffer_handles.remove(buf_id);
+                    }
+
                     Some(FileEvent::Deletion(NodeDeletion {
                         node_id: r#move.node_id,
                         node_path: r#move.old_path,
@@ -455,6 +471,8 @@ impl<B: CollabBackend> EventRx<B> {
             buffer.id(),
             smallvec_inline![edits_handle, removed_handle, saved_handle],
         );
+
+        self.node_to_buf_ids.insert(file.id(), buffer.id());
     }
 }
 
