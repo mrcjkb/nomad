@@ -9,9 +9,6 @@ use futures_util::stream::FusedStream;
 pub(crate) trait IndexableSeq {
     type Value;
 
-    /// Returns a shared reference to the value at the given index.
-    fn get(&self, idx: usize) -> &Self::Value;
-
     /// Returns an exclusive reference to the value at the given index.
     fn get_mut(&mut self, idx: usize) -> &mut Self::Value;
 
@@ -43,10 +40,6 @@ pub(crate) struct StreamSeq<'a, M: ?Sized> {
 
 impl<K, V, S> IndexableSeq for indexmap::IndexMap<K, V, S> {
     type Value = V;
-
-    fn get(&self, idx: usize) -> &Self::Value {
-        self.get_index(idx).expect("index is valid").1
-    }
 
     fn get_mut(&mut self, idx: usize) -> &mut Self::Value {
         self.get_index_mut(idx).expect("index is valid").1

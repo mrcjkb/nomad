@@ -2,9 +2,8 @@ use core::ops::Range;
 
 use ed::ByteOffset;
 use ed::backend::{Backend, Replacement};
-use ed::fs::{DirectoryEvent, FileEvent, Fs};
+use ed::fs::{DirectoryEvent, FileEvent};
 use smallvec::SmallVec;
-use smol_str::SmolStr;
 
 /// TODO: docs.
 pub(crate) enum Event<B: Backend> {

@@ -13,23 +13,15 @@ use ed::fs::{
     FsNode,
     Metadata,
     NodeDeletion,
-    NodeKind,
 };
 use ed::{AsyncCtx, Shared, notify};
-use futures_util::{
-    FutureExt,
-    SinkExt,
-    StreamExt,
-    pin_mut,
-    select,
-    select_biased,
-};
+use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select_biased};
 use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
 use smallvec::{SmallVec, smallvec_inline};
 use walkdir::Filter;
 
 use crate::backend::{CollabBackend, MessageRx, MessageTx};
-use crate::event::{self, BufferEvent, Event};
+use crate::event::{BufferEvent, Event};
 use crate::leave::StopSession;
 use crate::project::ProjectHandle;
 use crate::seq_ext::StreamableSeq;
@@ -73,6 +65,7 @@ pub(crate) struct EventRx<B: CollabBackend> {
     /// should be part of the project.
     fs_filter: B::FsFilter,
     new_buffer_rx: flume::r#async::RecvStream<'static, B::BufferId>,
+    #[allow(dead_code)]
     new_buffers_handle: B::EventHandle,
     /// Map from a file's node ID to the ID of the corresponding buffer.
     node_to_buf_ids: FxHashMap<<B::Fs as Fs>::NodeId, B::BufferId>,
@@ -261,7 +254,7 @@ impl<B: CollabBackend> EventRx<B> {
                 } else {
                     // The directory was moved outside the root's subtree,
                     // which is effectively the same as it being deleted.
-                    self.directory_streams.remove(&r#move.node_id);
+                    self.directory_streams.swap_remove(&r#move.node_id);
                     Some(DirectoryEvent::Deletion(NodeDeletion {
                         node_id: r#move.node_id,
                         node_path: r#move.old_path,
@@ -310,7 +303,7 @@ impl<B: CollabBackend> EventRx<B> {
                 } else {
                     // The file was moved outside the root's subtree, which is
                     // effectively the same as it being deleted.
-                    self.file_streams.remove(&r#move.node_id);
+                    self.file_streams.swap_remove(&r#move.node_id);
 
                     if let Some(buf_id) =
                         self.node_to_buf_ids.get(&r#move.node_id)
