@@ -770,47 +770,47 @@ impl Default for FsInner {
     }
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-#[error("dir entry does not exist")]
+#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
+#[display("dir entry does not exist")]
 pub struct DirEntryDoesNotExistError;
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
 pub enum DeleteNodeError {
-    #[error("cannot delete root")]
+    #[display("cannot delete root")]
     NodeIsRoot,
 
-    #[error("no node at {:?}", .0)]
+    #[display("no node at {_0:?}")]
     NodeDoesNotExist(AbsPathBuf),
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
 pub enum ReadDirError {
-    #[error("no node at path")]
+    #[display("no node at path")]
     NoNodeAtPath,
-    #[error("no directory at path")]
+    #[display("no directory at path")]
     NoDirAtPath,
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
 pub enum ReadDirNextError {
-    #[error("directory has been deleted")]
+    #[display("directory has been deleted")]
     DirWasDeleted,
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
 pub enum CreateNodeError {
-    #[error(transparent)]
+    #[display("{_0}")]
     AlreadyExists(NodeAlreadyExistsError),
 
-    #[error("parent directory does not exist: {:?}", .0)]
+    #[display("parent directory does not exist: {_0:?}")]
     ParentDoesNotExist(AbsPathBuf),
 
-    #[error("node at {:?} is a file, not a directory", .0)]
+    #[display("node at {_0:?} is a file, not a directory")]
     ParentIsFile(AbsPathBuf),
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-#[error("a {:?} already exists at {:?}", .kind, .path)]
+#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
+#[display("a {kind:?} already exists at {path:?}")]
 pub struct NodeAlreadyExistsError {
     kind: NodeKind,
     path: AbsPathBuf,

@@ -14,11 +14,13 @@ use crate::collab::Collab;
 use crate::project::{NoActiveSessionError, Projects};
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub struct Leave<B: CollabBackend> {
     channels: StopChannels<B>,
     projects: Projects<B>,
 }
 
+#[derive(cauchy::Clone, cauchy::Default)]
 pub(crate) struct StopChannels<B: CollabBackend> {
     inner: Shared<FxHashMap<SessionId<B>, Sender<StopSession>>>,
 }
@@ -70,15 +72,6 @@ impl<B: CollabBackend> StopChannels<B> {
     }
 }
 
-impl<B: CollabBackend> Clone for Leave<B> {
-    fn clone(&self) -> Self {
-        Self {
-            channels: self.channels.clone(),
-            projects: self.projects.clone(),
-        }
-    }
-}
-
 impl<B: CollabBackend> From<&Collab<B>> for Leave<B> {
     fn from(collab: &Collab<B>) -> Self {
         Self {
@@ -90,16 +83,4 @@ impl<B: CollabBackend> From<&Collab<B>> for Leave<B> {
 
 impl<B: CollabBackend> ToCompletionFn<B> for Leave<B> {
     fn to_completion_fn(&self) {}
-}
-
-impl<B: CollabBackend> Default for StopChannels<B> {
-    fn default() -> Self {
-        Self { inner: Default::default() }
-    }
-}
-
-impl<B: CollabBackend> Clone for StopChannels<B> {
-    fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
-    }
 }

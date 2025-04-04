@@ -23,6 +23,7 @@ use crate::session::Session;
 use crate::start::UserNotLoggedInError;
 
 /// The `Action` used to join an existing collaborative editing session.
+#[derive(cauchy::Clone)]
 pub struct Join<B: CollabBackend> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
@@ -261,8 +262,7 @@ impl<'a> ProjectTree<'a> {
 }
 
 /// The type of error that can occur when [`Join`]ing a session fails.
-#[derive(derive_more::Debug)]
-#[debug(bound(B: CollabBackend))]
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum JoinError<B: CollabBackend> {
     /// TODO: docs.
     ConnectToServer(B::ConnectToServerError),
@@ -288,21 +288,20 @@ pub enum JoinError<B: CollabBackend> {
 
 /// The type of error that can occur when requesting the state of the project
 /// from another peer in a session fails.
-#[derive(Debug)]
+#[derive(Debug, cauchy::PartialEq)]
 pub enum RequestProjectError {
     /// TODO: docs.
-    RecvResponse(client::ClientRxError),
+    RecvResponse(#[partial_eq(skip)] client::ClientRxError),
 
     /// TODO: docs.
-    SendRequest(io::Error),
+    SendRequest(#[partial_eq(skip)] io::Error),
 
     /// TODO: docs.
     SessionEnded,
 }
 
 /// TODO: docs.
-#[derive(derive_more::Debug)]
-#[debug(bound(Fs: fs::Fs))]
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum FlushProjectError<Fs: fs::Fs> {
     /// TODO: docs.
     CreateDirectory(<Fs::Directory as fs::Directory>::CreateDirectoryError),
@@ -326,17 +325,6 @@ pub enum FlushProjectError<Fs: fs::Fs> {
     WriteToFile(<Fs::File as fs::File>::WriteError),
 }
 
-impl<B: CollabBackend> Clone for Join<B> {
-    fn clone(&self) -> Self {
-        Self {
-            auth_infos: self.auth_infos.clone(),
-            config: self.config.clone(),
-            stop_channels: self.stop_channels.clone(),
-            projects: self.projects.clone(),
-        }
-    }
-}
-
 impl<B: CollabBackend> From<&Collab<B>> for Join<B> {
     fn from(collab: &Collab<B>) -> Self {
         Self {
@@ -350,33 +338,6 @@ impl<B: CollabBackend> From<&Collab<B>> for Join<B> {
 
 impl<B: CollabBackend> ToCompletionFn<B> for Join<B> {
     fn to_completion_fn(&self) {}
-}
-
-impl<B> PartialEq for JoinError<B>
-where
-    B: CollabBackend,
-    B::ConnectToServerError: PartialEq,
-    B::DefaultDirForRemoteProjectsError: PartialEq,
-    FlushProjectError<B::Fs>: PartialEq,
-    // client::KnockError<B::ServerConfig>: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use JoinError::*;
-
-        match (self, other) {
-            (ConnectToServer(l), ConnectToServer(r)) => l == r,
-            (
-                DefaultDirForRemoteProjects(l),
-                DefaultDirForRemoteProjects(r),
-            ) => l == r,
-            (FlushProject(l), FlushProject(r)) => l == r,
-            (Knock(_l), Knock(_r)) => todo!(),
-            (OverlappingProject(l), OverlappingProject(r)) => l == r,
-            (RequestProject(_l), RequestProject(_r)) => todo!(),
-            (UserNotLoggedIn, UserNotLoggedIn) => true,
-            _ => false,
-        }
-    }
 }
 
 impl<B: CollabBackend> notify::Error for JoinError<B> {
@@ -395,32 +356,6 @@ impl<B: CollabBackend> notify::Error for JoinError<B> {
     }
 }
 
-impl<Fs: fs::Fs> PartialEq for FlushProjectError<Fs>
-where
-    <Fs::Directory as fs::Directory>::CreateDirectoryError: PartialEq,
-    <Fs::Directory as fs::Directory>::CreateFileError: PartialEq,
-    <Fs::Directory as fs::Directory>::ClearError: PartialEq,
-    fs::NodeDeleteError<Fs>: PartialEq,
-    Fs::CreateDirectoryError: PartialEq,
-    Fs::NodeAtPathError: PartialEq,
-    <Fs::File as fs::File>::WriteError: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use FlushProjectError::*;
-
-        match (self, other) {
-            (CreateDirectory(l), CreateDirectory(r)) => l == r,
-            (CreateFile(l), CreateFile(r)) => l == r,
-            (ClearRoot(l), ClearRoot(r)) => l == r,
-            (DeleteNodeAtRoot(l), DeleteNodeAtRoot(r)) => l == r,
-            (GetOrCreateRoot(l), GetOrCreateRoot(r)) => l == r,
-            (GetNodeAtRoot(l), GetNodeAtRoot(r)) => l == r,
-            (WriteToFile(l), WriteToFile(r)) => l == r,
-            _ => false,
-        }
-    }
-}
-
 impl<Fs: fs::Fs> notify::Error for FlushProjectError<Fs> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         let err: &dyn fmt::Display = match self {
@@ -433,19 +368,6 @@ impl<Fs: fs::Fs> notify::Error for FlushProjectError<Fs> {
             Self::WriteToFile(err) => err,
         };
         (notify::Level::Error, notify::Message::from_display(err))
-    }
-}
-
-impl PartialEq for RequestProjectError {
-    fn eq(&self, other: &Self) -> bool {
-        use RequestProjectError::*;
-
-        match (self, other) {
-            (RecvResponse(_l), RecvResponse(_r)) => todo!(),
-            (SendRequest(l), SendRequest(r)) => l.kind() == r.kind(),
-            (SessionEnded, SessionEnded) => true,
-            _ => false,
-        }
     }
 }
 

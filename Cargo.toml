@@ -12,8 +12,9 @@ publish = false
 [workspace.dependencies]
 abs-path = { git = "ssh://git@github.com/nomad/abs-path.git" }
 async-net = "2"
+cauchy = { git = "ssh://git@github.com/nomad/cauchy.git" }
 compact_str = "0.9"
-derive_more = { version = "2", features = ["debug"] }
+derive_more = { version = "2", features = ["display"] }
 flume = { version = "0.11", features = ["async"] }
 futures-lite = { version = "2", default-features = false }
 futures-util = { version = "0.3", default-features = false }
@@ -25,7 +26,6 @@ serde = "1"
 smallvec = "1"
 smol_str = "0.3"
 strsim = "0.11"
-thiserror = "2"
 tracing = "0.1"
 
 ed = { path = "./lib/ed" }
@@ -52,6 +52,7 @@ nvimx-fs = { path = "./lib/nvimx/nvimx-fs" }
 nvimx-macros = { path = "./lib/nvimx/nvimx-macros" }
 nvimx-plugin = { path = "./lib/nvimx/nvimx-plugin" }
 nvimx-ui = { path = "./lib/nvimx/nvimx-ui" }
+thiserror = "2"
 
 [workspace.lints.clippy]
 bool_to_int_with_if = "deny"

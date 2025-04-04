@@ -28,6 +28,7 @@ pub struct Project<B: CollabBackend> {
 }
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub struct ProjectHandle<B: CollabBackend> {
     inner: Shared<Project<B>>,
     is_dropping_last_instance: Shared<bool>,
@@ -47,6 +48,7 @@ pub struct OverlappingProjectError {
 /// TODO: docs.
 pub struct NoActiveSessionError<B>(PhantomData<B>);
 
+#[derive(cauchy::Clone, cauchy::Default)]
 pub(crate) struct Projects<B: CollabBackend> {
     active: Shared<FxHashMap<SessionId<B>, ProjectHandle<B>>>,
     starting: Shared<FxHashSet<AbsPathBuf>>,
@@ -232,16 +234,6 @@ impl<B> NoActiveSessionError<B> {
     }
 }
 
-impl<B: CollabBackend> Clone for ProjectHandle<B> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            is_dropping_last_instance: self.is_dropping_last_instance.clone(),
-            projects: self.projects.clone(),
-        }
-    }
-}
-
 impl<B: CollabBackend> Drop for ProjectHandle<B> {
     fn drop(&mut self) {
         if self.inner.strong_count() == 2
@@ -253,18 +245,6 @@ impl<B: CollabBackend> Drop for ProjectHandle<B> {
                 map.remove(&self.session_id());
             });
         }
-    }
-}
-
-impl<B: CollabBackend> Default for Projects<B> {
-    fn default() -> Self {
-        Self { active: Default::default(), starting: Default::default() }
-    }
-}
-
-impl<B: CollabBackend> Clone for Projects<B> {
-    fn clone(&self) -> Self {
-        Self { active: self.active.clone(), starting: self.starting.clone() }
     }
 }
 

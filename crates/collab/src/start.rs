@@ -41,6 +41,7 @@ use crate::session::{EventRx, Session};
 type Markers = root_markers::GitDirectory;
 
 /// The `Action` used to start a new collaborative editing session.
+#[derive(cauchy::Clone)]
 pub struct Start<B: CollabBackend> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
@@ -351,8 +352,7 @@ async fn search_project_root<B: CollabBackend>(
 }
 
 /// The type of error that can occur when [`Start`]ing a session fails.
-#[derive(derive_more::Debug)]
-#[debug(bound(B: CollabBackend))]
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum StartError<B: CollabBackend> {
     /// TODO: docs.
     ConnectToServer(B::ConnectToServerError),
@@ -387,16 +387,14 @@ pub type WalkError<B> = walkdir::WalkError<
 >;
 
 /// TODO: docs.
-#[derive(derive_more::Debug)]
-#[debug(bound(B: CollabBackend))]
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum ReadReplicaError<B: CollabBackend> {
     /// TODO: docs.
     Walk(WalkError<B>),
 }
 
 /// TODO: docs.
-#[derive(derive_more::Debug)]
-#[debug(bound(B: CollabBackend))]
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum SearchProjectRootError<B: CollabBackend> {
     /// TODO: docs.
     BufNameNotAbsolutePath(String),
@@ -423,17 +421,6 @@ pub(crate) struct UserNotLoggedInError<B>(PhantomData<B>);
 /// TODO: docs.
 struct NoBufferFocusedError<B>(PhantomData<B>);
 
-impl<B: CollabBackend> Clone for Start<B> {
-    fn clone(&self) -> Self {
-        Self {
-            auth_infos: self.auth_infos.clone(),
-            config: self.config.clone(),
-            stop_channels: self.stop_channels.clone(),
-            projects: self.projects.clone(),
-        }
-    }
-}
-
 impl<B: CollabBackend> From<&Collab<B>> for Start<B> {
     fn from(collab: &Collab<B>) -> Self {
         Self {
@@ -458,31 +445,6 @@ impl<B> NoBufferFocusedError<B> {
 impl<B> UserNotLoggedInError<B> {
     pub(crate) fn new() -> Self {
         Self(PhantomData)
-    }
-}
-
-impl<B> PartialEq for StartError<B>
-where
-    B: CollabBackend,
-    B::ConnectToServerError: PartialEq,
-    // client::KnockError<B::ServerConfig>: PartialEq,
-    ReadReplicaError2<B>: PartialEq,
-    SearchProjectRootError<B>: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use StartError::*;
-
-        match (self, other) {
-            (ConnectToServer(l), ConnectToServer(r)) => l == r,
-            (Knock(_l), Knock(_r)) => todo!(),
-            (NoBufferFocused, NoBufferFocused) => true,
-            (OverlappingProject(l), OverlappingProject(r)) => l == r,
-            (ProjectRootIsFsRoot, ProjectRootIsFsRoot) => true,
-            (ReadReplica(l), ReadReplica(r)) => l == r,
-            (SearchProjectRoot(l), SearchProjectRoot(r)) => l == r,
-            (UserNotLoggedIn, UserNotLoggedIn) => true,
-            _ => false,
-        }
     }
 }
 
@@ -517,19 +479,6 @@ impl<B> notify::Error for NoBufferFocusedError<B> {
     }
 }
 
-impl<B: CollabBackend> PartialEq for ReadReplicaError<B>
-where
-    WalkError<B>: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use ReadReplicaError::*;
-
-        match (self, other) {
-            (Walk(l), Walk(r)) => l == r,
-        }
-    }
-}
-
 impl<B: CollabBackend> notify::Error for ReadReplicaError<B> {
     default fn to_message(&self) -> (notify::Level, notify::Message) {
         let msg = match self {
@@ -542,28 +491,6 @@ impl<B: CollabBackend> notify::Error for ReadReplicaError<B> {
 impl<B: CollabBackend> notify::Error for ReadReplicaError2<B> {
     default fn to_message(&self) -> (notify::Level, notify::Message) {
         todo!();
-    }
-}
-
-impl<B: CollabBackend> PartialEq for SearchProjectRootError<B>
-where
-    B::BufferId: PartialEq,
-    B::HomeDirError: PartialEq,
-    B::LspRootError: PartialEq,
-    root_markers::FindRootError<B::Fs, Markers>: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use SearchProjectRootError::*;
-
-        match (self, other) {
-            (BufNameNotAbsolutePath(l), BufNameNotAbsolutePath(r)) => l == r,
-            (CouldntFindRoot(l), CouldntFindRoot(r)) => l == r,
-            (FindRoot(l), FindRoot(r)) => l == r,
-            (HomeDir(l), HomeDir(r)) => l == r,
-            (InvalidBufId(l), InvalidBufId(r)) => l == r,
-            (Lsp(l), Lsp(r)) => l == r,
-            _ => false,
-        }
     }
 }
 

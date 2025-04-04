@@ -11,8 +11,9 @@ os-fs = ["dep:async-fs", "dep:notify", "futures-util/io"]
 
 [dependencies]
 abs-path = { workspace = true, features = ["serde"] }
+cauchy = { workspace = true }
 compact_str = { workspace = true }
-derive_more = { workspace = true, features = ["debug"] }
+derive_more = { workspace = true }
 flume = { workspace = true, features = ["async"] }
 futures-lite = { workspace = true, features = ["std"] }
 futures-util = { workspace = true, features = ["async-await-macro"] }
@@ -22,7 +23,6 @@ serde = { workspace = true }
 smallvec = { workspace = true }
 smol_str = { workspace = true }
 strsim = { workspace = true }
-thiserror = { workspace = true }
 
 async-fs = { version = "2", optional = true }
 notify = { version = "8", optional = true }

@@ -11,6 +11,7 @@ use crate::project::{NoActiveSessionError, Projects};
 
 /// An `Action` that pastes the [`SessionId`] of any active session to the
 /// user's clipboard.
+#[derive(cauchy::Clone)]
 pub struct Yank<B: CollabBackend> {
     projects: Projects<B>,
 }
@@ -47,12 +48,6 @@ pub enum YankError<B: CollabBackend> {
 
     /// TODO: docs.
     PasteSessionId(B::CopySessionIdError),
-}
-
-impl<B: CollabBackend> Clone for Yank<B> {
-    fn clone(&self) -> Self {
-        Self { projects: self.projects.clone() }
-    }
 }
 
 impl<B: CollabBackend> From<&Collab<B>> for Yank<B> {

@@ -77,32 +77,21 @@ pub(crate) struct EventRx<B: CollabBackend> {
     saved_buffers: Shared<FxHashSet<B::BufferId>>,
 }
 
-#[derive(derive_more::Debug, thiserror::Error)]
-#[debug(bounds(B: CollabBackend))]
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::From)]
+#[display("{_0}")]
 pub(crate) enum SessionError<B: CollabBackend> {
-    #[error(transparent)]
     EventRx(#[from] EventRxError<B>),
-
-    #[error(transparent)]
     MessageRx(#[from] ClientRxError),
-
-    #[error("the server kicked this peer out of the session")]
+    #[display("the server kicked this peer out of the session")]
     MessageRxExhausted,
-
-    #[error(transparent)]
     MessageTx(#[from] io::Error),
 }
 
-#[derive(derive_more::Debug, thiserror::Error)]
-#[debug(bounds(B: CollabBackend))]
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
 pub(crate) enum EventRxError<B: CollabBackend> {
-    #[error(transparent)]
     FsFilter(<B::FsFilter as walkdir::Filter<B::Fs>>::Error),
-
-    #[error(transparent)]
     Metadata(fs::NodeMetadataError<B::Fs>),
-
-    #[error(transparent)]
     NodeAtPath(<B::Fs as Fs>::NodeAtPathError),
 }
 

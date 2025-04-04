@@ -43,7 +43,8 @@ pub struct And<F1, F2> {
 }
 
 /// TODO: docs.
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
 pub enum Either<L, R> {
     /// TODO: docs.
     Left(L),
@@ -52,6 +53,8 @@ pub enum Either<L, R> {
 }
 
 /// TODO: docs.
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
 pub enum FilteredEntryError<Fi, Fs, W>
 where
     Fi: Filter<Fs>,
@@ -209,63 +212,4 @@ where
             }
         }
     }
-}
-
-impl<L, R> fmt::Display for Either<L, R>
-where
-    L: fmt::Display,
-    R: fmt::Display,
-{
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Either::Left(left) => left.fmt(f),
-            Either::Right(right) => right.fmt(f),
-        }
-    }
-}
-
-impl<L, R> Error for Either<L, R>
-where
-    L: Error,
-    R: Error,
-{
-}
-
-impl<Fi, Fs, W> fmt::Debug for FilteredEntryError<Fi, Fs, W>
-where
-    Fi: Filter<Fs>,
-    W: WalkDir<Fs>,
-    Fs: fs::Fs,
-{
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FilteredEntryError::Filter(err) => err.fmt(f),
-            FilteredEntryError::Walker(err) => err.fmt(f),
-        }
-    }
-}
-
-impl<Fi, Fs, W> fmt::Display for FilteredEntryError<Fi, Fs, W>
-where
-    Fi: Filter<Fs>,
-    W: WalkDir<Fs>,
-    Fs: fs::Fs,
-{
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FilteredEntryError::Filter(err) => err.fmt(f),
-            FilteredEntryError::Walker(err) => err.fmt(f),
-        }
-    }
-}
-
-impl<Fi, Fs, W> Error for FilteredEntryError<Fi, Fs, W>
-where
-    Fi: Filter<Fs>,
-    W: WalkDir<Fs>,
-    Fs: fs::Fs,
-{
 }

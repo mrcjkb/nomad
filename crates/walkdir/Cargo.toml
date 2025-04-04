@@ -11,11 +11,11 @@ default = ["gitignore"]
 gitignore = ["dep:compact_str", "ed/os-fs"]
 
 [dependencies]
+cauchy = { workspace = true }
 derive_more = { workspace = true }
 ed = { workspace = true }
 flume = { workspace = true, features = ["async"] }
 futures-util = { workspace = true, features = ["default"] }
-thiserror = { workspace = true }
 
 compact_str = { workspace = true, optional = true }
 

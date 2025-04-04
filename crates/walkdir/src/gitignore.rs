@@ -26,24 +26,24 @@ pub struct GitIgnore {
 }
 
 /// TODO: docs.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, cauchy::Error)]
 pub enum GitIgnoreError {
-    #[error(
-        "Running {cmd:?} failed with exit code {0:?}",
+    #[display(
+        "Running {cmd:?} failed with exit code {_0:?}",
         cmd = GitIgnore::command()
     )]
     FailedCommand(ExitStatus),
 
-    #[error("Running {cmd:?} failed: {0}", cmd = GitIgnore::command())]
+    #[display("Running {cmd:?} failed: {_0}", cmd = GitIgnore::command())]
     GitCommand(io::Error),
 
-    #[error("{node_name:?} is not a valid node name: {err:?}")]
+    #[display("{node_name:?} is not a valid node name: {err:?}")]
     NotNodeName { node_name: String, err: fs::InvalidNodeNameError },
 
-    #[error("{path:?} is not in {dir_path:?}")]
+    #[display("{path:?} is not in {dir_path:?}")]
     NotInDir { path: AbsPathBuf, dir_path: AbsPathBuf },
 
-    #[error(
+    #[display(
         "The stdout of {cmd:?} was not valid UTF-8",
         cmd = GitIgnore::command()
     )]

@@ -285,7 +285,9 @@ version = "0.1.0-dev"
 dependencies = [
  "async-broadcast",
  "async-task",
+ "cauchy",
  "crop",
+ "derive_more",
  "ed-core",
  "flume",
  "futures-lite",
@@ -295,7 +297,6 @@ dependencies = [
  "pin-project-lite",
  "serde",
  "serde_json",
- "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -314,7 +315,6 @@ dependencies = [
  "serde_path_to_error",
  "smallvec",
  "strsim",
- "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -495,6 +495,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cauchy"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/cauchy.git#58624c13983138b3de688b798d0895d0b7100719"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -637,6 +647,7 @@ dependencies = [
  "abs-path",
  "async-net",
  "auth",
+ "cauchy",
  "clipboard",
  "collab-server",
  "concurrent-queue",
@@ -655,7 +666,6 @@ dependencies = [
  "serde",
  "smallvec",
  "smol_str",
- "thiserror 2.0.12",
  "walkdir 0.1.0-dev",
 ]
 
@@ -966,6 +976,7 @@ version = "0.1.0-dev"
 dependencies = [
  "abs-path",
  "async-fs",
+ "cauchy",
  "compact_str 0.9.0",
  "derive_more",
  "flume",
@@ -978,7 +989,6 @@ dependencies = [
  "smallvec",
  "smol_str",
  "strsim",
- "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -3041,12 +3051,12 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "walkdir"
 version = "0.1.0-dev"
 dependencies = [
+ "cauchy",
  "compact_str 0.9.0",
  "derive_more",
  "ed",
  "flume",
  "futures-util",
- "thiserror 2.0.12",
 ]
 
 [[package]]

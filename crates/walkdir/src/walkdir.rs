@@ -145,6 +145,10 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
 }
 
 /// TODO: docs.
+#[derive(
+    cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq,
+)]
+#[display("{_0}")]
 pub enum WalkError<Fs, W, T>
 where
     Fs: fs::Fs,
@@ -164,10 +168,13 @@ where
 }
 
 /// TODO: docs.
-#[derive(derive_more::Debug)]
-#[debug(bound(Fs: fs::Fs))]
+#[derive(
+    cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq,
+)]
+#[display("{_0}")]
 pub enum FsReadDirError<Fs: fs::Fs> {
     /// TODO: docs.
+    #[display("no node at path")]
     NoNodeAtPath,
 
     /// TODO: docs.
@@ -177,9 +184,11 @@ pub enum FsReadDirError<Fs: fs::Fs> {
     ReadDir(<Fs::Directory as fs::Directory>::ReadError),
 
     /// TODO: docs.
+    #[display("couldn't read file at path")]
     ReadFile,
 
     /// TODO: docs.
+    #[display("couldn't read symlink at path")]
     ReadSymlink,
 }
 
@@ -215,103 +224,3 @@ impl<Fs: fs::Fs> WalkDir<Self> for Fs {
         }
     }
 }
-
-impl<Fs, W, T> PartialEq for WalkError<Fs, W, T>
-where
-    Fs: fs::Fs,
-    W: WalkDir<Fs>,
-    T: PartialEq,
-    W::ReadError: PartialEq,
-    W::ReadEntryError: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use WalkError::*;
-
-        match (self, other) {
-            (Other(l), Other(r)) => l == r,
-            (NodeName(l), NodeName(r)) => l == r,
-            (ReadDir(l), ReadDir(r)) => l == r,
-            (ReadEntry(l), ReadEntry(r)) => l == r,
-            _ => false,
-        }
-    }
-}
-
-impl<Fs, W, T> fmt::Debug for WalkError<Fs, W, T>
-where
-    Fs: fs::Fs,
-    W: WalkDir<Fs>,
-    T: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Other(err) => fmt::Debug::fmt(err, f),
-            Self::NodeName(err) => fmt::Debug::fmt(err, f),
-            Self::ReadDir(err) => fmt::Debug::fmt(err, f),
-            Self::ReadEntry(err) => fmt::Debug::fmt(err, f),
-        }
-    }
-}
-
-impl<Fs, W, T> fmt::Display for WalkError<Fs, W, T>
-where
-    Fs: fs::Fs,
-    W: WalkDir<Fs>,
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Other(err) => fmt::Display::fmt(err, f),
-            Self::NodeName(err) => fmt::Display::fmt(err, f),
-            Self::ReadDir(err) => fmt::Display::fmt(err, f),
-            Self::ReadEntry(err) => fmt::Display::fmt(err, f),
-        }
-    }
-}
-
-impl<Fs, W, T> Error for WalkError<Fs, W, T>
-where
-    Fs: fs::Fs,
-    W: WalkDir<Fs>,
-    T: Error,
-{
-}
-
-impl<Fs: fs::Fs> PartialEq for FsReadDirError<Fs>
-where
-    Fs::NodeAtPathError: PartialEq,
-    <Fs::Directory as fs::Directory>::ReadError: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use FsReadDirError::*;
-
-        match (self, other) {
-            (NoNodeAtPath, NoNodeAtPath) => true,
-            (NodeAtPath(l), NodeAtPath(r)) => l == r,
-            (ReadDir(l), ReadDir(r)) => l == r,
-            (ReadFile, ReadFile) => true,
-            (ReadSymlink, ReadSymlink) => true,
-            _ => false,
-        }
-    }
-}
-
-impl<Fs: fs::Fs> fmt::Display for FsReadDirError<Fs> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FsReadDirError::NoNodeAtPath => {
-                write!(f, "no node at path")
-            },
-            FsReadDirError::NodeAtPath(err) => fmt::Display::fmt(err, f),
-            FsReadDirError::ReadDir(err) => fmt::Display::fmt(err, f),
-            FsReadDirError::ReadFile => {
-                write!(f, "couldn't read file at path")
-            },
-            FsReadDirError::ReadSymlink => {
-                write!(f, "couldn't read symlink at path")
-            },
-        }
-    }
-}
-
-impl<Fs: fs::Fs> Error for FsReadDirError<Fs> {}

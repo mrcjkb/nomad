@@ -26,6 +26,7 @@ neovim = [
 [dependencies]
 abs-path = { workspace = true, features = ["macros"] }
 auth = { workspace = true }
+cauchy = { workspace = true }
 collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = [
   "client",
 ] }
@@ -42,7 +43,6 @@ pin-project-lite = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 smallvec = { workspace = true, features = ["const_new"] }
 smol_str = { workspace = true }
-thiserror = { workspace = true }
 walkdir = { workspace = true }
 
 # Mock-only dependencies.

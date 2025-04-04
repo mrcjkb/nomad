@@ -1,11 +1,9 @@
-use core::error::Error;
-use core::fmt;
-
 use abs_path::AbsPath;
 
 use crate::fs::{self, Directory, File, NodeKind, Symlink};
 
 /// TODO: docs.
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum FsNode<Fs: fs::Fs> {
     /// TODO: docs.
     File(Fs::File),
@@ -18,8 +16,10 @@ pub enum FsNode<Fs: fs::Fs> {
 }
 
 /// TODO: docs.
-#[derive(derive_more::Debug)]
-#[debug(bound(Fs: fs::Fs))]
+#[derive(
+    cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq,
+)]
+#[display("{_0}")]
 pub enum NodeDeleteError<Fs: fs::Fs> {
     /// TODO: docs.
     File(<Fs::File as File>::DeleteError),
@@ -32,8 +32,10 @@ pub enum NodeDeleteError<Fs: fs::Fs> {
 }
 
 /// TODO: docs.
-#[derive(derive_more::Debug)]
-#[debug(bound(Fs: fs::Fs))]
+#[derive(
+    cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq,
+)]
+#[display("{_0}")]
 pub enum NodeMetadataError<Fs: fs::Fs> {
     /// TODO: docs.
     File(<Fs::File as File>::MetadataError),
@@ -120,102 +122,3 @@ impl<Fs: fs::Fs> FsNode<Fs> {
         }
     }
 }
-
-impl<Fs: fs::Fs> fmt::Debug for FsNode<Fs>
-where
-    Fs::File: fmt::Debug,
-    Fs::Directory: fmt::Debug,
-    Fs::Symlink: fmt::Debug,
-{
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::File(file) => fmt::Debug::fmt(file, f),
-            Self::Directory(dir) => fmt::Debug::fmt(dir, f),
-            Self::Symlink(symlink) => fmt::Debug::fmt(symlink, f),
-        }
-    }
-}
-
-impl<Fs: fs::Fs> PartialEq for FsNode<Fs>
-where
-    Fs::File: PartialEq,
-    Fs::Directory: PartialEq,
-    Fs::Symlink: PartialEq,
-{
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        use FsNode::*;
-
-        match (self, other) {
-            (File(l), File(r)) => l == r,
-            (Directory(l), Directory(r)) => l == r,
-            (Symlink(l), Symlink(r)) => l == r,
-            _ => false,
-        }
-    }
-}
-
-impl<Fs: fs::Fs> PartialEq for NodeDeleteError<Fs>
-where
-    <Fs::File as File>::DeleteError: PartialEq,
-    <Fs::Directory as Directory>::DeleteError: PartialEq,
-    <Fs::Symlink as Symlink>::DeleteError: PartialEq,
-{
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        use NodeDeleteError::*;
-
-        match (self, other) {
-            (File(l), File(r)) => l == r,
-            (Directory(l), Directory(r)) => l == r,
-            (Symlink(l), Symlink(r)) => l == r,
-            _ => false,
-        }
-    }
-}
-
-impl<Fs: fs::Fs> fmt::Display for NodeDeleteError<Fs> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::File(err) => fmt::Display::fmt(err, f),
-            Self::Directory(err) => fmt::Display::fmt(err, f),
-            Self::Symlink(err) => fmt::Display::fmt(err, f),
-        }
-    }
-}
-
-impl<Fs: fs::Fs> Error for NodeDeleteError<Fs> {}
-
-impl<Fs: fs::Fs> PartialEq for NodeMetadataError<Fs>
-where
-    <Fs::File as File>::MetadataError: PartialEq,
-    <Fs::Directory as Directory>::MetadataError: PartialEq,
-    <Fs::Symlink as Symlink>::MetadataError: PartialEq,
-{
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        use NodeMetadataError::*;
-
-        match (self, other) {
-            (File(l), File(r)) => l == r,
-            (Directory(l), Directory(r)) => l == r,
-            (Symlink(l), Symlink(r)) => l == r,
-            _ => false,
-        }
-    }
-}
-
-impl<Fs: fs::Fs> fmt::Display for NodeMetadataError<Fs> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::File(err) => fmt::Display::fmt(err, f),
-            Self::Directory(err) => fmt::Display::fmt(err, f),
-            Self::Symlink(err) => fmt::Display::fmt(err, f),
-        }
-    }
-}
-
-impl<Fs: fs::Fs> Error for NodeMetadataError<Fs> {}

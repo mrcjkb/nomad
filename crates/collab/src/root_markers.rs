@@ -35,8 +35,7 @@ pub trait RootMarker<Fs: fs::Fs> {
     ) -> impl Future<Output = Result<bool, Self::Error>>;
 }
 
-#[derive(derive_more::Debug)]
-#[debug(bounds(Fs: fs::Fs, M: RootMarker<Fs>))]
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub struct FindRootError<Fs: fs::Fs, M: RootMarker<Fs>> {
     /// The path to the file or directory at which the error occurred.
     pub path: fs::AbsPathBuf,
@@ -45,8 +44,7 @@ pub struct FindRootError<Fs: fs::Fs, M: RootMarker<Fs>> {
     pub kind: FindRootErrorKind<Fs, M>,
 }
 
-#[derive(derive_more::Debug)]
-#[debug(bounds(Fs: fs::Fs, M: RootMarker<Fs>))]
+#[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum FindRootErrorKind<Fs: fs::Fs, M: RootMarker<Fs>> {
     DirEntry(DirEntryError<Fs>),
     FollowSymlink(<Fs::Symlink as fs::Symlink>::FollowError),
@@ -57,8 +55,10 @@ pub enum FindRootErrorKind<Fs: fs::Fs, M: RootMarker<Fs>> {
     StartsAtDanglingSymlink,
 }
 
-#[derive(derive_more::Debug)]
-#[debug(bound(Fs: fs::Fs))]
+#[derive(
+    cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq,
+)]
+#[display("{_0}")]
 pub enum DirEntryError<Fs: fs::Fs> {
     Access(<Fs::Directory as fs::Directory>::ReadEntryError),
     Name(MetadataNameError),
@@ -198,15 +198,6 @@ impl<Fs: fs::Fs> RootMarker<Fs> for GitDirectory {
     }
 }
 
-impl<Fs: fs::Fs, M: RootMarker<Fs>> PartialEq for FindRootError<Fs, M>
-where
-    FindRootErrorKind<Fs, M>: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path && self.kind == other.kind
-    }
-}
-
 impl<Fs, M> notify::Error for FindRootError<Fs, M>
 where
     Fs: fs::Fs,
@@ -272,48 +263,6 @@ where
     }
 }
 
-impl<Fs: fs::Fs, M: RootMarker<Fs>> PartialEq for FindRootErrorKind<Fs, M>
-where
-    DirEntryError<Fs>: PartialEq,
-    <Fs::Symlink as fs::Symlink>::FollowError: PartialEq,
-    M::Error: PartialEq,
-    Fs::NodeAtPathError: PartialEq,
-    <Fs::Directory as fs::Directory>::ReadError: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use FindRootErrorKind::*;
-
-        match (self, other) {
-            (DirEntry(l), DirEntry(r)) => l == r,
-            (FollowSymlink(l), FollowSymlink(r)) => l == r,
-            (
-                Marker { dir_entry_name: l, err: l_err },
-                Marker { dir_entry_name: r, err: r_err },
-            ) => l == r && l_err == r_err,
-            (NodeAtStartPath(l), NodeAtStartPath(r)) => l == r,
-            (ReadDir(l), ReadDir(r)) => l == r,
-            (StartPathNotFound, StartPathNotFound) => true,
-            (StartsAtDanglingSymlink, StartsAtDanglingSymlink) => true,
-            _ => false,
-        }
-    }
-}
-
-impl<Fs: fs::Fs> PartialEq for DirEntryError<Fs>
-where
-    <Fs::Directory as fs::Directory>::ReadEntryError: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        use DirEntryError::*;
-
-        match (self, other) {
-            (Access(l), Access(r)) => l == r,
-            (Name(l), Name(r)) => l == r,
-            _ => false,
-        }
-    }
-}
-
 impl<Fs: fs::Fs, M: RootMarker<Fs>> fmt::Display for FindRootError<Fs, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
@@ -373,14 +322,3 @@ impl<Fs: fs::Fs, M: RootMarker<Fs>> fmt::Display for FindRootError<Fs, M> {
         }
     }
 }
-
-impl<Fs: fs::Fs> fmt::Display for DirEntryError<Fs> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DirEntryError::Access(err) => err.fmt(f),
-            DirEntryError::Name(err) => err.fmt(f),
-        }
-    }
-}
-
-impl<Fs: fs::Fs> Error for DirEntryError<Fs> {}
