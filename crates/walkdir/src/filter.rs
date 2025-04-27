@@ -10,14 +10,14 @@ use crate::WalkDir;
 /// TODO: docs.
 pub trait Filter<Fs: fs::Fs> {
     /// TODO: docs.
-    type Error: Error;
+    type Error: Error + Send;
 
     /// TODO: docs.
     fn should_filter(
         &self,
         dir_path: &AbsPath,
         node_meta: &impl Metadata<Fs = Fs>,
-    ) -> impl Future<Output = Result<bool, Self::Error>>;
+    ) -> impl Future<Output = Result<bool, Self::Error>> + Send;
 
     /// TODO: docs.
     fn and<T>(self, other: T) -> And<Self, T>
@@ -84,8 +84,8 @@ impl<F, W> Filtered<F, W> {
 impl<Fs, Fi, W> WalkDir<Fs> for Filtered<Fi, W>
 where
     Fs: fs::Fs,
-    Fi: Filter<Fs>,
-    W: WalkDir<Fs>,
+    Fi: Sync + Filter<Fs>,
+    W: Sync + WalkDir<Fs>,
 {
     type ReadError = W::ReadError;
     type ReadEntryError = FilteredEntryError<Fi, Fs, W>;
@@ -150,7 +150,7 @@ impl<Fs: fs::Fs> Filter<Fs> for () {
 
 impl<Fi, Fs> Filter<Fs> for &Fi
 where
-    Fi: Filter<Fs>,
+    Fi: Filter<Fs> + Sync,
     Fs: fs::Fs,
 {
     type Error = Fi::Error;
@@ -166,7 +166,7 @@ where
 
 impl<Fi, Fs> Filter<Fs> for Option<Fi>
 where
-    Fi: Filter<Fs>,
+    Fi: Filter<Fs> + Sync,
     Fs: fs::Fs,
 {
     type Error = Fi::Error;
@@ -185,8 +185,8 @@ where
 
 impl<Fi1, Fi2, Fs> Filter<Fs> for And<Fi1, Fi2>
 where
-    Fi1: Filter<Fs>,
-    Fi2: Filter<Fs>,
+    Fi1: Filter<Fs> + Sync,
+    Fi2: Filter<Fs> + Sync,
     Fs: fs::Fs,
 {
     type Error = Either<Fi1::Error, Fi2::Error>;

@@ -1,6 +1,5 @@
 //! TODO: docs.
 
-use core::cell::RefCell;
 use core::convert::Infallible;
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
@@ -8,6 +7,7 @@ use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::SystemTime;
 
 use futures_util::stream::{self, Stream, StreamExt};
@@ -76,7 +76,7 @@ pin_project_lite::pin_project! {
 }
 
 struct LazyOsMetadata {
-    metadata: RefCell<Option<async_fs::Metadata>>,
+    metadata: OnceLock<async_fs::Metadata>,
     path: AbsPathBuf,
 }
 
@@ -108,12 +108,12 @@ impl OsFile {
 impl LazyOsMetadata {
     #[inline]
     fn lazy(path: AbsPathBuf) -> Self {
-        Self { metadata: RefCell::new(None), path }
+        Self { metadata: OnceLock::new(), path }
     }
 
     #[inline]
     fn new(metadata: async_fs::Metadata, path: AbsPathBuf) -> Self {
-        Self { metadata: RefCell::new(Some(metadata)), path }
+        Self { metadata: metadata.into(), path }
     }
 
     #[inline]
@@ -121,12 +121,11 @@ impl LazyOsMetadata {
         &self,
         fun: impl FnOnce(&async_fs::Metadata) -> R,
     ) -> Result<R, io::Error> {
-        if let Some(meta) = &*self.metadata.borrow() {
+        if let Some(meta) = self.metadata.get() {
             return Ok(fun(meta));
         }
         let metadata = async_fs::metadata(&*self.path).await?;
-        *self.metadata.borrow_mut() = Some(metadata);
-        Ok(fun(self.metadata.borrow().as_ref().expect("just set it")))
+        Ok(fun(self.metadata.get_or_init(|| metadata)))
     }
 }
 
@@ -168,7 +167,7 @@ impl Fs for OsFs {
     }
 
     #[inline]
-    async fn node_at_path<P: AsRef<AbsPath>>(
+    async fn node_at_path<P: AsRef<AbsPath> + Send>(
         &self,
         path: P,
     ) -> Result<Option<FsNode<Self>>, Self::NodeAtPathError> {

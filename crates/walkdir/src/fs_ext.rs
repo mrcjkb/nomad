@@ -44,10 +44,16 @@ where
 
     /// TODO: docs.
     #[inline]
-    pub async fn for_each<E>(
+    pub async fn for_each<Err>(
         &self,
-        handler: impl AsyncFn(&AbsPath, Fs::Metadata) -> Result<(), E> + Clone,
-    ) -> Result<(), WalkError<Fs, W, E>> {
+        handler: impl AsyncFnOnce(&AbsPath, Fs::Metadata) -> Result<(), Err>
+        + Send
+        + Clone,
+    ) -> Result<(), WalkError<Fs, W, Err>>
+    where
+        W: Sync,
+        Err: Send,
+    {
         self.inner.for_each(self.dir_path, handler).await
     }
 

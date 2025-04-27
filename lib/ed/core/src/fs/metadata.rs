@@ -8,7 +8,7 @@ use crate::ByteOffset;
 use crate::fs::{Fs, NodeKind};
 
 /// TODO: docs.
-pub trait Metadata {
+pub trait Metadata: Send + Sync {
     /// TODO: docs.
     type Fs: Fs;
 

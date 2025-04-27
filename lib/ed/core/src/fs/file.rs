@@ -57,7 +57,9 @@ pub trait File: Send {
     fn path(&self) -> &AbsPath;
 
     /// TODO: docs.
-    fn read(&self) -> impl Future<Output = Result<Vec<u8>, Self::ReadError>>;
+    fn read(
+        &self,
+    ) -> impl Future<Output = Result<Vec<u8>, Self::ReadError>> + Send;
 
     /// TODO: docs.
     fn watch(&self) -> Self::EventStream;

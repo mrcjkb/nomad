@@ -51,5 +51,5 @@ pub trait Symlink: Send {
     /// TODO: docs.
     fn read_path(
         &self,
-    ) -> impl Future<Output = Result<String, Self::ReadError>>;
+    ) -> impl Future<Output = Result<String, Self::ReadError>> + Send;
 }

@@ -1,14 +1,8 @@
 use core::error::Error;
 use core::pin::Pin;
 
-use ed::fs::{
-    self,
-    AbsPath,
-    AbsPathBuf,
-    Directory,
-    Metadata,
-    MetadataNameError,
-};
+use abs_path::{AbsPath, AbsPathBuf};
+use ed::fs::{self, Directory, Metadata};
 use futures_util::stream::{self, FusedStream, StreamExt};
 use futures_util::{FutureExt, pin_mut, select};
 
@@ -17,11 +11,11 @@ use crate::filter::{Filter, Filtered};
 /// TODO: docs.
 pub trait WalkDir<Fs: fs::Fs>: Sized {
     /// The type of error that can occur when reading a directory fails.
-    type ReadError: Error;
+    type ReadError: Error + Send;
 
     /// The type of error that can occur when reading a specific entry in a
     /// directory fails.
-    type ReadEntryError: Error;
+    type ReadEntryError: Error + Send;
 
     /// TODO: docs.
     fn read_dir(
@@ -29,10 +23,11 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
         dir_path: &AbsPath,
     ) -> impl Future<
         Output = Result<
-            impl FusedStream<Item = Result<Fs::Metadata, Self::ReadEntryError>>,
+            impl FusedStream<Item = Result<Fs::Metadata, Self::ReadEntryError>>
+            + Send,
             Self::ReadError,
         >,
-    >;
+    > + Send;
 
     /// TODO: docs.
     #[inline]
@@ -44,24 +39,35 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
     }
 
     /// TODO: docs.
-    #[allow(clippy::type_complexity)]
     #[inline]
-    fn for_each<E>(
-        &self,
-        dir_path: &AbsPath,
-        handler: impl AsyncFn(&AbsPath, Fs::Metadata) -> Result<(), E> + Clone,
-    ) -> impl Future<Output = Result<(), WalkError<Fs, Self, E>>> {
+    fn for_each<'a, Err>(
+        &'a self,
+        dir_path: &'a AbsPath,
+        handler: impl AsyncFnOnce(&AbsPath, Fs::Metadata) -> Result<(), Err>
+        + Send
+        + Clone
+        + 'a,
+    ) -> impl Future<Output = Result<(), WalkError<Fs, Self, Err>>>
+    where
+        Self: Sync,
+        Err: Send + 'a,
+    {
+        #[allow(clippy::type_complexity)]
         #[inline]
-        fn inner<'a, W, H, E, Fs>(
+        fn inner<'a, W, Err, Fs>(
             walkdir: &'a W,
             dir_path: &'a AbsPath,
-            handler: H,
-        ) -> Pin<Box<dyn Future<Output = Result<(), WalkError<Fs, W, E>>> + 'a>>
+            handler: impl AsyncFnOnce(&AbsPath, Fs::Metadata) -> Result<(), Err>
+            + Send
+            + Clone
+            + 'a,
+        ) -> Pin<
+            Box<dyn Future<Output = Result<(), WalkError<Fs, W, Err>>> + 'a>,
+        >
         where
-            W: WalkDir<Fs>,
+            W: WalkDir<Fs> + Sync,
             Fs: fs::Fs,
-            H: AsyncFn(&AbsPath, Fs::Metadata) -> Result<(), E> + Clone + 'a,
-            E: 'a,
+            Err: Send + 'a,
         {
             Box::pin(async move {
                 let entries = walkdir
@@ -83,7 +89,7 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
                                 let dir_path = dir_path.join(&dir_name);
                                 let handler = handler.clone();
                                 read_children.push(async move {
-                                    walkdir.for_each(&dir_path, handler).await
+                                    inner(walkdir, &dir_path, handler).await
                                 });
                             }
                             let handler = handler.clone();
@@ -110,8 +116,11 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
         &'a self,
         dir_path: &'a AbsPath,
     ) -> impl FusedStream<
-        Item = Result<AbsPathBuf, WalkError<Fs, Self, MetadataNameError>>,
-    > + 'a {
+        Item = Result<AbsPathBuf, WalkError<Fs, Self, fs::MetadataNameError>>,
+    > + 'a
+    where
+        Self: Sync,
+    {
         self.to_stream(dir_path, async |dir_path, entry| {
             entry.name().map(|name| dir_path.join(name))
         })
@@ -119,15 +128,18 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
 
     /// TODO: docs.
     #[inline]
-    fn to_stream<'a, H, T, E>(
+    fn to_stream<'a, T, E>(
         &'a self,
         dir_path: &'a AbsPath,
-        handler: H,
+        handler: impl AsyncFnOnce(&AbsPath, Fs::Metadata) -> Result<T, E>
+        + Send
+        + Clone
+        + 'a,
     ) -> impl FusedStream<Item = Result<T, WalkError<Fs, Self, E>>> + 'a
     where
-        H: AsyncFn(&AbsPath, Fs::Metadata) -> Result<T, E> + Clone + 'a,
-        T: 'a,
-        E: 'a,
+        Self: Sync,
+        T: Send + 'a,
+        E: Send + 'a,
     {
         let (tx, rx) = flume::unbounded();
         let for_each = self
@@ -170,7 +182,7 @@ where
     Other(T),
 
     /// TODO: docs.
-    NodeName(MetadataNameError),
+    NodeName(fs::MetadataNameError),
 
     /// TODO: docs.
     ReadDir(W::ReadError),
@@ -214,7 +226,7 @@ impl<Fs: fs::Fs> WalkDir<Self> for Fs {
     ) -> Result<
         impl FusedStream<
             Item = Result<<Self as fs::Fs>::Metadata, Self::ReadEntryError>,
-        >,
+        > + Send,
         Self::ReadError,
     > {
         let Some(node) = self

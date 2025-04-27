@@ -84,10 +84,11 @@ pub trait Directory: Send + Sized {
                     <Self::Fs as Fs>::Metadata,
                     Self::ReadEntryError,
                 >,
-            > + use<Self>,
+            > + Send
+            + use<Self>,
             Self::ReadError,
         >,
-    >;
+    > + Send;
 
     /// TODO: docs.
     fn watch(&self) -> Self::EventStream;

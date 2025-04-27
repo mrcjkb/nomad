@@ -65,10 +65,12 @@ pub trait Fs: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<Self::File, Self::CreateFileError>>;
 
     /// TODO: docs.
-    fn node_at_path<P: AsRef<AbsPath>>(
+    fn node_at_path<P: AsRef<AbsPath> + Send>(
         &self,
         path: P,
-    ) -> impl Future<Output = Result<Option<FsNode<Self>>, Self::NodeAtPathError>>;
+    ) -> impl Future<
+        Output = Result<Option<FsNode<Self>>, Self::NodeAtPathError>,
+    > + Send;
 
     /// TODO: docs.
     fn now(&self) -> Self::Timestamp;
@@ -80,7 +82,7 @@ pub trait Fs: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<Self::Watcher, Self::WatchError>>;
 
     /// TODO: docs.
-    fn exists<P: AsRef<AbsPath>>(
+    fn exists<P: AsRef<AbsPath> + Send>(
         &self,
         path: P,
     ) -> impl Future<Output = Result<bool, Self::NodeAtPathError>> {
@@ -88,7 +90,7 @@ pub trait Fs: Clone + Send + Sync + 'static {
     }
 
     /// TODO: docs.
-    fn is_dir<P: AsRef<AbsPath>>(
+    fn is_dir<P: AsRef<AbsPath> + Send>(
         &self,
         path: P,
     ) -> impl Future<Output = Result<bool, Self::NodeAtPathError>> {
@@ -100,7 +102,7 @@ pub trait Fs: Clone + Send + Sync + 'static {
     }
 
     /// TODO: docs.
-    fn is_file<P: AsRef<AbsPath>>(
+    fn is_file<P: AsRef<AbsPath> + Send>(
         &self,
         path: P,
     ) -> impl Future<Output = Result<bool, Self::NodeAtPathError>> {
