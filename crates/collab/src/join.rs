@@ -109,10 +109,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
             message_rx: welcome.rx,
             message_tx: welcome.tx,
             project_handle,
-            stop_rx: self
-                .stop_channels
-                .insert(welcome.session_id)
-                .into_stream(),
+            stop_rx: self.stop_channels.insert(welcome.session_id),
         };
 
         ctx.spawn_local(async move |ctx| {

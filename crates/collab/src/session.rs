@@ -2,6 +2,7 @@ use std::io;
 
 use collab_server::client::ClientRxError;
 use ed::{AsyncCtx, notify};
+use flume::Receiver;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select_biased};
 use walkdir::Filter;
 
@@ -24,7 +25,7 @@ pub(crate) struct Session<B: CollabBackend, F: Filter<B::Fs>> {
     pub(crate) project_handle: ProjectHandle<B>,
 
     /// TODO: docs.
-    pub(crate) stop_rx: flume::r#async::RecvStream<'static, StopSession>,
+    pub(crate) stop_rx: Receiver<StopSession>,
 }
 
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::From)]
@@ -47,11 +48,13 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
             message_rx,
             message_tx,
             project_handle,
-            mut stop_rx,
+            stop_rx,
         } = self;
 
         pin_mut!(message_rx);
         pin_mut!(message_tx);
+
+        let mut stop_stream = stop_rx.into_stream();
 
         loop {
             select_biased! {
@@ -70,7 +73,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
                         proj.integrate_message(message, ctx);
                     });
                 },
-                StopSession = stop_rx.select_next_some() => return Ok(()),
+                StopSession = stop_stream.select_next_some() => return Ok(()),
             }
         }
     }
