@@ -22,10 +22,11 @@ use walkdir::FsExt;
 use crate::backend::CollabBackend;
 use crate::collab::Collab;
 use crate::config::Config;
+use crate::event_stream::EventStream;
 use crate::leave::StopChannels;
 use crate::project::{NewProjectArgs, OverlappingProjectError, Projects};
 use crate::root_markers;
-use crate::session::{EventRx, Session};
+use crate::session::Session;
 
 type Markers = root_markers::GitDirectory;
 
@@ -95,7 +96,7 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
             .await
             .map_err(StartError::Knock)?;
 
-        let (project, event_rx) =
+        let (project, event_stream) =
             read_project(project_guard.root(), welcome.peer_id, ctx)
                 .await
                 .map_err(StartError::ReadProject)?;
@@ -109,7 +110,7 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
         });
 
         let session = Session {
-            event_rx,
+            event_stream,
             message_rx: welcome.rx,
             message_tx: welcome.tx,
             project_handle,
@@ -177,7 +178,7 @@ async fn read_project<B: CollabBackend>(
     root_path: &AbsPath,
     local_id: PeerId,
     ctx: &mut AsyncCtx<'_, B>,
-) -> Result<(Project, EventRx<B>), ReadProjectError<B>> {
+) -> Result<(Project, EventStream<B>), ReadProjectError<B>> {
     let fs = ctx.fs();
 
     let root_node = fs
@@ -206,7 +207,7 @@ async fn read_project<B: CollabBackend>(
         },
     };
 
-    let event_rx = EventRx::<B>::new(&project_root, ctx);
+    let event_stream = EventStream::<B>::new(&project_root, ctx);
 
     let (project, _fs_filter) = ctx
         .spawn_background(async move {
@@ -233,7 +234,7 @@ async fn read_project<B: CollabBackend>(
         })
         .await?;
 
-    Ok((project, event_rx))
+    Ok((project, event_stream))
 }
 
 /// TODO: docs.

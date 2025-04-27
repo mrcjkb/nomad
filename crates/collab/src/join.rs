@@ -102,7 +102,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
         });
 
         let session = Session {
-            event_rx: todo!(),
+            event_stream: todo!(),
             message_rx: welcome.rx,
             message_tx: welcome.tx,
             project_handle,
