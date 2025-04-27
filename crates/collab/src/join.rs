@@ -18,6 +18,7 @@ use futures_util::{AsyncReadExt, SinkExt, StreamExt, future, stream};
 use crate::backend::{CollabBackend, SessionId, Welcome};
 use crate::collab::Collab;
 use crate::config::Config;
+use crate::event_stream::EventStream;
 use crate::leave::StopChannels;
 use crate::project::{NewProjectArgs, OverlappingProjectError, Projects};
 use crate::session::Session;
@@ -101,8 +102,10 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
             session_id: welcome.session_id,
         });
 
+        let event_stream: EventStream<B, B::ProjectFilter> = todo!();
+
         let session = Session {
-            event_stream: todo!(),
+            event_stream,
             message_rx: welcome.rx,
             message_tx: welcome.tx,
             project_handle,

@@ -3,15 +3,16 @@ use std::io;
 use collab_server::client::ClientRxError;
 use ed::{AsyncCtx, notify};
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select_biased};
+use walkdir::Filter;
 
 use crate::backend::{CollabBackend, MessageRx, MessageTx};
 use crate::event_stream::{EventRxError, EventStream};
 use crate::leave::StopSession;
 use crate::project::ProjectHandle;
 
-pub(crate) struct Session<B: CollabBackend> {
+pub(crate) struct Session<B: CollabBackend, F: Filter<B::Fs>> {
     /// TODO: docs..
-    pub(crate) event_stream: EventStream<B>,
+    pub(crate) event_stream: EventStream<B, F>,
 
     /// TODO: docs..
     pub(crate) message_rx: MessageRx<B>,
@@ -28,19 +29,19 @@ pub(crate) struct Session<B: CollabBackend> {
 
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::From)]
 #[display("{_0}")]
-pub(crate) enum SessionError<B: CollabBackend> {
-    EventRx(#[from] EventRxError<B>),
+pub(crate) enum SessionError<B: CollabBackend, F: Filter<B::Fs>> {
+    EventRx(#[from] EventRxError<B, F>),
     MessageRx(#[from] ClientRxError),
     #[display("the server kicked this peer out of the session")]
     MessageRxExhausted,
     MessageTx(#[from] io::Error),
 }
 
-impl<B: CollabBackend> Session<B> {
+impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
     pub(crate) async fn run(
         self,
         ctx: &mut AsyncCtx<'_, B>,
-    ) -> Result<(), SessionError<B>> {
+    ) -> Result<(), SessionError<B, F>> {
         let Self {
             mut event_stream,
             message_rx,
@@ -75,7 +76,7 @@ impl<B: CollabBackend> Session<B> {
     }
 }
 
-impl<B: CollabBackend> notify::Error for SessionError<B> {
+impl<B: CollabBackend, F: Filter<B::Fs>> notify::Error for SessionError<B, F> {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         todo!();
     }

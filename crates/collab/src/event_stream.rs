@@ -13,7 +13,7 @@ use crate::seq_ext::StreamableSeq;
 
 type FxIndexMap<K, V> = indexmap::IndexMap<K, V, FxBuildHasher>;
 
-pub(crate) struct EventStream<B: CollabBackend> {
+pub(crate) struct EventStream<B: CollabBackend, F: Filter<B::Fs>> {
     /// The `AgentId` of the `Session` that owns this `EventRx`.
     agent_id: AgentId,
     buffer_handles: FxHashMap<B::BufferId, SmallVec<[B::EventHandle; 3]>>,
@@ -29,14 +29,14 @@ pub(crate) struct EventStream<B: CollabBackend> {
         <B::Fs as Fs>::NodeId,
         <<B::Fs as Fs>::File as File>::EventStream,
     >,
-    /// A filter used to check if [`FsNode`]s created under the project root
-    /// should be part of the project.
-    fs_filter: B::ProjectFilter,
     new_buffer_rx: flume::r#async::RecvStream<'static, B::BufferId>,
     #[allow(dead_code)]
     new_buffers_handle: B::EventHandle,
     /// Map from a file's node ID to the ID of the corresponding buffer.
     node_to_buf_ids: FxHashMap<<B::Fs as Fs>::NodeId, B::BufferId>,
+    /// A filter used to check if [`FsNode`]s created under the project root
+    /// should be part of the project.
+    project_filter: F,
     /// The ID of the root of the project.
     root_id: <B::Fs as Fs>::NodeId,
     /// The path to the root of the project.
@@ -47,13 +47,13 @@ pub(crate) struct EventStream<B: CollabBackend> {
 
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
 #[display("{_0}")]
-pub(crate) enum EventRxError<B: CollabBackend> {
-    FsFilter(<B::ProjectFilter as walkdir::Filter<B::Fs>>::Error),
+pub(crate) enum EventRxError<B: CollabBackend, F: Filter<B::Fs>> {
+    FsFilter(F::Error),
     Metadata(fs::NodeMetadataError<B::Fs>),
     NodeAtPath(<B::Fs as Fs>::NodeAtPathError),
 }
 
-impl<B: CollabBackend> EventStream<B> {
+impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     pub(crate) fn new(
         root_dir: &<B::Fs as Fs>::Directory,
         ctx: &mut AsyncCtx<'_, B>,
@@ -75,7 +75,7 @@ impl<B: CollabBackend> EventStream<B> {
             buffer_tx,
             directory_streams: Default::default(),
             file_streams: Default::default(),
-            fs_filter: todo!(),
+            project_filter: todo!(),
             new_buffer_rx: new_buffer_rx.into_stream(),
             new_buffers_handle,
             node_to_buf_ids: Default::default(),
@@ -88,7 +88,7 @@ impl<B: CollabBackend> EventStream<B> {
     pub(crate) async fn next(
         &mut self,
         ctx: &AsyncCtx<'_, B>,
-    ) -> Result<Event<B>, EventRxError<B>> {
+    ) -> Result<Event<B>, EventRxError<B, F>> {
         loop {
             let mut dir_stream = self.directory_streams.as_stream(0);
             let mut file_stream = self.file_streams.as_stream(0);
@@ -145,7 +145,7 @@ impl<B: CollabBackend> EventStream<B> {
         &mut self,
         event: fs::DirectoryEvent<B::Fs>,
         ctx: &AsyncCtx<'_, B>,
-    ) -> Result<Option<fs::DirectoryEvent<B::Fs>>, EventRxError<B>> {
+    ) -> Result<Option<fs::DirectoryEvent<B::Fs>>, EventRxError<B, F>> {
         Ok(match event {
             fs::DirectoryEvent::Creation(ref creation) => {
                 let Some(node) = ctx
@@ -271,7 +271,7 @@ impl<B: CollabBackend> EventStream<B> {
         &mut self,
         buffer_id: B::BufferId,
         ctx: &AsyncCtx<'_, B>,
-    ) -> Result<(), EventRxError<B>> {
+    ) -> Result<(), EventRxError<B, F>> {
         let Some(buffer_name) = ctx.with_ctx(|ctx| {
             ctx.buffer(buffer_id.clone()).map(|buf| buf.name().into_owned())
         }) else {
@@ -318,14 +318,14 @@ impl<B: CollabBackend> EventStream<B> {
     async fn should_watch(
         &self,
         node: &FsNode<B::Fs>,
-    ) -> Result<bool, EventRxError<B>> {
+    ) -> Result<bool, EventRxError<B, F>> {
         debug_assert!(node.path().starts_with(&self.root_path));
 
         let Some(parent_path) = node.path().parent() else { return Ok(false) };
         let meta = node.meta().await.map_err(EventRxError::Metadata)?;
         Ok(!meta.node_kind().is_symlink()
             && !self
-                .fs_filter
+                .project_filter
                 .should_filter(parent_path, &meta)
                 .await
                 .map_err(EventRxError::FsFilter)?)

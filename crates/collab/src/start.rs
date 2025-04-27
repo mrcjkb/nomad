@@ -10,7 +10,7 @@ use collab_server::message::PeerId;
 use collab_server::{SessionIntent, client};
 use ed::AsyncCtx;
 use ed::action::AsyncAction;
-use ed::backend::Buffer;
+use ed::backend::{Backend, Buffer};
 use ed::command::ToCompletionFn;
 use ed::fs::{self, Directory, File, Fs, FsNode, Metadata, Symlink};
 use ed::notify::{self, Name};
@@ -27,6 +27,12 @@ use crate::leave::StopChannels;
 use crate::project::{NewProjectArgs, OverlappingProjectError, Projects};
 use crate::root_markers;
 use crate::session::Session;
+
+/// TODO: docs.
+pub type ProjectFilter<B> = walkdir::Either<
+    <B as CollabBackend>::ProjectFilter,
+    AllButOne<<B as Backend>::Fs>,
+>;
 
 type Markers = root_markers::GitDirectory;
 
@@ -178,7 +184,7 @@ async fn read_project<B: CollabBackend>(
     root_path: &AbsPath,
     local_id: PeerId,
     ctx: &mut AsyncCtx<'_, B>,
-) -> Result<(Project, EventStream<B>), ReadProjectError<B>> {
+) -> Result<(Project, EventStream<B, ProjectFilter<B>>), ReadProjectError<B>> {
     let fs = ctx.fs();
 
     let root_node = fs
@@ -207,9 +213,9 @@ async fn read_project<B: CollabBackend>(
         },
     };
 
-    let event_stream = EventStream::<B>::new(&project_root, ctx);
+    let event_stream = EventStream::new(&project_root, ctx);
 
-    let (project, _fs_filter) = ctx
+    let (project, _project_filter) = ctx
         .spawn_background(async move {
             let walker = fs.walk(&project_root).filter(project_filter);
             let project_root = project_root.path();
@@ -355,10 +361,7 @@ pub enum ReadProjectError<B: CollabBackend> {
     WalkRoot(
         walkdir::WalkError<
             B::Fs,
-            walkdir::Filtered<
-                walkdir::Either<B::ProjectFilter, AllButOne<B::Fs>>,
-                B::Fs,
-            >,
+            walkdir::Filtered<ProjectFilter<B>, B::Fs>,
             ReadNodeError<B::Fs>,
         >,
     ),
