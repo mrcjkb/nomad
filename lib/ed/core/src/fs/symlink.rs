@@ -5,9 +5,9 @@ use futures_util::Stream;
 use crate::fs::{self, AbsPath, Fs, FsNode, NodeDeletion, NodeMove, NodeName};
 
 /// TODO: docs.
-pub trait Symlink: Send {
+pub trait Symlink: Send + Sync {
     /// TODO: docs.
-    type EventStream: Stream<Item = SymlinkEvent<Self::Fs>> + Unpin;
+    type EventStream: Stream<Item = SymlinkEvent<Self::Fs>> + Send + Unpin;
 
     /// TODO: docs.
     type Fs: Fs;

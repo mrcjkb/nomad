@@ -6,9 +6,9 @@ use futures_lite::Stream;
 use crate::fs::{self, AbsPath, Fs, NodeName};
 
 /// TODO: docs.
-pub trait Directory: Send + Sized {
+pub trait Directory: Send + Sync + Sized {
     /// TODO: docs.
-    type EventStream: Stream<Item = DirectoryEvent<Self::Fs>> + Unpin;
+    type EventStream: Stream<Item = DirectoryEvent<Self::Fs>> + Send + Unpin;
 
     /// TODO: docs.
     type Fs: Fs;

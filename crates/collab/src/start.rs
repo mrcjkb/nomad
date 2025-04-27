@@ -22,7 +22,7 @@ use walkdir::FsExt;
 use crate::backend::CollabBackend;
 use crate::collab::Collab;
 use crate::config::Config;
-use crate::event_stream::EventStream;
+use crate::event_stream::{EventStream, EventStreamBuilder};
 use crate::leave::StopChannels;
 use crate::project::{NewProjectArgs, OverlappingProjectError, Projects};
 use crate::root_markers;
@@ -213,22 +213,24 @@ async fn read_project<B: CollabBackend>(
         },
     };
 
-    let event_stream = EventStream::new(&project_root, ctx);
-
-    let (project, _project_filter) = ctx
+    let (project, stream_builder, project_filter) = ctx
         .spawn_background(async move {
             let walker = fs.walk(&project_root).filter(project_filter);
-            let project_root = project_root.path();
+
             let mut project_builder = Project::builder(local_id);
-            let builder_mut = Shared::new(&mut project_builder);
+            let project_builder_mut = Shared::new(&mut project_builder);
+
+            let mut stream_builder = EventStreamBuilder::new(&project_root);
+            let stream_builder_mut = Shared::new(&mut stream_builder);
 
             walker
                 .for_each(async |parent_path, node_meta| {
                     read_node(
-                        project_root,
+                        &project_root,
                         parent_path,
                         node_meta,
-                        &builder_mut,
+                        &project_builder_mut,
+                        &stream_builder_mut,
                         &fs,
                     )
                     .await
@@ -236,19 +238,26 @@ async fn read_project<B: CollabBackend>(
                 .await
                 .map_err(ReadProjectError::WalkRoot)?;
 
-            Ok((project_builder.build(), walker.into_inner().into_filter()))
+            Ok((
+                project_builder.build(),
+                stream_builder,
+                walker.into_inner().into_filter(),
+            ))
         })
         .await?;
+
+    let event_stream = stream_builder.build(project_filter, ctx);
 
     Ok((project, event_stream))
 }
 
 /// TODO: docs.
 async fn read_node<Fs: fs::Fs>(
-    project_root: &AbsPath,
+    project_root: &Fs::Directory,
     parent_path: &AbsPath,
     node_meta: Fs::Metadata,
     project_builder: &Shared<&mut ProjectBuilder, MultiThreaded>,
+    stream_builder: &Shared<&mut EventStreamBuilder<Fs>, MultiThreaded>,
     fs: &Fs,
 ) -> Result<(), ReadNodeError<Fs>> {
     let node_name = node_meta.name().map_err(ReadNodeError::NodeName)?;
@@ -262,10 +271,10 @@ async fn read_node<Fs: fs::Fs>(
     };
 
     let path_in_project = node_path
-        .strip_prefix(project_root)
+        .strip_prefix(project_root.path())
         .expect("node is under the root dir");
 
-    let _maybe_err = match node {
+    let _maybe_err = match &node {
         FsNode::Directory(_) => project_builder
             .with_mut(|builder| builder.push_directory(path_in_project).err()),
 
@@ -293,6 +302,8 @@ async fn read_node<Fs: fs::Fs>(
             })
         },
     };
+
+    stream_builder.with_mut(|builder| builder.push_node(&node));
 
     Ok(())
 }

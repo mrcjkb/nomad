@@ -1,6 +1,6 @@
 use abs_path::{AbsPath, AbsPathBuf};
 use ed::backend::{AgentId, Buffer};
-use ed::fs::{self, Directory, File, Fs, FsNode, Metadata};
+use ed::fs::{self, Directory, File, Fs, FsNode, Metadata, Symlink};
 use ed::{AsyncCtx, Shared};
 use futures_util::{FutureExt, SinkExt, StreamExt, select_biased};
 use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
@@ -19,16 +19,7 @@ pub(crate) struct EventStream<B: CollabBackend, F: Filter<B::Fs>> {
     buffer_handles: FxHashMap<B::BufferId, SmallVec<[B::EventHandle; 3]>>,
     buffer_rx: flume::r#async::RecvStream<'static, Event<B>>,
     buffer_tx: flume::Sender<Event<B>>,
-    /// Map from a directory's node ID to its event stream.
-    directory_streams: FxIndexMap<
-        <B::Fs as Fs>::NodeId,
-        <<B::Fs as Fs>::Directory as Directory>::EventStream,
-    >,
-    /// Map from a file's node ID to its event stream.
-    file_streams: FxIndexMap<
-        <B::Fs as Fs>::NodeId,
-        <<B::Fs as Fs>::File as File>::EventStream,
-    >,
+    fs_streams: FsStreams<B::Fs>,
     new_buffer_rx: flume::r#async::RecvStream<'static, B::BufferId>,
     #[allow(dead_code)]
     new_buffers_handle: B::EventHandle,
@@ -45,6 +36,12 @@ pub(crate) struct EventStream<B: CollabBackend, F: Filter<B::Fs>> {
     saved_buffers: Shared<FxHashSet<B::BufferId>>,
 }
 
+pub(crate) struct EventStreamBuilder<Fs: fs::Fs> {
+    fs_streams: FsStreams<Fs>,
+    root_id: Fs::NodeId,
+    root_path: AbsPathBuf,
+}
+
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
 #[display("{_0}")]
 pub(crate) enum EventRxError<B: CollabBackend, F: Filter<B::Fs>> {
@@ -53,45 +50,25 @@ pub(crate) enum EventRxError<B: CollabBackend, F: Filter<B::Fs>> {
     NodeAtPath(<B::Fs as Fs>::NodeAtPathError),
 }
 
+#[derive(cauchy::Default)]
+struct FsStreams<Fs: fs::Fs> {
+    /// Map from a directory's node ID to its event stream.
+    directories:
+        FxIndexMap<Fs::NodeId, <Fs::Directory as Directory>::EventStream>,
+    /// Map from a file's node ID to its event stream.
+    files: FxIndexMap<Fs::NodeId, <Fs::File as File>::EventStream>,
+    /// Map from a symlink's node ID to its event stream.
+    symlinks: FxIndexMap<Fs::NodeId, <Fs::Symlink as Symlink>::EventStream>,
+}
+
 impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
-    pub(crate) fn new(
-        root_dir: &<B::Fs as Fs>::Directory,
-        ctx: &mut AsyncCtx<'_, B>,
-    ) -> Self {
-        let (new_buffer_tx, new_buffer_rx) = flume::unbounded();
-
-        let new_buffers_handle = ctx.with_ctx(|ctx| {
-            ctx.on_buffer_created(move |buf| {
-                let _ = new_buffer_tx.send(buf.id());
-            })
-        });
-
-        let (buffer_tx, buffer_rx) = flume::unbounded();
-
-        Self {
-            agent_id: ctx.new_agent_id(),
-            buffer_handles: Default::default(),
-            buffer_rx: buffer_rx.into_stream(),
-            buffer_tx,
-            directory_streams: Default::default(),
-            file_streams: Default::default(),
-            project_filter: todo!(),
-            new_buffer_rx: new_buffer_rx.into_stream(),
-            new_buffers_handle,
-            node_to_buf_ids: Default::default(),
-            root_id: root_dir.id(),
-            root_path: root_dir.path().to_owned(),
-            saved_buffers: Default::default(),
-        }
-    }
-
     pub(crate) async fn next(
         &mut self,
         ctx: &AsyncCtx<'_, B>,
     ) -> Result<Event<B>, EventRxError<B, F>> {
         loop {
-            let mut dir_stream = self.directory_streams.as_stream(0);
-            let mut file_stream = self.file_streams.as_stream(0);
+            let mut dir_stream = self.fs_streams.directories.as_stream(0);
+            let mut file_stream = self.fs_streams.files.as_stream(0);
 
             return Ok(select_biased! {
                 event = dir_stream.select_next_some() => {
@@ -125,19 +102,14 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
         node: &FsNode<B::Fs>,
         ctx: &AsyncCtx<'_, B>,
     ) {
-        match node {
-            FsNode::Directory(dir) => {
-                self.directory_streams.insert(dir.id(), dir.watch());
-            },
-            FsNode::File(file) => {
-                self.file_streams.insert(file.id(), file.watch());
-                ctx.with_ctx(|ctx| {
-                    if let Some(mut buffer) = ctx.buffer_at_path(file.path()) {
-                        self.watch_buffer(file, &mut buffer);
-                    }
-                });
-            },
-            FsNode::Symlink(_) => unreachable!(),
+        self.fs_streams.watch(node);
+
+        if let FsNode::File(file) = node {
+            ctx.with_ctx(|ctx| {
+                if let Some(mut buffer) = ctx.buffer_at_path(file.path()) {
+                    self.watch_buffer(file, &mut buffer);
+                }
+            });
         }
     }
 
@@ -195,7 +167,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                 } else {
                     // The directory was moved outside the root's subtree,
                     // which is effectively the same as it being deleted.
-                    self.directory_streams.swap_remove(&r#move.node_id);
+                    self.fs_streams.directories.swap_remove(&r#move.node_id);
                     Some(fs::DirectoryEvent::Deletion(fs::NodeDeletion {
                         node_id: r#move.node_id,
                         node_path: r#move.old_path,
@@ -244,7 +216,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                 } else {
                     // The file was moved outside the root's subtree, which is
                     // effectively the same as it being deleted.
-                    self.file_streams.swap_remove(&r#move.node_id);
+                    self.fs_streams.files.swap_remove(&r#move.node_id);
 
                     if let Some(buf_id) =
                         self.node_to_buf_ids.get(&r#move.node_id)
@@ -372,5 +344,72 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
         );
 
         self.node_to_buf_ids.insert(file.id(), buffer.id());
+    }
+}
+
+impl<Fs: fs::Fs> EventStreamBuilder<Fs> {
+    pub(crate) fn build<B, F>(
+        self,
+        project_filter: F,
+        ctx: &mut AsyncCtx<B>,
+    ) -> EventStream<B, F>
+    where
+        B: CollabBackend<Fs = Fs>,
+        F: Filter<Fs>,
+    {
+        let (new_buffer_tx, new_buffer_rx) = flume::unbounded();
+
+        let new_buffers_handle = ctx.with_ctx(|ctx| {
+            ctx.on_buffer_created(move |buf| {
+                let _ = new_buffer_tx.send(buf.id());
+            })
+        });
+
+        let (buffer_tx, buffer_rx) = flume::unbounded();
+
+        EventStream {
+            agent_id: ctx.new_agent_id(),
+            buffer_handles: Default::default(),
+            buffer_rx: buffer_rx.into_stream(),
+            buffer_tx,
+            fs_streams: self.fs_streams,
+            project_filter,
+            new_buffer_rx: new_buffer_rx.into_stream(),
+            new_buffers_handle,
+            node_to_buf_ids: Default::default(),
+            root_id: self.root_id,
+            root_path: self.root_path,
+            saved_buffers: Default::default(),
+        }
+    }
+
+    pub(crate) fn push_node(&mut self, node: &FsNode<Fs>) {
+        self.fs_streams.watch(node);
+    }
+
+    pub(crate) fn new(project_root: &Fs::Directory) -> Self {
+        let mut fs_streams = FsStreams::default();
+        fs_streams.directories.insert(project_root.id(), project_root.watch());
+        Self {
+            fs_streams,
+            root_id: project_root.id(),
+            root_path: project_root.path().to_owned(),
+        }
+    }
+}
+
+impl<Fs: fs::Fs> FsStreams<Fs> {
+    fn watch(&mut self, node: &FsNode<Fs>) {
+        match node {
+            FsNode::Directory(dir) => {
+                self.directories.insert(dir.id(), dir.watch());
+            },
+            FsNode::File(file) => {
+                self.files.insert(file.id(), file.watch());
+            },
+            FsNode::Symlink(symlink) => {
+                self.symlinks.insert(symlink.id(), symlink.watch());
+            },
+        }
     }
 }
