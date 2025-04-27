@@ -36,10 +36,17 @@ pub(crate) struct EventStream<B: CollabBackend, F: Filter<B::Fs>> {
     saved_buffers: Shared<FxHashSet<B::BufferId>>,
 }
 
-pub(crate) struct EventStreamBuilder<Fs: fs::Fs> {
+pub(crate) struct EventStreamBuilder<Fs: fs::Fs, State = NeedsProjectFilter> {
     fs_streams: FsStreams<Fs>,
     root_id: Fs::NodeId,
     root_path: AbsPathBuf,
+    state: State,
+}
+
+pub(crate) struct NeedsProjectFilter;
+
+pub(crate) struct Done<F> {
+    filter: F,
 }
 
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
@@ -347,15 +354,39 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     }
 }
 
-impl<Fs: fs::Fs> EventStreamBuilder<Fs> {
-    pub(crate) fn build<B, F>(
+impl<Fs: fs::Fs, State> EventStreamBuilder<Fs, State> {
+    pub(crate) fn push_node(&mut self, node: &FsNode<Fs>) {
+        self.fs_streams.watch(node);
+    }
+}
+
+impl<Fs: fs::Fs> EventStreamBuilder<Fs, NeedsProjectFilter> {
+    pub(crate) fn new(project_root: &Fs::Directory) -> Self {
+        Self {
+            fs_streams: Default::default(),
+            root_id: project_root.id(),
+            root_path: project_root.path().to_owned(),
+            state: NeedsProjectFilter,
+        }
+    }
+
+    pub(crate) fn push_filter<F: Filter<Fs>>(
         self,
-        project_filter: F,
-        ctx: &mut AsyncCtx<B>,
-    ) -> EventStream<B, F>
+        filter: F,
+    ) -> EventStreamBuilder<Fs, Done<F>> {
+        EventStreamBuilder {
+            fs_streams: self.fs_streams,
+            root_id: self.root_id,
+            root_path: self.root_path,
+            state: Done { filter },
+        }
+    }
+}
+
+impl<Fs: fs::Fs, F: Filter<Fs>> EventStreamBuilder<Fs, Done<F>> {
+    pub(crate) fn build<B>(self, ctx: &mut AsyncCtx<B>) -> EventStream<B, F>
     where
         B: CollabBackend<Fs = Fs>,
-        F: Filter<Fs>,
     {
         let (new_buffer_tx, new_buffer_rx) = flume::unbounded();
 
@@ -373,27 +404,13 @@ impl<Fs: fs::Fs> EventStreamBuilder<Fs> {
             buffer_rx: buffer_rx.into_stream(),
             buffer_tx,
             fs_streams: self.fs_streams,
-            project_filter,
+            project_filter: self.state.filter,
             new_buffer_rx: new_buffer_rx.into_stream(),
             new_buffers_handle,
             node_to_buf_ids: Default::default(),
             root_id: self.root_id,
             root_path: self.root_path,
             saved_buffers: Default::default(),
-        }
-    }
-
-    pub(crate) fn push_node(&mut self, node: &FsNode<Fs>) {
-        self.fs_streams.watch(node);
-    }
-
-    pub(crate) fn new(project_root: &Fs::Directory) -> Self {
-        let mut fs_streams = FsStreams::default();
-        fs_streams.directories.insert(project_root.id(), project_root.watch());
-        Self {
-            fs_streams,
-            root_id: project_root.id(),
-            root_path: project_root.path().to_owned(),
         }
     }
 }

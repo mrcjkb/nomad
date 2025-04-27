@@ -213,7 +213,7 @@ async fn read_project<B: CollabBackend>(
         },
     };
 
-    let (project, stream_builder, project_filter) = ctx
+    let (project, stream_builder) = ctx
         .spawn_background(async move {
             let walker = fs.walk(&project_root).filter(project_filter);
 
@@ -240,13 +240,12 @@ async fn read_project<B: CollabBackend>(
 
             Ok((
                 project_builder.build(),
-                stream_builder,
-                walker.into_inner().into_filter(),
+                stream_builder.push_filter(walker.into_inner().into_filter()),
             ))
         })
         .await?;
 
-    let event_stream = stream_builder.build(project_filter, ctx);
+    let event_stream = stream_builder.build(ctx);
 
     Ok((project, event_stream))
 }
