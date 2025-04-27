@@ -226,9 +226,9 @@ async fn read_project<B: CollabBackend>(
             walker
                 .for_each(async |parent_path, node_meta| {
                     read_node(
-                        &project_root,
                         parent_path,
                         node_meta,
+                        &project_root,
                         &project_builder_mut,
                         &stream_builder_mut,
                         &fs,
@@ -253,9 +253,9 @@ async fn read_project<B: CollabBackend>(
 
 /// TODO: docs.
 async fn read_node<Fs: fs::Fs>(
-    project_root: &Fs::Directory,
     parent_path: &AbsPath,
     node_meta: Fs::Metadata,
+    project_root: &Fs::Directory,
     project_builder: &Shared<&mut ProjectBuilder, MultiThreaded>,
     stream_builder: &Shared<&mut EventStreamBuilder<Fs>, MultiThreaded>,
     fs: &Fs,
@@ -274,7 +274,7 @@ async fn read_node<Fs: fs::Fs>(
         .strip_prefix(project_root.path())
         .expect("node is under the root dir");
 
-    let _maybe_err = match &node {
+    let maybe_err = match &node {
         FsNode::Directory(_) => project_builder
             .with_mut(|builder| builder.push_directory(path_in_project).err()),
 
@@ -303,9 +303,12 @@ async fn read_node<Fs: fs::Fs>(
         },
     };
 
-    stream_builder.with_mut(|builder| builder.push_node(&node));
-
-    Ok(())
+    if maybe_err.is_some() {
+        Err(ReadNodeError::DuplicateNodeAtPath(path_in_project.to_owned()))
+    } else {
+        stream_builder.with_mut(|builder| builder.push_node(&node));
+        Ok(())
+    }
 }
 
 /// The type of error that can occur when [`Start`]ing a session fails.
@@ -339,6 +342,9 @@ pub enum StartError<B: CollabBackend> {
 /// The type of error that can occur when [read](`read_node`)ing a node fails.
 #[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum ReadNodeError<Fs: fs::Fs> {
+    /// TODO: docs.
+    DuplicateNodeAtPath(AbsPathBuf),
+
     /// TODO: docs.
     GetNode(Fs::NodeAtPathError),
 
