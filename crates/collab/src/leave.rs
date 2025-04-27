@@ -22,10 +22,12 @@ pub struct Leave<B: CollabBackend> {
 
 #[derive(cauchy::Clone, cauchy::Default)]
 pub(crate) struct StopChannels<B: CollabBackend> {
-    inner: Shared<FxHashMap<SessionId<B>, Sender<StopSession>>>,
+    inner: Shared<FxHashMap<SessionId<B>, Sender<StopRequest>>>,
 }
 
-pub(crate) struct StopSession;
+pub(crate) struct StopRequest {
+    stopped_tx: Sender<()>,
+}
 
 impl<B: CollabBackend> AsyncAction<B> for Leave<B> {
     const NAME: Name = "leave";
@@ -37,12 +39,20 @@ impl<B: CollabBackend> AsyncAction<B> for Leave<B> {
         _: Self::Args,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<(), NoActiveSessionError<B>> {
-        if let Some((_, id)) =
-            self.projects.select(ActionForSelectedSession::Leave, ctx).await?
-        {
-            if let Some(sender) = self.channels.take(id) {
-                let _ = sender.send_async(StopSession).await;
-            }
+        let Some(stop_sender) = self
+            .projects
+            .select(ActionForSelectedSession::Leave, ctx)
+            .await?
+            .and_then(|(_, session_id)| self.channels.take(session_id))
+        else {
+            return Ok(());
+        };
+
+        let (stopped_tx, stopped_rx) = flume::bounded(1);
+
+        // Wait for the session to receive the stop request and actually stop.
+        if stop_sender.send_async(StopRequest { stopped_tx }).await.is_ok() {
+            let _ = stopped_rx.recv_async().await;
         }
 
         Ok(())
@@ -54,7 +64,7 @@ impl<B: CollabBackend> StopChannels<B> {
     pub(crate) fn insert(
         &self,
         session_id: SessionId<B>,
-    ) -> Receiver<StopSession> {
+    ) -> Receiver<StopRequest> {
         let (tx, rx) = flume::bounded(1);
         self.inner.with_mut(move |inner| match inner.entry(session_id) {
             Entry::Vacant(vacant) => {
@@ -67,8 +77,14 @@ impl<B: CollabBackend> StopChannels<B> {
         rx
     }
 
-    fn take(&self, session_id: SessionId<B>) -> Option<Sender<StopSession>> {
+    fn take(&self, session_id: SessionId<B>) -> Option<Sender<StopRequest>> {
         self.inner.with_mut(|inner| inner.remove(&session_id))
+    }
+}
+
+impl StopRequest {
+    pub(crate) fn send_stopped(self) {
+        self.stopped_tx.send(()).expect("rx is still alive");
     }
 }
 

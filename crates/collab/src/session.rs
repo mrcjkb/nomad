@@ -8,7 +8,7 @@ use walkdir::Filter;
 
 use crate::backend::{CollabBackend, MessageRx, MessageTx};
 use crate::event_stream::{EventRxError, EventStream};
-use crate::leave::StopSession;
+use crate::leave::StopRequest;
 use crate::project::ProjectHandle;
 
 pub(crate) struct Session<B: CollabBackend, F: Filter<B::Fs>> {
@@ -25,7 +25,7 @@ pub(crate) struct Session<B: CollabBackend, F: Filter<B::Fs>> {
     pub(crate) project_handle: ProjectHandle<B>,
 
     /// TODO: docs.
-    pub(crate) stop_rx: Receiver<StopSession>,
+    pub(crate) stop_rx: Receiver<StopRequest>,
 }
 
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::From)]
@@ -73,7 +73,10 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
                         proj.integrate_message(message, ctx);
                     });
                 },
-                StopSession = stop_stream.select_next_some() => return Ok(()),
+                stop_request = stop_stream.select_next_some() => {
+                    stop_request.send_stopped();
+                    return Ok(())
+                },
             }
         }
     }
