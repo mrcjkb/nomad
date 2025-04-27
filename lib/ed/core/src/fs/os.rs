@@ -30,6 +30,7 @@ use crate::fs::{
     NodeKind,
     NodeName,
     Symlink,
+    SymlinkEvent,
 };
 
 /// TODO: docs.
@@ -434,6 +435,7 @@ impl File for OsFile {
 }
 
 impl Symlink for OsSymlink {
+    type EventStream = futures_util::stream::Pending<SymlinkEvent<OsFs>>;
     type Fs = OsFs;
 
     type DeleteError = io::Error;
@@ -488,6 +490,11 @@ impl Symlink for OsSymlink {
         async_fs::read_link(&*self.path)
             .await
             .map(|path| path.display().to_string())
+    }
+
+    #[inline]
+    fn watch(&self) -> Self::EventStream {
+        todo!()
     }
 }
 
