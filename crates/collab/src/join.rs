@@ -7,7 +7,6 @@ use std::io;
 
 use abs_path::AbsPathBuf;
 use auth::AuthInfos;
-use collab_project::Project;
 use collab_project::fs::{
     Directory as ProjectDirectory,
     DirectoryId,
@@ -15,6 +14,7 @@ use collab_project::fs::{
     FileId,
     Node,
 };
+use collab_project::{Project, symlink};
 use collab_server::message::{Message, Peer, ProjectRequest};
 use collab_server::{SessionIntent, client};
 use ed::AsyncCtx;
@@ -240,11 +240,13 @@ async fn write_children<Fs: fs::Fs>(
                 write_file(file, fs_dir, stream_builder, node_id_maps).await
             }),
         })
-        .collect::<stream::FuturesOrdered<_>>();
+        .collect::<stream::FuturesUnordered<_>>();
 
     while let Some(res) = write_children.next().await {
         res?;
     }
+
+    stream_builder.with_mut(|builder| builder.push_directory(fs_dir));
 
     node_id_maps.with_mut(|maps| {
         maps.node2dir.insert(fs_dir.id(), project_dir.id());
@@ -257,7 +259,7 @@ async fn write_children<Fs: fs::Fs>(
 async fn write_file<Fs: fs::Fs>(
     file: ProjectFile<'_>,
     parent: &Fs::Directory,
-    _stream_builder: &Shared<&mut EventStreamBuilder<Fs>, MultiThreaded>,
+    stream_builder: &Shared<&mut EventStreamBuilder<Fs>, MultiThreaded>,
     node_id_maps: &Shared<&mut NodeIdMaps<Fs>, MultiThreaded>,
 ) -> Result<(), WriteProjectError<Fs>> {
     let file_name = file.name();
@@ -273,6 +275,8 @@ async fn write_file<Fs: fs::Fs>(
                 .await
                 .map_err(WriteProjectError::WriteFile)?;
 
+            stream_builder.with_mut(|builder| builder.push_file(&file));
+
             file.id()
         },
 
@@ -287,14 +291,21 @@ async fn write_file<Fs: fs::Fs>(
                 .await
                 .map_err(WriteProjectError::WriteFile)?;
 
+            stream_builder.with_mut(|builder| builder.push_file(&file));
+
             file.id()
         },
 
-        ProjectFile::Symlink(symlink) => parent
-            .create_symlink(file_name, symlink.target_path())
-            .await
-            .map_err(WriteProjectError::CreateSymlink)?
-            .id(),
+        ProjectFile::Symlink(symlink) => {
+            let symlink = parent
+                .create_symlink(file_name, symlink.target_path())
+                .await
+                .map_err(WriteProjectError::CreateSymlink)?;
+
+            stream_builder.with_mut(|builder| builder.push_symlink(&symlink));
+
+            symlink.id()
+        },
     };
 
     node_id_maps.with_mut(|maps| {

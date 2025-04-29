@@ -149,7 +149,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     }
 
     fn watch(&mut self, node: &FsNode<B::Fs>, ctx: &AsyncCtx<'_, B>) {
-        self.fs_streams.watch(node);
+        self.fs_streams.watch_node(node);
 
         if let FsNode::File(file) = node {
             ctx.with_ctx(|ctx| {
@@ -352,8 +352,20 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
 }
 
 impl<Fs: fs::Fs, State> EventStreamBuilder<Fs, State> {
+    pub(crate) fn push_directory(&mut self, dir: &Fs::Directory) {
+        self.fs_streams.watch_directory(dir);
+    }
+
+    pub(crate) fn push_file(&mut self, file: &Fs::File) {
+        self.fs_streams.watch_file(file);
+    }
+
     pub(crate) fn push_node(&mut self, node: &FsNode<Fs>) {
-        self.fs_streams.watch(node);
+        self.fs_streams.watch_node(node);
+    }
+
+    pub(crate) fn push_symlink(&mut self, symlink: &Fs::Symlink) {
+        self.fs_streams.watch_symlink(symlink);
     }
 }
 
@@ -413,17 +425,23 @@ impl<Fs: fs::Fs, F: Filter<Fs>> EventStreamBuilder<Fs, Done<F>> {
 }
 
 impl<Fs: fs::Fs> FsStreams<Fs> {
-    fn watch(&mut self, node: &FsNode<Fs>) {
+    fn watch_directory(&mut self, dir: &Fs::Directory) {
+        self.directories.insert(dir.id(), dir.watch());
+    }
+
+    fn watch_file(&mut self, file: &Fs::File) {
+        self.files.insert(file.id(), file.watch());
+    }
+
+    fn watch_node(&mut self, node: &FsNode<Fs>) {
         match node {
-            FsNode::Directory(dir) => {
-                self.directories.insert(dir.id(), dir.watch());
-            },
-            FsNode::File(file) => {
-                self.files.insert(file.id(), file.watch());
-            },
-            FsNode::Symlink(symlink) => {
-                self.symlinks.insert(symlink.id(), symlink.watch());
-            },
+            FsNode::Directory(dir) => self.watch_directory(dir),
+            FsNode::File(file) => self.watch_file(file),
+            FsNode::Symlink(symlink) => self.watch_symlink(symlink),
         }
+    }
+
+    fn watch_symlink(&mut self, symlink: &Fs::Symlink) {
+        self.symlinks.insert(symlink.id(), symlink.watch());
     }
 }
