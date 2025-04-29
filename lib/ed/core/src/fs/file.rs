@@ -67,10 +67,10 @@ pub trait File: Send + Sync {
     fn watch(&self) -> Self::EventStream;
 
     /// TODO: docs.
-    fn write<C: AsRef<[u8]>>(
+    fn write<C: AsRef<[u8]> + Send>(
         &mut self,
         new_contents: C,
-    ) -> impl Future<Output = Result<(), Self::WriteError>>;
+    ) -> impl Future<Output = Result<(), Self::WriteError>> + Send;
 }
 
 /// TODO: docs.

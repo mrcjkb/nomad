@@ -433,7 +433,7 @@ impl File for OsFile {
     }
 
     #[inline]
-    async fn write<C: AsRef<[u8]>>(
+    async fn write<C: AsRef<[u8]> + Send>(
         &mut self,
         new_contents: C,
     ) -> Result<(), Self::WriteError> {

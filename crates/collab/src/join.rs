@@ -195,8 +195,7 @@ async fn write_project<B: CollabBackend>(
             let mut node_id_maps = NodeIdMaps::default();
             let node_id_maps_mut = Shared::new(&mut node_id_maps);
 
-            write_directory(
-                project_ptr,
+            write_children(
                 project_ptr.root(),
                 &project_root,
                 &stream_builder_mut,
@@ -217,26 +216,53 @@ async fn write_project<B: CollabBackend>(
 }
 
 /// TODO: docs.
-async fn write_directory<Fs: fs::Fs>(
-    _project: ProjectPtr,
-    _project_dir: ProjectDirectory<'_>,
-    _fs_dir: &Fs::Directory,
-    _stream_builder: &Shared<&mut EventStreamBuilder<Fs>, MultiThreaded>,
+async fn write_children<Fs: fs::Fs>(
+    project_dir: ProjectDirectory<'_>,
+    fs_dir: &Fs::Directory,
+    stream_builder: &Shared<&mut EventStreamBuilder<Fs>, MultiThreaded>,
     node_id_maps: &Shared<&mut NodeIdMaps<Fs>, MultiThreaded>,
 ) -> Result<(), WriteProjectError<Fs>> {
-    todo!();
+    let mut write_children = project_dir
+        .children()
+        .map(|node| match node {
+            Node::Directory(directory) => future::Either::Left(async move {
+                let dir_name = directory.name().expect("dir is not root");
+
+                let dir = fs_dir
+                    .create_directory(dir_name)
+                    .await
+                    .map_err(WriteProjectError::CreateDirectory)?;
+
+                write_children(directory, &dir, stream_builder, node_id_maps)
+                    .await
+            }),
+            Node::File(file) => future::Either::Right(async move {
+                write_file(file, fs_dir, stream_builder, node_id_maps).await
+            }),
+        })
+        .collect::<stream::FuturesOrdered<_>>();
+
+    while let Some(res) = write_children.next().await {
+        res?;
+    }
+
+    node_id_maps.with_mut(|maps| {
+        maps.node2dir.insert(fs_dir.id(), project_dir.id());
+    });
+
+    Ok(())
 }
 
 /// TODO: docs.
 async fn write_file<Fs: fs::Fs>(
-    project_file: ProjectFile<'_>,
+    file: ProjectFile<'_>,
     parent: &Fs::Directory,
     _stream_builder: &Shared<&mut EventStreamBuilder<Fs>, MultiThreaded>,
     node_id_maps: &Shared<&mut NodeIdMaps<Fs>, MultiThreaded>,
 ) -> Result<(), WriteProjectError<Fs>> {
-    let file_name = project_file.name();
+    let file_name = file.name();
 
-    let node_id = match project_file {
+    let node_id = match file {
         ProjectFile::Binary(binary_file) => {
             let mut file = parent
                 .create_file(file_name)
@@ -272,7 +298,7 @@ async fn write_file<Fs: fs::Fs>(
     };
 
     node_id_maps.with_mut(|maps| {
-        maps.node2file.insert(node_id, project_file.id());
+        maps.node2file.insert(node_id, file.id());
     });
 
     Ok(())
