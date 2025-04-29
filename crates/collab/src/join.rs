@@ -14,7 +14,7 @@ use collab_project::fs::{
     FileId,
     Node,
 };
-use collab_project::{Project, symlink};
+use collab_project::{PeerId, Project};
 use collab_server::message::{Message, Peer, ProjectRequest};
 use collab_server::{SessionIntent, client};
 use ed::AsyncCtx;
@@ -113,7 +113,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
         let project_handle = project_guard.activate(NewProjectArgs {
             id_maps,
             host_id: welcome.host_id,
-            peer_handle: local_peer.github_handle.clone(),
+            local_peer,
             project,
             remote_peers: welcome.other_peers,
             session_id: welcome.session_id,

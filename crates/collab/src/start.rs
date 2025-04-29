@@ -12,7 +12,7 @@ use collab_project::fs::{
     Node as ProjectNode,
 };
 use collab_project::{Project, ProjectBuilder};
-use collab_server::message::PeerId;
+use collab_server::message::{Peer, PeerId};
 use collab_server::{SessionIntent, client};
 use ed::AsyncCtx;
 use ed::action::AsyncAction;
@@ -102,7 +102,7 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
             .map_err(StartError::ConnectToServer)?
             .split();
 
-        let peer_handle = auth_infos.handle().clone();
+        let github_handle = auth_infos.handle().clone();
 
         let knock = collab_server::Knock::<B::ServerConfig> {
             auth_infos: auth_infos.into(),
@@ -122,7 +122,7 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
         let project_handle = project_guard.activate(NewProjectArgs {
             host_id: welcome.host_id,
             id_maps,
-            peer_handle,
+            local_peer: Peer { id: welcome.peer_id, github_handle },
             remote_peers: welcome.other_peers,
             project,
             session_id: welcome.session_id,

@@ -21,7 +21,7 @@ use crate::event::Event;
 pub struct Project<B: CollabBackend> {
     agent_id: AgentId,
     host_id: PeerId,
-    peer_handle: GitHubHandle,
+    local_peer: Peer,
     project: collab_project::Project,
     _remote_peers: Peers,
     root_path: AbsPathBuf,
@@ -63,7 +63,7 @@ pub(crate) struct ProjectGuard<B: CollabBackend> {
 pub(crate) struct NewProjectArgs<B: CollabBackend> {
     pub(crate) host_id: PeerId,
     pub(crate) id_maps: IdMaps<B>,
-    pub(crate) peer_handle: GitHubHandle,
+    pub(crate) local_peer: Peer,
     pub(crate) remote_peers: Peers,
     pub(crate) project: collab_project::Project,
     pub(crate) session_id: SessionId<B>,
@@ -225,7 +225,7 @@ impl<B: CollabBackend> ProjectGuard<B> {
         self.projects.insert(Project {
             agent_id: todo!(),
             host_id: args.host_id,
-            peer_handle: args.peer_handle,
+            local_peer: args.local_peer,
             _remote_peers: args.remote_peers,
             project: args.project,
             root_path: self.root.clone(),
