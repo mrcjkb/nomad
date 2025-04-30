@@ -11,7 +11,7 @@ pub trait Directory: Send + Sync + Sized {
     type EventStream: Stream<Item = DirectoryEvent<Self::Fs>> + Send + Unpin;
 
     /// TODO: docs.
-    type Fs: Fs;
+    type Fs: Fs<Directory = Self>;
 
     /// TODO: docs.
     type CreateDirectoryError: Error + Send;
@@ -83,9 +83,7 @@ pub trait Directory: Send + Sync + Sized {
     }
 
     /// TODO: docs.
-    fn parent(
-        &self,
-    ) -> impl Future<Output = Option<<Self::Fs as Fs>::Directory>>;
+    fn parent(&self) -> impl Future<Output = Option<Self>>;
 
     /// TODO: docs.
     fn path(&self) -> &AbsPath;

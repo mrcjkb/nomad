@@ -1,20 +1,18 @@
-use nvimx::fs::{FsNodeKind, FsNodeName};
+use abs_path::NodeName;
+use ed::fs::NodeKind;
 
 /// TODO: docs.
 pub trait Marker {
     /// TODO: docs.
-    fn matches(
-        &self,
-        fs_node_name: &FsNodeName,
-        fs_node_kind: FsNodeKind,
-    ) -> bool;
+    fn matches(&self, fs_node_name: &NodeName, fs_node_kind: NodeKind)
+    -> bool;
 }
 
 impl<M: Marker> Marker for &M {
     fn matches(
         &self,
-        fs_node_name: &FsNodeName,
-        fs_node_kind: FsNodeKind,
+        fs_node_name: &NodeName,
+        fs_node_kind: NodeKind,
     ) -> bool {
         (*self).matches(fs_node_name, fs_node_kind)
     }
@@ -27,8 +25,8 @@ where
 {
     fn matches(
         &self,
-        fs_node_name: &FsNodeName,
-        fs_node_kind: FsNodeKind,
+        fs_node_name: &NodeName,
+        fs_node_kind: NodeKind,
     ) -> bool {
         let (m1, m2) = self;
         m1.matches(fs_node_name, fs_node_kind)

@@ -1,4 +1,5 @@
-use nvimx::fs::{FsNodeKind, FsNodeName};
+use abs_path::NodeName;
+use ed::fs::NodeKind;
 
 use crate::Marker;
 
@@ -10,11 +11,7 @@ impl Git {
 }
 
 impl Marker for Git {
-    fn matches(
-        &self,
-        fs_node_name: &FsNodeName,
-        fs_node_kind: FsNodeKind,
-    ) -> bool {
-        fs_node_kind.is_directory() && fs_node_name.as_str() == Self::GIT_DIR
+    fn matches(&self, node_name: &NodeName, node_kind: NodeKind) -> bool {
+        node_kind.is_dir() && node_name.as_str() == Self::GIT_DIR
     }
 }

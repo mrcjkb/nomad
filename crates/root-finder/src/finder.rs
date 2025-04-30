@@ -1,5 +1,6 @@
+use abs_path::{AbsPath, AbsPathBuf};
+use ed::fs::{self, Directory, File, Metadata};
 use futures_util::{StreamExt, pin_mut};
-use nvimx::fs::{self, AbsPath, AbsPathBuf, DirEntry, FsNodeKind};
 
 use crate::{FindRootError, Marker};
 
@@ -19,30 +20,27 @@ impl<Fs: fs::Fs> Finder<Fs> {
         P: AsRef<AbsPath>,
         M: Marker,
     {
-        let node_kind = self
+        let node = self
             .fs
             .node_at_path(start_from.as_ref())
             .await
             .map_err(FindRootError::NodeAtStartPath)?
-            .ok_or(FindRootError::StartPathNotFound)?
-            .kind();
+            .ok_or(FindRootError::StartPathNotFound)?;
 
-        let mut dir = match node_kind {
-            FsNodeKind::Directory => start_from.as_ref(),
-            FsNodeKind::File => start_from
-                .as_ref()
-                .parent()
-                .expect("path is of file, so it must have a parent"),
-            FsNodeKind::Symlink => todo!("can't handle symlinks yet"),
-        }
-        .to_owned();
+        let mut dir = match node {
+            fs::FsNode::Directory(dir) => dir,
+            fs::FsNode::File(file) => file.parent().await,
+            fs::FsNode::Symlink(_) => todo!("can't handle symlinks yet"),
+        };
 
         loop {
-            if contains_marker(&dir, &marker, &self.fs).await? {
-                return Ok(Some(dir));
+            if contains_marker(&dir, &marker).await? {
+                return Ok(Some(dir.path().to_owned()));
             }
-            if !dir.pop() {
-                return Ok(None);
+
+            match dir.parent().await {
+                Some(new_parent) => dir = new_parent,
+                None => return Ok(None),
             }
         }
     }
@@ -54,34 +52,18 @@ impl<Fs: fs::Fs> Finder<Fs> {
 }
 
 async fn contains_marker<Fs: fs::Fs>(
-    dir_path: &AbsPath,
+    dir: &Fs::Directory,
     marker: &impl Marker,
-    fs: &Fs,
 ) -> Result<bool, FindRootError<Fs>> {
-    let entries = fs.read_dir(dir_path).await.map_err(|err| {
-        FindRootError::ReadDir { dir_path: dir_path.to_owned(), err }
-    })?;
+    let entries = dir.read().await.map_err(FindRootError::ReadDir)?;
+
     pin_mut!(entries);
 
     while let Some(res) = entries.next().await {
-        let entry = res.map_err(|err| FindRootError::DirEntry {
-            parent_path: dir_path.to_owned(),
-            err,
-        })?;
-
-        let fs_node_name =
-            entry.name().await.map_err(|err| FindRootError::DirEntryName {
-                parent_path: dir_path.to_owned(),
-                err,
-            })?;
-
-        let fs_node_kind = entry.node_kind().await.map_err(|err| {
-            let mut entry_path = dir_path.to_owned();
-            entry_path.push(&*fs_node_name);
-            FindRootError::DirEntryNodeKind { entry_path, err }
-        })?;
-
-        if marker.matches(&fs_node_name, fs_node_kind) {
+        let entry = res.map_err(FindRootError::ReadDirEntry)?;
+        let node_name = entry.name().map_err(FindRootError::DirEntryName)?;
+        let node_kind = entry.node_kind();
+        if marker.matches(&node_name, node_kind) {
             return Ok(true);
         }
     }

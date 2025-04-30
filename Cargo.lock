@@ -2488,8 +2488,11 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 name = "root-finder"
 version = "0.1.0-dev"
 dependencies = [
+ "abs-path",
+ "cauchy",
+ "derive_more",
+ "ed",
  "futures-util",
- "nvimx",
 ]
 
 [[package]]
