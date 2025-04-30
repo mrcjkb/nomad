@@ -7,11 +7,12 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+abs-path = { workspace = true }
 anyhow = "1.0"
 cargo_metadata = "0.19"
 clap = { version = "4", features = ["derive"] }
+ed = { workspace = true, features = ["os-fs"] }
 futures-executor = "0.3"
-nvimx = { workspace = true }
 root-finder = { workspace = true }
 xshell = "0.2"
 

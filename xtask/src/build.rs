@@ -2,11 +2,11 @@ use core::{fmt, iter, str};
 use std::borrow::Cow;
 use std::env;
 
+use abs_path::{AbsPath, AbsPathBuf, NodeName, NodeNameBuf};
 use anyhow::{Context, anyhow};
 use cargo_metadata::TargetKind;
+use ed::fs::os::OsFs;
 use futures_executor::block_on;
-use nvimx::fs::os_fs::OsFs;
-use nvimx::fs::{AbsPath, AbsPathBuf, FsNodeName, FsNodeNameBuf};
 use root_finder::markers;
 use xshell::cmd;
 
@@ -100,7 +100,7 @@ impl FindProjectRoot {
     fn call(&self, sh: &xshell::Shell) -> anyhow::Result<AbsPathBuf> {
         let current_dir = sh.current_dir();
         let current_dir = <&AbsPath>::try_from(&*current_dir)?;
-        let root_finder = root_finder::Finder::new(OsFs);
+        let root_finder = root_finder::Finder::new(OsFs::default());
         block_on(root_finder.find_root(current_dir, markers::Git))?
             .ok_or_else(|| anyhow!("Could not find the project root"))
     }
@@ -111,7 +111,7 @@ impl ParsePackage {
         let cargo_dot_toml = {
             let mut root = self.project_root.to_owned();
             #[allow(clippy::unwrap_used)]
-            root.push(<&FsNodeName>::try_from("Cargo.toml").unwrap());
+            root.push(<&NodeName>::try_from("Cargo.toml").unwrap());
             root
         };
         let metadata = cargo_metadata::MetadataCommand::new()
@@ -198,14 +198,14 @@ impl FixLibraryName {
             lib_name = &cdylib_target.name,
             suffix = env::consts::DLL_SUFFIX
         )
-        .parse::<FsNodeNameBuf>()
+        .parse::<NodeNameBuf>()
         .unwrap();
         let dest = format!(
             "{lib_name}{suffix}",
             lib_name = &cdylib_target.name,
             suffix = if cfg!(target_os = "windows") { ".dll" } else { ".so" }
         )
-        .parse::<FsNodeNameBuf>()
+        .parse::<NodeNameBuf>()
         .unwrap();
         force_rename(
             artifact_dir(&self.project_root).push(source),
@@ -218,7 +218,7 @@ impl FixLibraryName {
 fn artifact_dir(project_root: &AbsPath) -> AbsPathBuf {
     let mut dir = project_root.to_owned();
     #[allow(clippy::unwrap_used)]
-    dir.push(<&FsNodeName>::try_from("lua").unwrap());
+    dir.push(<&NodeName>::try_from("lua").unwrap());
     dir
 }
 
