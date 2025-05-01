@@ -71,6 +71,10 @@ struct FsStreams<Fs: fs::Fs> {
 }
 
 impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
+    pub(crate) fn agent_id(&self) -> AgentId {
+        self.agent_id
+    }
+
     pub(crate) async fn next(
         &mut self,
         ctx: &AsyncCtx<'_, B>,

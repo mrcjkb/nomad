@@ -120,6 +120,7 @@ impl<B: CollabBackend> AsyncAction<B> for Start<B> {
                 .map_err(StartError::ReadProject)?;
 
         let project_handle = project_guard.activate(NewProjectArgs {
+            agent_id: event_stream.agent_id(),
             host_id: welcome.host_id,
             id_maps,
             local_peer: Peer { id: welcome.peer_id, github_handle },

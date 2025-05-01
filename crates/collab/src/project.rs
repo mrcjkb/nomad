@@ -61,6 +61,7 @@ pub(crate) struct ProjectGuard<B: CollabBackend> {
 }
 
 pub(crate) struct NewProjectArgs<B: CollabBackend> {
+    pub(crate) agent_id: AgentId,
     pub(crate) host_id: PeerId,
     pub(crate) id_maps: IdMaps<B>,
     pub(crate) local_peer: Peer,
@@ -84,16 +85,12 @@ impl<B: CollabBackend> Project<B> {
     }
 
     /// TODO: docs.
-    pub(crate) fn integrate_message(
-        &mut self,
-        _msg: Message,
-        _ctx: &AsyncCtx<'_, B>,
-    ) {
+    pub(crate) fn integrate(&mut self, _msg: Message, _ctx: &AsyncCtx<'_, B>) {
         todo!();
     }
 
     /// TODO: docs.
-    pub(crate) fn synchronize_event(&mut self, _event: Event<B>) -> Message {
+    pub(crate) fn synchronize(&mut self, _event: Event<B>) -> Message {
         todo!();
     }
 }
@@ -223,7 +220,7 @@ impl<B: CollabBackend> ProjectGuard<B> {
         });
 
         self.projects.insert(Project {
-            agent_id: todo!(),
+            agent_id: args.agent_id,
             host_id: args.host_id,
             local_peer: args.local_peer,
             _remote_peers: args.remote_peers,

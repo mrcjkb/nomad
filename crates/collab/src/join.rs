@@ -111,6 +111,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
                 .map_err(JoinError::WriteProject)?;
 
         let project_handle = project_guard.activate(NewProjectArgs {
+            agent_id: event_stream.agent_id(),
             id_maps,
             host_id: welcome.host_id,
             local_peer,
@@ -121,7 +122,7 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
 
         project_handle.with_mut(|proj| {
             for message in buffered {
-                proj.integrate_message(message, ctx);
+                proj.integrate(message, ctx);
             }
         });
 

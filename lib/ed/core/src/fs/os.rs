@@ -393,11 +393,6 @@ impl Symlink for OsSymlink {
     }
 
     #[inline]
-    fn id(&self) -> Inode {
-        todo!()
-    }
-
-    #[inline]
     fn meta(&self) -> OsMetadata {
         OsMetadata {
             inner: self.metadata.clone(),

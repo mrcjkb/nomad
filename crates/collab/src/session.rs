@@ -61,7 +61,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
                 event_res = event_stream.next(ctx).fuse() => {
                     let event = event_res?;
                     let message = project_handle.with_mut(|proj| {
-                        proj.synchronize_event(event)
+                        proj.synchronize(event)
                     });
                     message_tx.send(message).await?;
                 },
@@ -70,7 +70,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
                         .ok_or(SessionError::MessageRxExhausted)??;
 
                     project_handle.with_mut(|proj| {
-                        proj.integrate_message(message, ctx);
+                        proj.integrate(message, ctx);
                     });
                 },
                 stop_request = stop_stream.select_next_some() => {
