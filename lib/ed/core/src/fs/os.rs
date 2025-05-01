@@ -316,16 +316,10 @@ impl File for OsFile {
     type EventStream = futures_util::stream::Pending<FileEvent<OsFs>>;
     type Fs = OsFs;
 
-    type Error = io::Error;
     type DeleteError = io::Error;
     type ParentError = io::Error;
     type ReadError = io::Error;
     type WriteError = io::Error;
-
-    #[inline]
-    async fn byte_len(&self) -> Result<ByteOffset, Self::Error> {
-        Ok(self.metadata.len().into())
-    }
 
     #[inline]
     async fn delete(self) -> Result<(), Self::DeleteError> {

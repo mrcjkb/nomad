@@ -14,9 +14,6 @@ pub trait File: Send + Sync {
     type Fs: Fs;
 
     /// TODO: docs.
-    type Error: Error + Send;
-
-    /// TODO: docs.
     type DeleteError: Error + Send;
 
     /// TODO: docs.
@@ -29,9 +26,10 @@ pub trait File: Send + Sync {
     type WriteError: Error + Send;
 
     /// TODO: docs.
-    fn byte_len(
-        &self,
-    ) -> impl Future<Output = Result<ByteOffset, Self::Error>>;
+    #[inline]
+    fn byte_len(&self) -> ByteOffset {
+        fs::Metadata::byte_len(&self.meta())
+    }
 
     /// TODO: docs.
     fn delete(
