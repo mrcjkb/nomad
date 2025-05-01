@@ -1,3 +1,5 @@
+use core::cmp::Ordering;
+use core::ops::Range;
 use std::borrow::Cow;
 use std::path::PathBuf;
 
@@ -51,6 +53,35 @@ impl NeovimBuffer {
     #[inline]
     pub(crate) fn new(inner: oxi::api::Buffer) -> Self {
         Self(inner.handle())
+    }
+
+    #[inline]
+    pub(crate) fn selection(&self) -> Option<Range<ByteOffset>> {
+        let mode = oxi::api::get_mode().expect("couldn't get mode").mode;
+
+        if !(mode.is_visual() || mode.is_visual_select()) {
+            return None;
+        }
+
+        let (anchor_row, anchor_col) = self.inner().get_mark('<').ok()?;
+
+        let (head_row, head_col) = self.inner().get_mark('>').ok()?;
+
+        let anchor = self.byte_offset_of_point(Point {
+            line_idx: anchor_row - 1,
+            byte_offset: ByteOffset::new(anchor_col),
+        });
+
+        let head = self.byte_offset_of_point(Point {
+            line_idx: head_row - 1,
+            byte_offset: ByteOffset::new(head_col),
+        });
+
+        match anchor.cmp(&head) {
+            Ordering::Less => Some(anchor..head),
+            Ordering::Equal => None,
+            Ordering::Greater => Some(head..anchor),
+        }
     }
 
     /// Converts the given [`Point`] to the corresponding [`ByteOffset`] in the

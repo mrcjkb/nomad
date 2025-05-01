@@ -134,9 +134,9 @@ impl Backend for Neovim {
     #[inline]
     fn selection(
         &mut self,
-        _buf: Self::SelectionId,
+        buf: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
-        todo!()
+        buf.exists().then(|| buf.selection()).is_some().then_some(buf)
     }
 
     #[inline]
