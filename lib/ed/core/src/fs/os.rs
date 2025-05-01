@@ -196,10 +196,16 @@ impl Directory for OsDirectory {
     #[inline]
     async fn create_symlink(
         &self,
-        _symlink_name: &NodeName,
-        _target_path: &str,
-    ) -> Result<OsSymlink, Self::CreateFileError> {
-        todo!();
+        symlink_name: &NodeName,
+        target_path: &str,
+    ) -> Result<OsSymlink, Self::CreateSymlinkError> {
+        #[cfg(unix)]
+        {
+            let path = self.path.clone().join(symlink_name);
+            async_fs::unix::symlink(target_path, &path).await?;
+            let metadata = async_fs::metadata(&path).await?;
+            Ok(OsSymlink { metadata, path })
+        }
     }
 
     #[inline]
