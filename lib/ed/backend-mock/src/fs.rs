@@ -4,18 +4,17 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::sync::{Arc, Mutex};
 
+use abs_path::{AbsPath, AbsPathBuf, NodeName, NodeNameBuf};
 use ed_core::ByteOffset;
 use ed_core::fs::{
     self,
-    AbsPath,
-    AbsPathBuf,
     DirectoryEvent,
+    FileEvent,
     Fs,
     FsEvent,
     FsEventKind,
     NodeKind,
-    NodeName,
-    NodeNameBuf,
+    SymlinkEvent,
 };
 use futures_lite::Stream;
 use fxhash::FxHashMap;
@@ -27,38 +26,45 @@ pub struct MockFs {
     inner: Arc<Mutex<FsInner>>,
 }
 
-pub struct Directory {
+pub struct MockDirectory {
     fs: MockFs,
+    metadata: MockMetadata,
     path: AbsPathBuf,
 }
 
-pub struct File {
+pub struct MockFile {
     fs: MockFs,
+    metadata: MockMetadata,
     path: AbsPathBuf,
 }
 
-pub struct Symlink {
+pub struct MockSymlink {
     fs: MockFs,
+    metadata: MockMetadata,
     path: AbsPathBuf,
 }
 
 #[derive(Debug, Clone)]
-pub struct Metadata {
+pub struct MockMetadata {
+    byte_len: ByteOffset,
+    created_at: MockTimestamp,
+    last_modified_at: MockTimestamp,
     name: NodeNameBuf,
+    node_id: MockNodeId,
     node_kind: NodeKind,
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Timestamp(u64);
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MockTimestamp(u64);
 
 #[derive(
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
-pub struct NodeId(u64);
+pub struct MockNodeId(u64);
 
 pin_project_lite::pin_project! {
     pub struct ReadDir {
-        dir_handle: Directory,
+        dir_handle: MockDirectory,
         next_child_idx: usize,
     }
 }
@@ -68,7 +74,7 @@ pin_project_lite::pin_project! {
         fs: MockFs,
         path: AbsPathBuf,
         #[pin]
-        inner: async_broadcast::Receiver<FsEvent<Timestamp>>,
+        inner: async_broadcast::Receiver<FsEvent<MockTimestamp>>,
     }
 
     impl PinnedDrop for Watcher {
@@ -78,41 +84,44 @@ pin_project_lite::pin_project! {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum MockFsNode {
-    File(MockFile),
-    Directory(MockDirectory),
-}
-
-#[derive(Debug)]
-pub struct MockDirectory {
-    children: IndexMap<NodeNameBuf, MockFsNode>,
-    metadata: Metadata,
-}
-
-#[derive(Debug)]
-pub struct MockFile {
-    contents: Vec<u8>,
-}
-
-pub enum DirEntry {
-    Directory(Directory),
-    File(File),
-}
-
 struct FsInner {
-    root: MockFsNode,
-    timestamp: Timestamp,
+    next_node_id: MockNodeId,
+    root: Node,
+    timestamp: MockTimestamp,
     watchers: FxHashMap<AbsPathBuf, WatchChannel>,
 }
 
+#[derive(Debug, Default)]
+#[doc(hidden)]
+pub struct DirectoryInner {
+    children: IndexMap<NodeNameBuf, (MockMetadata, Node)>,
+}
+
+#[derive(Debug, Default)]
+struct FileInner {
+    contents: Vec<u8>,
+}
+
+#[derive(Debug, PartialEq)]
+struct SymlinkInner {
+    target_path: String,
+}
+
+#[derive(Debug, PartialEq, cauchy::From)]
+enum Node {
+    File(#[from] FileInner),
+    Directory(#[from] DirectoryInner),
+    Symlink(#[from] SymlinkInner),
+}
+
 struct WatchChannel {
-    inactive_rx: async_broadcast::InactiveReceiver<FsEvent<Timestamp>>,
-    tx: async_broadcast::Sender<FsEvent<Timestamp>>,
+    inactive_rx: async_broadcast::InactiveReceiver<FsEvent<MockTimestamp>>,
+    tx: async_broadcast::Sender<FsEvent<MockTimestamp>>,
 }
 
 impl MockFs {
-    pub fn new(root: MockDirectory) -> Self {
+    #[doc(hidden)]
+    pub fn new(root: DirectoryInner) -> Self {
         Self { inner: Arc::new(Mutex::new(FsInner::new(root))) }
     }
 
@@ -121,14 +130,14 @@ impl MockFs {
         path: &AbsPath,
     ) -> Option<fs::FsNode<Self>> {
         let kind = self.with_inner(|inner| {
-            inner.node_at_path(path).as_deref().map(MockFsNode::kind)
+            inner.node_at_path(path).as_deref().map(Node::kind)
         })?;
         let node = match kind {
-            NodeKind::File => fs::FsNode::File(File {
+            NodeKind::File => fs::FsNode::File(MockFile {
                 fs: self.clone(),
                 path: path.to_owned(),
             }),
-            NodeKind::Directory => fs::FsNode::Directory(Directory {
+            NodeKind::Directory => fs::FsNode::Directory(MockDirectory {
                 fs: self.clone(),
                 path: path.to_owned(),
             }),
@@ -139,6 +148,10 @@ impl MockFs {
 
     fn delete_node(&self, path: &AbsPath) -> Result<(), DeleteNodeError> {
         self.with_inner(|inner| inner.delete_node(path))
+    }
+
+    fn next_node_id(&self) -> MockNodeId {
+        self.with_inner(|inner| inner.next_node_id.post_inc())
     }
 
     #[allow(clippy::unwrap_used)]
@@ -174,46 +187,113 @@ impl DirEntry {
     }
 }
 
-impl Directory {
-    fn exists(&self) -> bool {
-        self.fs.with_inner(|inner| {
-            matches!(
-                inner.node_at_path(&self.path),
-                Some(MockFsNode::Directory(_))
-            )
-        })
+impl MockDirectory {
+    fn create_node(
+        &self,
+        node_name: &NodeName,
+        node: impl Into<Node>,
+    ) -> Result<MockMetadata, CreateNodeError> {
+        let node = node.into();
+
+        let metadata = MockMetadata {
+            byte_len: 0usize.into(),
+            created_at: self.fs.now(),
+            last_modified_at: self.fs.now(),
+            name: node_name.to_owned(),
+            node_id: self.fs.next_node_id(),
+            node_kind: node.kind(),
+        };
+
+        self.with_inner(|dir| {
+            dir.create_node(&self.path, node_name, metadata.clone(), node)
+        })??;
+
+        Ok(metadata)
     }
 
-    fn with_dir<T>(
+    fn with_inner<T>(
         &self,
-        f: impl FnOnce(&mut MockDirectory) -> T,
-    ) -> Result<T, DirEntryDoesNotExistError> {
-        self.fs.with_inner(|inner| match inner.dir_at_path(&self.path) {
-            Some(dir) => Ok(f(dir)),
-            None => Err(DirEntryDoesNotExistError),
+        f: impl FnOnce(&mut DirectoryInner) -> T,
+    ) -> Result<T, GetNodeError> {
+        self.fs.with_inner(|inner| {
+            match inner
+                .node_at_path(&self.path)
+                .ok_or(GetNodeError::DoesNotExist(self.path.clone()))?
+            {
+                Node::Directory(dir) => Ok(f(dir)),
+                other => Err(GetNodeError::WrongKind {
+                    expected: NodeKind::Directory,
+                    actual: other.kind(),
+                    path: self.path.clone(),
+                }),
+            }
         })
     }
 }
 
-impl File {
-    pub(crate) fn read_sync(
-        &self,
-    ) -> Result<Vec<u8>, DirEntryDoesNotExistError> {
-        self.with_file(|file| file.contents().to_vec())
+impl MockFile {
+    pub(crate) fn read_sync(&self) -> Result<Vec<u8>, GetNodeError> {
+        self.with_inner(|file| file.contents().to_vec())
     }
 
     fn exists(&self) -> bool {
-        self.with_file(|_| true).unwrap_or(false)
+        self.with_inner(|_| true).unwrap_or(false)
     }
 
-    fn with_file<T>(
+    fn with_inner<T>(
         &self,
-        f: impl FnOnce(&mut MockFile) -> T,
-    ) -> Result<T, DirEntryDoesNotExistError> {
-        self.fs.with_inner(|inner| match inner.file_at_path(&self.path) {
-            Some(file) => Ok(f(file)),
-            None => Err(DirEntryDoesNotExistError),
+        f: impl FnOnce(&mut FileInner) -> T,
+    ) -> Result<T, GetNodeError> {
+        self.fs.with_inner(|inner| {
+            match inner
+                .node_at_path(&self.path)
+                .ok_or(GetNodeError::DoesNotExist(self.path.clone()))?
+            {
+                Node::File(file) => Ok(f(file)),
+                other => Err(GetNodeError::WrongKind {
+                    expected: NodeKind::File,
+                    actual: other.kind(),
+                    path: self.path.clone(),
+                }),
+            }
         })
+    }
+}
+
+impl MockSymlink {
+    fn clone_priv(&self) -> Self {
+        Self {
+            fs: self.fs.clone(),
+            metadata: self.metadata.clone(),
+            path: self.path.clone(),
+        }
+    }
+
+    fn with_inner<T>(
+        &self,
+        f: impl FnOnce(&mut SymlinkInner) -> T,
+    ) -> Result<T, GetNodeError> {
+        self.fs.with_inner(|inner| {
+            match inner
+                .node_at_path(&self.path)
+                .ok_or(GetNodeError::DoesNotExist(self.path.clone()))?
+            {
+                Node::Symlink(symlink) => Ok(f(symlink)),
+                other => Err(GetNodeError::WrongKind {
+                    expected: NodeKind::Symlink,
+                    actual: other.kind(),
+                    path: self.path.clone(),
+                }),
+            }
+        })
+    }
+}
+
+impl MockNodeId {
+    fn post_inc(&mut self) -> Self {
+        let id = self.0;
+        self.0 += 1;
+        Self(id)
     }
 }
 
@@ -221,7 +301,7 @@ impl FsInner {
     fn create_node(
         &mut self,
         path: &AbsPath,
-        node: MockFsNode,
+        node: Node,
     ) -> Result<(), CreateNodeError> {
         let (parent_path, node_name) = match (path.parent(), path.node_name())
         {
@@ -237,11 +317,11 @@ impl FsInner {
         };
 
         let parent = self.node_at_path(parent_path).ok_or_else(|| {
-            CreateNodeError::ParentDoesNotExist(parent_path.to_owned())
+            CreateNodeError::GetParent(parent_path.to_owned())
         })?;
 
         let node_kind = match parent {
-            MockFsNode::Directory(parent) => {
+            Node::Directory(parent) => {
                 if let Some(child) = parent.children.get(node_name) {
                     return Err(CreateNodeError::AlreadyExists(
                         NodeAlreadyExistsError {
@@ -254,7 +334,7 @@ impl FsInner {
                 parent.children.insert(node_name.to_owned(), node);
                 kind
             },
-            MockFsNode::File(_) => {
+            Node::File(_) => {
                 return Err(CreateNodeError::ParentIsFile(
                     parent_path.to_owned(),
                 ));
@@ -296,27 +376,16 @@ impl FsInner {
         Ok(())
     }
 
-    fn dir_at_path(&mut self, path: &AbsPath) -> Option<&mut MockDirectory> {
-        if path.is_root() {
-            Some(self.root())
-        } else {
-            self.root().dir_at_path(path)
-        }
-    }
-
-    fn file_at_path(&mut self, path: &AbsPath) -> Option<&mut MockFile> {
-        self.root().file_at_path(path)
-    }
-
-    fn new(root: MockDirectory) -> Self {
+    fn new(root: DirectoryInner) -> Self {
         Self {
-            root: MockFsNode::Directory(root),
-            timestamp: Timestamp(0),
+            next_node_id: MockNodeId(0),
+            root: Node::Directory(root),
+            timestamp: MockTimestamp(0),
             watchers: FxHashMap::default(),
         }
     }
 
-    fn node_at_path(&mut self, path: &AbsPath) -> Option<&mut MockFsNode> {
+    fn node_at_path(&mut self, path: &AbsPath) -> Option<&mut Node> {
         if path.is_root() {
             Some(&mut self.root)
         } else {
@@ -324,15 +393,15 @@ impl FsInner {
         }
     }
 
-    fn root(&mut self) -> &mut MockDirectory {
+    fn root(&mut self) -> &mut DirectoryInner {
         match &mut self.root {
-            MockFsNode::Directory(dir) => dir,
+            Node::Directory(dir) => dir,
             _ => unreachable!("root is always a directory"),
         }
     }
 }
 
-impl MockFsNode {
+impl Node {
     fn kind(&self) -> NodeKind {
         match self {
             Self::File(_) => NodeKind::File,
@@ -341,14 +410,14 @@ impl MockFsNode {
     }
 }
 
-impl MockDirectory {
+impl DirectoryInner {
     // Should only be used by the `fs!` macro.
     #[doc(hidden)]
     #[track_caller]
     pub fn insert_child(
         &mut self,
         name: impl AsRef<NodeName>,
-        child: impl Into<MockFsNode>,
+        child: impl Into<Node>,
     ) -> &mut Self {
         let name = name.as_ref();
         match self.children.entry(name.to_owned()) {
@@ -366,18 +435,36 @@ impl MockDirectory {
         Self::default()
     }
 
-    fn child_at_path(&mut self, path: &AbsPath) -> Option<&mut MockFsNode> {
+    fn child_at_path(&mut self, path: &AbsPath) -> Option<&mut Node> {
         let mut components = path.components();
         let node = self.children.get_mut(components.next()?)?;
         if components.as_path().is_root() {
             return Some(node);
         }
-        let MockFsNode::Directory(dir) = node else { return None };
+        let Node::Directory(dir) = node else { return None };
         dir.child_at_path(components.as_path())
     }
 
     fn clear(&mut self) {
         self.children.clear();
+    }
+
+    fn create_node(
+        &mut self,
+        this_path: &AbsPath,
+        name: &NodeName,
+        metadata: MockMetadata,
+        node: Node,
+    ) -> Result<(), CreateNodeError> {
+        if self.children.contains_key(name) {
+            Err(CreateNodeError::AlreadyExists(NodeAlreadyExistsError {
+                kind: node.kind(),
+                path: this_path.join(name),
+            }))
+        } else {
+            self.children.insert(name.to_owned(), (metadata, node));
+            Ok(())
+        }
     }
 
     fn delete_child(&mut self, name: &NodeName) -> bool {
@@ -386,20 +473,20 @@ impl MockDirectory {
 
     fn dir_at_path(&mut self, path: &AbsPath) -> Option<&mut Self> {
         match self.child_at_path(path)? {
-            MockFsNode::Directory(dir) => Some(dir),
+            Node::Directory(dir) => Some(dir),
             _ => None,
         }
     }
 
-    fn file_at_path(&mut self, path: &AbsPath) -> Option<&mut MockFile> {
+    fn file_at_path(&mut self, path: &AbsPath) -> Option<&mut FileInner> {
         match self.child_at_path(path)? {
-            MockFsNode::File(file) => Some(file),
+            Node::File(file) => Some(file),
             _ => None,
         }
     }
 }
 
-impl MockFile {
+impl FileInner {
     pub fn contents(&self) -> &[u8] {
         &self.contents
     }
@@ -420,7 +507,7 @@ impl MockFile {
 impl WatchChannel {
     const CAPACITY: usize = 16;
 
-    fn emit(&self, event: FsEvent<Timestamp>) {
+    fn emit(&self, event: FsEvent<MockTimestamp>) {
         if self.tx.receiver_count() > 0 {
             self.tx
                 .broadcast_blocking(event)
@@ -433,18 +520,18 @@ impl WatchChannel {
         Self { tx, inactive_rx: rx.deactivate() }
     }
 
-    fn rx(&self) -> async_broadcast::Receiver<FsEvent<Timestamp>> {
+    fn rx(&self) -> async_broadcast::Receiver<FsEvent<MockTimestamp>> {
         self.inactive_rx.activate_cloned()
     }
 }
 
 impl fs::Fs for MockFs {
-    type Directory = Directory;
-    type File = File;
-    type Symlink = Symlink;
-    type Metadata = Metadata;
-    type NodeId = NodeId;
-    type Timestamp = Timestamp;
+    type Directory = MockDirectory;
+    type File = MockFile;
+    type Symlink = MockSymlink;
+    type Metadata = MockMetadata;
+    type NodeId = MockNodeId;
+    type Timestamp = MockTimestamp;
 
     type CreateDirectoryError = CreateNodeError;
     type CreateFileError = CreateNodeError;
@@ -456,9 +543,9 @@ impl fs::Fs for MockFs {
     ) -> Result<Self::Directory, Self::CreateDirectoryError> {
         let path = path.as_ref();
         self.with_inner(|fs| {
-            fs.create_node(path, MockFsNode::Directory(MockDirectory::new()))
+            fs.create_node(path, Node::Directory(DirectoryInner::new()))
         })?;
-        Ok(Directory { fs: self.clone(), path: path.to_owned() })
+        Ok(MockDirectory { fs: self.clone(), path: path.to_owned() })
     }
 
     async fn create_file<P: AsRef<AbsPath>>(
@@ -467,9 +554,9 @@ impl fs::Fs for MockFs {
     ) -> Result<Self::File, Self::CreateFileError> {
         let path = path.as_ref();
         self.with_inner(|fs| {
-            fs.create_node(path, MockFsNode::File(MockFile::new("")))
+            fs.create_node(path, Node::File(FileInner::new("")))
         })?;
-        Ok(File { fs: self.clone(), path: path.to_owned() })
+        Ok(MockFile { fs: self.clone(), path: path.to_owned() })
     }
 
     async fn node_at_path<P: AsRef<AbsPath>>(
@@ -484,55 +571,73 @@ impl fs::Fs for MockFs {
     }
 }
 
-impl fs::Directory for Directory {
+impl fs::Directory for MockDirectory {
     type EventStream = futures_lite::stream::Pending<DirectoryEvent<MockFs>>;
     type Fs = MockFs;
 
     type CreateDirectoryError = CreateNodeError;
     type CreateFileError = CreateNodeError;
     type CreateSymlinkError = CreateNodeError;
-    type ClearError = DirEntryDoesNotExistError;
+    type ClearError = GetNodeError;
     type DeleteError = DeleteNodeError;
-    type MetadataError = DirEntryDoesNotExistError;
+    type ParentError = GetNodeError;
     type ReadEntryError = ReadDirNextError;
     type ReadError = ReadDirError;
 
     async fn create_directory(
         &self,
-        directory_name: &NodeName,
+        dir_name: &NodeName,
     ) -> Result<Self, Self::CreateDirectoryError> {
-        self.fs.create_directory(self.path.clone().join(directory_name)).await
+        let metadata =
+            self.create_node(dir_name, DirectoryInner::default())?;
+
+        Ok(Self {
+            fs: self.fs.clone(),
+            metadata,
+            path: self.path.clone().join(dir_name),
+        })
     }
 
     async fn create_file(
         &self,
         file_name: &NodeName,
-    ) -> Result<File, Self::CreateFileError> {
-        self.fs.create_file(self.path.clone().join(file_name)).await
+    ) -> Result<MockFile, Self::CreateFileError> {
+        let metadata = self.create_node(file_name, FileInner::default())?;
+
+        Ok(MockFile {
+            fs: self.fs.clone(),
+            metadata,
+            path: self.path.clone().join(file_name),
+        })
     }
 
     async fn create_symlink(
         &self,
-        _symlink_name: &NodeName,
-        _target_path: &str,
-    ) -> Result<Symlink, Self::CreateSymlinkError> {
-        todo!()
+        symlink_name: &NodeName,
+        target_path: &str,
+    ) -> Result<MockSymlink, Self::CreateSymlinkError> {
+        let metadata = self.create_node(
+            symlink_name,
+            SymlinkInner { target_path: target_path.to_owned() },
+        )?;
+
+        Ok(MockSymlink {
+            fs: self.fs.clone(),
+            metadata,
+            path: self.path.clone().join(symlink_name),
+        })
     }
 
     async fn clear(&self) -> Result<(), Self::ClearError> {
-        self.with_dir(|dir| dir.clear())
+        self.with_inner(|dir| dir.clear())
     }
 
     async fn delete(self) -> Result<(), Self::DeleteError> {
         self.fs.delete_node(&self.path)
     }
 
-    fn id(&self) -> <Self::Fs as Fs>::NodeId {
-        todo!()
-    }
-
-    async fn meta(&self) -> Result<Metadata, Self::MetadataError> {
-        self.with_dir(|dir| dir.metadata.clone())
+    fn meta(&self) -> MockMetadata {
+        self.metadata.clone()
     }
 
     async fn read(&self) -> Result<ReadDir, Self::ReadError> {
@@ -547,10 +652,17 @@ impl fs::Directory for Directory {
         Ok(ReadDir { dir_handle, next_child_idx: 0 })
     }
 
-    async fn parent(&self) -> Option<Self> {
-        self.path
-            .parent()
-            .map(|path| Self { path: path.to_owned(), fs: self.fs.clone() })
+    async fn parent(&self) -> Result<Option<Self>, Self::ParentError> {
+        let Some(parent_path) = self.path.parent() else { return Ok(None) };
+        let Ok(maybe_node) = self.fs.node_at_path(parent_path).await;
+        match maybe_node.expect("parent must exist") {
+            fs::FsNode::Directory(parent) => Ok(Some(parent)),
+            other => Err(GetNodeError::WrongKind {
+                expected: NodeKind::Directory,
+                actual: other.kind(),
+                path: parent_path.to_owned(),
+            }),
+        }
     }
 
     fn path(&self) -> &AbsPath {
@@ -562,67 +674,180 @@ impl fs::Directory for Directory {
     }
 }
 
-impl From<MockDirectory> for MockFsNode {
-    fn from(dir: MockDirectory) -> Self {
-        Self::Directory(dir)
+impl fs::File for MockFile {
+    type EventStream = futures_lite::stream::Pending<FileEvent<MockFs>>;
+    type Fs = MockFs;
+
+    type DeleteError = DeleteNodeError;
+    type ParentError = GetNodeError;
+    type ReadError = GetNodeError;
+    type WriteError = GetNodeError;
+
+    async fn delete(self) -> Result<(), Self::DeleteError> {
+        self.fs.delete_node(&self.path)
+    }
+
+    fn meta(&self) -> MockMetadata {
+        self.metadata.clone()
+    }
+
+    async fn parent(&self) -> Result<MockDirectory, Self::ParentError> {
+        let parent_path = self.path.parent().expect("can't be root");
+        let Ok(maybe_node) = self.fs.node_at_path(parent_path).await;
+        match maybe_node.expect("parent must exist") {
+            fs::FsNode::Directory(parent) => Ok(parent),
+            other => Err(GetNodeError::WrongKind {
+                expected: NodeKind::Directory,
+                actual: other.kind(),
+                path: parent_path.to_owned(),
+            }),
+        }
+    }
+
+    fn path(&self) -> &AbsPath {
+        &self.path
+    }
+
+    async fn read(&self) -> Result<Vec<u8>, Self::ReadError> {
+        self.with_inner(|file| file.contents.clone())
+    }
+
+    fn watch(&self) -> Self::EventStream {
+        todo!()
+    }
+
+    async fn write<C: AsRef<[u8]>>(
+        &mut self,
+        new_contents: C,
+    ) -> Result<(), Self::WriteError> {
+        self.with_inner(|file| file.write(new_contents.as_ref()))
     }
 }
 
-impl From<MockFile> for MockFsNode {
-    fn from(file: MockFile) -> Self {
-        Self::File(file)
+impl fs::Symlink for MockSymlink {
+    type EventStream = futures_lite::stream::Pending<SymlinkEvent<MockFs>>;
+    type Fs = MockFs;
+
+    type DeleteError = DeleteNodeError;
+    type FollowError = FollowError;
+    type ReadError = GetNodeError;
+
+    async fn delete(self) -> Result<(), Self::DeleteError> {
+        self.fs.delete_node(&self.path)
+    }
+
+    async fn follow(
+        &self,
+    ) -> Result<Option<fs::FsNode<MockFs>>, Self::FollowError> {
+        use std::path::MAIN_SEPARATOR;
+
+        let target_path = self.read_path().await?;
+
+        let mut stack = self.path.components().collect::<Vec<_>>();
+        let target_components = target_path.split(MAIN_SEPARATOR);
+        for component in target_components {
+            if component == "." {
+                continue;
+            } else if component == ".." {
+                if stack.pop().is_none() {
+                    return Err(FollowError::InvalidTargetPath {
+                        symlink_path: self.path.clone(),
+                        target_path: target_path.clone(),
+                    });
+                }
+            } else {
+                let component =
+                    <&NodeName>::try_from(component).map_err(|_| {
+                        FollowError::InvalidTargetPath {
+                            symlink_path: self.path.clone(),
+                            target_path: target_path.clone(),
+                        }
+                    })?;
+                stack.push(component);
+            }
+        }
+
+        match self
+            .fs
+            .node_at_path(stack.into_iter().collect::<AbsPathBuf>())
+            .await
+        {
+            Ok(maybe_node) => Ok(maybe_node),
+        }
+    }
+
+    async fn follow_recursively(
+        &self,
+    ) -> Result<Option<fs::FsNode<MockFs>>, Self::FollowError> {
+        let mut symlink = self.clone_priv();
+        loop {
+            let Some(node) = symlink.follow().await? else { return Ok(None) };
+            match node {
+                fs::FsNode::Symlink(new_symlink) => symlink = new_symlink,
+                other => return Ok(Some(other)),
+            }
+        }
+    }
+
+    fn meta(&self) -> MockMetadata {
+        self.metadata.clone()
+    }
+
+    fn path(&self) -> &AbsPath {
+        &self.path
+    }
+
+    async fn read_path(&self) -> Result<String, Self::ReadError> {
+        self.with_inner(|symlink| symlink.target_path.clone())
+    }
+
+    fn watch(&self) -> Self::EventStream {
+        todo!()
     }
 }
 
-impl PartialEq for MockFile {
+impl fs::Metadata for MockMetadata {
+    type Fs = MockFs;
+
+    fn byte_len(&self) -> ByteOffset {
+        self.byte_len
+    }
+
+    fn created_at(&self) -> Option<MockTimestamp> {
+        Some(self.created_at)
+    }
+
+    fn id(&self) -> MockNodeId {
+        self.node_id
+    }
+
+    fn last_modified_at(&self) -> Option<MockTimestamp> {
+        Some(self.last_modified_at)
+    }
+
+    fn name(&self) -> Result<&NodeName, fs::MetadataNameError> {
+        Ok(&self.name)
+    }
+
+    fn node_kind(&self) -> NodeKind {
+        self.node_kind
+    }
+}
+
+impl PartialEq for FileInner {
     fn eq(&self, other: &Self) -> bool {
         self.contents == other.contents
     }
 }
 
-impl PartialEq for MockDirectory {
+impl PartialEq for DirectoryInner {
     fn eq(&self, other: &Self) -> bool {
         self.children == other.children
     }
 }
 
-impl fs::Metadata for DirEntry {
-    type Timestamp = Timestamp;
-    type NameError = DirEntryDoesNotExistError;
-    type NodeKindError = DirEntryDoesNotExistError;
-
-    fn created_at(&self) -> Option<Timestamp> {
-        None
-    }
-
-    fn last_modified_at(&self) -> Option<Timestamp> {
-        None
-    }
-
-    #[track_caller]
-    fn byte_len(&self) -> ByteOffset {
-        match self {
-            DirEntry::Directory(_) => 0usize.into(),
-            DirEntry::File(file) => file
-                .with_file(|file| file.len())
-                .expect("file has been deleted"),
-        }
-    }
-
-    async fn name(&self) -> Result<NodeNameBuf, Self::NameError> {
-        self.exists()
-            .then(|| self.path().node_name().expect("path is not root"))
-            .map(ToOwned::to_owned)
-            .ok_or(DirEntryDoesNotExistError)
-    }
-
-    async fn node_kind(&self) -> Result<NodeKind, Self::NodeKindError> {
-        self.exists().then_some(self.kind()).ok_or(DirEntryDoesNotExistError)
-    }
-}
-
 impl Stream for ReadDir {
-    type Item = Result<Metadata, ReadDirNextError>;
+    type Item = Result<MockMetadata, ReadDirNextError>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -645,16 +870,16 @@ impl Stream for ReadDir {
         let mut child_path = this.dir_handle.path.clone();
         child_path.push(name);
         let metadata = match kind {
-            NodeKind::File => Metadata,
-            NodeKind::Directory => Metadata,
-            NodeKind::Symlink => Metadata,
+            NodeKind::File => MockMetadata,
+            NodeKind::Directory => MockMetadata,
+            NodeKind::Symlink => MockMetadata,
         };
         Poll::Ready(Some(Ok(metadata)))
     }
 }
 
 impl Stream for Watcher {
-    type Item = Result<FsEvent<Timestamp>, Infallible>;
+    type Item = Result<FsEvent<MockTimestamp>, Infallible>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -667,128 +892,93 @@ impl Stream for Watcher {
     }
 }
 
-impl fmt::Debug for Directory {
+impl fmt::Debug for MockDirectory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.with_dir(|dir| fmt::Debug::fmt(dir, f)) {
+        match self.with_inner(|dir| fmt::Debug::fmt(dir, f)) {
             Ok(res) => res,
             Err(err) => fmt::Debug::fmt(&err, f),
         }
     }
 }
 
-impl PartialEq for Directory {
+impl PartialEq for MockDirectory {
     fn eq(&self, other: &Self) -> bool {
-        self.with_dir(|l| other.with_dir(|r| l == r).unwrap_or(false))
+        self.with_inner(|l| other.with_inner(|r| l == r).unwrap_or(false))
             .unwrap_or(false)
     }
 }
 
-impl fmt::Debug for File {
+impl fmt::Debug for MockFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.with_file(|dir| fmt::Debug::fmt(dir, f)) {
+        match self.with_inner(|dir| fmt::Debug::fmt(dir, f)) {
             Ok(res) => res,
             Err(err) => fmt::Debug::fmt(&err, f),
         }
     }
 }
 
-impl PartialEq for File {
+impl PartialEq for MockFile {
     fn eq(&self, other: &Self) -> bool {
-        self.with_file(|l| other.with_file(|r| l == r).unwrap_or(false))
+        self.with_inner(|l| other.with_inner(|r| l == r).unwrap_or(false))
             .unwrap_or(false)
     }
 }
 
-impl fs::File for File {
-    type Fs = MockFs;
-
-    type DeleteError = DeleteNodeError;
-    type Error = DirEntryDoesNotExistError;
-    type WriteError = DirEntryDoesNotExistError;
-
-    async fn byte_len(&self) -> Result<ByteOffset, Self::Error> {
-        self.with_file(|file| file.len())
-    }
-
-    async fn delete(self) -> Result<(), Self::DeleteError> {
-        self.fs.delete_node(&self.path)
-    }
-
-    async fn parent(&self) -> <Self::Fs as fs::Fs>::Directory {
-        Directory {
-            fs: self.fs.clone(),
-            path: self.path.parent().expect("has a parent").to_owned(),
-        }
-    }
-
-    fn path(&self) -> &AbsPath {
-        &self.path
-    }
-
-    async fn write<C: AsRef<[u8]>>(
-        &mut self,
-        new_contents: C,
-    ) -> Result<(), Self::WriteError> {
-        self.with_file(|file| file.write(new_contents.as_ref()))
-    }
-}
-
-impl fmt::Debug for Symlink {
+impl fmt::Debug for MockSymlink {
     fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         unreachable!()
     }
 }
 
-impl PartialEq for Symlink {
+impl PartialEq for MockSymlink {
     fn eq(&self, _: &Self) -> bool {
         unreachable!()
     }
 }
 
-impl fs::Symlink for Symlink {
-    type Fs = MockFs;
-
-    type DeleteError = DeleteNodeError;
-    type FollowError = Infallible;
-
-    async fn delete(self) -> Result<(), Self::DeleteError> {
-        self.fs.delete_node(&self.path)
-    }
-
-    async fn follow(
-        &self,
-    ) -> Result<Option<fs::FsNode<MockFs>>, Self::FollowError> {
-        unreachable!()
-    }
-
-    async fn follow_recursively(
-        &self,
-    ) -> Result<Option<fs::FsNode<MockFs>>, Self::FollowError> {
-        unreachable!()
-    }
-
-    fn path(&self) -> &AbsPath {
-        &self.path
-    }
-}
-
 impl Default for FsInner {
     fn default() -> Self {
-        Self::new(MockDirectory::default())
+        Self::new(DirectoryInner::default())
     }
 }
 
-#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
-#[display("dir entry does not exist")]
-pub struct DirEntryDoesNotExistError;
+#[derive(
+    Debug, derive_more::Display, cauchy::Error, cauchy::From, PartialEq, Eq,
+)]
+#[display("{_0}")]
+pub enum CreateNodeError {
+    AlreadyExists(#[from] NodeAlreadyExistsError),
+    GetParent(#[from] GetNodeError),
+}
 
 #[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
 pub enum DeleteNodeError {
     #[display("cannot delete root")]
     NodeIsRoot,
-
     #[display("no node at {_0:?}")]
     NodeDoesNotExist(AbsPathBuf),
+}
+
+#[derive(
+    Debug, derive_more::Display, cauchy::Error, cauchy::From, PartialEq, Eq,
+)]
+pub enum FollowError {
+    #[display(
+        "symlink at {symlink_path:?} has an invalid target path: \
+         {target_path:?}"
+    )]
+    InvalidTargetPath { symlink_path: AbsPathBuf, target_path: String },
+
+    #[display("{_0:?}")]
+    GetSymlink(#[from] GetNodeError),
+}
+
+#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
+pub enum GetNodeError {
+    #[display("no node at {_0:?}")]
+    DoesNotExist(AbsPathBuf),
+    #[display("expected a {expected:?}, got a {actual:?} at {path:?}")]
+    WrongKind { expected: NodeKind, actual: NodeKind, path: AbsPathBuf },
 }
 
 #[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
@@ -803,18 +993,6 @@ pub enum ReadDirError {
 pub enum ReadDirNextError {
     #[display("directory has been deleted")]
     DirWasDeleted,
-}
-
-#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
-pub enum CreateNodeError {
-    #[display("{_0}")]
-    AlreadyExists(NodeAlreadyExistsError),
-
-    #[display("parent directory does not exist: {_0:?}")]
-    ParentDoesNotExist(AbsPathBuf),
-
-    #[display("node at {_0:?} is a file, not a directory")]
-    ParentIsFile(AbsPathBuf),
 }
 
 #[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
