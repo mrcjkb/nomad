@@ -1,5 +1,5 @@
 use abs_path::{AbsPath, AbsPathBuf};
-use ed::fs::{self, Directory, File, Metadata};
+use ed::fs::{self, Directory, File, Metadata, Symlink};
 use futures_util::{StreamExt, pin_mut};
 
 use crate::{FindRootError, Marker};
@@ -32,7 +32,9 @@ impl<Fs: fs::Fs> Finder<Fs> {
             fs::FsNode::File(file) => {
                 file.parent().await.map_err(FindRootError::FileParent)?
             },
-            fs::FsNode::Symlink(_) => todo!("can't handle symlinks yet"),
+            fs::FsNode::Symlink(symlink) => {
+                symlink.parent().await.map_err(FindRootError::SymlinkParent)?
+            },
         };
 
         loop {

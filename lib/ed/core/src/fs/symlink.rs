@@ -19,6 +19,9 @@ pub trait Symlink: Send + Sync {
     type FollowError: Error + Send;
 
     /// TODO: docs.
+    type ParentError: Error + Send;
+
+    /// TODO: docs.
     type ReadError: Error + Send;
 
     /// TODO: docs.
@@ -49,6 +52,13 @@ pub trait Symlink: Send + Sync {
     fn name(&self) -> &NodeName {
         self.path().node_name().expect("path is not root")
     }
+
+    /// TODO: docs.
+    fn parent(
+        &self,
+    ) -> impl Future<
+        Output = Result<<Self::Fs as Fs>::Directory, Self::ParentError>,
+    > + Send;
 
     /// TODO: docs.
     fn path(&self) -> &AbsPath;

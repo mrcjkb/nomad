@@ -753,6 +753,7 @@ impl fs::Symlink for MockSymlink {
 
     type DeleteError = DeleteNodeError;
     type FollowError = FollowError;
+    type ParentError = GetNodeError;
     type ReadError = GetNodeError;
 
     async fn delete(self) -> Result<(), Self::DeleteError> {
@@ -814,6 +815,19 @@ impl fs::Symlink for MockSymlink {
 
     fn meta(&self) -> MockMetadata {
         self.metadata.clone()
+    }
+
+    async fn parent(&self) -> Result<MockDirectory, Self::ParentError> {
+        let parent_path = self.path.parent().expect("can't be root");
+        let Ok(maybe_node) = self.fs.node_at_path(parent_path).await;
+        match maybe_node.expect("parent must exist") {
+            fs::FsNode::Directory(parent) => Ok(parent),
+            other => Err(GetNodeError::WrongKind {
+                expected: NodeKind::Directory,
+                actual: other.kind(),
+                path: parent_path.to_owned(),
+            }),
+        }
     }
 
     fn path(&self) -> &AbsPath {

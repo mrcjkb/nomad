@@ -373,6 +373,7 @@ impl Symlink for OsSymlink {
 
     type DeleteError = io::Error;
     type FollowError = io::Error;
+    type ParentError = io::Error;
     type ReadError = io::Error;
 
     #[inline]
@@ -405,6 +406,13 @@ impl Symlink for OsSymlink {
             node_kind: NodeKind::Symlink,
             node_name: self.name().as_str().into(),
         }
+    }
+
+    #[inline]
+    async fn parent(&self) -> Result<OsDirectory, Self::ParentError> {
+        let parent_path = self.path().parent().expect("has a parent");
+        let metadata = async_fs::metadata(parent_path).await?;
+        Ok(OsDirectory { path: parent_path.to_owned(), metadata })
     }
 
     #[inline]

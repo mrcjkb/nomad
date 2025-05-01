@@ -27,4 +27,7 @@ pub enum FindRootError<Fs: fs::Fs> {
     /// TODO: docs.
     #[display("the starting path does not exist")]
     StartPathNotFound,
+
+    /// TODO: docs.
+    SymlinkParent(<Fs::Symlink as fs::Symlink>::ParentError),
 }
