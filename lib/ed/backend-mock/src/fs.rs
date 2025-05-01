@@ -92,26 +92,33 @@ struct FsInner {
     watchers: FxHashMap<AbsPathBuf, WatchChannel>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, cauchy::PartialEq, cauchy::Eq)]
 #[doc(hidden)]
 pub struct DirectoryInner {
-    children: IndexMap<NodeNameBuf, (MockMetadata, Node)>,
+    children: IndexMap<NodeNameBuf, Node>,
+    #[partial_eq(skip)]
+    metadata: MockMetadata,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, cauchy::PartialEq, cauchy::Eq)]
 #[doc(hidden)]
 pub struct FileInner {
     contents: Vec<u8>,
+    #[partial_eq(skip)]
+    metadata: MockMetadata,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, cauchy::PartialEq, cauchy::Eq)]
 #[doc(hidden)]
 pub struct SymlinkInner {
     target_path: String,
+    #[partial_eq(skip)]
+    metadata: MockMetadata,
 }
 
-#[derive(Debug, PartialEq, cauchy::From)]
-enum Node {
+#[derive(Debug, PartialEq, Eq, cauchy::From)]
+#[doc(hidden)]
+pub enum Node {
     File(#[from] FileInner),
     Directory(#[from] DirectoryInner),
     Symlink(#[from] SymlinkInner),
@@ -150,22 +157,36 @@ impl MockDirectory {
     fn create_node(
         &self,
         node_name: &NodeName,
-        node: impl Into<Node>,
+        node_kind: NodeKind,
+        target_path: Option<&str>,
     ) -> Result<MockMetadata, CreateNodeError> {
-        let node = node.into();
-
         let metadata = MockMetadata {
-            byte_len: 0usize.into(),
+            byte_len: target_path.map(|p| p.len().into()).unwrap_or_default(),
             created_at: self.fs.now(),
             last_modified_at: self.fs.now(),
             name: node_name.to_owned(),
             node_id: self.fs.next_node_id(),
-            node_kind: node.kind(),
+            node_kind,
         };
 
-        self.with_inner(|dir| {
-            dir.create_node(&self.path, node_name, metadata.clone(), node)
-        })??;
+        let node = match node_kind {
+            NodeKind::File => Node::File(FileInner {
+                contents: Vec::new(),
+                metadata: metadata.clone(),
+            }),
+            NodeKind::Directory => Node::Directory(DirectoryInner {
+                children: Default::default(),
+                metadata: metadata.clone(),
+            }),
+            NodeKind::Symlink => Node::Symlink(SymlinkInner {
+                target_path: target_path
+                    .expect("target_path is set for symlinks")
+                    .to_owned(),
+                metadata: metadata.clone(),
+            }),
+        };
+
+        self.with_inner(|dir| dir.create_node(&self.path, node_name, node))??;
 
         Ok(metadata)
     }
@@ -192,11 +213,7 @@ impl MockDirectory {
 
 impl MockFile {
     pub(crate) fn read_sync(&self) -> Result<Vec<u8>, GetNodeError> {
-        self.with_inner(|file| file.contents().to_vec())
-    }
-
-    fn exists(&self) -> bool {
-        self.with_inner(|_| true).unwrap_or(false)
+        self.with_inner(|file| file.contents.to_vec())
     }
 
     fn with_inner<T>(
@@ -249,6 +266,8 @@ impl MockSymlink {
 }
 
 impl MockNodeId {
+    const ROOT: Self = Self(0);
+
     fn post_inc(&mut self) -> Self {
         let id = self.0;
         self.0 += 1;
@@ -280,32 +299,30 @@ impl FsInner {
     }
 
     fn new(mut root: DirectoryInner) -> Self {
-        fn update_node_ids(
+        fn update_metadatas(
             next_node_id: &mut MockNodeId,
             parent: &mut DirectoryInner,
         ) {
-            for (metadata, _) in parent.children.values_mut() {
-                metadata.node_id = next_node_id.post_inc();
+            for (name, node) in parent.children.iter_mut() {
+                let meta = node.metadata_mut();
+                meta.name = name.clone();
+                meta.node_id = next_node_id.post_inc();
             }
-            for (_, node) in parent.children.values_mut() {
+            for node in parent.children.values_mut() {
                 if let Node::Directory(dir) = node {
-                    update_node_ids(next_node_id, dir);
+                    update_metadatas(next_node_id, dir);
                 }
             }
         }
 
         let mut next_node_id = MockNodeId(0);
-        update_node_ids(&mut next_node_id, &mut root);
+        update_metadatas(&mut next_node_id, &mut root);
         Self {
             next_node_id,
             root: Node::Directory(root),
             timestamp: MockTimestamp(0),
             watchers: FxHashMap::default(),
         }
-    }
-
-    fn meta_at_path(&mut self, _path: &AbsPath) -> Option<MockMetadata> {
-        todo!();
     }
 
     fn node_at_path(&mut self, path: &AbsPath) -> Option<&mut Node> {
@@ -332,10 +349,26 @@ impl Node {
             Self::Symlink(_) => NodeKind::Symlink,
         }
     }
+
+    fn metadata(&self) -> &MockMetadata {
+        match self {
+            Self::File(file) => &file.metadata,
+            Self::Directory(dir) => &dir.metadata,
+            Self::Symlink(symlink) => &symlink.metadata,
+        }
+    }
+
+    fn metadata_mut(&mut self) -> &mut MockMetadata {
+        match self {
+            Self::File(file) => &mut file.metadata,
+            Self::Directory(dir) => &mut dir.metadata,
+            Self::Symlink(symlink) => &mut symlink.metadata,
+        }
+    }
 }
 
 impl DirectoryInner {
-    // Should only be used by the `fs!` macro.
+    /// Should only be used by the `fs!` macro.
     #[doc(hidden)]
     #[track_caller]
     pub fn insert_child(
@@ -349,35 +382,31 @@ impl DirectoryInner {
                 panic!("duplicate child name: {name:?}");
             },
             indexmap::map::Entry::Vacant(entry) => {
-                let child = child.into();
-                let metadata = MockMetadata {
-                    byte_len: match &child {
-                        Node::File(file) => file.len(),
-                        Node::Directory(_) => 0usize.into(),
-                        Node::Symlink(symlink) => {
-                            symlink.target_path.len().into()
-                        },
-                    },
-                    created_at: MockTimestamp(0),
-                    last_modified_at: MockTimestamp(0),
-                    name: name.to_owned(),
-                    node_id: MockNodeId(0),
-                    node_kind: child.kind(),
-                };
-                entry.insert((metadata, child));
+                entry.insert(child.into());
             },
         }
         self
     }
 
+    /// Should only be used by the `fs!` macro.
     #[doc(hidden)]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            children: Default::default(),
+            metadata: MockMetadata {
+                byte_len: 0usize.into(),
+                created_at: MockTimestamp(0),
+                last_modified_at: MockTimestamp(0),
+                name: "temp".parse().expect("it's valid"),
+                node_id: MockNodeId(0),
+                node_kind: NodeKind::Directory,
+            },
+        }
     }
 
     fn child_at_path(&mut self, path: &AbsPath) -> Option<&mut Node> {
         let mut components = path.components();
-        let (_, node) = self.children.get_mut(components.next()?)?;
+        let node = self.children.get_mut(components.next()?)?;
         if components.as_path().is_root() {
             return Some(node);
         }
@@ -393,7 +422,6 @@ impl DirectoryInner {
         &mut self,
         this_path: &AbsPath,
         name: &NodeName,
-        metadata: MockMetadata,
         node: Node,
     ) -> Result<(), CreateNodeError> {
         if self.children.contains_key(name) {
@@ -402,7 +430,7 @@ impl DirectoryInner {
                 path: this_path.join(name),
             }))
         } else {
-            self.children.insert(name.to_owned(), (metadata, node));
+            self.children.insert(name.to_owned(), node);
             Ok(())
         }
     }
@@ -410,34 +438,24 @@ impl DirectoryInner {
     fn delete_child(&mut self, name: &NodeName) -> bool {
         self.children.swap_remove(name).is_some()
     }
-
-    fn dir_at_path(&mut self, path: &AbsPath) -> Option<&mut Self> {
-        match self.child_at_path(path)? {
-            Node::Directory(dir) => Some(dir),
-            _ => None,
-        }
-    }
-
-    fn file_at_path(&mut self, path: &AbsPath) -> Option<&mut FileInner> {
-        match self.child_at_path(path)? {
-            Node::File(file) => Some(file),
-            _ => None,
-        }
-    }
 }
 
 impl FileInner {
-    fn contents(&self) -> &[u8] {
-        &self.contents
-    }
-
-    fn len(&self) -> ByteOffset {
-        self.contents().len().into()
-    }
-
+    /// Should only be used by the `fs!` macro.
     #[doc(hidden)]
     pub fn new<C: AsRef<[u8]>>(contents: C) -> Self {
-        Self { contents: contents.as_ref().to_owned() }
+        let contents = contents.as_ref();
+        Self {
+            contents: contents.to_owned(),
+            metadata: MockMetadata {
+                byte_len: contents.len().into(),
+                created_at: MockTimestamp(0),
+                last_modified_at: MockTimestamp(0),
+                name: "temp".parse().expect("it's valid"),
+                node_id: MockNodeId(0),
+                node_kind: NodeKind::File,
+            },
+        }
     }
 
     fn write<C: AsRef<[u8]>>(&mut self, contents: C) {
@@ -446,9 +464,21 @@ impl FileInner {
 }
 
 impl SymlinkInner {
+    /// Should only be used by the `fs!` macro.
     #[doc(hidden)]
     pub fn new<P: AsRef<str>>(target_path: P) -> Self {
-        Self { target_path: target_path.as_ref().to_owned() }
+        let target_path = target_path.as_ref();
+        Self {
+            target_path: target_path.to_owned(),
+            metadata: MockMetadata {
+                byte_len: target_path.len().into(),
+                created_at: MockTimestamp(0),
+                last_modified_at: MockTimestamp(0),
+                name: "temp".parse().expect("it's valid"),
+                node_id: MockNodeId(0),
+                node_kind: NodeKind::Symlink,
+            },
+        }
     }
 }
 
@@ -532,24 +562,29 @@ impl fs::Fs for MockFs {
         path: P,
     ) -> Result<Option<fs::FsNode<Self>>, Self::NodeAtPathError> {
         let path = path.as_ref();
-        Ok(self.with_inner(|inner| inner.meta_at_path(path)).map(|metadata| {
-            match metadata.node_kind {
-                NodeKind::File => fs::FsNode::File(MockFile {
-                    fs: self.clone(),
-                    metadata,
-                    path: path.to_owned(),
-                }),
-                NodeKind::Directory => fs::FsNode::Directory(MockDirectory {
-                    fs: self.clone(),
-                    metadata,
-                    path: path.to_owned(),
-                }),
-                NodeKind::Symlink => fs::FsNode::Symlink(MockSymlink {
-                    fs: self.clone(),
-                    metadata,
-                    path: path.to_owned(),
-                }),
-            }
+        Ok(self.with_inner(|inner| {
+            inner.node_at_path(path).map(|node| {
+                let metadata = node.metadata().clone();
+                match metadata.node_kind {
+                    NodeKind::File => fs::FsNode::File(MockFile {
+                        fs: self.clone(),
+                        metadata,
+                        path: path.to_owned(),
+                    }),
+                    NodeKind::Directory => {
+                        fs::FsNode::Directory(MockDirectory {
+                            fs: self.clone(),
+                            metadata,
+                            path: path.to_owned(),
+                        })
+                    },
+                    NodeKind::Symlink => fs::FsNode::Symlink(MockSymlink {
+                        fs: self.clone(),
+                        metadata,
+                        path: path.to_owned(),
+                    }),
+                }
+            })
         }))
     }
 
@@ -576,7 +611,7 @@ impl fs::Directory for MockDirectory {
         dir_name: &NodeName,
     ) -> Result<Self, Self::CreateDirectoryError> {
         let metadata =
-            self.create_node(dir_name, DirectoryInner::default())?;
+            self.create_node(dir_name, NodeKind::Directory, None)?;
 
         Ok(Self {
             fs: self.fs.clone(),
@@ -589,7 +624,7 @@ impl fs::Directory for MockDirectory {
         &self,
         file_name: &NodeName,
     ) -> Result<MockFile, Self::CreateFileError> {
-        let metadata = self.create_node(file_name, FileInner::default())?;
+        let metadata = self.create_node(file_name, NodeKind::File, None)?;
 
         Ok(MockFile {
             fs: self.fs.clone(),
@@ -605,7 +640,8 @@ impl fs::Directory for MockDirectory {
     ) -> Result<MockSymlink, Self::CreateSymlinkError> {
         let metadata = self.create_node(
             symlink_name,
-            SymlinkInner { target_path: target_path.to_owned() },
+            NodeKind::Symlink,
+            Some(target_path),
         )?;
 
         Ok(MockSymlink {
@@ -813,17 +849,15 @@ impl fs::Metadata for MockMetadata {
     }
 
     fn name(&self) -> Result<&NodeName, fs::MetadataNameError> {
-        Ok(&self.name)
+        if self.node_id == MockNodeId::ROOT {
+            Err(fs::MetadataNameError::MetadataIsForRoot)
+        } else {
+            Ok(&self.name)
+        }
     }
 
     fn node_kind(&self) -> NodeKind {
         self.node_kind
-    }
-}
-
-impl PartialEq for DirectoryInner {
-    fn eq(&self, other: &Self) -> bool {
-        self.children == other.children
     }
 }
 
@@ -845,7 +879,7 @@ impl Stream for ReadDir {
                 .ok_or(ReadDirNextError::DirWasDeleted)?
                 .children
                 .get_index(*this.next_child_idx)
-                .map(|(_name, (meta, _))| meta.clone()))
+                .map(|(_name, node)| node.metadata().clone()))
         }) {
             Ok(Some(meta)) => meta,
             Ok(None) => return Poll::Ready(None),
@@ -920,7 +954,7 @@ impl PartialEq for MockSymlink {
 
 impl Default for FsInner {
     fn default() -> Self {
-        Self::new(DirectoryInner::default())
+        Self::new(DirectoryInner::new())
     }
 }
 

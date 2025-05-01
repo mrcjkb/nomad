@@ -65,7 +65,7 @@ async fn contains_marker<Fs: fs::Fs>(
         let entry = res.map_err(FindRootError::ReadDirEntry)?;
         let node_name = entry.name().map_err(FindRootError::DirEntryName)?;
         let node_kind = entry.node_kind();
-        if marker.matches(&node_name, node_kind) {
+        if marker.matches(node_name, node_kind) {
             return Ok(true);
         }
     }

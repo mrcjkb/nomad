@@ -1,4 +1,3 @@
-use core::ops::{Deref, DerefMut};
 use std::borrow::Cow;
 
 use crop::Rope;
@@ -38,15 +37,15 @@ impl backend::Buffer for Buffer<'_> {
     type EventHandle = mock::EventHandle;
 
     fn byte_len(&self) -> ByteOffset {
-        self.contents.byte_len().into()
+        self.inner.contents.byte_len().into()
     }
 
     fn id(&self) -> Self::Id {
-        self.id
+        self.inner.id
     }
 
     fn name(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.name)
+        Cow::Borrowed(&self.inner.name)
     }
 
     fn on_edited<Fun>(&mut self, fun: Fun) -> Self::EventHandle
@@ -68,19 +67,5 @@ impl backend::Buffer for Buffer<'_> {
         Fun: FnMut(&Buffer<'_>, AgentId) + 'static,
     {
         self.callbacks.insert(CallbackKind::OnBufferSaved(Box::new(fun)))
-    }
-}
-
-impl<'a> Deref for Buffer<'a> {
-    type Target = BufferInner;
-
-    fn deref(&self) -> &Self::Target {
-        self.inner
-    }
-}
-
-impl<'a> DerefMut for Buffer<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.inner
     }
 }

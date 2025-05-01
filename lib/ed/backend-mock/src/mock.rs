@@ -1,5 +1,5 @@
 use abs_path::AbsPath;
-use ed_core::backend::{AgentId, ApiValue, Backend, Edit};
+use ed_core::backend::{AgentId, ApiValue, Backend, Buffer as _, Edit};
 use ed_core::fs::{Fs, FsNode};
 use ed_core::notify::MaybeResult;
 use ed_core::shared::Shared;
@@ -35,6 +35,7 @@ pub(crate) struct Callbacks {
     inner: Shared<SlotMap<DefaultKey, CallbackKind>>,
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) enum CallbackKind {
     OnBufferCreated(Box<dyn FnMut(&Buffer<'_>) + 'static>),
     OnBufferEdited(Box<dyn FnMut(&Buffer<'_>, &Edit) + 'static>),
@@ -53,10 +54,6 @@ impl Mock {
             fs,
             next_buffer_id: BufferId(1),
         }
-    }
-
-    fn callbacks(&self) -> &Callbacks {
-        &self.callbacks
     }
 
     fn buffer_at(&self, path: &AbsPath) -> Option<&BufferInner> {
@@ -169,7 +166,7 @@ impl Backend for Mock {
         let buf_id = self
             .buffer_at(path)
             .map(|buf| buf.id)
-            .unwrap_or_else(|| self.open_buffer(path).id);
+            .unwrap_or_else(|| self.open_buffer(path).id());
         self.current_buffer = Some(buf_id);
         Some(self.buffer_mut(buf_id))
     }
