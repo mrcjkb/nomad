@@ -8,7 +8,7 @@ use std::panic;
 
 use fxhash::FxHashMap;
 
-use crate::backend::Backend;
+use crate::backend::{AgentId, Backend};
 use crate::module::{Module, ModuleId};
 use crate::notify::{Name, Namespace};
 use crate::plugin::{PanicInfo, PanicLocation, Plugin, PluginId};
@@ -18,6 +18,7 @@ use crate::{EditorCtx, Shared};
 pub(crate) struct State<B: Backend> {
     backend: B,
     modules: FxHashMap<ModuleId, &'static dyn Any>,
+    next_agent_id: AgentId,
     panic_handlers: FxHashMap<PluginId, &'static dyn PanicHandler<B>>,
     panic_hook: PanicHook<B>,
 }
@@ -100,12 +101,18 @@ impl<B: Backend> State<B> {
         Self {
             backend,
             modules: FxHashMap::default(),
+            next_agent_id: AgentId::default(),
             panic_handlers: FxHashMap::from_iter(core::iter::once((
                 <ResumeUnwinding as Plugin<B>>::id(),
                 RESUME_UNWINDING as &'static dyn PanicHandler<B>,
             ))),
             panic_hook: PanicHook::set(),
         }
+    }
+
+    #[inline]
+    pub(crate) fn next_agent_id(&mut self) -> AgentId {
+        self.next_agent_id.post_inc()
     }
 }
 

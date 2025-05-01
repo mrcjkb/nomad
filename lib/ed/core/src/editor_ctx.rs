@@ -108,7 +108,7 @@ impl<'a, B: Backend> EditorCtx<'a, B> {
     /// TODO: docs.
     #[inline]
     pub fn new_agent_id(&mut self) -> AgentId {
-        todo!()
+        self.state.next_agent_id()
     }
 
     /// TODO: docs.
