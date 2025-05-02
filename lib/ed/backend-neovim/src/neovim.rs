@@ -5,7 +5,7 @@ use ed_core::notify::Namespace;
 use ed_core::plugin::Plugin;
 use nvim_oxi::api::Window;
 
-use crate::buffer::NeovimBuffer;
+use crate::buffer::{BufferId, NeovimBuffer};
 use crate::{api, autocmd, executor, notify, oxi, serde, value};
 
 /// TODO: docs.
@@ -48,35 +48,35 @@ impl Backend for Neovim {
 
     type Api = api::NeovimApi;
     type Buffer<'a> = NeovimBuffer;
-    type BufferId = NeovimBuffer;
+    type BufferId = BufferId;
     type Cursor<'a> = NeovimBuffer;
-    type CursorId = NeovimBuffer;
+    type CursorId = BufferId;
     type Fs = fs::os::OsFs;
     type LocalExecutor = executor::NeovimLocalExecutor;
     type BackgroundExecutor = executor::NeovimBackgroundExecutor;
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
     type EventHandle = autocmd::EventHandle;
     type Selection<'a> = NeovimBuffer;
-    type SelectionId = NeovimBuffer;
+    type SelectionId = BufferId;
 
     type SerializeError = serde::NeovimSerializeError;
     type DeserializeError = serde::NeovimDeserializeError;
 
     #[inline]
-    fn buffer(&mut self, buf: NeovimBuffer) -> Option<Self::Buffer<'_>> {
-        buf.exists().then_some(buf)
+    fn buffer(&mut self, buf_id: Self::BufferId) -> Option<Self::Buffer<'_>> {
+        buf_id.is_valid().then_some(NeovimBuffer::new(buf_id))
     }
 
     #[inline]
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {
-        self.buffer_ids().find(|buf| &*buf.name() == path)
+        self.buffer_ids()
+            .map(NeovimBuffer::new)
+            .find(|buf| &*buf.name() == path)
     }
 
     #[inline]
-    fn buffer_ids(&mut self) -> impl Iterator<Item = NeovimBuffer> + use<> {
-        oxi::api::list_bufs()
-            .filter(|buf| buf.is_loaded())
-            .map(NeovimBuffer::new)
+    fn buffer_ids(&mut self) -> impl Iterator<Item = BufferId> + use<> {
+        oxi::api::list_bufs().filter(|buf| buf.is_loaded()).map(BufferId::new)
     }
 
     #[inline]
@@ -90,8 +90,9 @@ impl Backend for Neovim {
     }
 
     #[inline]
-    fn cursor(&mut self, buf: Self::CursorId) -> Option<Self::Cursor<'_>> {
-        (buf.exists() && buf.is_focused()).then_some(buf)
+    fn cursor(&mut self, buf_id: Self::CursorId) -> Option<Self::Cursor<'_>> {
+        let buffer = buf_id.is_valid().then(|| NeovimBuffer::new(buf_id))?;
+        buffer.is_focused().then_some(buffer)
     }
 
     #[inline]
@@ -125,7 +126,7 @@ impl Backend for Neovim {
 
         Window::current().set_buf(&buf).ok()?;
 
-        Some(NeovimBuffer::new(buf))
+        Some(NeovimBuffer::new(BufferId::new(buf)))
     }
 
     #[inline]
@@ -136,9 +137,10 @@ impl Backend for Neovim {
     #[inline]
     fn selection(
         &mut self,
-        buf: Self::SelectionId,
+        buf_id: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
-        buf.exists().then(|| buf.selection()).is_some().then_some(buf)
+        let buffer = buf_id.is_valid().then(|| NeovimBuffer::new(buf_id))?;
+        buffer.selection().is_some().then_some(buffer)
     }
 
     #[inline]

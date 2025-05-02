@@ -7,12 +7,19 @@ use std::path::PathBuf;
 use ed_core::ByteOffset;
 use ed_core::backend::{AgentId, Buffer, Edit};
 
+use crate::Neovim;
 use crate::autocmd::EventHandle;
-use crate::{Neovim, oxi};
+use crate::oxi::{BufHandle, api, mlua};
 
 /// TODO: docs.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct NeovimBuffer(oxi::BufHandle);
+pub struct NeovimBuffer {
+    id: BufferId,
+}
+
+/// TODO: docs.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct BufferId(BufHandle);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Point {
@@ -24,42 +31,30 @@ struct Point {
 }
 
 impl NeovimBuffer {
-    /// Returns this buffer's handle.
-    #[inline]
-    pub fn handle(self) -> oxi::BufHandle {
-        self.0
-    }
-
     #[inline]
     pub(crate) fn current() -> Self {
-        Self::new(oxi::api::Buffer::current())
-    }
-
-    #[inline]
-    pub(crate) fn exists(self) -> bool {
-        self.inner().is_valid()
+        Self::new(BufferId::of_focused())
     }
 
     #[inline]
     pub(crate) fn get_name(self) -> PathBuf {
-        debug_assert!(self.exists());
         self.inner().get_name().expect("buffer exists")
     }
 
     #[inline]
     pub(crate) fn is_focused(self) -> bool {
-        oxi::api::Window::current().get_buf().expect("window is valid")
+        api::Window::current().get_buf().expect("window is valid")
             == self.inner()
     }
 
     #[inline]
-    pub(crate) fn new(inner: oxi::api::Buffer) -> Self {
-        Self(inner.handle())
+    pub(crate) fn new(id: BufferId) -> Self {
+        Self { id }
     }
 
     #[inline]
     pub(crate) fn selection(&self) -> Option<Range<ByteOffset>> {
-        let mode = oxi::api::get_mode().expect("couldn't get mode").mode;
+        let mode = api::get_mode().expect("couldn't get mode").mode;
 
         if !(mode.is_visual() || mode.is_visual_select()) {
             return None;
@@ -100,9 +95,7 @@ impl NeovimBuffer {
 
     /// Returns the [`Point`] at the end of the buffer.
     fn point_of_eof(self) -> Point {
-        fn point_of_eof(
-            buffer: NeovimBuffer,
-        ) -> Result<Point, oxi::api::Error> {
+        fn point_of_eof(buffer: NeovimBuffer) -> Result<Point, api::Error> {
             let nvim_buf = buffer.inner();
 
             let num_lines = nvim_buf.line_count()?;
@@ -129,8 +122,26 @@ impl NeovimBuffer {
     }
 
     #[inline]
-    fn inner(&self) -> oxi::api::Buffer {
-        self.handle().into()
+    fn inner(&self) -> api::Buffer {
+        debug_assert!(self.id.is_valid());
+        self.id.0.into()
+    }
+}
+
+impl BufferId {
+    #[inline]
+    pub(crate) fn is_valid(self) -> bool {
+        api::Buffer::from(self).is_valid()
+    }
+
+    #[inline]
+    pub(crate) fn of_focused() -> Self {
+        Self::new(api::Buffer::current())
+    }
+
+    #[inline]
+    pub(crate) fn new(inner: api::Buffer) -> Self {
+        Self(inner.handle())
     }
 }
 
@@ -144,7 +155,7 @@ impl Point {
 impl Buffer for NeovimBuffer {
     type Backend = Neovim;
     type EventHandle = EventHandle;
-    type Id = Self;
+    type Id = BufferId;
 
     #[inline]
     fn byte_len(&self) -> ByteOffset {
@@ -153,7 +164,7 @@ impl Buffer for NeovimBuffer {
 
     #[inline]
     fn id(&self) -> Self::Id {
-        *self
+        self.id
     }
 
     #[inline]
@@ -186,28 +197,32 @@ impl Buffer for NeovimBuffer {
     }
 }
 
-impl From<NeovimBuffer> for oxi::api::Buffer {
+impl From<NeovimBuffer> for api::Buffer {
     #[inline]
     fn from(buf: NeovimBuffer) -> Self {
-        buf.inner()
+        buf.id().into()
     }
 }
 
-impl oxi::mlua::IntoLua for NeovimBuffer {
+impl mlua::IntoLua for NeovimBuffer {
     #[inline]
-    fn into_lua(
-        self,
-        lua: &oxi::mlua::Lua,
-    ) -> oxi::mlua::Result<oxi::mlua::Value> {
-        self.handle().into_lua(lua)
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        self.inner().handle().into_lua(lua)
     }
 }
 
-impl Hash for NeovimBuffer {
+impl From<BufferId> for api::Buffer {
+    #[inline]
+    fn from(buf_id: BufferId) -> Self {
+        buf_id.0.into()
+    }
+}
+
+impl Hash for BufferId {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_i32(self.handle());
+        state.write_i32(self.0);
     }
 }
 
-impl nohash::IsEnabled for NeovimBuffer {}
+impl nohash::IsEnabled for BufferId {}
