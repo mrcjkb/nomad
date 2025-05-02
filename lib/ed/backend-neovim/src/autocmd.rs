@@ -84,7 +84,7 @@ pub(crate) enum EventKind {
 
 impl Callbacks {
     pub(crate) fn insert_callback_for<T: Autocmd>(
-        &mut self,
+        &self,
         autocmd: T,
         fun: impl FnMut(T::Args<'_>) + 'static,
     ) -> EventHandle {
@@ -159,7 +159,7 @@ impl<T: Autocmd> AutocmdCallbacks<T> {
 }
 
 impl Autocmd for BufReadPost {
-    type Args<'a> = &'a NeovimBuffer;
+    type Args<'a> = &'a NeovimBuffer<'a>;
 
     #[inline]
     fn get_or_insert_callbacks<'cbs>(
@@ -173,7 +173,8 @@ impl Autocmd for BufReadPost {
     fn register(&self, callbacks: Callbacks) -> u32 {
         let opts = opts::CreateAutocmdOpts::builder()
             .callback(move |args: types::AutocmdCallbackArgs| {
-                let buffer = NeovimBuffer::new(BufferId::new(args.buffer));
+                let buffer =
+                    NeovimBuffer::new(BufferId::new(args.buffer), &callbacks);
 
                 callbacks.inner.with_mut(|callbacks| {
                     let _created_by = callbacks
@@ -202,7 +203,7 @@ impl Autocmd for BufReadPost {
 }
 
 impl Autocmd for BufUnload {
-    type Args<'a> = (&'a NeovimBuffer, AgentId);
+    type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
 
     #[inline]
     fn get_or_insert_callbacks<'cbs>(
@@ -217,7 +218,8 @@ impl Autocmd for BufUnload {
         let opts = opts::CreateAutocmdOpts::builder()
             .buffer(self.0.into())
             .callback(move |args: types::AutocmdCallbackArgs| {
-                let buffer = NeovimBuffer::new(BufferId::new(args.buffer));
+                let buffer =
+                    NeovimBuffer::new(BufferId::new(args.buffer), &callbacks);
 
                 callbacks.inner.with_mut(|callbacks| {
                     let Some(autocmd_callbacks) =
@@ -226,14 +228,14 @@ impl Autocmd for BufUnload {
                         return true;
                     };
 
-                    let saved_by = callbacks
+                    let removed_by = callbacks
                         .agent_ids
-                        .saved_buffer
+                        .removed_buffer
                         .remove(&buffer.id())
                         .unwrap_or(AgentId::UNKNOWN);
 
                     for callback in autocmd_callbacks.iter_mut() {
-                        callback((&buffer, saved_by));
+                        callback((&buffer, removed_by));
                     }
 
                     false
@@ -262,7 +264,7 @@ impl Autocmd for BufUnload {
 }
 
 impl Autocmd for BufWritePost {
-    type Args<'a> = (&'a NeovimBuffer, AgentId);
+    type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
 
     #[inline]
     fn get_or_insert_callbacks<'cbs>(
@@ -277,7 +279,8 @@ impl Autocmd for BufWritePost {
         let opts = opts::CreateAutocmdOpts::builder()
             .buffer(self.0.into())
             .callback(move |args: types::AutocmdCallbackArgs| {
-                let buffer = NeovimBuffer::new(BufferId::new(args.buffer));
+                let buffer =
+                    NeovimBuffer::new(BufferId::new(args.buffer), &callbacks);
 
                 callbacks.inner.with_mut(|callbacks| {
                     let Some(autocmd_callbacks) =

@@ -47,16 +47,16 @@ impl Backend for Neovim {
     const REINSTATE_PANIC_HOOK: bool = false;
 
     type Api = api::NeovimApi;
-    type Buffer<'a> = NeovimBuffer;
+    type Buffer<'a> = NeovimBuffer<'a>;
     type BufferId = BufferId;
-    type Cursor<'a> = NeovimBuffer;
+    type Cursor<'a> = NeovimBuffer<'a>;
     type CursorId = BufferId;
     type Fs = fs::os::OsFs;
     type LocalExecutor = executor::NeovimLocalExecutor;
     type BackgroundExecutor = executor::NeovimBackgroundExecutor;
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
     type EventHandle = autocmd::EventHandle;
-    type Selection<'a> = NeovimBuffer;
+    type Selection<'a> = NeovimBuffer<'a>;
     type SelectionId = BufferId;
 
     type SerializeError = serde::NeovimSerializeError;
@@ -64,13 +64,13 @@ impl Backend for Neovim {
 
     #[inline]
     fn buffer(&mut self, buf_id: Self::BufferId) -> Option<Self::Buffer<'_>> {
-        buf_id.is_valid().then_some(NeovimBuffer::new(buf_id))
+        buf_id.is_valid().then_some(NeovimBuffer::new(buf_id, &self.callbacks))
     }
 
     #[inline]
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {
         self.buffer_ids()
-            .map(NeovimBuffer::new)
+            .map(|buf_id| NeovimBuffer::new(buf_id, &self.callbacks))
             .find(|buf| &*buf.name() == path)
     }
 
@@ -86,12 +86,12 @@ impl Backend for Neovim {
 
     #[inline]
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
-        Some(NeovimBuffer::current())
+        Some(NeovimBuffer::current(&self.callbacks))
     }
 
     #[inline]
     fn cursor(&mut self, buf_id: Self::CursorId) -> Option<Self::Cursor<'_>> {
-        let buffer = buf_id.is_valid().then(|| NeovimBuffer::new(buf_id))?;
+        let buffer = self.buffer(buf_id)?;
         buffer.is_focused().then_some(buffer)
     }
 
@@ -126,7 +126,7 @@ impl Backend for Neovim {
 
         Window::current().set_buf(&buf).ok()?;
 
-        Some(NeovimBuffer::new(BufferId::new(buf)))
+        Some(NeovimBuffer::new(BufferId::new(buf), &self.callbacks))
     }
 
     #[inline]
@@ -139,7 +139,7 @@ impl Backend for Neovim {
         &mut self,
         buf_id: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
-        let buffer = buf_id.is_valid().then(|| NeovimBuffer::new(buf_id))?;
+        let buffer = self.buffer(buf_id)?;
         buffer.selection().is_some().then_some(buffer)
     }
 

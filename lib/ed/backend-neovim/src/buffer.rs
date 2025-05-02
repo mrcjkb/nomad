@@ -7,13 +7,14 @@ use std::path::PathBuf;
 use ed_core::ByteOffset;
 use ed_core::backend::{AgentId, Buffer, Edit};
 
-use crate::Neovim;
 use crate::autocmd::EventHandle;
 use crate::oxi::{BufHandle, api, mlua};
+use crate::{Neovim, autocmd};
 
 /// TODO: docs.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct NeovimBuffer {
+#[derive(Copy, Clone)]
+pub struct NeovimBuffer<'a> {
+    callbacks: &'a autocmd::Callbacks,
     id: BufferId,
 }
 
@@ -30,10 +31,10 @@ struct Point {
     byte_offset: ByteOffset,
 }
 
-impl NeovimBuffer {
+impl<'a> NeovimBuffer<'a> {
     #[inline]
-    pub(crate) fn current() -> Self {
-        Self::new(BufferId::of_focused())
+    pub(crate) fn current(callbacks: &'a autocmd::Callbacks) -> Self {
+        Self::new(BufferId::of_focused(), callbacks)
     }
 
     #[inline]
@@ -48,8 +49,12 @@ impl NeovimBuffer {
     }
 
     #[inline]
-    pub(crate) fn new(id: BufferId) -> Self {
-        Self { id }
+    pub(crate) fn new(
+        id: BufferId,
+        callbacks: &'a autocmd::Callbacks,
+    ) -> Self {
+        debug_assert!(id.is_valid());
+        Self { id, callbacks }
     }
 
     #[inline]
@@ -152,7 +157,7 @@ impl Point {
     }
 }
 
-impl Buffer for NeovimBuffer {
+impl Buffer for NeovimBuffer<'_> {
     type Backend = Neovim;
     type EventHandle = EventHandle;
     type Id = BufferId;
@@ -175,36 +180,42 @@ impl Buffer for NeovimBuffer {
     #[inline]
     fn on_edited<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
     where
-        Fun: FnMut(&Self, &Edit) + 'static,
+        Fun: FnMut(&NeovimBuffer<'_>, &Edit) + 'static,
     {
         todo!();
     }
 
     #[inline]
-    fn on_removed<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
+    fn on_removed<Fun>(&mut self, mut fun: Fun) -> Self::EventHandle
     where
-        Fun: FnMut(&Self, AgentId) + 'static,
+        Fun: FnMut(&NeovimBuffer<'_>, AgentId) + 'static,
     {
-        todo!();
+        self.callbacks.insert_callback_for(
+            autocmd::BufUnload(self.id()),
+            move |(this, removed_by)| fun(this, removed_by),
+        )
     }
 
     #[inline]
-    fn on_saved<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
+    fn on_saved<Fun>(&mut self, mut fun: Fun) -> Self::EventHandle
     where
-        Fun: FnMut(&Self, AgentId) + 'static,
+        Fun: FnMut(&NeovimBuffer<'_>, AgentId) + 'static,
     {
-        todo!();
+        self.callbacks.insert_callback_for(
+            autocmd::BufWritePost(self.id()),
+            move |(this, saved_by)| fun(this, saved_by),
+        )
     }
 }
 
-impl From<NeovimBuffer> for api::Buffer {
+impl From<NeovimBuffer<'_>> for api::Buffer {
     #[inline]
     fn from(buf: NeovimBuffer) -> Self {
         buf.id().into()
     }
 }
 
-impl mlua::IntoLua for NeovimBuffer {
+impl mlua::IntoLua for NeovimBuffer<'_> {
     #[inline]
     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         self.inner().handle().into_lua(lua)
