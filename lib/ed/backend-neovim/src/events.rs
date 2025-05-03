@@ -40,8 +40,8 @@ pub(crate) trait Event: Clone + Into<EventKind> {
     fn cleanup(&self, event_key: DefaultKey, events: &mut Events);
 }
 
-#[derive(Default)]
 pub(crate) struct Events {
+    augroup_id: u32,
     agent_ids: AgentIds,
     on_buffer_created: EventCallbacks<BufReadPost>,
     on_buffer_edited: NoHashMap<BufferId, EventCallbacks<OnBytes>>,
@@ -90,7 +90,22 @@ pub(crate) enum EventKind {
 }
 
 impl Events {
-    pub(crate) fn insert_callback_for<T: Event>(
+    pub(crate) fn new(augroup_name: &str) -> Self {
+        Self {
+            augroup_id: api::create_augroup(
+                augroup_name,
+                &opts::CreateAugroupOpts::builder().clear(true).build(),
+            )
+            .expect("couldn't create augroup"),
+            agent_ids: Default::default(),
+            on_buffer_created: Default::default(),
+            on_buffer_edited: Default::default(),
+            on_buffer_removed: Default::default(),
+            on_buffer_saved: Default::default(),
+        }
+    }
+
+    pub(crate) fn insert<T: Event>(
         events: Shared<Self>,
         event: T,
         fun: impl FnMut(T::Args<'_>) + 'static,
@@ -173,6 +188,7 @@ impl Event for BufReadPost {
     #[inline]
     fn register(&self, events: Shared<Events>) -> u32 {
         let opts = opts::CreateAutocmdOpts::builder()
+            .group(events.with(|events| events.augroup_id))
             .callback(move |args: types::AutocmdCallbackArgs| {
                 events.with_mut(|inner| {
                     let buffer =
@@ -198,8 +214,8 @@ impl Event for BufReadPost {
     }
 
     #[inline]
-    fn unregister(out: Self::RegisterOutput) {
-        let _ = api::del_autocmd(out);
+    fn unregister(autocmd_id: Self::RegisterOutput) {
+        let _ = api::del_autocmd(autocmd_id);
     }
 
     #[inline]
@@ -223,6 +239,7 @@ impl Event for BufUnload {
     #[inline]
     fn register(&self, events: Shared<Events>) -> u32 {
         let opts = opts::CreateAutocmdOpts::builder()
+            .group(events.with(|events| events.augroup_id))
             .buffer(self.0.into())
             .callback(move |args: types::AutocmdCallbackArgs| {
                 events.with_mut(|inner| {
@@ -255,8 +272,8 @@ impl Event for BufUnload {
     }
 
     #[inline]
-    fn unregister(out: Self::RegisterOutput) {
-        let _ = api::del_autocmd(out);
+    fn unregister(autocmd_id: Self::RegisterOutput) {
+        let _ = api::del_autocmd(autocmd_id);
     }
 
     #[inline]
@@ -285,6 +302,7 @@ impl Event for BufWritePost {
     #[inline]
     fn register(&self, events: Shared<Events>) -> u32 {
         let opts = opts::CreateAutocmdOpts::builder()
+            .group(events.with(|events| events.augroup_id))
             .buffer(self.0.into())
             .callback(move |args: types::AutocmdCallbackArgs| {
                 events.with_mut(|inner| {
@@ -317,8 +335,8 @@ impl Event for BufWritePost {
     }
 
     #[inline]
-    fn unregister(out: Self::RegisterOutput) {
-        let _ = api::del_autocmd(out);
+    fn unregister(autocmd_id: Self::RegisterOutput) {
+        let _ = api::del_autocmd(autocmd_id);
     }
 
     #[inline]

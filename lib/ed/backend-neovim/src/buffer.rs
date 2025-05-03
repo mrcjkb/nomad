@@ -267,7 +267,7 @@ impl Buffer for NeovimBuffer<'_> {
     where
         Fun: FnMut(&NeovimBuffer<'_>, &Edit) + 'static,
     {
-        Events::insert_callback_for(
+        Events::insert(
             self.events.clone(),
             events::OnBytes(self.id()),
             move |(this, edit)| fun(this, edit),
@@ -279,7 +279,7 @@ impl Buffer for NeovimBuffer<'_> {
     where
         Fun: FnMut(&NeovimBuffer<'_>, AgentId) + 'static,
     {
-        Events::insert_callback_for(
+        Events::insert(
             self.events.clone(),
             events::BufUnload(self.id()),
             move |(this, removed_by)| fun(this, removed_by),
@@ -291,7 +291,7 @@ impl Buffer for NeovimBuffer<'_> {
     where
         Fun: FnMut(&NeovimBuffer<'_>, AgentId) + 'static,
     {
-        Events::insert_callback_for(
+        Events::insert(
             self.events.clone(),
             events::BufWritePost(self.id()),
             move |(this, saved_by)| fun(this, saved_by),

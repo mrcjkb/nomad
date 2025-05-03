@@ -12,7 +12,6 @@ use crate::{api, executor, notify, oxi, serde, value};
 
 /// TODO: docs.
 pub struct Neovim {
-    augroup_id: u32,
     emitter: notify::NeovimEmitter,
     events: Shared<Events>,
     local_executor: executor::NeovimLocalExecutor,
@@ -24,14 +23,7 @@ impl Neovim {
     #[inline]
     pub fn init() -> Self {
         Self {
-            augroup_id: oxi::api::create_augroup(
-                "",
-                &oxi::api::opts::CreateAugroupOpts::builder()
-                    .clear(true)
-                    .build(),
-            )
-            .expect("couldn't create augroup"),
-            events: Default::default(),
+            events: Shared::new(Events::new("")),
             emitter: notify::NeovimEmitter::default(),
             local_executor: executor::NeovimLocalExecutor::init(),
             background_executor: executor::NeovimBackgroundExecutor::init(),
@@ -166,11 +158,7 @@ impl Backend for Neovim {
     where
         Fun: FnMut(&Self::Buffer<'_>) + 'static,
     {
-        Events::insert_callback_for(
-            self.events.clone(),
-            events::BufReadPost,
-            fun,
-        )
+        Events::insert(self.events.clone(), events::BufReadPost, fun)
     }
 
     #[inline]
