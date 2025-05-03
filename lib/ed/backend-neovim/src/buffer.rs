@@ -7,17 +7,17 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 
 use compact_str::CompactString;
-use ed_core::ByteOffset;
 use ed_core::backend::{AgentId, Buffer, Edit, Replacement};
+use ed_core::{ByteOffset, Shared};
 
 use crate::Neovim;
-use crate::events::{self, EventHandle};
+use crate::events::{self, EventHandle, Events};
 use crate::oxi::{BufHandle, api, mlua};
 
 /// TODO: docs.
 #[derive(Copy, Clone)]
 pub struct NeovimBuffer<'a> {
-    callbacks: &'a events::Callbacks,
+    events: &'a Shared<Events>,
     id: BufferId,
 }
 
@@ -36,8 +36,8 @@ struct Point {
 
 impl<'a> NeovimBuffer<'a> {
     #[inline]
-    pub(crate) fn current(callbacks: &'a events::Callbacks) -> Self {
-        Self::new(BufferId::of_focused(), callbacks)
+    pub(crate) fn current(events: &'a Shared<Events>) -> Self {
+        Self::new(BufferId::of_focused(), events)
     }
 
     #[inline]
@@ -52,12 +52,9 @@ impl<'a> NeovimBuffer<'a> {
     }
 
     #[inline]
-    pub(crate) fn new(
-        id: BufferId,
-        callbacks: &'a events::Callbacks,
-    ) -> Self {
+    pub(crate) fn new(id: BufferId, events: &'a Shared<Events>) -> Self {
         debug_assert!(id.is_valid());
-        Self { id, callbacks }
+        Self { id, events }
     }
 
     /// Converts the arguments given to the
@@ -270,7 +267,8 @@ impl Buffer for NeovimBuffer<'_> {
     where
         Fun: FnMut(&NeovimBuffer<'_>, &Edit) + 'static,
     {
-        self.callbacks.insert_callback_for(
+        Events::insert_callback_for(
+            self.events.clone(),
             events::OnBytes(self.id()),
             move |(this, edit)| fun(this, edit),
         )
@@ -281,7 +279,8 @@ impl Buffer for NeovimBuffer<'_> {
     where
         Fun: FnMut(&NeovimBuffer<'_>, AgentId) + 'static,
     {
-        self.callbacks.insert_callback_for(
+        Events::insert_callback_for(
+            self.events.clone(),
             events::BufUnload(self.id()),
             move |(this, removed_by)| fun(this, removed_by),
         )
@@ -292,7 +291,8 @@ impl Buffer for NeovimBuffer<'_> {
     where
         Fun: FnMut(&NeovimBuffer<'_>, AgentId) + 'static,
     {
-        self.callbacks.insert_callback_for(
+        Events::insert_callback_for(
+            self.events.clone(),
             events::BufWritePost(self.id()),
             move |(this, saved_by)| fun(this, saved_by),
         )

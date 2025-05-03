@@ -11,36 +11,42 @@ use crate::oxi::api::{self, opts, types};
 
 /// TODO: docs.
 pub struct EventHandle {
-    callbacks: Callbacks,
-    kind: EventKind,
     event_key: DefaultKey,
+    event_kind: EventKind,
+    events: Shared<Events>,
 }
 
 pub(crate) trait Event: Clone + Into<EventKind> {
+    /// The type of arguments given to the callbacks registered for this
+    /// event.
     type Args<'a>;
 
     /// The output of [`register()`](Event::register)ing the event.
     type RegisterOutput;
 
-    #[doc(hidden)]
+    /// TODO: docs.
     fn get_or_insert_callbacks<'cbs>(
         &self,
-        callbacks: &'cbs mut CallbacksInner,
-    ) -> &'cbs mut AutocmdCallbacks<Self>;
+        events: &'cbs mut Events,
+    ) -> &'cbs mut EventCallbacks<Self>;
 
-    #[doc(hidden)]
-    fn register(&self, callbacks: Callbacks) -> Self::RegisterOutput;
+    /// TODO: docs.
+    fn register(&self, events: Shared<Events>) -> Self::RegisterOutput;
 
-    #[doc(hidden)]
+    /// TODO: docs.
     fn unregister(out: Self::RegisterOutput);
 
-    #[doc(hidden)]
-    fn cleanup(&self, event_key: DefaultKey, callbacks: &mut CallbacksInner);
+    /// TODO: docs.
+    fn cleanup(&self, event_key: DefaultKey, events: &mut Events);
 }
 
-#[derive(Default, Clone)]
-pub(crate) struct Callbacks {
-    inner: Shared<CallbacksInner>,
+#[derive(Default)]
+pub(crate) struct Events {
+    agent_ids: AgentIds,
+    on_buffer_created: EventCallbacks<BufReadPost>,
+    on_buffer_edited: NoHashMap<BufferId, EventCallbacks<OnBytes>>,
+    on_buffer_removed: NoHashMap<BufferId, EventCallbacks<BufUnload>>,
+    on_buffer_saved: NoHashMap<BufferId, EventCallbacks<BufWritePost>>,
 }
 
 #[derive(Default)]
@@ -49,6 +55,18 @@ pub(crate) struct AgentIds {
     pub(crate) edited_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) removed_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) saved_buffer: NoHashMap<BufferId, AgentId>,
+}
+
+#[derive(Default)]
+#[doc(hidden)]
+pub(crate) enum EventCallbacks<T: Event> {
+    Registered {
+        #[allow(clippy::type_complexity)]
+        callbacks: SlotMap<DefaultKey, Box<dyn FnMut(T::Args<'_>) + 'static>>,
+        output: T::RegisterOutput,
+    },
+    #[default]
+    Unregistered,
 }
 
 #[derive(Clone, Copy)]
@@ -63,28 +81,6 @@ pub(crate) struct BufWritePost(pub(crate) BufferId);
 #[derive(Clone, Copy)]
 pub(crate) struct OnBytes(pub(crate) BufferId);
 
-#[derive(Default)]
-#[doc(hidden)]
-pub(crate) struct CallbacksInner {
-    agent_ids: AgentIds,
-    on_buffer_created: AutocmdCallbacks<BufReadPost>,
-    on_buffer_edited: NoHashMap<BufferId, AutocmdCallbacks<OnBytes>>,
-    on_buffer_removed: NoHashMap<BufferId, AutocmdCallbacks<BufUnload>>,
-    on_buffer_saved: NoHashMap<BufferId, AutocmdCallbacks<BufWritePost>>,
-}
-
-#[derive(Default)]
-#[doc(hidden)]
-pub(crate) enum AutocmdCallbacks<T: Event> {
-    Registered {
-        #[allow(clippy::type_complexity)]
-        callbacks: SlotMap<DefaultKey, Box<dyn FnMut(T::Args<'_>) + 'static>>,
-        output: T::RegisterOutput,
-    },
-    #[default]
-    Unregistered,
-}
-
 #[derive(cauchy::From)]
 pub(crate) enum EventKind {
     BufReadPost(#[from] BufReadPost),
@@ -93,48 +89,36 @@ pub(crate) enum EventKind {
     OnBytes(#[from] OnBytes),
 }
 
-impl Callbacks {
+impl Events {
     pub(crate) fn insert_callback_for<T: Event>(
-        &self,
+        events: Shared<Self>,
         event: T,
         fun: impl FnMut(T::Args<'_>) + 'static,
     ) -> EventHandle {
-        EventHandle {
-            callbacks: self.clone(),
-            kind: event.clone().into(),
-            event_key: self.inner.with_mut(|inner| {
-                inner.insert_callback_for(event, fun, self.clone())
-            }),
-        }
+        let event_kind = event.clone().into();
+
+        let event_key = events.with_mut(|this| {
+            match event.get_or_insert_callbacks(this) {
+                callbacks @ EventCallbacks::Unregistered => {
+                    let mut slotmap = SlotMap::new();
+                    let event_key = slotmap.insert(Box::new(fun) as Box<_>);
+                    *callbacks = EventCallbacks::Registered {
+                        callbacks: slotmap,
+                        output: event.register(events.clone()),
+                    };
+                    event_key
+                },
+                EventCallbacks::Registered { callbacks, .. } => {
+                    callbacks.insert(Box::new(fun))
+                },
+            }
+        });
+
+        EventHandle { event_key, event_kind, events }
     }
 }
 
-impl CallbacksInner {
-    pub(crate) fn insert_callback_for<T: Event>(
-        &mut self,
-        event: T,
-        fun: impl FnMut(T::Args<'_>) + 'static,
-        callbacks: Callbacks,
-    ) -> DefaultKey {
-        let autocmd_callbacks = event.get_or_insert_callbacks(self);
-
-        match autocmd_callbacks {
-            AutocmdCallbacks::Unregistered => {
-                let output = event.register(callbacks);
-                let mut callbacks = SlotMap::new();
-                let key = callbacks.insert(Box::new(fun) as Box<_>);
-                *autocmd_callbacks =
-                    AutocmdCallbacks::Registered { callbacks, output };
-                key
-            },
-            AutocmdCallbacks::Registered { callbacks, .. } => {
-                callbacks.insert(Box::new(fun))
-            },
-        }
-    }
-}
-
-impl<T: Event> AutocmdCallbacks<T> {
+impl<T: Event> EventCallbacks<T> {
     #[inline]
     fn is_empty(&self) -> bool {
         match self {
@@ -181,20 +165,18 @@ impl Event for BufReadPost {
     #[inline]
     fn get_or_insert_callbacks<'cbs>(
         &self,
-        callbacks: &'cbs mut CallbacksInner,
-    ) -> &'cbs mut AutocmdCallbacks<Self> {
-        &mut callbacks.on_buffer_created
+        events: &'cbs mut Events,
+    ) -> &'cbs mut EventCallbacks<Self> {
+        &mut events.on_buffer_created
     }
 
     #[inline]
-    fn register(&self, callbacks: Callbacks) -> u32 {
+    fn register(&self, events: Shared<Events>) -> u32 {
         let opts = opts::CreateAutocmdOpts::builder()
             .callback(move |args: types::AutocmdCallbackArgs| {
-                callbacks.inner.with_mut(|inner| {
-                    let buffer = NeovimBuffer::new(
-                        BufferId::new(args.buffer),
-                        &callbacks,
-                    );
+                events.with_mut(|inner| {
+                    let buffer =
+                        NeovimBuffer::new(BufferId::new(args.buffer), &events);
 
                     let _created_by = inner
                         .agent_ids
@@ -221,8 +203,8 @@ impl Event for BufReadPost {
     }
 
     #[inline]
-    fn cleanup(&self, event_key: DefaultKey, callbacks: &mut CallbacksInner) {
-        callbacks.on_buffer_created.remove(event_key);
+    fn cleanup(&self, event_key: DefaultKey, events: &mut Events) {
+        events.on_buffer_created.remove(event_key);
     }
 }
 
@@ -233,21 +215,19 @@ impl Event for BufUnload {
     #[inline]
     fn get_or_insert_callbacks<'cbs>(
         &self,
-        callbacks: &'cbs mut CallbacksInner,
-    ) -> &'cbs mut AutocmdCallbacks<Self> {
-        callbacks.on_buffer_removed.entry(self.0).or_default()
+        events: &'cbs mut Events,
+    ) -> &'cbs mut EventCallbacks<Self> {
+        events.on_buffer_removed.entry(self.0).or_default()
     }
 
     #[inline]
-    fn register(&self, callbacks: Callbacks) -> u32 {
+    fn register(&self, events: Shared<Events>) -> u32 {
         let opts = opts::CreateAutocmdOpts::builder()
             .buffer(self.0.into())
             .callback(move |args: types::AutocmdCallbackArgs| {
-                callbacks.inner.with_mut(|inner| {
-                    let buffer = NeovimBuffer::new(
-                        BufferId::new(args.buffer),
-                        &callbacks,
-                    );
+                events.with_mut(|inner| {
+                    let buffer =
+                        NeovimBuffer::new(BufferId::new(args.buffer), &events);
 
                     let Some(callbacks) =
                         inner.on_buffer_saved.get_mut(&buffer.id())
@@ -280,11 +260,11 @@ impl Event for BufUnload {
     }
 
     #[inline]
-    fn cleanup(&self, event_key: DefaultKey, inner: &mut CallbacksInner) {
-        if let Some(callbacks) = inner.on_buffer_removed.get_mut(&self.0) {
+    fn cleanup(&self, event_key: DefaultKey, events: &mut Events) {
+        if let Some(callbacks) = events.on_buffer_removed.get_mut(&self.0) {
             callbacks.remove(event_key);
             if callbacks.is_empty() {
-                inner.on_buffer_removed.remove(&self.0);
+                events.on_buffer_removed.remove(&self.0);
             }
         }
     }
@@ -297,21 +277,19 @@ impl Event for BufWritePost {
     #[inline]
     fn get_or_insert_callbacks<'cbs>(
         &self,
-        callbacks: &'cbs mut CallbacksInner,
-    ) -> &'cbs mut AutocmdCallbacks<Self> {
-        callbacks.on_buffer_saved.entry(self.0).or_default()
+        events: &'cbs mut Events,
+    ) -> &'cbs mut EventCallbacks<Self> {
+        events.on_buffer_saved.entry(self.0).or_default()
     }
 
     #[inline]
-    fn register(&self, callbacks: Callbacks) -> u32 {
+    fn register(&self, events: Shared<Events>) -> u32 {
         let opts = opts::CreateAutocmdOpts::builder()
             .buffer(self.0.into())
             .callback(move |args: types::AutocmdCallbackArgs| {
-                callbacks.inner.with_mut(|inner| {
-                    let buffer = NeovimBuffer::new(
-                        BufferId::new(args.buffer),
-                        &callbacks,
-                    );
+                events.with_mut(|inner| {
+                    let buffer =
+                        NeovimBuffer::new(BufferId::new(args.buffer), &events);
 
                     let Some(callbacks) =
                         inner.on_buffer_saved.get_mut(&buffer.id())
@@ -344,11 +322,11 @@ impl Event for BufWritePost {
     }
 
     #[inline]
-    fn cleanup(&self, event_key: DefaultKey, inner: &mut CallbacksInner) {
-        if let Some(callbacks) = inner.on_buffer_saved.get_mut(&self.0) {
+    fn cleanup(&self, event_key: DefaultKey, events: &mut Events) {
+        if let Some(callbacks) = events.on_buffer_saved.get_mut(&self.0) {
             callbacks.remove(event_key);
             if callbacks.is_empty() {
-                inner.on_buffer_saved.remove(&self.0);
+                events.on_buffer_saved.remove(&self.0);
             }
         }
     }
@@ -361,19 +339,19 @@ impl Event for OnBytes {
     #[inline]
     fn get_or_insert_callbacks<'cbs>(
         &self,
-        callbacks: &'cbs mut CallbacksInner,
-    ) -> &'cbs mut AutocmdCallbacks<Self> {
-        callbacks.on_buffer_edited.entry(self.0).or_default()
+        events: &'cbs mut Events,
+    ) -> &'cbs mut EventCallbacks<Self> {
+        events.on_buffer_edited.entry(self.0).or_default()
     }
 
     #[inline]
-    fn register(&self, callbacks: Callbacks) {
+    fn register(&self, events: Shared<Events>) {
         let buffer_id = self.0;
 
         let opts = opts::BufAttachOpts::builder()
             .on_bytes(move |args: opts::OnBytesArgs| {
-                callbacks.inner.with_mut(|inner| {
-                    let buffer = NeovimBuffer::new(buffer_id, &callbacks);
+                events.with_mut(|inner| {
+                    let buffer = NeovimBuffer::new(buffer_id, &events);
 
                     let Some(callbacks) =
                         inner.on_buffer_edited.get_mut(&buffer.id())
@@ -412,11 +390,11 @@ impl Event for OnBytes {
     fn unregister((): Self::RegisterOutput) {}
 
     #[inline]
-    fn cleanup(&self, event_key: DefaultKey, inner: &mut CallbacksInner) {
-        if let Some(callbacks) = inner.on_buffer_edited.get_mut(&self.0) {
+    fn cleanup(&self, event_key: DefaultKey, events: &mut Events) {
+        if let Some(callbacks) = events.on_buffer_edited.get_mut(&self.0) {
             callbacks.remove(event_key);
             if callbacks.is_empty() {
-                inner.on_buffer_edited.remove(&self.0);
+                events.on_buffer_edited.remove(&self.0);
             }
         }
     }
@@ -426,11 +404,11 @@ impl Drop for EventHandle {
     #[inline]
     fn drop(&mut self) {
         let key = self.event_key;
-        self.callbacks.inner.with_mut(|inner| match self.kind {
-            EventKind::BufReadPost(event) => event.cleanup(key, inner),
-            EventKind::BufUnload(event) => event.cleanup(key, inner),
-            EventKind::BufWritePost(event) => event.cleanup(key, inner),
-            EventKind::OnBytes(event) => event.cleanup(key, inner),
+        self.events.with_mut(|events| match self.event_kind {
+            EventKind::BufReadPost(event) => event.cleanup(key, events),
+            EventKind::BufUnload(event) => event.cleanup(key, events),
+            EventKind::BufWritePost(event) => event.cleanup(key, events),
+            EventKind::OnBytes(event) => event.cleanup(key, events),
         })
     }
 }

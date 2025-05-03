@@ -1,4 +1,5 @@
 use ::serde::{Deserialize, Serialize};
+use ed_core::Shared;
 use ed_core::backend::{Backend, Buffer};
 use ed_core::fs::{self, AbsPath};
 use ed_core::notify::Namespace;
@@ -6,13 +7,14 @@ use ed_core::plugin::Plugin;
 use nvim_oxi::api::Window;
 
 use crate::buffer::{BufferId, NeovimBuffer};
-use crate::{api, events, executor, notify, oxi, serde, value};
+use crate::events::{self, EventHandle, Events};
+use crate::{api, executor, notify, oxi, serde, value};
 
 /// TODO: docs.
 pub struct Neovim {
     augroup_id: u32,
-    callbacks: events::Callbacks,
     emitter: notify::NeovimEmitter,
+    events: Shared<Events>,
     local_executor: executor::NeovimLocalExecutor,
     background_executor: executor::NeovimBackgroundExecutor,
 }
@@ -29,7 +31,7 @@ impl Neovim {
                     .build(),
             )
             .expect("couldn't create augroup"),
-            callbacks: Default::default(),
+            events: Default::default(),
             emitter: notify::NeovimEmitter::default(),
             local_executor: executor::NeovimLocalExecutor::init(),
             background_executor: executor::NeovimBackgroundExecutor::init(),
@@ -55,7 +57,7 @@ impl Backend for Neovim {
     type LocalExecutor = executor::NeovimLocalExecutor;
     type BackgroundExecutor = executor::NeovimBackgroundExecutor;
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
-    type EventHandle = events::EventHandle;
+    type EventHandle = EventHandle;
     type Selection<'a> = NeovimBuffer<'a>;
     type SelectionId = BufferId;
 
@@ -64,13 +66,13 @@ impl Backend for Neovim {
 
     #[inline]
     fn buffer(&mut self, buf_id: Self::BufferId) -> Option<Self::Buffer<'_>> {
-        buf_id.is_valid().then_some(NeovimBuffer::new(buf_id, &self.callbacks))
+        buf_id.is_valid().then_some(NeovimBuffer::new(buf_id, &self.events))
     }
 
     #[inline]
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {
         self.buffer_ids()
-            .map(|buf_id| NeovimBuffer::new(buf_id, &self.callbacks))
+            .map(|buf_id| NeovimBuffer::new(buf_id, &self.events))
             .find(|buf| &*buf.name() == path)
     }
 
@@ -86,7 +88,7 @@ impl Backend for Neovim {
 
     #[inline]
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
-        Some(NeovimBuffer::current(&self.callbacks))
+        Some(NeovimBuffer::current(&self.events))
     }
 
     #[inline]
@@ -126,7 +128,7 @@ impl Backend for Neovim {
 
         Window::current().set_buf(&buf).ok()?;
 
-        Some(NeovimBuffer::new(BufferId::new(buf), &self.callbacks))
+        Some(NeovimBuffer::new(BufferId::new(buf), &self.events))
     }
 
     #[inline]
@@ -164,7 +166,11 @@ impl Backend for Neovim {
     where
         Fun: FnMut(&Self::Buffer<'_>) + 'static,
     {
-        self.callbacks.insert_callback_for(events::BufReadPost, fun)
+        Events::insert_callback_for(
+            self.events.clone(),
+            events::BufReadPost,
+            fun,
+        )
     }
 
     #[inline]
