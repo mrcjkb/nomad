@@ -8,7 +8,15 @@ use serde::{Deserialize, Serialize};
 use slotmap::{DefaultKey, SlotMap};
 
 use crate::api::Api;
-use crate::buffer::{Buffer, BufferId, BufferInner, Cursor, CursorId};
+use crate::buffer::{
+    Buffer,
+    BufferId,
+    BufferInner,
+    Cursor,
+    CursorId,
+    Selection,
+    SelectionId,
+};
 use crate::emitter::Emitter;
 use crate::executor::Executor;
 use crate::fs::MockFs;
@@ -129,8 +137,8 @@ impl Backend for Mock {
     type BackgroundExecutor = Executor;
     type Fs = MockFs;
     type Emitter<'this> = &'this mut Emitter;
-    type Selection<'a> = ();
-    type SelectionId = ();
+    type Selection<'a> = Selection<'a>;
+    type SelectionId = SelectionId;
 
     type SerializeError = SerializeError;
     type DeserializeError = DeserializeError;
@@ -195,9 +203,10 @@ impl Backend for Mock {
 
     fn selection(
         &mut self,
-        _id: Self::SelectionId,
+        selection_id: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
-        todo!()
+        self.buffer(selection_id.buffer_id())
+            .and_then(|buf| buf.into_selection(selection_id))
     }
 
     fn serialize<T>(

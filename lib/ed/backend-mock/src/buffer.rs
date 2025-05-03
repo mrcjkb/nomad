@@ -1,4 +1,4 @@
-use core::ops::{Deref, DerefMut};
+use core::ops::{Deref, DerefMut, Range};
 use std::borrow::Cow;
 
 use crop::Rope;
@@ -34,12 +34,26 @@ pub struct CursorId {
 }
 
 /// TODO: docs.
+pub struct Selection<'a> {
+    pub(crate) buffer: &'a mut BufferInner,
+    pub(crate) selection_id: SelectionId,
+}
+
+/// TODO: docs.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct SelectionId {
+    buffer_id: BufferId,
+    id_in_buffer: AnnotationId,
+}
+
+/// TODO: docs.
 #[doc(hidden)]
 pub struct BufferInner {
     pub(crate) cursors: SlotMap<AnnotationId, CursorInner>,
     pub(crate) contents: Rope,
     pub(crate) id: BufferId,
     pub(crate) name: String,
+    pub(crate) selections: SlotMap<AnnotationId, SelectionInner>,
 }
 
 /// TODO: docs.
@@ -47,6 +61,35 @@ pub struct BufferInner {
 pub struct CursorInner {
     pub(crate) id_in_buffer: AnnotationId,
     pub(crate) offset: ByteOffset,
+}
+
+/// TODO: docs.
+#[doc(hidden)]
+pub struct SelectionInner {
+    pub(crate) id_in_buffer: AnnotationId,
+    pub(crate) offset_range: Range<ByteOffset>,
+}
+
+impl<'a> Buffer<'a> {
+    pub(crate) fn into_cursor(
+        self,
+        cursor_id: CursorId,
+    ) -> Option<Cursor<'a>> {
+        debug_assert_eq!(cursor_id.buffer_id(), self.id());
+        self.cursors
+            .contains_key(cursor_id.id_in_buffer)
+            .then_some(Cursor { buffer: self.inner, cursor_id })
+    }
+
+    pub(crate) fn into_selection(
+        self,
+        selection_id: SelectionId,
+    ) -> Option<Selection<'a>> {
+        debug_assert_eq!(selection_id.buffer_id(), self.id());
+        self.selections
+            .contains_key(selection_id.id_in_buffer)
+            .then_some(Selection { buffer: self.inner, selection_id })
+    }
 }
 
 impl BufferId {
@@ -63,21 +106,21 @@ impl CursorId {
     }
 }
 
-impl<'a> Buffer<'a> {
-    pub(crate) fn into_cursor(
-        self,
-        cursor_id: CursorId,
-    ) -> Option<Cursor<'a>> {
-        debug_assert_eq!(cursor_id.buffer_id(), self.id());
-        self.cursors
-            .contains_key(cursor_id.id_in_buffer)
-            .then_some(Cursor { buffer: self.inner, cursor_id })
+impl SelectionId {
+    pub(crate) fn buffer_id(&self) -> BufferId {
+        self.buffer_id
     }
 }
 
 impl BufferInner {
     pub(crate) fn new(id: BufferId, name: String, contents: Rope) -> Self {
-        Self { cursors: Default::default(), contents, id, name }
+        Self {
+            cursors: Default::default(),
+            contents,
+            id,
+            name,
+            selections: Default::default(),
+        }
     }
 }
 
@@ -94,6 +137,12 @@ impl CursorInner {
                 self.offset - range_len
             } + replacement.inserted_text().len();
         }
+    }
+}
+
+impl SelectionInner {
+    pub(crate) fn react_to_replacement(&mut self, _replacement: &Replacement) {
+        todo!();
     }
 }
 
@@ -127,6 +176,9 @@ impl backend::Buffer for Buffer<'_> {
             );
             for cursor in self.cursors.values_mut() {
                 cursor.react_to_replacement(replacement);
+            }
+            for selection in self.selections.values_mut() {
+                selection.react_to_replacement(replacement);
             }
         }
 
