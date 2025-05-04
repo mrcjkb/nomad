@@ -1,0 +1,63 @@
+#![allow(missing_docs)]
+
+use core::str::FromStr;
+use std::process::Command;
+
+/// Enables the `git-in-PATH` feature iff git is in $PATH and its version is
+/// at least 2.32.
+fn main() {
+    let maybe_git_version = Command::new("git")
+        .arg("--version")
+        .output()
+        .ok()
+        .and_then(|output| {
+            output
+                .status
+                .success()
+                .then(|| String::from_utf8(output.stdout).ok())
+                .flatten()
+        })
+        .and_then(|output| output.parse::<GitVersion>().ok());
+
+    if let Some(git_version) = maybe_git_version {
+        if git_version >= GitVersion(2, 32, 0) {
+            println!("cargo:rustc-cfg=feature=\"git-in-PATH\"");
+        }
+    }
+}
+
+#[derive(PartialEq, Eq)]
+struct GitVersion(u8, u8, u8);
+
+impl PartialOrd for GitVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for GitVersion {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let Self(this_major, this_minor, this_patch) = self;
+        let Self(other_major, other_minor, other_patch) = other;
+        this_major
+            .cmp(other_major)
+            .then(this_minor.cmp(other_minor))
+            .then(this_patch.cmp(other_patch))
+    }
+}
+
+impl FromStr for GitVersion {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        fn inner(s: &str) -> Option<GitVersion> {
+            let (_, semver) = s.split_once("git version ")?;
+            let mut versions = semver.trim().split('.');
+            let major = versions.next().and_then(|s| s.parse().ok())?;
+            let minor = versions.next().and_then(|s| s.parse().ok())?;
+            let patch = versions.next().and_then(|s| s.parse().ok())?;
+            Some(GitVersion(major, minor, patch))
+        }
+        inner(s).ok_or(())
+    }
+}

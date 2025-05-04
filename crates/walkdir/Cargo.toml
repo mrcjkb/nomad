@@ -9,6 +9,8 @@ publish.workspace = true
 [features]
 default = ["gitignore"]
 gitignore = ["dep:compact_str", "ed/os-fs"]
+
+# Test-related features.
 git-in-PATH = []
 mock = ["ed/mock"]
 
@@ -24,6 +26,7 @@ send-future = "0.1"
 compact_str = { workspace = true, optional = true }
 
 [dev-dependencies]
+abs-path = { workspace = true, features = ["macros"] }
 futures-executor = { workspace = true }
 tempdir = { workspace = true }
 
