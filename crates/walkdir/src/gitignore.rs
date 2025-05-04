@@ -122,6 +122,8 @@ impl GitIgnoreInner {
     }
 
     fn refresh(&mut self) -> Result<(), GitIgnoreError> {
+        self.ignored_paths.clear();
+
         let output =
             match GitIgnore::command().current_dir(&self.dir_path).output() {
                 Ok(out) => out,
@@ -137,18 +139,20 @@ impl GitIgnoreInner {
             };
 
         if !output.status.success() {
-            // TODO: check if the reason is because the directory is not in a
-            // Git repository.
-            return Err(GitIgnoreError::FailedCommand {
-                status: output.status,
-                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-            });
+            let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+
+            return if stderr.starts_with("fatal: not a git repository") {
+                Ok(())
+            } else {
+                Err(GitIgnoreError::FailedCommand {
+                    status: output.status,
+                    stderr,
+                })
+            };
         }
 
         let stdout = str::from_utf8(&output.stdout)
             .map_err(|_| GitIgnoreError::StdoutNotUtf8)?;
-
-        self.ignored_paths.clear();
 
         for line in stdout.lines() {
             if let Err(err) = self.ignored_paths.insert(line) {
