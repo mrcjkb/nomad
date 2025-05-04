@@ -5,6 +5,14 @@ use std::process::Command;
 
 /// Enables the `git-in-PATH` feature iff git is in $PATH and its version is
 /// at least 2.32.
+///
+/// We require 2.32 because that was the first release which supported the
+/// `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` environment variables that we
+/// need to have a reproducible git environment.
+///
+/// See [this][1] for more infos.
+///
+/// [1]: https://github.com/git/git/blob/master/Documentation/RelNotes/2.32.0.adoc#updates-since-v231
 fn main() {
     let maybe_git_version = Command::new("git")
         .arg("--version")
