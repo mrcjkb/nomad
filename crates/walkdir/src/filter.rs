@@ -107,8 +107,8 @@ where
     > {
         let entries = self.walker.list_metas(dir_path).await?;
         let filters = stream::FuturesUnordered::new();
-        Ok(stream::unfold(
-            (Box::pin(entries), filters),
+        Ok(Box::pin(stream::unfold(
+            (entries, filters),
             move |(mut entries, mut filters)| async move {
                 let item = loop {
                     select! {
@@ -140,7 +140,7 @@ where
                 };
                 Some((item, (entries, filters)))
             },
-        ))
+        )))
     }
 }
 

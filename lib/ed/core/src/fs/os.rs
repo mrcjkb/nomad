@@ -229,7 +229,7 @@ impl Directory for OsDirectory {
     > {
         let read_dir = async_fs::read_dir(self.path()).await?.fuse();
         let get_metadata = stream::FuturesUnordered::new();
-        Ok(stream::unfold(
+        Ok(Box::pin(stream::unfold(
             (read_dir, get_metadata, self.path().to_owned()),
             move |(mut read_dir, mut get_metadata, dir_path)| async move {
                 let metadata_res = loop {
@@ -277,7 +277,7 @@ impl Directory for OsDirectory {
                 };
                 Some((metadata_res, (read_dir, get_metadata, dir_path)))
             },
-        ))
+        )))
     }
 
     #[inline]

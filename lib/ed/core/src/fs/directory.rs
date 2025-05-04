@@ -1,10 +1,10 @@
 use core::error::Error;
 
 use abs_path::AbsPathBuf;
-use futures_lite::Stream;
-use futures_util::pin_mut;
+use futures_util::stream::{self, Stream, StreamExt};
+use futures_util::{pin_mut, select_biased};
 
-use crate::fs::{self, AbsPath, Fs, NodeName};
+use crate::fs::{self, AbsPath, Fs, Metadata, NodeName};
 
 /// TODO: docs.
 pub trait Directory: Send + Sync + Sized {
@@ -114,10 +114,81 @@ pub trait Directory: Send + Sync + Sized {
                     Self::ReadMetadataError,
                 >,
             > + Send
+            + Unpin
             + use<Self>,
             Self::ListError,
         >,
     > + Send;
+
+    /// TODO: docs.
+    #[allow(clippy::type_complexity)]
+    fn list_nodes(
+        &self,
+    ) -> impl Future<
+        Output = Result<
+            impl Stream<
+                Item = Result<fs::FsNode<Self::Fs>, ReadNodeError<Self::Fs>>,
+            > + Send,
+            Self::ListError,
+        >,
+    > + Send
+    where
+        Self: AsRef<Self::Fs>,
+        <Self::Fs as fs::Fs>::Directory:
+            Directory<ReadMetadataError = Self::ReadMetadataError>,
+    {
+        async move {
+            let metas = self.list_metas().await?.fuse();
+            let get_nodes = stream::FuturesUnordered::new();
+            Ok(stream::unfold(
+                (metas, get_nodes),
+                move |(mut metas, mut get_nodes)| async move {
+                    let node = loop {
+                        select_biased! {
+                            meta_res = metas.select_next_some() => {
+                                let metadata = match meta_res {
+                                    Ok(meta) => meta,
+                                    Err(err) => {
+                                        break Err(ReadNodeError::ReadMetadata(
+                                            err,
+                                        ));
+                                    }
+                                };
+                                let node_name = match metadata.name() {
+                                    Ok(name) => name,
+                                    Err(err) => {
+                                        break Err(ReadNodeError::MetadataName(
+                                            err,
+                                        ));
+                                    }
+                                };
+                                let node_path = self.path().join(node_name);
+                                get_nodes.push(async move {
+                                    self.as_ref()
+                                        .node_at_path(&node_path)
+                                        .await
+                                });
+                            },
+                            node_res = get_nodes.select_next_some() => {
+                                match node_res {
+                                    Ok(Some(node)) => break Ok(node),
+                                    // The node must've been deleted.
+                                    Ok(None) => {},
+                                    Err(err) => {
+                                        break Err(ReadNodeError::NodeAtPath(
+                                            err
+                                        ));
+                                    },
+                                }
+                            },
+                            complete => return None,
+                        }
+                    };
+                    Some((node, (metas, get_nodes)))
+                },
+            ))
+        }
+    }
 
     /// TODO: docs.
     #[inline]
@@ -135,8 +206,10 @@ pub trait Directory: Send + Sync + Sized {
         use futures_util::{StreamExt, pin_mut};
 
         async move {
-            let metas =
-                src.list_metas().await.map_err(ReplicateError::ReadDirectory)?;
+            let metas = src
+                .list_metas()
+                .await
+                .map_err(ReplicateError::ReadDirectory)?;
 
             pin_mut!(metas);
 
@@ -203,6 +276,26 @@ pub struct NodeMove<Fs: fs::Fs> {
 
     /// TODO: docs.
     pub move_root_id: Fs::NodeId,
+}
+
+/// TODO: docs.
+#[derive(
+    cauchy::Debug,
+    derive_more::Display,
+    cauchy::Error,
+    cauchy::PartialEq,
+    cauchy::Eq,
+)]
+#[display("{_0}")]
+pub enum ReadNodeError<Fs: fs::Fs> {
+    /// TODO: docs.
+    MetadataName(fs::MetadataNameError),
+
+    /// TODO: docs.
+    NodeAtPath(Fs::NodeAtPathError),
+
+    /// TODO: docs.
+    ReadMetadata(<Fs::Directory as Directory>::ReadMetadataError),
 }
 
 /// TODO: docs.

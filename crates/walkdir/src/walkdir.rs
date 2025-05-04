@@ -4,7 +4,7 @@ use core::pin::Pin;
 use abs_path::{AbsPath, AbsPathBuf};
 use ed::fs::{self, Directory, Metadata};
 use futures_util::stream::{self, FusedStream, StreamExt};
-use futures_util::{FutureExt, pin_mut, select};
+use futures_util::{FutureExt, select};
 
 use crate::filter::{Filter, Filtered};
 
@@ -24,7 +24,8 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
     ) -> impl Future<
         Output = Result<
             impl FusedStream<Item = Result<Fs::Metadata, Self::ReadMetadataError>>
-            + Send,
+            + Send
+            + Unpin,
             Self::ListError,
         >,
     > + Send;
@@ -67,13 +68,12 @@ pub trait WalkDir<Fs: fs::Fs>: Sized {
             Fs: fs::Fs,
         {
             Box::pin(async move {
-                let entries = walkdir
+                let mut entries = walkdir
                     .list_metas(dir_path)
                     .await
                     .map_err(WalkError::ListDir)?;
                 let mut handle_entries = stream::FuturesUnordered::new();
                 let mut read_children = stream::FuturesUnordered::new();
-                pin_mut!(entries);
                 loop {
                     select! {
                         res = entries.select_next_some() => {
@@ -211,7 +211,8 @@ pub enum FsReadDirError<Fs: fs::Fs> {
 
 impl<Fs: fs::Fs> WalkDir<Self> for Fs {
     type ListError = FsReadDirError<Self>;
-    type ReadMetadataError = <Fs::Directory as fs::Directory>::ReadMetadataError;
+    type ReadMetadataError =
+        <Fs::Directory as fs::Directory>::ReadMetadataError;
 
     async fn list_metas(
         &self,

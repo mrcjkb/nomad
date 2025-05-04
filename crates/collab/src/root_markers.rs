@@ -4,8 +4,8 @@ use core::fmt;
 use abs_path::AbsPathBuf;
 use ed::fs::{self, Directory, File, MetadataNameError, Symlink};
 use ed::notify;
+use futures_util::select;
 use futures_util::stream::{self, StreamExt};
-use futures_util::{pin_mut, select};
 
 pub struct FindRootArgs<'a, M> {
     /// The marker used to determine if a directory is the root.
@@ -126,10 +126,8 @@ impl<M> FindRootArgs<'_, M> {
     where
         M: RootMarker<Fs>,
     {
-        let metas =
+        let mut metas =
             dir.list_metas().await.map_err(FindRootError::ReadDir)?.fuse();
-
-        pin_mut!(metas);
 
         let mut check_marker_matches = stream::FuturesUnordered::new();
 

@@ -1,6 +1,6 @@
 use abs_path::{AbsPath, AbsPathBuf};
 use ed::fs::{self, Directory, File, Metadata, Symlink};
-use futures_util::{StreamExt, pin_mut};
+use futures_util::StreamExt;
 
 use crate::{FindRootError, Marker};
 
@@ -59,9 +59,7 @@ async fn contains_marker<Fs: fs::Fs>(
     dir: &Fs::Directory,
     marker: &impl Marker,
 ) -> Result<bool, FindRootError<Fs>> {
-    let metas = dir.list_metas().await.map_err(FindRootError::ListDir)?;
-
-    pin_mut!(metas);
+    let mut metas = dir.list_metas().await.map_err(FindRootError::ListDir)?;
 
     while let Some(meta_res) = metas.next().await {
         let meta = meta_res.map_err(FindRootError::ReadMetadata)?;
