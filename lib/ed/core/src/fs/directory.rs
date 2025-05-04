@@ -41,7 +41,12 @@ pub trait Directory: Send + Sync + Sized {
     fn create_directory(
         &self,
         directory_name: &NodeName,
-    ) -> impl Future<Output = Result<Self, Self::CreateDirectoryError>> + Send;
+    ) -> impl Future<
+        Output = Result<
+            <Self::Fs as Fs>::Directory,
+            Self::CreateDirectoryError,
+        >,
+    > + Send;
 
     /// TODO: docs.
     fn create_file(
