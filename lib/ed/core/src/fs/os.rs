@@ -433,29 +433,6 @@ impl Symlink for OsSymlink {
     }
 }
 
-impl Stream for OsWatcher {
-    type Item = Result<FsEvent<SystemTime>, notify::Error>;
-
-    #[inline]
-    fn poll_next(
-        self: Pin<&mut Self>,
-        ctx: &mut Context,
-    ) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
-        loop {
-            if let Some(event) = this.buffered.pop_front() {
-                return Poll::Ready(Some(Ok(event)));
-            }
-            let Some((event, timestamp)) =
-                ready!(this.inner.as_mut().poll_next(ctx)).transpose()?
-            else {
-                return Poll::Ready(None);
-            };
-            this.buffered.extend(FsEvent::from_notify(event, timestamp));
-        }
-    }
-}
-
 impl Metadata for OsMetadata {
     type Fs = OsFs;
 
@@ -495,5 +472,34 @@ impl Metadata for OsMetadata {
     #[inline]
     fn node_kind(&self) -> NodeKind {
         self.node_kind
+    }
+}
+
+impl Stream for OsWatcher {
+    type Item = Result<FsEvent<SystemTime>, notify::Error>;
+
+    #[inline]
+    fn poll_next(
+        self: Pin<&mut Self>,
+        ctx: &mut Context,
+    ) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            if let Some(event) = this.buffered.pop_front() {
+                return Poll::Ready(Some(Ok(event)));
+            }
+            let Some((event, timestamp)) =
+                ready!(this.inner.as_mut().poll_next(ctx)).transpose()?
+            else {
+                return Poll::Ready(None);
+            };
+            this.buffered.extend(FsEvent::from_notify(event, timestamp));
+        }
+    }
+}
+
+impl AsRef<OsFs> for OsDirectory {
+    fn as_ref(&self) -> &OsFs {
+        &OsFs {}
     }
 }

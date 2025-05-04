@@ -943,6 +943,12 @@ impl PartialEq for MockDirectory {
     }
 }
 
+impl AsRef<MockFs> for MockDirectory {
+    fn as_ref(&self) -> &MockFs {
+        &self.fs
+    }
+}
+
 impl fmt::Debug for MockFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.with_inner(|dir| fmt::Debug::fmt(dir, f)) {

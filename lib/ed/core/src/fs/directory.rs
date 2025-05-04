@@ -192,31 +192,31 @@ pub trait Directory: Send + Sync + Sized {
 
     /// TODO: docs.
     #[inline]
-    fn replicate_from<Src: Directory>(
+    fn replicate_from<Src>(
         &self,
         src: &Src,
     ) -> impl Future<Output = Result<(), ReplicateError<Self::Fs, Src::Fs>>> + Send
     where
+        Src: Directory + AsRef<Src::Fs>,
         <Src::Fs as Fs>::Directory: Directory<
                 ReadMetadataError = Src::ReadMetadataError,
                 ListError = Src::ListError,
             >,
     {
-        use fs::Metadata;
-        use futures_util::{StreamExt, pin_mut};
-
         async move {
-            let metas = src
-                .list_metas()
+            let nodes = src
+                .list_nodes()
                 .await
-                .map_err(ReplicateError::ReadDirectory)?;
+                .map_err(ReplicateError::ListDirectory)?;
 
-            pin_mut!(metas);
+            pin_mut!(nodes);
 
-            while let Some(meta_res) = metas.next().await {
-                let node_meta = meta_res.map_err(ReplicateError::ReadEntry)?;
-                let node_name = node_meta.name()?;
-                let _node_path = src.path().join(node_name);
+            while let Some(node_res) = nodes.next().await {
+                match node_res.map_err(ReplicateError::ReadNode)? {
+                    fs::FsNode::Directory(_dir) => todo!(),
+                    fs::FsNode::File(_file) => todo!(),
+                    fs::FsNode::Symlink(_symlink) => todo!(),
+                }
             }
 
             Ok(())
@@ -319,16 +319,13 @@ pub enum ReplicateError<Dst: Fs, Src: Fs> {
     CreateSymlink(<Dst::Directory as fs::Directory>::CreateSymlinkError),
 
     /// TODO: docs.
-    MetadataName(#[from] fs::MetadataNameError),
-
-    /// TODO: docs.
-    ReadDirectory(<Src::Directory as Directory>::ListError),
-
-    /// TODO: docs.
-    ReadEntry(<Src::Directory as Directory>::ReadMetadataError),
+    ListDirectory(<Src::Directory as Directory>::ListError),
 
     /// TODO: docs.
     ReadFile(<Src::File as fs::File>::ReadError),
+
+    /// TODO: docs.
+    ReadNode(ReadNodeError<Src>),
 
     /// TODO: docs.
     ReadSymlink(<Src::Symlink as fs::Symlink>::ReadError),
