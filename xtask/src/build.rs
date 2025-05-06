@@ -108,11 +108,17 @@ impl FindProjectRoot {
 
 impl ParsePackage {
     fn call(&self) -> anyhow::Result<cargo_metadata::Package> {
-        let cargo_dot_toml =
-            self.project_root.clone().join(node!("Cargo.toml"));
+        let cargo_dot_toml = self
+            .project_root
+            .clone()
+            .join(node!("crates"))
+            .join(node!("mad-neovim"))
+            .join(node!("Cargo.toml"));
+
         let metadata = cargo_metadata::MetadataCommand::new()
             .manifest_path(cargo_dot_toml.clone())
             .exec()?;
+
         metadata.root_package().cloned().ok_or_else(|| {
             anyhow!(
                 "Could not find the root package for manifest at \

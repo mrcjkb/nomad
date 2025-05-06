@@ -25,7 +25,7 @@ impl NeovimBackgroundExecutor {
     pub fn init() -> Self {
         Self {
             thread_pool: ThreadPool::builder()
-                .name_prefix("nvimx")
+                .name_prefix("neovim")
                 .create()
                 .expect("couldn't create thread pool"),
         }
