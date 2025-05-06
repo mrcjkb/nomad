@@ -7,6 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [features]
+benches = []
 mock = ["dep:duplex-stream", "collab-server/server", "collab-server/test"]
 neovim = [
   "dep:async-net",

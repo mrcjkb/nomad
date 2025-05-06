@@ -7,8 +7,8 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-collab = ["dep:collab"]
-neovim-repo = []
+collab = ["dep:auth", "dep:collab"]
+neovim-repo = ["ed/os-fs"]
 
 [[bin]]
 name = "benches"
@@ -18,9 +18,17 @@ bench = true
 [dependencies]
 abs-path = { workspace = true }
 criterion = "0.5"
+ed = { workspace = true }
+futures-lite = { workspace = true }
+mock = { workspace = true }
 
 # Collab-related dependencies.
-collab = { workspace = true, optional = true }
+auth = { workspace = true, optional = true, features = ["mock"] }
+collab = { workspace = true, optional = true, features = [
+  "benches",
+  "mock",
+  "neovim",
+] }
 
 [build-dependencies]
 abs-path = { workspace = true, features = ["macros"] }

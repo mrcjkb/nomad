@@ -274,9 +274,13 @@ version = "0.1.0-dev"
 dependencies = [
  "abs-path",
  "anyhow",
+ "auth",
  "collab",
  "criterion",
+ "ed",
+ "futures-lite",
  "git2",
+ "mock",
 ]
 
 [[package]]

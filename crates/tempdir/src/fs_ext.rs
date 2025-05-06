@@ -2,8 +2,8 @@ use std::io;
 use std::path::PathBuf;
 
 use abs_path::AbsPath;
+use ed::fs::Fs;
 use ed::fs::os::OsFs;
-use ed::fs::{Fs, FsNode};
 
 use crate::TempDir;
 
@@ -47,14 +47,12 @@ impl FsExt for OsFs {
             },
         };
 
-        let FsNode::Directory(os_dir) = self
+        let os_dir = self
             .node_at_path(temp_dir_path)
             .await
             .map_err(TempDirError::GetDir)?
             .expect("just created the directory")
-        else {
-            unreachable!("created a directory, not a file or symlink");
-        };
+            .unwrap_directory();
 
         Ok(TempDir::new(temp_dir, os_dir))
     }

@@ -99,4 +99,34 @@ impl<Fs: fs::Fs> FsNode<Fs> {
             Self::Symlink(symlink) => symlink.path(),
         }
     }
+
+    /// TODO: docs.
+    #[track_caller]
+    #[inline]
+    pub fn unwrap_directory(self) -> Fs::Directory {
+        match self {
+            Self::Directory(dir) => dir,
+            other => panic!("expected directory, got {:?}", other.kind()),
+        }
+    }
+
+    /// TODO: docs.
+    #[track_caller]
+    #[inline]
+    pub fn unwrap_file(self) -> Fs::File {
+        match self {
+            Self::File(file) => file,
+            other => panic!("expected file, got {:?}", other.kind()),
+        }
+    }
+
+    /// TODO: docs.
+    #[track_caller]
+    #[inline]
+    pub fn unwrap_symlink(self) -> Fs::Symlink {
+        match self {
+            Self::Symlink(symlink) => symlink,
+            other => panic!("expected symlink, got {:?}", other.kind()),
+        }
+    }
 }
