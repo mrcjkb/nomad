@@ -1,6 +1,8 @@
 //! TODO: docs.
 
 #![allow(missing_docs)]
+#![feature(async_fn_traits)]
+#![feature(unboxed_closures)]
 
 pub mod api;
 mod backend_ext;
