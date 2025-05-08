@@ -87,9 +87,9 @@ pub trait BackendExt: Backend<LocalExecutor: AsMut<Executor>> {
     }
 }
 
-unsafe fn extend_lifetime<B: Backend, U>(
-    fun: impl for<'a, 'b> AsyncFnOnce(&'a mut AsyncCtx<'b, B>) -> U,
-) -> impl for<'a, 'b> AsyncFnOnce(&'a mut AsyncCtx<'b, B>) -> U + 'static {
+unsafe fn extend_lifetime<B: Backend, T: 'static>(
+    fun: impl for<'a, 'b> AsyncFnOnce(&'a mut AsyncCtx<'b, B>) -> T,
+) -> impl for<'a, 'b> AsyncFnOnce(&'a mut AsyncCtx<'b, B>) -> T + 'static {
     use core::marker::PhantomData;
     use core::pin::Pin;
 
@@ -141,8 +141,7 @@ unsafe fn extend_lifetime<B: Backend, U>(
             // SAFETY: the pointer points to an `AsyncCtx<T>`, we just cast it
             // to `*mut ()` to type-erase the async closure's input.
             let args = unsafe { &mut *(args as *mut AsyncCtx<B>) };
-            let out = fun(args);
-            Box::into_raw(Box::new(out)) as *mut ()
+            fun(args).await
         },
         PhantomData,
     );
@@ -150,16 +149,13 @@ unsafe fn extend_lifetime<B: Backend, U>(
     // SAFETY: up to the caller.
     let erased = unsafe {
         mem::transmute::<
-            TypeErased<'_, *mut (), *mut ()>,
-            TypeErased<'static, *mut (), *mut ()>,
+            TypeErased<'_, *mut (), T>,
+            TypeErased<'static, *mut (), T>,
         >(TypeErased(Box::new(boxed)))
     };
 
     async move |args: &mut AsyncCtx<B>| {
-        let out = erased(args as *mut AsyncCtx<B> as *mut ()).await;
-        // SAFETY: the function is only called once and the pointer was created
-        // by a call to `Box::into_raw`.
-        *unsafe { Box::from_raw(out as *mut U) }
+        erased(args as *mut AsyncCtx<B> as *mut ()).await
     }
 }
 
