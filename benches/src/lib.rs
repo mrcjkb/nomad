@@ -7,8 +7,14 @@ mod generated {
 #[cfg(feature = "collab")]
 mod collab;
 
+#[cfg_attr(not(any(feature = "collab")), allow(unused_variables))]
+pub fn run(criterion: &mut criterion::Criterion) {
+    #[cfg(feature = "collab")]
+    collab(criterion);
+}
+
 #[cfg(feature = "collab")]
-pub fn collab(c: &mut criterion::Criterion) {
+fn collab(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("collab");
     collab::start::benches(&mut group);
     group.finish();
