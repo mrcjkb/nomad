@@ -10,13 +10,11 @@ publish.workspace = true
 nightly = ["nvim-oxi/neovim-nightly"]
 
 [dependencies]
-async-oneshot = { git = "https://github.com/irrustible/async-oneshot", rev = "811bedf" }
 async-task = "4.7"
 cauchy = { workspace = true }
 compact_str = { workspace = true }
 concurrent-queue = "2.5"
 ed = { workspace = true, features = ["os-fs"] }
-futures-executor = { workspace = true, features = ["thread-pool"] }
 neovim-macros = { path = "./macros" }
 nohash = { workspace = true }
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi", features = [
@@ -31,6 +29,7 @@ serde_path_to_error = "0.1"
 slotmap = { workspace = true }
 smallvec = { workspace = true, features = ["const_new"] }
 strsim = { workspace = true }
+thread-pool = { workspace = true }
 
 [lints]
 workspace = true

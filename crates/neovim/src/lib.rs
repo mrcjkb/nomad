@@ -1,7 +1,6 @@
 //! TODO: docs.
 
 pub mod api;
-mod background_executor;
 pub mod buffer;
 mod convert;
 mod events;
@@ -15,7 +14,6 @@ pub mod value;
 pub use api::NeovimApi;
 pub mod executor {
     //! TODO: docs.
-    pub use crate::background_executor::NeovimBackgroundExecutor;
     pub use crate::local_executor::NeovimLocalExecutor;
 }
 pub use neovim::Neovim;

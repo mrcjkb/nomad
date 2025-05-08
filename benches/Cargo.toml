@@ -21,6 +21,7 @@ criterion = "0.5"
 ed = { workspace = true }
 futures-lite = { workspace = true }
 mock = { workspace = true }
+thread-pool = { workspace = true }
 
 # Collab-related dependencies.
 collab = { workspace = true, optional = true, features = ["benches", "mock"] }

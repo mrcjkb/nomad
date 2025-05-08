@@ -5,6 +5,7 @@ use ed::fs::{self, AbsPath};
 use ed::notify::Namespace;
 use ed::plugin::Plugin;
 use nvim_oxi::api::Window;
+use thread_pool::ThreadPool;
 
 use crate::buffer::{BufferId, NeovimBuffer};
 use crate::events::{self, EventHandle, Events};
@@ -15,7 +16,7 @@ pub struct Neovim {
     emitter: notify::NeovimEmitter,
     events: Shared<Events>,
     local_executor: executor::NeovimLocalExecutor,
-    background_executor: executor::NeovimBackgroundExecutor,
+    background_executor: ThreadPool,
 }
 
 impl Neovim {
@@ -26,7 +27,7 @@ impl Neovim {
             events: Shared::new(Events::new("")),
             emitter: notify::NeovimEmitter::default(),
             local_executor: executor::NeovimLocalExecutor::init(),
-            background_executor: executor::NeovimBackgroundExecutor::init(),
+            background_executor: ThreadPool::new(),
         }
     }
 
@@ -47,7 +48,7 @@ impl Backend for Neovim {
     type CursorId = BufferId;
     type Fs = fs::os::OsFs;
     type LocalExecutor = executor::NeovimLocalExecutor;
-    type BackgroundExecutor = executor::NeovimBackgroundExecutor;
+    type BackgroundExecutor = ThreadPool;
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
     type EventHandle = EventHandle;
     type Selection<'a> = NeovimBuffer<'a>;

@@ -1,6 +1,5 @@
 use criterion::BenchmarkGroup;
 use criterion::measurement::WallTime;
-use ed::fs::Directory;
 
 pub(crate) fn benches(group: &mut BenchmarkGroup<'_, WallTime>) {
     #[cfg(feature = "neovim-repo")]
@@ -17,12 +16,12 @@ mod read_neovim {
     use criterion::BenchmarkId;
     use ed::AsyncCtx;
     use ed::fs::os::{OsDirectory, OsFs};
-    use ed::fs::{self, Fs};
+    use ed::fs::{Directory, Fs};
     use futures_lite::future;
     use mock::fs::MockFs;
     use mock::{BackendExt, Mock};
     use thread_pool::ThreadPool;
-    use walkdir::{Filter, GitIgnore};
+    use walkdir::GitIgnore;
 
     use super::*;
 
@@ -64,12 +63,12 @@ mod read_neovim {
 
     /// Benchmarks reading the project under the given root.
     fn bench_read_project<B: CollabBackend>(
-        project_root: <B::Fs as fs::Fs>::Directory,
+        project_root: <B::Fs as Fs>::Directory,
         fs_name: &str,
         ctx: &mut AsyncCtx<'_, B>,
         group: &mut BenchmarkGroup<'_, WallTime>,
     ) where
-        <B::Fs as fs::Fs>::Directory: Clone,
+        <B::Fs as Fs>::Directory: Clone,
     {
         let bench_id = BenchmarkId::new(
             "start",

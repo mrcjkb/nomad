@@ -280,6 +280,7 @@ dependencies = [
  "futures-lite",
  "git2",
  "mock",
+ "thread-pool",
  "walkdir 0.1.0-dev",
 ]
 
@@ -1836,13 +1837,11 @@ dependencies = [
 name = "neovim"
 version = "0.1.0-dev"
 dependencies = [
- "async-oneshot",
  "async-task",
  "cauchy",
  "compact_str",
  "concurrent-queue",
  "ed",
- "futures-executor",
  "neovim-macros",
  "nohash",
  "nvim-oxi",
@@ -1852,6 +1851,7 @@ dependencies = [
  "slotmap",
  "smallvec",
  "strsim",
+ "thread-pool",
 ]
 
 [[package]]
@@ -2931,6 +2931,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "thread-pool"
+version = "0.1.0-dev"
+dependencies = [
+ "async-oneshot",
+ "ed",
+ "futures-executor",
+ "pin-project-lite",
 ]
 
 [[package]]
