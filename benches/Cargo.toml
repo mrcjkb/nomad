@@ -23,7 +23,7 @@ futures-lite = { workspace = true }
 mock = { workspace = true }
 
 # Collab-related dependencies.
-collab = { workspace = true, optional = true, features = ["benches"] }
+collab = { workspace = true, optional = true, features = ["benches", "mock"] }
 walkdir = { workspace = true, optional = true }
 
 [build-dependencies]

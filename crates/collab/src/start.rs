@@ -685,3 +685,24 @@ mod neovim_error_impls {
         }
     }
 }
+
+#[cfg(feature = "benches")]
+pub mod benches {
+    //! TODO: docs.
+
+    use super::*;
+
+    /// TODO: docs.
+    #[inline]
+    pub async fn read_project<B>(
+        project_root: <B::Fs as fs::Fs>::Directory,
+        ctx: &mut AsyncCtx<'_, B>,
+    ) -> Result<(), ReadProjectError<B>>
+    where
+        B: CollabBackend,
+    {
+        super::read_project(project_root.path(), PeerId::new(1), ctx)
+            .await
+            .map(|_| ())
+    }
+}

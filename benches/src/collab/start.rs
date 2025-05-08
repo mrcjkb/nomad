@@ -12,36 +12,43 @@ pub(crate) fn benches(group: &mut BenchmarkGroup<'_, WallTime>) {
 
 #[cfg(feature = "neovim-repo")]
 mod read_neovim {
+    use collab::CollabBackend;
+    use collab::mock::CollabMock;
     use criterion::BenchmarkId;
+    use ed::AsyncCtx;
     use ed::fs::os::{OsDirectory, OsFs};
     use ed::fs::{self, Fs};
     use futures_lite::future;
+    use mock::fs::MockFs;
+    use mock::{BackendExt, Mock};
     use thread_pool::ThreadPool;
     use walkdir::{Filter, GitIgnore};
 
     use super::*;
 
     pub(super) fn from_mock_fs(group: &mut BenchmarkGroup<'_, WallTime>) {
-        let fs = mock::fs! {};
-
-        // Replicate the Neovim repo into the root of the mock filesystem.
-        future::block_on(async {
-            fs.root().replicate_from(&neovim_repo()).await.unwrap();
+        CollabMock::new(
+            Mock::<MockFs>::default()
+                .with_background_executor(ThreadPool::new()),
+        )
+        .block_on(async |ctx| {
+            // Replicate the Neovim repo into the root of the mock filesystem.
+            ctx.fs().root().replicate_from(&neovim_repo()).await.unwrap();
+            bench_read_project(ctx.fs().root(), "mock_fs", ctx, group);
         });
-
-        bench_read_project(fs.root(), (), fs, "mock_fs", group);
     }
 
     pub(super) fn from_real_fs(group: &mut BenchmarkGroup<'_, WallTime>) {
-        let neovim_repo = neovim_repo();
-        let git_ignore = GitIgnore::new(neovim_repo.path().to_owned());
-        bench_read_project(
-            neovim_repo,
-            git_ignore,
-            OsFs::default(),
-            "real_fs",
-            group,
-        );
+        CollabMock::new(
+            Mock::<OsFs>::default()
+                .with_background_executor(ThreadPool::new()),
+        )
+        .with_project_filter(|project_root| {
+            GitIgnore::new(project_root.path())
+        })
+        .block_on(async |ctx| {
+            bench_read_project(neovim_repo(), "real_fs", ctx, group);
+        });
     }
 
     fn neovim_repo() -> OsDirectory {
@@ -55,13 +62,15 @@ mod read_neovim {
         })
     }
 
-    fn bench_read_project<Fs: fs::Fs>(
-        project_root: Fs::Directory,
-        filter: impl Filter<Fs>,
-        fs: Fs,
+    /// Benchmarks reading the project under the given root.
+    fn bench_read_project<B: CollabBackend>(
+        project_root: <B::Fs as fs::Fs>::Directory,
         fs_name: &str,
+        ctx: &mut AsyncCtx<'_, B>,
         group: &mut BenchmarkGroup<'_, WallTime>,
-    ) {
+    ) where
+        <B::Fs as fs::Fs>::Directory: Clone,
+    {
         let bench_id = BenchmarkId::new(
             "start",
             format_args!("read_neovim_from_{fs_name}"),
@@ -70,10 +79,8 @@ mod read_neovim {
         group.bench_function(bench_id, |b| {
             b.iter(|| {
                 future::block_on(collab::start::benches::read_project(
-                    project_root,
-                    filter,
-                    fs,
-                    ThreadPool::new(),
+                    project_root.clone(),
+                    ctx,
                 ))
                 .unwrap()
             });
