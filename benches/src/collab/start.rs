@@ -1,7 +1,8 @@
 use criterion::BenchmarkGroup;
 use criterion::measurement::WallTime;
 
-pub(crate) fn benches(group: &mut BenchmarkGroup<'_, WallTime>) {
+#[cfg_attr(not(any(feature = "neovim-repo")), allow(unused_variables))]
+pub(crate) fn run(group: &mut BenchmarkGroup<'_, WallTime>) {
     #[cfg(feature = "neovim-repo")]
     read_neovim::from_mock_fs(group);
 
