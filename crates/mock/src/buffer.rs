@@ -19,7 +19,7 @@ pub struct Buffer<'a> {
 pub struct BufferId(pub(crate) u64);
 
 pub struct Cursor<'a> {
-    pub(crate) buffer: &'a mut BufferInner,
+    pub(crate) buffer: Buffer<'a>,
     pub(crate) cursor_id: CursorId,
 }
 
@@ -51,13 +51,11 @@ pub struct BufferInner {
 
 #[doc(hidden)]
 pub struct CursorInner {
-    pub(crate) id_in_buffer: AnnotationId,
     pub(crate) offset: ByteOffset,
 }
 
 #[doc(hidden)]
 pub struct SelectionInner {
-    pub(crate) id_in_buffer: AnnotationId,
     pub(crate) offset_range: Range<ByteOffset>,
 }
 
@@ -69,7 +67,7 @@ impl<'a> Buffer<'a> {
         debug_assert_eq!(cursor_id.buffer_id(), self.id());
         self.cursors
             .contains_key(cursor_id.id_in_buffer)
-            .then_some(Cursor { buffer: self.inner, cursor_id })
+            .then_some(Cursor { buffer: self, cursor_id })
     }
 
     pub(crate) fn into_selection(
@@ -232,11 +230,12 @@ impl backend::Buffer for Buffer<'_> {
         Cow::Borrowed(&self.name)
     }
 
-    fn on_cursor_created<Fun>(&self, _fun: Fun) -> Self::EventHandle
+    fn on_cursor_created<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&Cursor<'_>, AgentId) + 'static,
     {
-        todo!()
+        let cb_kind = CallbackKind::CursorCreated(self.id(), Box::new(fun));
+        self.callbacks.insert(cb_kind)
     }
 
     fn on_edited<Fun>(&self, fun: Fun) -> Self::EventHandle
@@ -291,18 +290,20 @@ impl backend::Cursor for Cursor<'_> {
         self.cursor_id
     }
 
-    fn on_moved<Fun>(&self, _fun: Fun) -> Self::EventHandle
+    fn on_moved<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&Cursor<'_>, AgentId) + 'static,
     {
-        todo!();
+        let cb_kind = CallbackKind::CursorMoved(self.id(), Box::new(fun));
+        self.buffer.callbacks.insert(cb_kind)
     }
 
-    fn on_removed<Fun>(&self, _fun: Fun) -> Self::EventHandle
+    fn on_removed<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&Cursor<'_>, AgentId) + 'static,
     {
-        todo!();
+        let cb_kind = CallbackKind::CursorRemoved(self.id(), Box::new(fun));
+        self.buffer.callbacks.insert(cb_kind)
     }
 }
 

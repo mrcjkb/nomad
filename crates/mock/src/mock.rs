@@ -58,11 +58,19 @@ pub(crate) struct Callbacks {
 }
 
 #[allow(clippy::type_complexity)]
+#[allow(dead_code)]
 pub(crate) enum CallbackKind {
-    CursorCreated(Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
+    #[allow(dead_code)]
+    CursorCreated(BufferId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
+    #[allow(dead_code)]
+    CursorMoved(CursorId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
+    #[allow(dead_code)]
+    CursorRemoved(CursorId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
     BufferCreated(Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
     BufferEdited(BufferId, Box<dyn FnMut(&Buffer<'_>, &Edit) + 'static>),
+    #[allow(dead_code)]
     BufferRemoved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
+    #[allow(dead_code)]
     BufferSaved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
 }
 
