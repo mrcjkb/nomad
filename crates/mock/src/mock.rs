@@ -59,10 +59,11 @@ pub(crate) struct Callbacks {
 
 #[allow(clippy::type_complexity)]
 pub(crate) enum CallbackKind {
-    OnBufferCreated(Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
-    OnBufferEdited(BufferId, Box<dyn FnMut(&Buffer<'_>, &Edit) + 'static>),
-    OnBufferRemoved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
-    OnBufferSaved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
+    CursorCreated(Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
+    BufferCreated(Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
+    BufferEdited(BufferId, Box<dyn FnMut(&Buffer<'_>, &Edit) + 'static>),
+    BufferRemoved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
+    BufferSaved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
 }
 
 impl<Fs> Mock<Fs> {
@@ -214,7 +215,7 @@ where
     where
         Fun: FnMut(&Self::Buffer<'_>, AgentId) + 'static,
     {
-        self.callbacks.insert(CallbackKind::OnBufferCreated(Box::new(fun)))
+        self.callbacks.insert(CallbackKind::BufferCreated(Box::new(fun)))
     }
 
     fn selection(
@@ -254,7 +255,7 @@ where
 {
     async fn create_buffer<B: Backend + AsMut<Self>>(
         file_path: &AbsPath,
-        _agent_id: AgentId,
+        agent_id: AgentId,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<Self::BufferId, Self::CreateBufferError> {
         let contents = ctx
@@ -272,6 +273,16 @@ where
                 buffer_id,
                 BufferInner::new(buffer_id, file_path.to_string(), contents),
             );
+
+            let buffer = this.buffer_mut(buffer_id);
+
+            buffer.callbacks.with_mut(|callbacks| {
+                for cb_kind in callbacks.values_mut() {
+                    if let CallbackKind::BufferCreated(fun) = cb_kind {
+                        fun(&buffer, agent_id);
+                    }
+                }
+            });
 
             Ok(buffer_id)
         })

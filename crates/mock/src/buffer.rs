@@ -215,7 +215,7 @@ impl backend::Buffer for Buffer<'_> {
 
         self.callbacks.with_mut(|callbacks| {
             for cb_kind in callbacks.values_mut() {
-                if let CallbackKind::OnBufferEdited(buf_id, fun) = cb_kind {
+                if let CallbackKind::BufferEdited(buf_id, fun) = cb_kind {
                     if *buf_id == self.id() {
                         fun(self, &edit);
                     }
@@ -243,7 +243,7 @@ impl backend::Buffer for Buffer<'_> {
     where
         Fun: FnMut(&Buffer<'_>, &Edit) + 'static,
     {
-        let cb_kind = CallbackKind::OnBufferEdited(self.id(), Box::new(fun));
+        let cb_kind = CallbackKind::BufferEdited(self.id(), Box::new(fun));
         self.callbacks.insert(cb_kind)
     }
 
@@ -251,7 +251,7 @@ impl backend::Buffer for Buffer<'_> {
     where
         Fun: FnMut(&Buffer<'_>, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::OnBufferRemoved(self.id(), Box::new(fun));
+        let cb_kind = CallbackKind::BufferRemoved(self.id(), Box::new(fun));
         self.callbacks.insert(cb_kind)
     }
 
@@ -259,7 +259,7 @@ impl backend::Buffer for Buffer<'_> {
     where
         Fun: FnMut(&Buffer<'_>, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::OnBufferSaved(self.id(), Box::new(fun));
+        let cb_kind = CallbackKind::BufferSaved(self.id(), Box::new(fun));
         self.callbacks.insert(cb_kind)
     }
 }
