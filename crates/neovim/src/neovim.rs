@@ -10,6 +10,7 @@ use thread_pool::ThreadPool;
 use crate::buffer::{BufferId, NeovimBuffer, Point};
 use crate::cursor::NeovimCursor;
 use crate::events::{self, EventHandle, Events};
+use crate::selection::NeovimSelection;
 use crate::{api, executor, notify, oxi, serde, value};
 
 /// TODO: docs.
@@ -58,7 +59,7 @@ impl Backend for Neovim {
     type BackgroundExecutor = ThreadPool;
     type Emitter<'this> = &'this mut notify::NeovimEmitter;
     type EventHandle = EventHandle;
-    type Selection<'a> = NeovimBuffer<'a>;
+    type Selection<'a> = NeovimSelection<'a>;
     type SelectionId = BufferId;
 
     type CreateBufferError = CreateBufferError;
@@ -128,7 +129,7 @@ impl Backend for Neovim {
         buf_id: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
         let buffer = self.buffer(buf_id)?;
-        buffer.selection().is_some().then_some(buffer)
+        buffer.selection().is_some().then_some(NeovimSelection::new(buffer))
     }
 
     #[inline]

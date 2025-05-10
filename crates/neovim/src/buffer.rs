@@ -14,6 +14,7 @@ use crate::Neovim;
 use crate::cursor::NeovimCursor;
 use crate::events::{self, EventHandle, Events};
 use crate::oxi::{BufHandle, api, mlua};
+use crate::selection::NeovimSelection;
 
 /// TODO: docs.
 #[derive(Copy, Clone)]
@@ -153,6 +154,10 @@ impl<'a> NeovimBuffer<'a> {
     #[track_caller]
     #[inline]
     pub(crate) fn selection(&self) -> Option<Range<ByteOffset>> {
+        if !self.is_focused() {
+            return None;
+        }
+
         let mode = api::get_mode().expect("couldn't get mode").mode;
 
         if !(mode.is_visual() || mode.is_visual_select()) {
@@ -387,6 +392,14 @@ impl Buffer for NeovimBuffer<'_> {
             events::BufWritePost(self.id()),
             move |(this, saved_by)| fun(this, saved_by),
         )
+    }
+
+    #[inline]
+    fn on_selection_created<Fun>(&self, _fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&NeovimSelection<'_>, AgentId) + 'static,
+    {
+        todo!();
     }
 }
 

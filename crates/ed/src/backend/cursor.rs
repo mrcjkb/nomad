@@ -22,16 +22,16 @@ pub trait Cursor {
     /// moved.
     ///
     /// The callback is provided with a reference to this cursor, plus the
-    /// [`AgentId`] of the agent that moved the cursor.
+    /// [`AgentId`] of the agent that moved it.
     fn on_moved<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&<Self::Backend as Backend>::Cursor<'_>, AgentId) + 'static;
 
     /// Registers the given callback to be executed just before the cursor is
-    /// about to be removed.
+    /// removed.
     ///
     /// The callback is provided with a reference to this cursor, plus the
-    /// [`AgentId`] of the agent that removed the cursor.
+    /// [`AgentId`] of the agent that removed it.
     fn on_removed<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&<Self::Backend as Backend>::Cursor<'_>, AgentId) + 'static;

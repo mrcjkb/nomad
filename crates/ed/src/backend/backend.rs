@@ -15,6 +15,7 @@ use crate::backend::{
     Key,
     LocalExecutor,
     MapAccess,
+    Selection,
     Value,
 };
 use crate::notify::{self, Emitter, MaybeResult};
@@ -58,7 +59,7 @@ pub trait Backend: 'static + Sized {
     type EventHandle;
 
     /// TODO: docs.
-    type Selection<'a>;
+    type Selection<'a>: Selection<Id = Self::SelectionId, EventHandle = Self::EventHandle>;
 
     /// TODO: docs.
     type SelectionId: Clone + Debug + Eq + Hash;

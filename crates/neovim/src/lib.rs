@@ -8,6 +8,7 @@ mod events;
 mod local_executor;
 mod neovim;
 pub mod notify;
+pub mod selection;
 pub mod serde;
 pub mod utils;
 pub mod value;

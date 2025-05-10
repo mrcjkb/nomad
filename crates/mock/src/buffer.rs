@@ -261,6 +261,14 @@ impl backend::Buffer for Buffer<'_> {
         let cb_kind = CallbackKind::BufferSaved(self.id(), Box::new(fun));
         self.callbacks.insert(cb_kind)
     }
+
+    fn on_selection_created<Fun>(&self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Selection<'_>, AgentId) + 'static,
+    {
+        let cb_kind = CallbackKind::SelectionCreated(self.id(), Box::new(fun));
+        self.callbacks.insert(cb_kind)
+    }
 }
 
 impl Deref for Buffer<'_> {
@@ -324,6 +332,36 @@ impl DerefMut for Cursor<'_> {
             .cursors
             .get_mut(self.cursor_id.id_in_buffer)
             .expect("cursor exists")
+    }
+}
+
+impl backend::Selection for Selection<'_> {
+    type Backend = mock::Mock;
+    type EventHandle = mock::EventHandle;
+    type Id = SelectionId;
+
+    fn byte_range(&self) -> Range<ByteOffset> {
+        self.offset_range.clone()
+    }
+
+    fn id(&self) -> Self::Id {
+        self.selection_id
+    }
+
+    fn on_moved<Fun>(&self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Selection<'_>, AgentId) + 'static,
+    {
+        let cb_kind = CallbackKind::SelectionMoved(self.id(), Box::new(fun));
+        self.buffer.callbacks.insert(cb_kind)
+    }
+
+    fn on_removed<Fun>(&self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Selection<'_>, AgentId) + 'static,
+    {
+        let cb_kind = CallbackKind::SelectionRemoved(self.id(), Box::new(fun));
+        self.buffer.callbacks.insert(cb_kind)
     }
 }
 

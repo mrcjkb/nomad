@@ -7,6 +7,7 @@ mod base_backend;
 mod buffer;
 mod cursor;
 mod executor;
+mod selection;
 mod value;
 
 pub use agent_id::AgentId;
@@ -22,6 +23,7 @@ pub use executor::{
     TaskBackground,
     TaskLocal,
 };
+pub use selection::Selection;
 pub use value::{Key, MapAccess, Value};
 
 /// TODO: docs.
