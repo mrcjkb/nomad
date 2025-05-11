@@ -2,7 +2,6 @@ use core::convert::Infallible;
 use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::sync::{Arc, Mutex};
 
 use abs_path::{AbsPath, AbsPathBuf, NodeName, NodeNameBuf};
 use cauchy::PartialEq;
@@ -17,6 +16,7 @@ use ed::fs::{
     NodeKind,
     SymlinkEvent,
 };
+use ed::shared::{MultiThreaded, Shared};
 use futures_lite::Stream;
 use fxhash::FxHashMap;
 use indexmap::IndexMap;
@@ -24,7 +24,7 @@ use indexmap::IndexMap;
 /// TODO: docs.
 #[derive(Clone, Default)]
 pub struct MockFs {
-    inner: Arc<Mutex<FsInner>>,
+    inner: Shared<FsInner, MultiThreaded>,
 }
 
 #[derive(Clone)]
@@ -106,6 +106,7 @@ pub struct DirectoryInner {
     metadata: MockMetadata,
 }
 
+#[derive(Clone)]
 struct DirectoryEventTx {
     tx: async_broadcast::Sender<DirectoryEvent<MockFs>>,
     inactive_rx: async_broadcast::InactiveReceiver<DirectoryEvent<MockFs>>,
@@ -152,7 +153,7 @@ impl MockFs {
 
     #[doc(hidden)]
     pub fn new(root: DirectoryInner) -> Self {
-        Self { inner: Arc::new(Mutex::new(FsInner::new(root))) }
+        Self { inner: Shared::new(FsInner::new(root)) }
     }
 
     fn delete_node(&self, path: &AbsPath) -> Result<(), DeleteNodeError> {
@@ -163,18 +164,16 @@ impl MockFs {
         self.with_inner(|inner| inner.next_node_id.post_inc())
     }
 
-    #[allow(clippy::unwrap_used)]
     fn with_inner<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&mut FsInner) -> T,
     {
-        let mut inner = self.inner.lock().unwrap();
-        f(&mut inner)
+        self.inner.with_mut(f)
     }
 }
 
 impl MockDirectory {
-    fn create_node(
+    async fn create_node(
         &self,
         node_name: &NodeName,
         node_kind: NodeKind,
@@ -207,7 +206,8 @@ impl MockDirectory {
             }),
         };
 
-        self.with_inner(|dir| dir.create_node(&self.path, node_name, node))??;
+        self.with_inner(|dir| dir.create_node(&self.path, node_name, node))?
+            .await?;
 
         Ok(metadata)
     }
@@ -446,15 +446,30 @@ impl DirectoryInner {
         this_path: &AbsPath,
         name: &NodeName,
         node: Node,
-    ) -> Result<(), CreateNodeError> {
+    ) -> impl Future<Output = Result<(), CreateNodeError>> + use<> {
         if self.children.contains_key(name) {
-            Err(CreateNodeError::AlreadyExists(NodeAlreadyExistsError {
-                kind: node.kind(),
-                path: this_path.join(name),
+            futures_util::future::Either::Left(futures_lite::future::ready({
+                Err(CreateNodeError::AlreadyExists(NodeAlreadyExistsError {
+                    kind: node.kind(),
+                    path: this_path.join(name),
+                }))
             }))
         } else {
+            let event = DirectoryEvent::Creation(fs::NodeCreation {
+                node_id: node.metadata().node_id,
+                node_path: this_path.join(name),
+                parent_id: self.metadata.node_id,
+            });
             self.children.insert(name.to_owned(), node);
-            Ok(())
+            let event_tx = self.event_tx.clone();
+            futures_util::future::Either::Right(async move {
+                let Some(event_tx) = event_tx else { return Ok(()) };
+                // Sending will error if there aren't any active receivers. In
+                // that case we should probably drop the sender, but keeping it
+                // around is also fine.
+                let _ = event_tx.send(event).await;
+                Ok(())
+            })
         }
     }
 
@@ -652,7 +667,7 @@ impl fs::Directory for MockDirectory {
         dir_name: &NodeName,
     ) -> Result<Self, Self::CreateDirectoryError> {
         let metadata =
-            self.create_node(dir_name, NodeKind::Directory, None)?;
+            self.create_node(dir_name, NodeKind::Directory, None).await?;
 
         Ok(Self {
             fs: self.fs.clone(),
@@ -665,7 +680,8 @@ impl fs::Directory for MockDirectory {
         &self,
         file_name: &NodeName,
     ) -> Result<MockFile, Self::CreateFileError> {
-        let metadata = self.create_node(file_name, NodeKind::File, None)?;
+        let metadata =
+            self.create_node(file_name, NodeKind::File, None).await?;
 
         Ok(MockFile {
             fs: self.fs.clone(),
@@ -679,11 +695,9 @@ impl fs::Directory for MockDirectory {
         symlink_name: &NodeName,
         target_path: &str,
     ) -> Result<MockSymlink, Self::CreateSymlinkError> {
-        let metadata = self.create_node(
-            symlink_name,
-            NodeKind::Symlink,
-            Some(target_path),
-        )?;
+        let metadata = self
+            .create_node(symlink_name, NodeKind::Symlink, Some(target_path))
+            .await?;
 
         Ok(MockSymlink {
             fs: self.fs.clone(),
