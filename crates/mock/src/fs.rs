@@ -502,8 +502,25 @@ impl FileInner {
         }
     }
 
-    fn write<C: AsRef<[u8]>>(&mut self, contents: C) {
+    fn write<C: AsRef<[u8]>>(
+        &mut self,
+        contents: C,
+        now: MockTimestamp,
+    ) -> impl Future<Output = ()> + use<C> {
         self.contents = contents.as_ref().to_owned();
+
+        let event = FileEvent::Modification(fs::FileModification {
+            file_id: self.metadata.node_id,
+            modified_at: now,
+        });
+
+        let event_tx = self.event_tx.clone();
+
+        async move {
+            if let Some(tx) = event_tx {
+                let _ = tx.send(event).await;
+            }
+        }
     }
 }
 
@@ -811,7 +828,9 @@ impl fs::File for MockFile {
         &mut self,
         new_contents: C,
     ) -> Result<(), Self::WriteError> {
-        self.with_inner(|file| file.write(new_contents.as_ref()))
+        let now = self.fs.now();
+        self.with_inner(|file| file.write(new_contents.as_ref(), now))?.await;
+        Ok(())
     }
 }
 
