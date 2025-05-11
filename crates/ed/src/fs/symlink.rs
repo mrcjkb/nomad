@@ -1,14 +1,9 @@
 use core::error::Error;
 
-use futures_util::Stream;
-
-use crate::fs::{self, AbsPath, Fs, FsNode, NodeDeletion, NodeMove, NodeName};
+use crate::fs::{self, AbsPath, Fs, FsNode, NodeName};
 
 /// TODO: docs.
 pub trait Symlink: Send + Sync {
-    /// TODO: docs.
-    type EventStream: Stream<Item = SymlinkEvent<Self::Fs>> + Send + Unpin;
-
     /// TODO: docs.
     type Fs: Fs;
 
@@ -71,16 +66,4 @@ pub trait Symlink: Send + Sync {
     fn read_path(
         &self,
     ) -> impl Future<Output = Result<String, Self::ReadError>> + Send;
-
-    /// TODO: docs.
-    fn watch(&self) -> Self::EventStream;
-}
-
-/// TODO: docs.
-pub enum SymlinkEvent<Fs: fs::Fs> {
-    /// TODO: docs.
-    Deletion(NodeDeletion<Fs>),
-
-    /// TODO: docs.
-    Move(NodeMove<Fs>),
 }

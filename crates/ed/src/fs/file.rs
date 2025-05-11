@@ -3,7 +3,7 @@ use core::error::Error;
 use futures_util::Stream;
 
 use crate::ByteOffset;
-use crate::fs::{self, AbsPath, Fs, NodeDeletion, NodeMove, NodeName};
+use crate::fs::{self, AbsPath, Fs, NodeName};
 
 /// TODO: docs.
 pub trait File: Send + Sync {
@@ -78,12 +78,6 @@ pub trait File: Send + Sync {
 
 /// TODO: docs.
 pub enum FileEvent<Fs: fs::Fs> {
-    /// TODO: docs.
-    Deletion(NodeDeletion<Fs>),
-
-    /// TODO: docs.
-    Move(NodeMove<Fs>),
-
     /// TODO: docs.
     Modification(FileModification<Fs>),
 }

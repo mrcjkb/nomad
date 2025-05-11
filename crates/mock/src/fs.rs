@@ -806,7 +806,6 @@ impl fs::File for MockFile {
 }
 
 impl fs::Symlink for MockSymlink {
-    type EventStream = futures_lite::stream::Pending<SymlinkEvent<MockFs>>;
     type Fs = MockFs;
 
     type DeleteError = DeleteNodeError;
@@ -894,10 +893,6 @@ impl fs::Symlink for MockSymlink {
 
     async fn read_path(&self) -> Result<String, Self::ReadError> {
         self.with_inner(|symlink| symlink.target_path.clone())
-    }
-
-    fn watch(&self) -> Self::EventStream {
-        todo!()
     }
 }
 
