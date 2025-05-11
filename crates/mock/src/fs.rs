@@ -95,12 +95,20 @@ struct FsInner {
     watchers: FxHashMap<AbsPathBuf, WatchChannel>,
 }
 
-#[derive(Debug, cauchy::PartialEq, cauchy::Eq)]
+#[derive(cauchy::Debug, cauchy::PartialEq, cauchy::Eq)]
 #[doc(hidden)]
 pub struct DirectoryInner {
     children: IndexMap<NodeNameBuf, Node>,
+    #[debug(skip)]
+    #[partial_eq(skip)]
+    event_tx: Option<DirectoryEventTx>,
     #[partial_eq(skip)]
     metadata: MockMetadata,
+}
+
+struct DirectoryEventTx {
+    tx: async_broadcast::Sender<DirectoryEvent<MockFs>>,
+    inactive_rx: async_broadcast::InactiveReceiver<DirectoryEvent<MockFs>>,
 }
 
 #[derive(Debug, cauchy::PartialEq, cauchy::Eq)]
@@ -188,6 +196,7 @@ impl MockDirectory {
             }),
             NodeKind::Directory => Node::Directory(DirectoryInner {
                 children: Default::default(),
+                event_tx: None,
                 metadata: metadata.clone(),
             }),
             NodeKind::Symlink => Node::Symlink(SymlinkInner {
@@ -406,6 +415,7 @@ impl DirectoryInner {
     pub fn new() -> Self {
         Self {
             children: Default::default(),
+            event_tx: None,
             metadata: MockMetadata {
                 byte_len: 0usize.into(),
                 created_at: MockTimestamp(0),
@@ -450,6 +460,24 @@ impl DirectoryInner {
 
     fn delete_child(&mut self, name: &NodeName) -> bool {
         self.children.swap_remove(name).is_some()
+    }
+}
+
+impl DirectoryEventTx {
+    fn new() -> Self {
+        let (tx, rx) = async_broadcast::broadcast(16);
+        Self { tx, inactive_rx: rx.deactivate() }
+    }
+
+    async fn send(
+        &self,
+        event: DirectoryEvent<MockFs>,
+    ) -> Result<(), async_broadcast::SendError<DirectoryEvent<MockFs>>> {
+        self.tx.broadcast_direct(event).await.map(|_| ())
+    }
+
+    fn to_recv(&self) -> async_broadcast::Receiver<DirectoryEvent<MockFs>> {
+        self.inactive_rx.activate_cloned()
     }
 }
 
@@ -607,7 +635,7 @@ impl fs::Fs for MockFs {
 }
 
 impl fs::Directory for MockDirectory {
-    type EventStream = futures_lite::stream::Pending<DirectoryEvent<MockFs>>;
+    type EventStream = async_broadcast::Receiver<DirectoryEvent<MockFs>>;
     type Fs = MockFs;
 
     type CreateDirectoryError = CreateNodeError;

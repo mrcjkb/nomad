@@ -241,6 +241,7 @@ pub trait Directory: Send + Sync + Sized {
 }
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub enum DirectoryEvent<Fs: fs::Fs> {
     /// TODO: docs.
     Creation(NodeCreation<Fs>),
@@ -253,6 +254,7 @@ pub enum DirectoryEvent<Fs: fs::Fs> {
 }
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub struct NodeCreation<Fs: fs::Fs> {
     /// TODO: docs.
     pub node_id: Fs::NodeId,
@@ -265,6 +267,7 @@ pub struct NodeCreation<Fs: fs::Fs> {
 }
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub struct NodeDeletion<Fs: fs::Fs> {
     /// The ID of the node that was deleted.
     pub node_id: Fs::NodeId,
@@ -277,6 +280,7 @@ pub struct NodeDeletion<Fs: fs::Fs> {
 }
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub struct NodeMove<Fs: fs::Fs> {
     /// The ID of the node that was moved.
     pub node_id: Fs::NodeId,
