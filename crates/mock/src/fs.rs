@@ -6,18 +6,9 @@ use core::task::{Context, Poll};
 use abs_path::{AbsPath, AbsPathBuf, NodeName, NodeNameBuf};
 use cauchy::PartialEq;
 use ed::ByteOffset;
-use ed::fs::{
-    self,
-    Directory,
-    DirectoryEvent,
-    FileEvent,
-    Fs,
-    FsEvent,
-    NodeKind,
-};
+use ed::fs::{self, Directory, DirectoryEvent, FileEvent, Fs, NodeKind};
 use ed::shared::{MultiThreaded, Shared};
 use futures_lite::Stream;
-use fxhash::FxHashMap;
 use indexmap::IndexMap;
 
 /// TODO: docs.
@@ -72,26 +63,10 @@ pin_project_lite::pin_project! {
     }
 }
 
-pin_project_lite::pin_project! {
-    pub struct Watcher {
-        fs: MockFs,
-        path: AbsPathBuf,
-        #[pin]
-        inner: async_broadcast::Receiver<FsEvent<MockTimestamp>>,
-    }
-
-    impl PinnedDrop for Watcher {
-        fn drop(this: Pin<&mut Self>) {
-            this.fs.with_inner(|inner| inner.watchers.remove(&this.path));
-        }
-    }
-}
-
 struct FsInner {
     next_node_id: MockNodeId,
     root: Node,
     timestamp: MockTimestamp,
-    watchers: FxHashMap<AbsPathBuf, WatchChannel>,
 }
 
 #[derive(cauchy::Debug, cauchy::PartialEq, cauchy::Eq)]
@@ -133,11 +108,6 @@ pub enum Node {
     File(#[from] FileInner),
     Directory(#[from] DirectoryInner),
     Symlink(#[from] SymlinkInner),
-}
-
-struct WatchChannel {
-    inactive_rx: async_broadcast::InactiveReceiver<FsEvent<MockTimestamp>>,
-    tx: async_broadcast::Sender<FsEvent<MockTimestamp>>,
 }
 
 impl MockFs {
@@ -336,7 +306,6 @@ impl FsInner {
             next_node_id,
             root: Node::Directory(root),
             timestamp: MockTimestamp(0),
-            watchers: FxHashMap::default(),
         }
     }
 
@@ -551,27 +520,6 @@ impl SymlinkInner {
                 node_kind: NodeKind::Symlink,
             },
         }
-    }
-}
-
-impl WatchChannel {
-    const CAPACITY: usize = 16;
-
-    fn emit(&self, event: FsEvent<MockTimestamp>) {
-        if self.tx.receiver_count() > 0 {
-            self.tx
-                .broadcast_blocking(event)
-                .expect("there's at least one active receiver");
-        }
-    }
-
-    fn new() -> Self {
-        let (tx, rx) = async_broadcast::broadcast(Self::CAPACITY);
-        Self { tx, inactive_rx: rx.deactivate() }
-    }
-
-    fn rx(&self) -> async_broadcast::Receiver<FsEvent<MockTimestamp>> {
-        self.inactive_rx.activate_cloned()
     }
 }
 
@@ -973,20 +921,6 @@ impl Stream for ReadDir {
         };
         *this.next_child_idx += 1;
         Poll::Ready(Some(Ok(metadata)))
-    }
-}
-
-impl Stream for Watcher {
-    type Item = Result<FsEvent<MockTimestamp>, Infallible>;
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        ctx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        self.project()
-            .inner
-            .poll_next(ctx)
-            .map(|maybe_item| maybe_item.map(Ok))
     }
 }
 
