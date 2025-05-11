@@ -3,7 +3,7 @@ use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use abs_path::{AbsPath, AbsPathBuf, NodeName, NodeNameBuf};
+use abs_path::{AbsPath, AbsPathBuf, NodeName, NodeNameBuf, node};
 use cauchy::PartialEq;
 use ed::ByteOffset;
 use ed::fs::{self, Directory, DirectoryEvent, FileEvent, Fs, NodeKind};
@@ -401,7 +401,7 @@ impl DirectoryInner {
                 node_kind: NodeKind::Directory,
                 // Dummy values, they'll be updated to the correct ones when
                 // `FsInner::new` is called.
-                name: "temp".parse().expect("it's valid"),
+                name: node!("temp").to_owned(),
                 node_id: MockNodeId(0),
             },
         }
@@ -496,7 +496,7 @@ impl FileInner {
                 node_kind: NodeKind::File,
                 // Dummy values, they'll be updated to the correct ones when
                 // `FsInner::new` is called.
-                name: "temp".parse().expect("it's valid"),
+                name: node!("temp").to_owned(),
                 node_id: MockNodeId(0),
             },
         }
@@ -538,7 +538,7 @@ impl SymlinkInner {
                 node_kind: NodeKind::Symlink,
                 // Dummy values, they'll be updated to the correct ones when
                 // `FsInner::new` is called.
-                name: "temp".parse().expect("it's valid"),
+                name: node!("temp").to_owned(),
                 node_id: MockNodeId(0),
             },
         }

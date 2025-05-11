@@ -9,7 +9,7 @@ publish.workspace = true
 [features]
 
 [dependencies]
-abs-path = { workspace = true }
+abs-path = { workspace = true, features = ["macros"] }
 async-broadcast = "0.7"
 async-task = "4.7"
 cauchy = { workspace = true }
