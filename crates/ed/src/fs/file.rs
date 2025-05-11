@@ -77,12 +77,14 @@ pub trait File: Send + Sync {
 }
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub enum FileEvent<Fs: fs::Fs> {
     /// TODO: docs.
     Modification(FileModification<Fs>),
 }
 
 /// TODO: docs.
+#[derive(cauchy::Clone)]
 pub struct FileModification<Fs: fs::Fs> {
     /// The node ID of the file.
     pub file_id: Fs::NodeId,

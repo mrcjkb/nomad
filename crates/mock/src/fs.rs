@@ -80,16 +80,13 @@ pub struct DirectoryInner {
     metadata: MockMetadata,
 }
 
-#[derive(Clone)]
-struct DirectoryEventTx {
-    tx: async_broadcast::Sender<DirectoryEvent<MockFs>>,
-    inactive_rx: async_broadcast::InactiveReceiver<DirectoryEvent<MockFs>>,
-}
-
-#[derive(Debug, cauchy::PartialEq, cauchy::Eq)]
+#[derive(cauchy::Debug, cauchy::PartialEq, cauchy::Eq)]
 #[doc(hidden)]
 pub struct FileInner {
     contents: Vec<u8>,
+    #[debug(skip)]
+    #[partial_eq(skip)]
+    event_tx: Option<FileEventTx>,
     #[partial_eq(skip)]
     metadata: MockMetadata,
 }
@@ -108,6 +105,18 @@ pub enum Node {
     File(#[from] FileInner),
     Directory(#[from] DirectoryInner),
     Symlink(#[from] SymlinkInner),
+}
+
+#[derive(Clone)]
+struct DirectoryEventTx {
+    tx: async_broadcast::Sender<DirectoryEvent<MockFs>>,
+    inactive_rx: async_broadcast::InactiveReceiver<DirectoryEvent<MockFs>>,
+}
+
+#[derive(Clone)]
+struct FileEventTx {
+    tx: async_broadcast::Sender<FileEvent<MockFs>>,
+    inactive_rx: async_broadcast::InactiveReceiver<FileEvent<MockFs>>,
 }
 
 impl MockFs {
@@ -168,6 +177,7 @@ impl MockDirectory {
         let node = match node_kind {
             NodeKind::File => Node::File(FileInner {
                 contents: Vec::new(),
+                event_tx: None,
                 metadata: metadata.clone(),
             }),
             NodeKind::Directory => Node::Directory(DirectoryInner {
@@ -237,14 +247,6 @@ impl MockFile {
 }
 
 impl MockSymlink {
-    fn clone_priv(&self) -> Self {
-        Self {
-            fs: self.fs.clone(),
-            metadata: self.metadata.clone(),
-            path: self.path.clone(),
-        }
-    }
-
     /// Calls the given function with a mutable reference to the
     /// [`SymlinkInner`], returning an error if the symlink has been deleted or
     /// moved to a different path.
@@ -479,24 +481,6 @@ impl DirectoryInner {
     }
 }
 
-impl DirectoryEventTx {
-    fn new() -> Self {
-        let (tx, rx) = async_broadcast::broadcast(16);
-        Self { tx, inactive_rx: rx.deactivate() }
-    }
-
-    async fn send(
-        &self,
-        event: DirectoryEvent<MockFs>,
-    ) -> Result<(), async_broadcast::SendError<DirectoryEvent<MockFs>>> {
-        self.tx.broadcast_direct(event).await.map(|_| ())
-    }
-
-    fn to_recv(&self) -> async_broadcast::Receiver<DirectoryEvent<MockFs>> {
-        self.inactive_rx.activate_cloned()
-    }
-}
-
 impl FileInner {
     /// Should only be used by the `fs!` macro.
     #[doc(hidden)]
@@ -504,6 +488,7 @@ impl FileInner {
         let contents = contents.as_ref();
         Self {
             contents: contents.to_owned(),
+            event_tx: None,
             metadata: MockMetadata {
                 byte_len: contents.len().into(),
                 created_at: MockTimestamp(0),
@@ -540,6 +525,42 @@ impl SymlinkInner {
                 node_id: MockNodeId(0),
             },
         }
+    }
+}
+
+impl DirectoryEventTx {
+    fn new() -> Self {
+        let (tx, rx) = async_broadcast::broadcast(16);
+        Self { tx, inactive_rx: rx.deactivate() }
+    }
+
+    async fn send(
+        &self,
+        event: DirectoryEvent<MockFs>,
+    ) -> Result<(), async_broadcast::SendError<DirectoryEvent<MockFs>>> {
+        self.tx.broadcast_direct(event).await.map(|_| ())
+    }
+
+    fn to_recv(&self) -> async_broadcast::Receiver<DirectoryEvent<MockFs>> {
+        self.inactive_rx.activate_cloned()
+    }
+}
+
+impl FileEventTx {
+    fn new() -> Self {
+        let (tx, rx) = async_broadcast::broadcast(16);
+        Self { tx, inactive_rx: rx.deactivate() }
+    }
+
+    async fn send(
+        &self,
+        event: FileEvent<MockFs>,
+    ) -> Result<(), async_broadcast::SendError<FileEvent<MockFs>>> {
+        self.tx.broadcast_direct(event).await.map(|_| ())
+    }
+
+    fn to_recv(&self) -> async_broadcast::Receiver<FileEvent<MockFs>> {
+        self.inactive_rx.activate_cloned()
     }
 }
 
@@ -741,7 +762,7 @@ impl fs::Directory for MockDirectory {
 }
 
 impl fs::File for MockFile {
-    type EventStream = futures_lite::stream::Pending<FileEvent<MockFs>>;
+    type EventStream = async_broadcast::Receiver<FileEvent<MockFs>>;
     type Fs = MockFs;
 
     type DeleteError = DeleteNodeError;
@@ -780,7 +801,10 @@ impl fs::File for MockFile {
     }
 
     fn watch(&self) -> Self::EventStream {
-        todo!()
+        self.with_inner(|inner| {
+            inner.event_tx.get_or_insert_with(FileEventTx::new).to_recv()
+        })
+        .expect("file was deleted")
     }
 
     async fn write<C: AsRef<[u8]>>(
@@ -847,7 +871,11 @@ impl fs::Symlink for MockSymlink {
     async fn follow_recursively(
         &self,
     ) -> Result<Option<fs::FsNode<MockFs>>, Self::FollowError> {
-        let mut symlink = self.clone_priv();
+        let mut symlink = Self {
+            fs: self.fs.clone(),
+            metadata: self.metadata.clone(),
+            path: self.path.clone(),
+        };
         loop {
             let Some(node) = symlink.follow().await? else { return Ok(None) };
             match node {
