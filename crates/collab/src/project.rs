@@ -32,18 +32,6 @@ use crate::event::{
 };
 
 /// TODO: docs.
-pub struct Project<B: CollabBackend> {
-    agent_id: AgentId,
-    host_id: PeerId,
-    id_maps: IdMaps<B>,
-    local_peer: Peer,
-    project: collab_project::Project,
-    _remote_peers: Peers,
-    root_path: AbsPathBuf,
-    session_id: SessionId<B>,
-}
-
-/// TODO: docs.
 #[derive(cauchy::Clone)]
 pub struct ProjectHandle<B: CollabBackend> {
     inner: Shared<Project<B>>,
@@ -63,6 +51,18 @@ pub struct OverlappingProjectError {
 
 /// TODO: docs.
 pub struct NoActiveSessionError<B>(PhantomData<B>);
+
+/// TODO: docs.
+pub(crate) struct Project<B: CollabBackend> {
+    agent_id: AgentId,
+    host_id: PeerId,
+    id_maps: IdMaps<B>,
+    local_peer: Peer,
+    project: collab_project::Project,
+    _remote_peers: Peers,
+    root_path: AbsPathBuf,
+    session_id: SessionId<B>,
+}
 
 #[derive(cauchy::Clone, cauchy::Default)]
 pub(crate) struct Projects<B: CollabBackend> {
@@ -108,24 +108,94 @@ pub(crate) struct SelectionId<B: Backend> {
     selection_id: B::SelectionId,
 }
 
-impl<B: CollabBackend> Project<B> {
+#[derive(cauchy::Debug)]
+pub(crate) enum SynchronizeError<B: CollabBackend> {
+    /// TODO: docs.
+    GetNode(<B::Fs as fs::Fs>::NodeAtPathError),
+}
+
+impl<B: CollabBackend> ProjectHandle<B> {
     /// TODO: docs.
     pub fn is_host(&self) -> bool {
-        self.project.peer_id() == self.host_id
+        self.with(|proj| proj.is_host())
     }
 
     /// TODO: docs.
-    pub(crate) fn integrate(&mut self, _msg: Message, _ctx: &AsyncCtx<'_, B>) {
+    pub fn root(&self) -> AbsPathBuf {
+        self.with(|proj| proj.root_path.clone())
+    }
+
+    /// TODO: docs.
+    pub fn session_id(&self) -> SessionId<B> {
+        self.with(|proj| proj.session_id)
+    }
+
+    /// TODO: docs.
+    pub(crate) async fn integrate(
+        &self,
+        _message: Message,
+        _ctx: &mut AsyncCtx<'_, B>,
+    ) {
         todo!();
     }
 
     /// TODO: docs.
-    pub(crate) fn synchronize(&mut self, event: Event<B>) -> Option<Message> {
+    pub(crate) async fn synchronize(
+        &self,
+        event: Event<B>,
+        ctx: &mut AsyncCtx<'_, B>,
+    ) -> Result<Option<Message>, SynchronizeError<B>> {
+        Ok(match event {
+            Event::Directory(fs::DirectoryEvent::Creation(creation)) => self
+                .synchronize_node_creation(creation, ctx)
+                .await
+                .map(Some)?,
+
+            Event::File(fs::FileEvent::Modification(modification)) => {
+                self.synchronize_file_modification(modification, ctx).await?
+            },
+
+            other => self.with_mut(|proj| proj.synchronize(other)),
+        })
+    }
+
+    async fn synchronize_file_modification(
+        &self,
+        _modification: fs::FileModification<B::Fs>,
+        _ctx: &mut AsyncCtx<'_, B>,
+    ) -> Result<Option<Message>, SynchronizeError<B>> {
+        todo!();
+    }
+
+    async fn synchronize_node_creation(
+        &self,
+        _creation: fs::NodeCreation<B::Fs>,
+        _ctx: &mut AsyncCtx<'_, B>,
+    ) -> Result<Message, SynchronizeError<B>> {
+        todo!();
+    }
+
+    /// TODO: docs.
+    fn with<R>(&self, fun: impl FnOnce(&Project<B>) -> R) -> R {
+        self.inner.with(fun)
+    }
+
+    /// TODO: docs.
+    fn with_mut<R>(&self, fun: impl FnOnce(&mut Project<B>) -> R) -> R {
+        self.inner.with_mut(fun)
+    }
+}
+
+impl<B: CollabBackend> Project<B> {
+    fn synchronize(&mut self, event: Event<B>) -> Option<Message> {
         match event {
             Event::Buffer(event) => self.synchronize_buffer(event),
             Event::Cursor(event) => Some(self.synchronize_cursor(event)),
             Event::Directory(event) => Some(self.synchronize_directory(event)),
-            Event::File(event) => self.synchronize_file(event),
+            Event::File(event) => {
+                self.synchronize_file(event);
+                None
+            },
             Event::Selection(event) => Some(self.synchronize_selection(event)),
         }
     }
@@ -154,6 +224,10 @@ impl<B: CollabBackend> Project<B> {
                 panic!("cursor ID {cursor_id:?} maps to a deleted cursor")
             },
         }
+    }
+
+    fn is_host(&self) -> bool {
+        self.project.peer_id() == self.host_id
     }
 
     /// Returns the [`ProjectNodeMut`] corresponding to the node with the given
@@ -288,8 +362,8 @@ impl<B: CollabBackend> Project<B> {
         event: fs::DirectoryEvent<B::Fs>,
     ) -> Message {
         match event {
-            fs::DirectoryEvent::Creation(creation) => {
-                self.synchronize_node_creation(creation)
+            fs::DirectoryEvent::Creation(_creation) => {
+                unreachable!("already handled by ProjectHandle::synchronize()")
             },
             fs::DirectoryEvent::Deletion(deletion) => {
                 self.synchronize_node_deletion(deletion)
@@ -300,26 +374,15 @@ impl<B: CollabBackend> Project<B> {
         }
     }
 
-    fn synchronize_file(
-        &mut self,
-        event: fs::FileEvent<B::Fs>,
-    ) -> Option<Message> {
+    fn synchronize_file(&mut self, event: fs::FileEvent<B::Fs>) {
         match event {
-            fs::FileEvent::Modification(modification) => {
-                Some(self.synchronize_file_modification(modification))
+            fs::FileEvent::Modification(_modification) => {
+                unreachable!("already handled by ProjectHandle::synchronize()")
             },
             fs::FileEvent::IdChange(id_change) => {
                 self.synchronize_file_id_change(id_change);
-                None
             },
         }
-    }
-
-    fn synchronize_file_modification(
-        &mut self,
-        _modification: fs::FileModification<B::Fs>,
-    ) -> Message {
-        todo!();
     }
 
     fn synchronize_file_id_change(
@@ -334,13 +397,6 @@ impl<B: CollabBackend> Project<B> {
                 panic!("unknown node ID: {:?}", id_change.old_id);
             },
         }
-    }
-
-    fn synchronize_node_creation(
-        &mut self,
-        _creation: fs::NodeCreation<B::Fs>,
-    ) -> Message {
-        todo!();
     }
 
     fn synchronize_node_deletion(
@@ -473,28 +529,6 @@ impl<B: CollabBackend> Project<B> {
                 panic!("buffer ID {buffer_id:?} maps to a symlink file")
             },
         }
-    }
-}
-
-impl<B: CollabBackend> ProjectHandle<B> {
-    /// TODO: docs.
-    pub fn root(&self) -> AbsPathBuf {
-        self.with(|proj| proj.root_path.clone())
-    }
-
-    /// TODO: docs.
-    pub fn session_id(&self) -> SessionId<B> {
-        self.with(|proj| proj.session_id)
-    }
-
-    /// TODO: docs.
-    pub fn with<R>(&self, fun: impl FnOnce(&Project<B>) -> R) -> R {
-        self.inner.with(fun)
-    }
-
-    /// TODO: docs.
-    pub fn with_mut<R>(&self, fun: impl FnOnce(&mut Project<B>) -> R) -> R {
-        self.inner.with_mut(fun)
     }
 }
 

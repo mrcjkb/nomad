@@ -9,7 +9,7 @@ use walkdir::Filter;
 use crate::backend::{CollabBackend, MessageRx, MessageTx};
 use crate::event_stream::{EventRxError, EventStream};
 use crate::leave::StopRequest;
-use crate::project::ProjectHandle;
+use crate::project::{ProjectHandle, SynchronizeError};
 
 pub(crate) struct Session<B: CollabBackend, F: Filter<B::Fs>> {
     /// TODO: docs..
@@ -36,6 +36,7 @@ pub(crate) enum SessionError<B: CollabBackend, F: Filter<B::Fs>> {
     #[display("the server kicked this peer out of the session")]
     MessageRxExhausted,
     MessageTx(#[from] io::Error),
+    Synchronize(#[from] SynchronizeError<B>),
 }
 
 impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
@@ -59,11 +60,9 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
         loop {
             select_biased! {
                 event_res = event_stream.next(ctx).fuse() => {
-                    let event = event_res?;
-                    let maybe_message = project_handle.with_mut(|proj| {
-                        proj.synchronize(event)
-                    });
-                    if let Some(message) = maybe_message {
+                    if let Some(message) =
+                        project_handle.synchronize(event_res?, ctx).await?
+                    {
                         message_tx.send(message).await?;
                     }
                 },
@@ -71,9 +70,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
                     let message = maybe_message_res
                         .ok_or(SessionError::MessageRxExhausted)??;
 
-                    project_handle.with_mut(|proj| {
-                        proj.integrate(message, ctx);
-                    });
+                    project_handle.integrate(message, ctx).await;
                 },
                 stop_request = stop_stream.select_next_some() => {
                     stop_request.send_stopped();

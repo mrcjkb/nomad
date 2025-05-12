@@ -120,11 +120,9 @@ impl<B: CollabBackend> AsyncAction<B> for Join<B> {
             session_id: welcome.session_id,
         });
 
-        project_handle.with_mut(|proj| {
-            for message in buffered {
-                proj.integrate(message, ctx);
-            }
-        });
+        for message in buffered {
+            project_handle.integrate(message, ctx).await;
+        }
 
         let session = Session {
             event_stream,
