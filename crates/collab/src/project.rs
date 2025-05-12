@@ -4,7 +4,7 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use collab_project::PeerId;
-use collab_project::fs::{DirectoryId, FileId};
+use collab_project::fs::{DirectoryId, FileId, FileMut as ProjectFileMut};
 use collab_server::message::{GitHubHandle, Message, Peer, Peers};
 use ed::backend::{AgentId, Backend};
 use ed::fs::{self, AbsPath, AbsPathBuf};
@@ -15,12 +15,14 @@ use smol_str::ToSmolStr;
 
 use crate::CollabBackend;
 use crate::backend::{ActionForSelectedSession, SessionId};
-use crate::event::Event;
+use crate::convert::Convert;
+use crate::event::{BufferEvent, Event};
 
 /// TODO: docs.
 pub struct Project<B: CollabBackend> {
     agent_id: AgentId,
     host_id: PeerId,
+    id_maps: IdMaps<B>,
     local_peer: Peer,
     project: collab_project::Project,
     _remote_peers: Peers,
@@ -90,8 +92,46 @@ impl<B: CollabBackend> Project<B> {
     }
 
     /// TODO: docs.
-    pub(crate) fn synchronize(&mut self, _event: Event<B>) -> Message {
-        todo!();
+    pub(crate) fn synchronize(&mut self, event: Event<B>) -> Message {
+        match event {
+            Event::Buffer(event) => self.synchronize_buffer(event),
+            Event::Cursor(_event) => todo!(),
+            Event::Directory(_event) => todo!(),
+            Event::File(_event) => todo!(),
+            Event::Selection(_event) => todo!(),
+        }
+    }
+
+    fn synchronize_buffer(&mut self, event: BufferEvent<B>) -> Message {
+        match event {
+            BufferEvent::Edited(buffer_id, replacements) => {
+                let file_id = *self
+                    .id_maps
+                    .buffer2file
+                    .get(&buffer_id)
+                    .expect("unknown buffer id {buffer_id:?}");
+
+                let mut file = match self
+                    .project
+                    .file_mut(file_id)
+                    .expect("received edit event on a deleted file")
+                {
+                    ProjectFileMut::Text(file) => file,
+                    ProjectFileMut::Binary(_) => {
+                        panic!("received edit event on a binary file")
+                    },
+                    ProjectFileMut::Symlink(_) => {
+                        panic!("received edit event on a symlink")
+                    },
+                };
+
+                Message::EditedText(
+                    file.edit(replacements.into_iter().map(Convert::convert)),
+                )
+            },
+            BufferEvent::Removed(_buffer_id) => todo!(),
+            BufferEvent::Saved(_buffer_id) => todo!(),
+        }
     }
 }
 
@@ -222,6 +262,7 @@ impl<B: CollabBackend> ProjectGuard<B> {
         self.projects.insert(Project {
             agent_id: args.agent_id,
             host_id: args.host_id,
+            id_maps: args.id_maps,
             local_peer: args.local_peer,
             _remote_peers: args.remote_peers,
             project: args.project,

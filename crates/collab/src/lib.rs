@@ -5,6 +5,7 @@
 mod backend;
 mod collab;
 pub mod config;
+mod convert;
 mod event;
 mod event_stream;
 pub mod join;

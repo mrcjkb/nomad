@@ -602,7 +602,7 @@ dependencies = [
 [[package]]
 name = "codecs"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#f4f9888c91adb9a6e9a7e417cefc7e91cebda3e7"
+source = "git+ssh://git@github.com/nomad/collab.git#c798898a5c5651bcef05c744888fc8d59be2aeac"
 dependencies = [
  "bincode",
  "bytes",
@@ -660,7 +660,7 @@ dependencies = [
 [[package]]
 name = "collab-message"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#f4f9888c91adb9a6e9a7e417cefc7e91cebda3e7"
+source = "git+ssh://git@github.com/nomad/collab.git#c798898a5c5651bcef05c744888fc8d59be2aeac"
 dependencies = [
  "cauchy",
  "codecs",
@@ -674,7 +674,7 @@ dependencies = [
 [[package]]
 name = "collab-project"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#f4f9888c91adb9a6e9a7e417cefc7e91cebda3e7"
+source = "git+ssh://git@github.com/nomad/collab.git#c798898a5c5651bcef05c744888fc8d59be2aeac"
 dependencies = [
  "cauchy",
  "cola",
@@ -690,7 +690,7 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#f4f9888c91adb9a6e9a7e417cefc7e91cebda3e7"
+source = "git+ssh://git@github.com/nomad/collab.git#c798898a5c5651bcef05c744888fc8d59be2aeac"
 dependencies = [
  "abs-path",
  "cauchy",
@@ -961,7 +961,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "duplex-stream"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#f4f9888c91adb9a6e9a7e417cefc7e91cebda3e7"
+source = "git+ssh://git@github.com/nomad/collab.git#c798898a5c5651bcef05c744888fc8d59be2aeac"
 dependencies = [
  "async-compat",
  "futures-util",
@@ -1198,7 +1198,7 @@ dependencies = [
 [[package]]
 name = "generic-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#f4f9888c91adb9a6e9a7e417cefc7e91cebda3e7"
+source = "git+ssh://git@github.com/nomad/collab.git#c798898a5c5651bcef05c744888fc8d59be2aeac"
 dependencies = [
  "flume",
  "futures-util",
@@ -1640,7 +1640,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
