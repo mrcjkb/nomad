@@ -92,7 +92,7 @@ impl<B: CollabBackend> Project<B> {
     }
 
     /// TODO: docs.
-    pub(crate) fn synchronize(&mut self, event: Event<B>) -> Message {
+    pub(crate) fn synchronize(&mut self, event: Event<B>) -> Option<Message> {
         match event {
             Event::Buffer(event) => self.synchronize_buffer(event),
             Event::Cursor(_event) => todo!(),
@@ -102,7 +102,10 @@ impl<B: CollabBackend> Project<B> {
         }
     }
 
-    fn synchronize_buffer(&mut self, event: BufferEvent<B>) -> Message {
+    fn synchronize_buffer(
+        &mut self,
+        event: BufferEvent<B>,
+    ) -> Option<Message> {
         match event {
             BufferEvent::Edited(buffer_id, replacements) => {
                 let file_id = *self
@@ -125,11 +128,14 @@ impl<B: CollabBackend> Project<B> {
                     },
                 };
 
-                Message::EditedText(
+                Some(Message::EditedText(
                     file.edit(replacements.into_iter().map(Convert::convert)),
-                )
+                ))
             },
-            BufferEvent::Removed(_buffer_id) => todo!(),
+            BufferEvent::Removed(buffer_id) => {
+                self.id_maps.buffer2file.remove(&buffer_id);
+                None
+            },
             BufferEvent::Saved(_buffer_id) => todo!(),
         }
     }

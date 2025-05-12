@@ -60,10 +60,12 @@ impl<B: CollabBackend, F: Filter<B::Fs>> Session<B, F> {
             select_biased! {
                 event_res = event_stream.next(ctx).fuse() => {
                     let event = event_res?;
-                    let message = project_handle.with_mut(|proj| {
+                    let maybe_message = project_handle.with_mut(|proj| {
                         proj.synchronize(event)
                     });
-                    message_tx.send(message).await?;
+                    if let Some(message) = maybe_message {
+                        message_tx.send(message).await?;
+                    }
                 },
                 maybe_message_res = message_rx.next() => {
                     let message = maybe_message_res
