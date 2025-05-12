@@ -22,7 +22,7 @@ pub use directory::{
     ReadNodeError,
     ReplicateError,
 };
-pub use file::{File, FileEvent, FileModification};
+pub use file::{File, FileIdChange, FileEvent, FileModification};
 pub use fs::{Fs, ReadFileError, ReadFileToStringError};
 pub use fs_event::{FsEvent, FsEventKind};
 pub use fs_node::{FsNode, NodeDeleteError};

@@ -80,6 +80,9 @@ pub trait File: Send + Sync {
 #[derive(cauchy::Clone)]
 pub enum FileEvent<Fs: fs::Fs> {
     /// TODO: docs.
+    IdChange(FileIdChange<Fs>),
+
+    /// TODO: docs.
     Modification(FileModification<Fs>),
 }
 
@@ -91,4 +94,14 @@ pub struct FileModification<Fs: fs::Fs> {
 
     /// TODO: docs.
     pub modified_at: Fs::Timestamp,
+}
+
+/// TODO: docs.
+#[derive(cauchy::Clone)]
+pub struct FileIdChange<Fs: fs::Fs> {
+    /// The file's old node ID.
+    pub old_id: Fs::NodeId,
+
+    /// The file's new node ID.
+    pub new_id: Fs::NodeId,
 }
