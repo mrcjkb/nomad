@@ -602,7 +602,7 @@ dependencies = [
 [[package]]
 name = "codecs"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#a17f054a304e3bcf233a91ef851b7c6e3e693f26"
+source = "git+ssh://git@github.com/nomad/collab.git#d2ec71c7fe981ca988a79aa518b25d3ea7628b26"
 dependencies = [
  "bincode",
  "bytes",
@@ -660,7 +660,7 @@ dependencies = [
 [[package]]
 name = "collab-message"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#a17f054a304e3bcf233a91ef851b7c6e3e693f26"
+source = "git+ssh://git@github.com/nomad/collab.git#d2ec71c7fe981ca988a79aa518b25d3ea7628b26"
 dependencies = [
  "cauchy",
  "codecs",
@@ -674,7 +674,7 @@ dependencies = [
 [[package]]
 name = "collab-project"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#a17f054a304e3bcf233a91ef851b7c6e3e693f26"
+source = "git+ssh://git@github.com/nomad/collab.git#d2ec71c7fe981ca988a79aa518b25d3ea7628b26"
 dependencies = [
  "cauchy",
  "cola",
@@ -690,7 +690,7 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#a17f054a304e3bcf233a91ef851b7c6e3e693f26"
+source = "git+ssh://git@github.com/nomad/collab.git#d2ec71c7fe981ca988a79aa518b25d3ea7628b26"
 dependencies = [
  "abs-path",
  "cauchy",
@@ -961,7 +961,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "duplex-stream"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#a17f054a304e3bcf233a91ef851b7c6e3e693f26"
+source = "git+ssh://git@github.com/nomad/collab.git#d2ec71c7fe981ca988a79aa518b25d3ea7628b26"
 dependencies = [
  "async-compat",
  "futures-util",
@@ -1198,7 +1198,7 @@ dependencies = [
 [[package]]
 name = "generic-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#a17f054a304e3bcf233a91ef851b7c6e3e693f26"
+source = "git+ssh://git@github.com/nomad/collab.git#d2ec71c7fe981ca988a79aa518b25d3ea7628b26"
 dependencies = [
  "flume",
  "futures-util",
@@ -2327,7 +2327,7 @@ dependencies = [
 [[package]]
 name = "puff"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/puff.git#2b8df0790faee2a7e1b8f9bc338eb5b8e2262be6"
+source = "git+ssh://git@github.com/nomad/puff.git#0c23b5fe3db88bf3c36c02ddb765b4222b1c4882"
 dependencies = [
  "abs-path",
  "fxhash",

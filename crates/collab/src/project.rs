@@ -4,11 +4,16 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use collab_project::PeerId;
-use collab_project::fs::{DirectoryId, FileId, FileMut as ProjectFileMut};
+use collab_project::fs::{
+    DirectoryId,
+    FileId,
+    FileMut as ProjectFileMut,
+    NodeMut as ProjectNodeMut,
+};
 use collab_project::text::{self, CursorMut, TextFileMut};
 use collab_server::message::{GitHubHandle, Message, Peer, Peers};
 use ed::backend::{AgentId, Backend};
-use ed::fs::{self, AbsPath, AbsPathBuf};
+use ed::fs::{self, AbsPath, AbsPathBuf, DirectoryEvent};
 use ed::{AsyncCtx, Shared, notify};
 use fxhash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
@@ -76,14 +81,14 @@ pub(crate) struct NewProjectArgs<B: CollabBackend> {
 #[derive(cauchy::Default)]
 pub(crate) struct IdMaps<B: Backend> {
     pub(crate) buffer2file: FxHashMap<B::BufferId, FileId>,
+    pub(crate) cursor2cursor: FxHashMap<CursorId<B>, text::CursorId>,
     pub(crate) file2buffer: FxHashMap<FileId, B::BufferId>,
     pub(crate) node2dir: FxHashMap<<B::Fs as fs::Fs>::NodeId, DirectoryId>,
     pub(crate) node2file: FxHashMap<<B::Fs as fs::Fs>::NodeId, FileId>,
-    cursor2cursor: FxHashMap<CursorId<B>, text::CursorId>,
 }
 
 #[derive(cauchy::Debug, cauchy::PartialEq, cauchy::Eq, cauchy::Hash)]
-struct CursorId<B: Backend> {
+pub(crate) struct CursorId<B: Backend> {
     buffer_id: B::BufferId,
     cursor_id: B::CursorId,
 }
@@ -104,7 +109,7 @@ impl<B: CollabBackend> Project<B> {
         match event {
             Event::Buffer(event) => self.synchronize_buffer(event),
             Event::Cursor(event) => Some(self.synchronize_cursor(event)),
-            Event::Directory(_event) => todo!(),
+            Event::Directory(event) => Some(self.synchronize_directory(event)),
             Event::File(_event) => todo!(),
             Event::Selection(_event) => todo!(),
         }
@@ -133,6 +138,28 @@ impl<B: CollabBackend> Project<B> {
             None => {
                 panic!("cursor ID {cursor_id:?} maps to a deleted cursor")
             },
+        }
+    }
+
+    /// Returns the [`ProjectNodeMut`] corresponding to the node with the given
+    /// ID.
+    #[track_caller]
+    fn project_node(
+        &mut self,
+        node_id: &<B::Fs as fs::Fs>::NodeId,
+    ) -> ProjectNodeMut<'_> {
+        if let Some(&dir_id) = self.id_maps.node2dir.get(node_id) {
+            let Some(dir) = self.project.directory_mut(dir_id) else {
+                panic!("node ID {node_id:?} maps to a deleted directory")
+            };
+            ProjectNodeMut::Directory(dir)
+        } else if let Some(&file_id) = self.id_maps.node2file.get(node_id) {
+            let Some(file) = self.project.file_mut(file_id) else {
+                panic!("node ID {node_id:?} maps to a deleted file")
+            };
+            ProjectNodeMut::File(file)
+        } else {
+            panic!("unknown node ID: {node_id:?}")
         }
     }
 
@@ -205,6 +232,38 @@ impl<B: CollabBackend> Project<B> {
 
                 Message::DeletedCursor(deletion)
             },
+        }
+    }
+
+    fn synchronize_directory(
+        &mut self,
+        event: DirectoryEvent<B::Fs>,
+    ) -> Message {
+        match event {
+            DirectoryEvent::Creation(_creation) => todo!(),
+
+            DirectoryEvent::Deletion(deletion) => {
+                let node_id = deletion.node_id;
+                let deletion = match self.project_node(&node_id) {
+                    ProjectNodeMut::Directory(dir) => {
+                        dir.delete().expect("dir is not the project root")
+                    },
+                    ProjectNodeMut::File(file) => file.delete(),
+                };
+
+                let ids = &mut self.id_maps;
+                if let Some(file_id) = ids.node2file.remove(&node_id) {
+                    if let Some(buffer_id) = ids.file2buffer.remove(&file_id) {
+                        ids.buffer2file.remove(&buffer_id);
+                    }
+                } else {
+                    ids.node2dir.remove(&node_id);
+                }
+
+                Message::DeletedFsNode(deletion)
+            },
+
+            DirectoryEvent::Move(_move) => todo!(),
         }
     }
 
