@@ -11,7 +11,7 @@ use collab_project::fs::{
     FileMut as ProjectFileMut,
     NodeMut as ProjectNodeMut,
 };
-use collab_project::text::{self, CursorMut, TextFileMut};
+use collab_project::text::{self, CursorMut, SelectionMut, TextFileMut};
 use collab_server::message::{GitHubHandle, Message, Peer, Peers};
 use ed::backend::{AgentId, Backend};
 use ed::{AsyncCtx, Shared, fs, notify};
@@ -22,7 +22,14 @@ use smol_str::ToSmolStr;
 use crate::CollabBackend;
 use crate::backend::{ActionForSelectedSession, SessionId};
 use crate::convert::Convert;
-use crate::event::{BufferEvent, CursorEvent, CursorEventKind, Event};
+use crate::event::{
+    BufferEvent,
+    CursorEvent,
+    CursorEventKind,
+    Event,
+    SelectionEvent,
+    SelectionEventKind,
+};
 
 /// TODO: docs.
 pub struct Project<B: CollabBackend> {
@@ -85,12 +92,20 @@ pub(crate) struct IdMaps<B: Backend> {
     pub(crate) file2buffer: FxHashMap<FileId, B::BufferId>,
     pub(crate) node2dir: FxHashMap<<B::Fs as fs::Fs>::NodeId, DirectoryId>,
     pub(crate) node2file: FxHashMap<<B::Fs as fs::Fs>::NodeId, FileId>,
+    pub(crate) selection2selection:
+        FxHashMap<SelectionId<B>, text::SelectionId>,
 }
 
 #[derive(cauchy::Debug, cauchy::PartialEq, cauchy::Eq, cauchy::Hash)]
 pub(crate) struct CursorId<B: Backend> {
     buffer_id: B::BufferId,
     cursor_id: B::CursorId,
+}
+
+#[derive(cauchy::Debug, cauchy::PartialEq, cauchy::Eq, cauchy::Hash)]
+pub(crate) struct SelectionId<B: Backend> {
+    buffer_id: B::BufferId,
+    selection_id: B::SelectionId,
 }
 
 impl<B: CollabBackend> Project<B> {
@@ -111,7 +126,7 @@ impl<B: CollabBackend> Project<B> {
             Event::Cursor(event) => Some(self.synchronize_cursor(event)),
             Event::Directory(event) => Some(self.synchronize_directory(event)),
             Event::File(event) => self.synchronize_file(event),
-            Event::Selection(_event) => todo!(),
+            Event::Selection(event) => Some(self.synchronize_selection(event)),
         }
     }
 
@@ -160,6 +175,39 @@ impl<B: CollabBackend> Project<B> {
             ProjectNodeMut::File(file)
         } else {
             panic!("unknown node ID: {node_id:?}")
+        }
+    }
+
+    /// Returns the [`SelectionMut`] corresponding to the selection with the
+    /// given ID.
+    #[track_caller]
+    fn selection_of_selection_id(
+        &mut self,
+        selection_id: &SelectionId<B>,
+    ) -> SelectionMut<'_> {
+        let Some(&project_selection_id) =
+            self.id_maps.selection2selection.get(selection_id)
+        else {
+            panic!("unknown selection ID: {selection_id:?}");
+        };
+
+        let Ok(maybe_selection) =
+            self.project.selection_mut(project_selection_id)
+        else {
+            panic!(
+                "selection ID {selection_id:?} maps to a remote peer's \
+                 selection"
+            )
+        };
+
+        match maybe_selection {
+            Some(selection) => selection,
+            None => {
+                panic!(
+                    "selection ID {selection_id:?} maps to a deleted \
+                     selection"
+                )
+            },
         }
     }
 
@@ -356,6 +404,49 @@ impl<B: CollabBackend> Project<B> {
         };
 
         Message::MovedFsNode(movement)
+    }
+
+    fn synchronize_selection(&mut self, event: SelectionEvent<B>) -> Message {
+        match event.kind {
+            SelectionEventKind::Created(byte_range) => {
+                let (selection_id, creation) = self
+                    .text_file_of_buffer(&event.buffer_id)
+                    .create_selection(byte_range.convert());
+
+                self.id_maps.selection2selection.insert(
+                    SelectionId {
+                        buffer_id: event.buffer_id,
+                        selection_id: event.selection_id,
+                    },
+                    selection_id,
+                );
+
+                Message::CreatedSelection(creation)
+            },
+            SelectionEventKind::Moved(byte_range) => {
+                let movement = self
+                    .selection_of_selection_id(&SelectionId {
+                        buffer_id: event.buffer_id,
+                        selection_id: event.selection_id,
+                    })
+                    .r#move(byte_range.convert());
+
+                Message::MovedSelection(movement)
+            },
+            SelectionEventKind::Removed => {
+                let selection_id = SelectionId {
+                    buffer_id: event.buffer_id,
+                    selection_id: event.selection_id,
+                };
+
+                let deletion =
+                    self.selection_of_selection_id(&selection_id).delete();
+
+                self.id_maps.selection2selection.remove(&selection_id);
+
+                Message::DeletedSelection(deletion)
+            },
+        }
     }
 
     /// Returns the [`TextFileMut`] corresponding to the buffer with the given
