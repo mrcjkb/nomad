@@ -115,6 +115,16 @@ pub trait Backend: 'static + Sized {
         Fun: FnMut(&Self::Buffer<'_>, AgentId) + 'static;
 
     /// TODO: docs.
+    fn on_cursor_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Cursor<'_>, AgentId) + 'static;
+
+    /// TODO: docs.
+    fn on_selection_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Selection<'_>, AgentId) + 'static;
+
+    /// TODO: docs.
     fn selection(
         &mut self,
         id: Self::SelectionId,

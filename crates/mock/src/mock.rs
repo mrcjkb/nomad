@@ -67,16 +67,13 @@ pub(crate) enum CallbackKind {
     #[allow(dead_code)]
     BufferSaved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
     #[allow(dead_code)]
-    CursorCreated(BufferId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
+    CursorCreated(Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
     #[allow(dead_code)]
     CursorMoved(CursorId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
     #[allow(dead_code)]
     CursorRemoved(CursorId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
     #[allow(dead_code)]
-    SelectionCreated(
-        BufferId,
-        Box<dyn FnMut(&Selection<'_>, AgentId) + 'static>,
-    ),
+    SelectionCreated(Box<dyn FnMut(&Selection<'_>, AgentId) + 'static>),
     #[allow(dead_code)]
     SelectionMoved(
         SelectionId,
@@ -239,6 +236,22 @@ where
         Fun: FnMut(&Self::Buffer<'_>, AgentId) + 'static,
     {
         self.callbacks.insert(CallbackKind::BufferCreated(Box::new(fun)))
+    }
+
+    fn on_cursor_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Cursor<'_>, AgentId) + 'static,
+    {
+        let cb_kind = CallbackKind::CursorCreated(Box::new(fun));
+        self.callbacks.insert(cb_kind)
+    }
+
+    fn on_selection_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Selection<'_>, AgentId) + 'static,
+    {
+        let cb_kind = CallbackKind::SelectionCreated(Box::new(fun));
+        self.callbacks.insert(cb_kind)
     }
 
     fn selection(

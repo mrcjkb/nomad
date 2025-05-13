@@ -230,14 +230,6 @@ impl backend::Buffer for Buffer<'_> {
         Cow::Borrowed(&self.name)
     }
 
-    fn on_cursor_created<Fun>(&self, fun: Fun) -> Self::EventHandle
-    where
-        Fun: FnMut(&Cursor<'_>, AgentId) + 'static,
-    {
-        let cb_kind = CallbackKind::CursorCreated(self.id(), Box::new(fun));
-        self.callbacks.insert(cb_kind)
-    }
-
     fn on_edited<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&Buffer<'_>, &Edit) + 'static,
@@ -259,14 +251,6 @@ impl backend::Buffer for Buffer<'_> {
         Fun: FnMut(&Buffer<'_>, AgentId) + 'static,
     {
         let cb_kind = CallbackKind::BufferSaved(self.id(), Box::new(fun));
-        self.callbacks.insert(cb_kind)
-    }
-
-    fn on_selection_created<Fun>(&self, fun: Fun) -> Self::EventHandle
-    where
-        Fun: FnMut(&Selection<'_>, AgentId) + 'static,
-    {
-        let cb_kind = CallbackKind::SelectionCreated(self.id(), Box::new(fun));
         self.callbacks.insert(cb_kind)
     }
 }

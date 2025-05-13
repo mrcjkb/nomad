@@ -371,6 +371,18 @@ where
     {
         self.inner.on_buffer_created(fun)
     }
+    fn on_cursor_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Cursor<'_>, AgentId) + 'static,
+    {
+        self.inner.on_cursor_created(fun)
+    }
+    fn on_selection_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Selection<'_>, AgentId) + 'static,
+    {
+        self.inner.on_selection_created(fun)
+    }
     fn selection(
         &mut self,
         id: Self::SelectionId,

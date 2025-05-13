@@ -11,10 +11,8 @@ use ed::backend::{AgentId, Buffer, Edit, Replacement};
 use ed::{ByteOffset, Shared};
 
 use crate::Neovim;
-use crate::cursor::NeovimCursor;
 use crate::events::{self, EventHandle, Events};
 use crate::oxi::{BufHandle, api, mlua};
-use crate::selection::NeovimSelection;
 
 /// TODO: docs.
 #[derive(Copy, Clone)]
@@ -351,14 +349,6 @@ impl Buffer for NeovimBuffer<'_> {
     }
 
     #[inline]
-    fn on_cursor_created<Fun>(&self, _fun: Fun) -> Self::EventHandle
-    where
-        Fun: FnMut(&NeovimCursor<'_>, AgentId) + 'static,
-    {
-        todo!();
-    }
-
-    #[inline]
     fn on_edited<Fun>(&self, mut fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&NeovimBuffer<'_>, &Edit) + 'static,
@@ -392,14 +382,6 @@ impl Buffer for NeovimBuffer<'_> {
             events::BufWritePost(self.id()),
             move |(this, saved_by)| fun(this, saved_by),
         )
-    }
-
-    #[inline]
-    fn on_selection_created<Fun>(&self, _fun: Fun) -> Self::EventHandle
-    where
-        Fun: FnMut(&NeovimSelection<'_>, AgentId) + 'static,
-    {
-        todo!();
     }
 }
 

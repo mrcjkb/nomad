@@ -1,5 +1,5 @@
 use abs_path::{AbsPath, AbsPathBuf};
-use ed::backend::{AgentId, Buffer};
+use ed::backend::{AgentId, Buffer, Cursor};
 use ed::fs::{self, Directory, File, Fs, FsNode, Metadata};
 use ed::{AsyncCtx, Shared};
 use futures_util::{StreamExt, select_biased};
@@ -8,7 +8,7 @@ use smallvec::{SmallVec, smallvec_inline};
 use walkdir::Filter;
 
 use crate::backend::CollabBackend;
-use crate::event::{BufferEvent, Event};
+use crate::event::{BufferEvent, CursorEvent, CursorEventKind, Event};
 use crate::seq_ext::StreamableSeq;
 
 type FxIndexMap<K, V> = indexmap::IndexMap<K, V, FxBuildHasher>;
@@ -20,8 +20,8 @@ pub(crate) struct EventStream<
     /// The `AgentId` of the `Session` that owns this `EventRx`.
     agent_id: AgentId,
     buffer_handles: FxHashMap<B::BufferId, SmallVec<[B::EventHandle; 3]>>,
-    buffer_rx: flume::r#async::RecvStream<'static, Event<B>>,
-    buffer_tx: flume::Sender<Event<B>>,
+    buffer_rx: flume::r#async::RecvStream<'static, BufferEvent<B>>,
+    buffer_tx: flume::Sender<BufferEvent<B>>,
     fs_streams: FsStreams<B::Fs>,
     new_buffer_rx: flume::r#async::RecvStream<'static, B::BufferId>,
     #[allow(dead_code)]
@@ -92,10 +92,15 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                     Event::File(file_event)
                 },
                 event = self.buffer_rx.select_next_some() => {
-                    if let Event::Buffer(BufferEvent::Removed(id)) = &event {
+                    if let BufferEvent::Created(buffer_id) = &event {
+                        !if self.handle_new_buffer(buffer_id, ctx).await? {
+                            continue;
+                        }
+                    }
+                    if let BufferEvent::Removed(buffer_id) = &event {
                         self.buffer_handles.remove(id);
                     }
-                    event
+                    Event::Buffer(event)
                 },
                 buffer_id = self.new_buffer_rx.select_next_some() => {
                     self.handle_new_buffer(buffer_id, ctx).await?;
@@ -119,13 +124,13 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
             }
             let event =
                 BufferEvent::Edited(buf.id(), edit.replacements.clone());
-            let _ = tx.send(Event::Buffer(event));
+            let _ = tx.send(event);
         });
 
         let tx = self.buffer_tx.clone();
         let removed_handle = buffer.on_removed(move |buf, _removed_by| {
             let event = BufferEvent::Removed(buf.id());
-            let _ = tx.send(Event::Buffer(event));
+            let _ = tx.send(event);
         });
 
         let saved_buffers = self.saved_buffers.clone();
@@ -134,9 +139,46 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
             saved_buffers.with_mut(|buffers| buffers.insert(buf.id()));
             if saved_by != agent_id {
                 let event = BufferEvent::Saved(buf.id());
-                let _ = tx.send(Event::Buffer(event));
+                let _ = tx.send(event);
             }
         });
+
+        let buffer_id = buffer.id();
+        let tx = self.buffer_tx.clone();
+        let new_cursors_handle =
+            buffer.on_cursor_created(move |cursor, _created_by| {
+                let event = CursorEvent {
+                    buffer_id,
+                    cursor_id: cursor.id(),
+                    kind: CursorEventKind::Created(cursor.byte_offset()),
+                };
+                let _ = tx.send(Event::Cursor(event));
+
+                let buffer_id = buffer_id.clone();
+                let cursor_id = cursor.id();
+                let tx = tx.clone();
+                let movd_handle = cursor.on_moved(move |cursor, _moved_by| {
+                    let event = CursorEvent {
+                        buffer_id,
+                        cursor_id,
+                        kind: CursorEventKind::Moved(cursor.byte_offset()),
+                    };
+                    let _ = tx.send(Event::Cursor(event));
+                });
+
+                let buffer_id = buffer_id.clone();
+                let cursor_id = cursor.id();
+                let tx = tx.clone();
+                let removed_handle =
+                    cursor.on_removed(move |_, _removed_by| {
+                        let event = CursorEvent {
+                            buffer_id,
+                            cursor_id,
+                            kind: CursorEventKind::Removed,
+                        };
+                        let _ = tx.send(Event::Cursor(event));
+                    });
+            });
 
         self.buffer_handles.insert(
             buffer.id(),

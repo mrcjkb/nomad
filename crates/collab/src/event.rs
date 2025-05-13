@@ -24,6 +24,7 @@ pub(crate) enum Event<B: Backend> {
 }
 
 pub(crate) enum BufferEvent<B: Backend> {
+    Created(B::BufferId),
     Edited(B::BufferId, SmallVec<[Replacement; 1]>),
     Removed(B::BufferId),
     Saved(B::BufferId),

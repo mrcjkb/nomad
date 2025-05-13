@@ -36,11 +36,6 @@ pub trait Buffer {
     fn name(&self) -> Cow<'_, str>;
 
     /// TODO: docs.
-    fn on_cursor_created<Fun>(&self, fun: Fun) -> Self::EventHandle
-    where
-        Fun: FnMut(&<Self::Backend as Backend>::Cursor<'_>, AgentId) + 'static;
-
-    /// TODO: docs.
     fn on_edited<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&<Self::Backend as Backend>::Buffer<'_>, &Edit) + 'static;
@@ -54,12 +49,6 @@ pub trait Buffer {
     fn on_saved<Fun>(&self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&<Self::Backend as Backend>::Buffer<'_>, AgentId) + 'static;
-
-    /// TODO: docs.
-    fn on_selection_created<Fun>(&self, fun: Fun) -> Self::EventHandle
-    where
-        Fun: FnMut(&<Self::Backend as Backend>::Selection<'_>, AgentId)
-            + 'static;
 }
 
 /// TODO: docs.

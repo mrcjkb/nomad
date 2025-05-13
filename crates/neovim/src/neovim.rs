@@ -161,6 +161,22 @@ impl Backend for Neovim {
     }
 
     #[inline]
+    fn on_cursor_created<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Cursor<'_>, AgentId) + 'static,
+    {
+        todo!();
+    }
+
+    #[inline]
+    fn on_selection_created<Fun>(&mut self, _fun: Fun) -> Self::EventHandle
+    where
+        Fun: FnMut(&Self::Selection<'_>, AgentId) + 'static,
+    {
+        todo!();
+    }
+
+    #[inline]
     fn emit_deserialize_error_in_config<P: Plugin<Self>>(
         &mut self,
         config_path: &Namespace,
