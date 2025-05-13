@@ -2,16 +2,16 @@
 
 use core::fmt;
 use core::marker::PhantomData;
+use std::sync::Arc;
 
 use abs_path::{AbsPath, AbsPathBuf};
-use collab_project::PeerId;
 use collab_project::fs::{
     DirectoryId,
     FileId,
     FileMut as ProjectFileMut,
     NodeMut as ProjectNodeMut,
 };
-use collab_project::text::{self, CursorMut, SelectionMut, TextFileMut};
+use collab_project::{PeerId, text};
 use collab_server::message::{GitHubHandle, Message, Peer, Peers};
 use ed::backend::{AgentId, Backend};
 use ed::fs::{self, File as _, Fs as _, Symlink as _};
@@ -112,16 +112,10 @@ pub(crate) struct SelectionId<B: Backend> {
 #[derive(cauchy::Debug)]
 pub(crate) enum SynchronizeError<B: CollabBackend> {
     /// TODO: docs.
-    NodeAtPath(<B::Fs as fs::Fs>::NodeAtPathError),
-
-    /// TODO: docs.
-    ReadFile(<<B::Fs as fs::Fs>::File as fs::File>::ReadError),
-
-    /// TODO: docs.
-    ReadSymlink(<<B::Fs as fs::Fs>::Symlink as fs::Symlink>::ReadError),
+    ContentsAtPath(ContentsAtPathError<B::Fs>),
 }
 
-enum NodeContents {
+enum FsNodeContents {
     Directory,
     Text(String),
     Binary(Vec<u8>),
@@ -172,10 +166,83 @@ impl<B: CollabBackend> ProjectHandle<B> {
 
     async fn synchronize_file_modification(
         &self,
-        _modification: fs::FileModification<B::Fs>,
-        _ctx: &mut AsyncCtx<'_, B>,
+        modification: fs::FileModification<B::Fs>,
+        ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<Option<Message>, SynchronizeError<B>> {
-        todo!();
+        enum FileContents {
+            Binary(Arc<[u8]>),
+            Text(text::crop::Rope),
+        }
+
+        enum FileDiff {
+            Binary(Vec<u8>),
+            Text(SmallVec<[text::TextReplacement; 1]>),
+        }
+
+        // Get the file's contents before the modification.
+        let (file_id, file_path, file_contents) = self.with_mut(|proj| {
+            match proj.project_node(&modification.file_id) {
+                ProjectNodeMut::File(ProjectFileMut::Binary(file_mut)) => {
+                    let file = file_mut.as_file();
+                    let file_path = proj.root_path.clone().concat(file.path());
+                    let content = FileContents::Binary(file.contents().into());
+                    (file.id(), file_path, content)
+                },
+                ProjectNodeMut::File(ProjectFileMut::Text(file_mut)) => {
+                    let file = file_mut.as_file();
+                    let file_path = proj.root_path.clone().concat(file.path());
+                    let contents = FileContents::Text(file.contents().clone());
+                    (file.id(), file_path, contents)
+                },
+                ProjectNodeMut::File(ProjectFileMut::Symlink(_)) => {
+                    panic!("received a FileModification event on a symlink")
+                },
+                ProjectNodeMut::Directory(_) => {
+                    panic!("received a FileModification event on a directory")
+                },
+            }
+        });
+
+        let fs = ctx.fs();
+
+        // Compute a diff with the current file contents in the background.
+        let compute_diff = ctx.spawn_background(async move {
+            let Some(node_contents) = fs.contents_at_path(&file_path).await?
+            else {
+                return Ok(None);
+            };
+
+            Ok(match (file_contents, node_contents) {
+                (FileContents::Binary(lhs), FsNodeContents::Binary(rhs)) => {
+                    (&*lhs != &*rhs).then_some(FileDiff::Binary(rhs))
+                },
+                (FileContents::Text(lhs), FsNodeContents::Text(rhs)) => {
+                    text_diff(lhs, &*rhs).map(FileDiff::Text)
+                },
+                _ => None,
+            })
+        });
+
+        let file_diff = match compute_diff.await {
+            Ok(Some(file_diff)) => file_diff,
+            Ok(None) => return Ok(None),
+            Err(err) => return Err(SynchronizeError::ContentsAtPath(err)),
+        };
+
+        // Apply the diff.
+        Ok(self.with_mut(|proj| {
+            let file = proj.project.file_mut(file_id)?;
+
+            Some(match (file, file_diff) {
+                (ProjectFileMut::Binary(file), FileDiff::Binary(contents)) => {
+                    Message::EditedBinary(file.replace(contents))
+                },
+                (ProjectFileMut::Text(file), FileDiff::Text(replacements)) => {
+                    Message::EditedText(file.edit(replacements))
+                },
+                _ => unreachable!(),
+            })
+        }))
     }
 
     async fn synchronize_node_creation(
@@ -183,46 +250,23 @@ impl<B: CollabBackend> ProjectHandle<B> {
         creation: fs::NodeCreation<B::Fs>,
         ctx: &mut AsyncCtx<'_, B>,
     ) -> Result<Option<Message>, SynchronizeError<B>> {
-        let Some(node) = ctx
-            .fs()
-            .node_at_path(&creation.node_path)
-            .await
-            .map_err(SynchronizeError::NodeAtPath)?
-        else {
+        match ctx.fs().contents_at_path(&creation.node_path).await {
+            Ok(Some(node_contents)) => Ok(Some(self.with_mut(|proj| {
+                proj.synchronize_node_creation(
+                    creation.node_id,
+                    &creation.node_path,
+                    node_contents,
+                )
+            }))),
+
             // The node must've already been deleted or moved.
             //
             // FIXME: doing nothing can be problematic if we're about to
             // receive deletions/moves for the node.
-            return Ok(None);
-        };
+            Ok(None) => Ok(None),
 
-        let node_contents = match &node {
-            fs::FsNode::Directory(_) => NodeContents::Directory,
-
-            fs::FsNode::File(file) => {
-                let contents =
-                    file.read().await.map_err(SynchronizeError::ReadFile)?;
-
-                match String::from_utf8(contents) {
-                    Ok(contents) => NodeContents::Text(contents),
-                    Err(err) => NodeContents::Binary(err.into_bytes()),
-                }
-            },
-
-            fs::FsNode::Symlink(symlink) => symlink
-                .read_path()
-                .await
-                .map(NodeContents::Symlink)
-                .map_err(SynchronizeError::ReadSymlink)?,
-        };
-
-        Ok(Some(self.with_mut(|proj| {
-            proj.synchronize_node_creation(
-                node.id(),
-                &creation.node_path,
-                node_contents,
-            )
-        })))
+            Err(err) => Err(SynchronizeError::ContentsAtPath(err)),
+        }
     }
 
     /// TODO: docs.
@@ -250,13 +294,13 @@ impl<B: CollabBackend> Project<B> {
         }
     }
 
-    /// Returns the [`CursorMut`] corresponding to the cursor with the given
-    /// ID.
+    /// Returns the [`text::CursorMut`] corresponding to the cursor with the
+    /// given ID.
     #[track_caller]
     fn cursor_of_cursor_id(
         &mut self,
         cursor_id: &CursorId<B>,
-    ) -> CursorMut<'_> {
+    ) -> text::CursorMut<'_> {
         let Some(&project_cursor_id) =
             self.id_maps.cursor2cursor.get(cursor_id)
         else {
@@ -302,13 +346,13 @@ impl<B: CollabBackend> Project<B> {
         }
     }
 
-    /// Returns the [`SelectionMut`] corresponding to the selection with the
-    /// given ID.
+    /// Returns the [`text::SelectionMut`] corresponding to the selection with
+    /// the given ID.
     #[track_caller]
     fn selection_of_selection_id(
         &mut self,
         selection_id: &SelectionId<B>,
-    ) -> SelectionMut<'_> {
+    ) -> text::SelectionMut<'_> {
         let Some(&project_selection_id) =
             self.id_maps.selection2selection.get(selection_id)
         else {
@@ -453,7 +497,7 @@ impl<B: CollabBackend> Project<B> {
         &mut self,
         node_id: <B::Fs as fs::Fs>::NodeId,
         node_path: &AbsPath,
-        node_contents: NodeContents,
+        node_contents: FsNodeContents,
     ) -> Message {
         let mut components = node_path.components();
 
@@ -480,7 +524,7 @@ impl<B: CollabBackend> Project<B> {
         };
 
         let (file_mut, creation) = match node_contents {
-            NodeContents::Directory => {
+            FsNodeContents::Directory => {
                 match parent.create_directory(node_name) {
                     Ok((dir_mut, creation)) => {
                         let dir_id = dir_mut.as_directory().id();
@@ -490,13 +534,13 @@ impl<B: CollabBackend> Project<B> {
                     Err(err) => Err(err),
                 }
             },
-            NodeContents::Text(text_contents) => {
+            FsNodeContents::Text(text_contents) => {
                 parent.create_text_file(node_name, text_contents)
             },
-            NodeContents::Binary(binary_contents) => {
+            FsNodeContents::Binary(binary_contents) => {
                 parent.create_binary_file(node_name, binary_contents)
             },
-            NodeContents::Symlink(target_path) => {
+            FsNodeContents::Symlink(target_path) => {
                 parent.create_symlink(node_name, target_path)
             },
         }
@@ -613,13 +657,13 @@ impl<B: CollabBackend> Project<B> {
         }
     }
 
-    /// Returns the [`TextFileMut`] corresponding to the buffer with the given
-    /// ID.
+    /// Returns the [`text::TextFileMut`] corresponding to the buffer with the
+    /// given ID.
     #[track_caller]
     fn text_file_of_buffer(
         &mut self,
         buffer_id: &B::BufferId,
-    ) -> TextFileMut<'_> {
+    ) -> text::TextFileMut<'_> {
         let Some(&file_id) = self.id_maps.buffer2file.get(buffer_id) else {
             panic!("unknown buffer ID: {buffer_id:?}");
         };
@@ -810,4 +854,58 @@ impl<B> notify::Error for NoActiveSessionError<B> {
         let msg = "there's no active collaborative editing session";
         (notify::Level::Error, notify::Message::from_str(msg))
     }
+}
+
+trait FsExt: fs::Fs {
+    fn contents_at_path(
+        &self,
+        path: &AbsPath,
+    ) -> impl Future<
+        Output = Result<Option<FsNodeContents>, ContentsAtPathError<Self>>,
+    > + Send {
+        async move {
+            let node = match self.node_at_path(path).await {
+                Ok(Some(node)) => node,
+                Ok(None) => return Ok(None),
+                Err(err) => return Err(ContentsAtPathError::NodeAtPath(err)),
+            };
+
+            Ok(Some(match &node {
+                fs::FsNode::Directory(_) => FsNodeContents::Directory,
+
+                fs::FsNode::File(file) => {
+                    let contents = file
+                        .read()
+                        .await
+                        .map_err(ContentsAtPathError::ReadFile)?;
+
+                    match String::from_utf8(contents) {
+                        Ok(contents) => FsNodeContents::Text(contents),
+                        Err(err) => FsNodeContents::Binary(err.into_bytes()),
+                    }
+                },
+
+                fs::FsNode::Symlink(symlink) => symlink
+                    .read_path()
+                    .await
+                    .map(FsNodeContents::Symlink)
+                    .map_err(ContentsAtPathError::ReadSymlink)?,
+            }))
+        }
+    }
+}
+
+impl<Fs: fs::Fs> FsExt for Fs {}
+
+enum ContentsAtPathError<Fs: fs::Fs> {
+    NodeAtPath(Fs::NodeAtPathError),
+    ReadFile(<Fs::File as fs::File>::ReadError),
+    ReadSymlink(<Fs::Symlink as fs::Symlink>::ReadError),
+}
+
+fn text_diff(
+    _lhs: text::crop::Rope,
+    _rhs: &str,
+) -> Option<SmallVec<[text::TextReplacement; 1]>> {
+    todo!();
 }
