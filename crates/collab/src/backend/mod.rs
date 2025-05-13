@@ -6,7 +6,7 @@ mod neovim;
 use core::fmt::Debug;
 
 use collab_server::Authenticator;
-use ed::backend::{Backend, Buffer};
+use ed::backend::Backend;
 use ed::command::CommandArgs;
 use ed::fs::{self, AbsPath, AbsPathBuf};
 use ed::{AsyncCtx, notify};
@@ -82,7 +82,7 @@ pub trait CollabBackend: Backend {
     /// with the given ID, or `None` if there's no language server attached to
     /// it.
     fn lsp_root(
-        id: <Self::Buffer<'_> as Buffer>::Id,
+        id: Self::BufferId,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> Result<Option<AbsPathBuf>, Self::LspRootError>;
 

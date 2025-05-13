@@ -179,13 +179,12 @@ impl SelectionInner {
 impl backend::Buffer for Buffer<'_> {
     type Backend = mock::Mock;
     type EventHandle = mock::EventHandle;
-    type Id = BufferId;
 
     fn byte_len(&self) -> ByteOffset {
         self.contents.len().into()
     }
 
-    fn id(&self) -> Self::Id {
+    fn id(&self) -> BufferId {
         self.id
     }
 

@@ -303,7 +303,6 @@ impl Point {
 impl Buffer for NeovimBuffer<'_> {
     type Backend = Neovim;
     type EventHandle = EventHandle;
-    type Id = BufferId;
 
     #[inline]
     fn byte_len(&self) -> ByteOffset {
@@ -311,7 +310,7 @@ impl Buffer for NeovimBuffer<'_> {
     }
 
     #[inline]
-    fn id(&self) -> Self::Id {
+    fn id(&self) -> BufferId {
         self.id
     }
 

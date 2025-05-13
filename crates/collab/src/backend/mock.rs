@@ -26,9 +26,7 @@ pub struct CollabMock<B: Backend, F = ()> {
     clipboard: Option<SessionId>,
     default_dir_for_remote_projects: Option<AbsPathBuf>,
     home_dir: Option<AbsPathBuf>,
-    lsp_root_with: Option<
-        Box<dyn FnMut(<B::Buffer<'_> as Buffer>::Id) -> Option<AbsPathBuf>>,
-    >,
+    lsp_root_with: Option<Box<dyn FnMut(B::BufferId) -> Option<AbsPathBuf>>>,
     project_filter_with: Box<dyn FnMut(&<B::Fs as fs::Fs>::Directory) -> F>,
     select_session_with: Option<
         Box<
@@ -107,8 +105,7 @@ where
 
     pub fn lsp_root_with(
         mut self,
-        fun: impl FnMut(<B::Buffer<'_> as Buffer>::Id) -> Option<AbsPathBuf>
-        + 'static,
+        fun: impl FnMut(B::BufferId) -> Option<AbsPathBuf> + 'static,
     ) -> Self {
         self.lsp_root_with = Some(Box::new(fun) as _);
         self
@@ -279,7 +276,7 @@ where
     }
 
     fn lsp_root(
-        buffer_id: <Self::Buffer<'_> as Buffer>::Id,
+        buffer_id: Self::BufferId,
         ctx: &mut AsyncCtx<'_, Self>,
     ) -> Result<Option<AbsPathBuf>, Self::LspRootError> {
         Ok(ctx.with_backend(|this| this.lsp_root_with.as_mut()?(buffer_id)))
@@ -329,7 +326,7 @@ where
     type SerializeError = <B as Backend>::SerializeError;
     type DeserializeError = <B as Backend>::DeserializeError;
 
-    fn buffer(&mut self, id: BufferId<Self>) -> Option<Self::Buffer<'_>> {
+    fn buffer(&mut self, id: Self::BufferId) -> Option<Self::Buffer<'_>> {
         self.inner.buffer(id)
     }
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {

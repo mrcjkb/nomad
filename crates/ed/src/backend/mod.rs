@@ -28,6 +28,3 @@ pub use value::{Key, MapAccess, Value};
 
 /// TODO: docs.
 pub type ApiValue<B> = <<B as Backend>::Api as Api>::Value;
-
-/// TODO: docs.
-pub type BufferId<B> = <B as Backend>::BufferId;

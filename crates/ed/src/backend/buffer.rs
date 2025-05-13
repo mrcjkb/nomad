@@ -1,10 +1,10 @@
 use core::ops::Range;
 use std::borrow::Cow;
 
+use abs_path::AbsPath;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 
-use abs_path::AbsPath;
 use crate::ByteOffset;
 use crate::backend::{AgentId, Backend};
 
@@ -14,16 +14,13 @@ pub trait Buffer {
     type EventHandle;
 
     /// TODO: docs.
-    type Id: Clone;
-
-    /// TODO: docs.
-    type Backend: Backend<BufferId = Self::Id>;
+    type Backend: Backend;
 
     /// TODO: docs.
     fn byte_len(&self) -> ByteOffset;
 
     /// TODO: docs.
-    fn id(&self) -> Self::Id;
+    fn id(&self) -> <Self::Backend as Backend>::BufferId;
 
     /// TODO: docs.
     fn edit<R>(&mut self, replacements: R, agent_id: AgentId)

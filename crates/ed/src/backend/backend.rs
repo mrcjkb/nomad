@@ -32,7 +32,7 @@ pub trait Backend: 'static + Sized {
     type Api: Api;
 
     /// TODO: docs.
-    type Buffer<'a>: Buffer<Id = Self::BufferId, EventHandle = Self::EventHandle>;
+    type Buffer<'a>: Buffer<EventHandle = Self::EventHandle>;
 
     /// TODO: docs.
     type BufferId: Clone + Debug + Eq + Hash;

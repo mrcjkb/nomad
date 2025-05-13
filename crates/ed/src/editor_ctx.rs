@@ -7,7 +7,6 @@ use crate::backend::{
     AgentId,
     Backend,
     BackgroundExecutor,
-    BufferId,
     LocalExecutor,
     TaskBackground,
     TaskLocal,
@@ -34,7 +33,7 @@ impl<'a, B: Backend> EditorCtx<'a, B> {
 
     /// TODO: docs.
     #[inline]
-    pub fn buffer(&mut self, buffer_id: BufferId<B>) -> Option<B::Buffer<'_>> {
+    pub fn buffer(&mut self, buffer_id: B::BufferId) -> Option<B::Buffer<'_>> {
         self.backend_mut().buffer(buffer_id)
     }
 
