@@ -21,12 +21,7 @@ pub(crate) struct EventStream<
     agent_id: AgentId,
     buffer_streams: BufferStreams<B>,
     cursor_streams: CursorStreams<B>,
-
-    selection_handles: FxHashMap<B::SelectionId, [B::EventHandle; 2]>,
-    selection_rx: flume::r#async::RecvStream<'static, SelectionEvent<B>>,
-    selection_tx: flume::Sender<SelectionEvent<B>>,
-    #[allow(dead_code)]
-    new_selections_handle: B::EventHandle,
+    selection_streams: SelectionStreams<B>,
 
     /// TODO: docs.
     fs_streams: FsStreams<B::Fs>,
@@ -74,43 +69,59 @@ struct FsStreams<Fs: fs::Fs> {
     files: FxIndexMap<Fs::NodeId, <Fs::File as File>::EventStream>,
 }
 
-struct BufferStreams<B: CollabBackend> {
+struct BufferStreams<Ed: CollabBackend> {
     /// The receiver of buffer events.
-    event_rx: flume::r#async::RecvStream<'static, event::BufferEvent<B>>,
+    event_rx: flume::r#async::RecvStream<'static, event::BufferEvent<Ed>>,
 
     /// The sender of buffer events.
-    event_tx: flume::Sender<event::BufferEvent<B>>,
+    event_tx: flume::Sender<event::BufferEvent<Ed>>,
 
     /// Map from a buffer's ID to the event handles corresponding to the 3
     /// types of buffer events we're interested in: edits, removals, and saves.
-    handles: FxHashMap<B::BufferId, [B::EventHandle; 3]>,
+    handles: FxHashMap<Ed::BufferId, [Ed::EventHandle; 3]>,
 
     /// The event handle corresponding to buffer creations.
     #[allow(dead_code)]
-    new_buffers_handle: B::EventHandle,
+    new_buffers_handle: Ed::EventHandle,
 
     /// A set of buffer IDs for buffers that have just been saved.
     ///
     /// When we receive a [`fs::FileEvent::Modification`] event, we first check
     /// if its node ID maps to a buffer ID in this set. If it does, we know the
     /// event was caused by a text buffer being saved, and we can ignore it.
-    saved_buffers: Shared<FxHashSet<B::BufferId>>,
+    saved_buffers: Shared<FxHashSet<Ed::BufferId>>,
 }
 
-struct CursorStreams<B: CollabBackend> {
+struct CursorStreams<Ed: CollabBackend> {
     /// The receiver of cursor events.
-    event_rx: flume::r#async::RecvStream<'static, event::CursorEvent<B>>,
+    event_rx: flume::r#async::RecvStream<'static, event::CursorEvent<Ed>>,
 
     /// The sender of cursor events.
-    event_tx: flume::Sender<event::CursorEvent<B>>,
+    event_tx: flume::Sender<event::CursorEvent<Ed>>,
 
     /// Map from a cursor's ID to the event handles corresponding to the 2
     /// types of cursor events we're interested in: moves and removals.
-    handles: FxHashMap<B::CursorId, [B::EventHandle; 2]>,
+    handles: FxHashMap<Ed::CursorId, [Ed::EventHandle; 2]>,
 
     /// The event handle corresponding to cursor creations.
     #[allow(dead_code)]
-    new_cursors_handle: B::EventHandle,
+    new_cursors_handle: Ed::EventHandle,
+}
+
+struct SelectionStreams<Ed: CollabBackend> {
+    /// The receiver of selection events.
+    event_rx: flume::r#async::RecvStream<'static, event::SelectionEvent<Ed>>,
+
+    /// The sender of selection events.
+    event_tx: flume::Sender<event::SelectionEvent<Ed>>,
+
+    /// Map from a selection's ID to the event handles corresponding to the 2
+    /// types of selection events we're interested in: moves and removals.
+    handles: FxHashMap<Ed::SelectionId, [Ed::EventHandle; 2]>,
+
+    /// The event handle corresponding to selection creations.
+    #[allow(dead_code)]
+    new_selections_handle: Ed::EventHandle,
 }
 
 impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
@@ -151,7 +162,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                         None => continue,
                     }
                 },
-                selection_event = self.selection_rx.select_next_some() => {
+                selection_event = self.selection_streams.select_next_some() => {
                     match self.handle_selection_event(selection_event, ctx) {
                         Some(event) => Event::Selection(event),
                         None => continue,
@@ -168,6 +179,51 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     ) {
         self.buffer_streams.insert(buffer, self.agent_id);
         self.buf_id_of_file_id.insert(file_id, buffer.id());
+    }
+
+    async fn handle_buffer_event(
+        &mut self,
+        event: event::BufferEvent<B>,
+        ctx: &AsyncCtx<'_, B>,
+    ) -> Result<Option<event::BufferEvent<B>>, EventRxError<B, F>> {
+        match &event {
+            event::BufferEvent::Created(buffer_id, _) => {
+                if !self.handle_new_buffer(buffer_id.clone(), ctx).await? {
+                    return Ok(None);
+                }
+            },
+            event::BufferEvent::Removed(buffer_id) => {
+                self.buffer_streams.remove(buffer_id);
+            },
+            _ => {},
+        }
+
+        Ok(Some(event))
+    }
+
+    fn handle_cursor_event(
+        &mut self,
+        event: event::CursorEvent<B>,
+        ctx: &AsyncCtx<'_, B>,
+    ) -> Option<event::CursorEvent<B>> {
+        match &event.kind {
+            event::CursorEventKind::Created(_) => {
+                if self.buffer_streams.is_watched(&event.buffer_id) {
+                    ctx.with_ctx(|ctx| {
+                        let cursor = ctx.cursor(event.cursor_id.clone())?;
+                        self.watch_cursor(&cursor);
+                        Some(event)
+                    })
+                } else {
+                    None
+                }
+            },
+            event::CursorEventKind::Moved(_) => Some(event),
+            event::CursorEventKind::Removed => {
+                self.cursor_streams.remove(&event.cursor_id);
+                Some(event)
+            },
+        }
     }
 
     #[allow(clippy::too_many_lines)]
@@ -275,51 +331,6 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
         Some(event)
     }
 
-    async fn handle_buffer_event(
-        &mut self,
-        event: event::BufferEvent<B>,
-        ctx: &AsyncCtx<'_, B>,
-    ) -> Result<Option<event::BufferEvent<B>>, EventRxError<B, F>> {
-        match &event {
-            event::BufferEvent::Created(buffer_id, _) => {
-                if !self.handle_new_buffer(buffer_id.clone(), ctx).await? {
-                    return Ok(None);
-                }
-            },
-            event::BufferEvent::Removed(buffer_id) => {
-                self.buffer_streams.remove(buffer_id);
-            },
-            _ => {},
-        }
-
-        Ok(Some(event))
-    }
-
-    fn handle_cursor_event(
-        &mut self,
-        event: event::CursorEvent<B>,
-        ctx: &AsyncCtx<'_, B>,
-    ) -> Option<event::CursorEvent<B>> {
-        match &event.kind {
-            event::CursorEventKind::Created(_) => {
-                if self.buffer_streams.is_watched(&event.buffer_id) {
-                    ctx.with_ctx(|ctx| {
-                        let cursor = ctx.cursor(event.cursor_id.clone())?;
-                        self.watch_cursor(&cursor);
-                        Some(event)
-                    })
-                } else {
-                    None
-                }
-            },
-            event::CursorEventKind::Moved(_) => Some(event),
-            event::CursorEventKind::Removed => {
-                self.cursor_streams.remove(&event.cursor_id);
-                Some(event)
-            },
-        }
-    }
-
     async fn handle_new_buffer(
         &mut self,
         buffer_id: B::BufferId,
@@ -380,7 +391,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
             },
             SelectionEventKind::Moved(_) => Some(event),
             SelectionEventKind::Removed => {
-                self.selection_handles.remove(&event.selection_id);
+                self.selection_streams.remove(&event.selection_id);
                 Some(event)
             },
         }
@@ -412,29 +423,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     }
 
     fn watch_selection(&mut self, selection: &B::Selection<'_>) {
-        let tx = self.selection_tx.clone();
-        let moved_handle = selection.on_moved(move |selection, _moved_by| {
-            let event = SelectionEvent {
-                buffer_id: selection.buffer_id(),
-                selection_id: selection.id(),
-                kind: SelectionEventKind::Moved(selection.byte_range()),
-            };
-            let _ = tx.send(event);
-        });
-
-        let tx = self.selection_tx.clone();
-        let removed_handle =
-            selection.on_removed(move |selection, _removed_by| {
-                let event = SelectionEvent {
-                    buffer_id: selection.buffer_id(),
-                    selection_id: selection.id(),
-                    kind: SelectionEventKind::Removed,
-                };
-                let _ = tx.send(event);
-            });
-
-        self.selection_handles
-            .insert(selection.id(), [moved_handle, removed_handle]);
+        self.selection_streams.insert(selection);
     }
 
     fn watch(&mut self, node: &FsNode<B::Fs>, ctx: &AsyncCtx<'_, B>) {
@@ -605,6 +594,78 @@ impl<Ed: CollabBackend> CursorStreams<Ed> {
     }
 }
 
+impl<Ed: CollabBackend> SelectionStreams<Ed> {
+    /// Starts receiving [`event::SelectionEvent`]s on the given selection.
+    fn insert(&mut self, selection: &Ed::Selection<'_>) {
+        let moved_handle = selection.on_moved({
+            let event_tx = self.event_tx.clone();
+            move |selection, _moved_by| {
+                let _ = event_tx.send(event::SelectionEvent {
+                    buffer_id: selection.buffer_id(),
+                    selection_id: selection.id(),
+                    kind: event::SelectionEventKind::Moved(
+                        selection.byte_range(),
+                    ),
+                });
+            }
+        });
+
+        let removed_handle = selection.on_removed({
+            let event_tx = self.event_tx.clone();
+            move |selection, _removed_by| {
+                let event = event::SelectionEvent {
+                    buffer_id: selection.buffer_id(),
+                    selection_id: selection.id(),
+                    kind: event::SelectionEventKind::Removed,
+                };
+                let _ = event_tx.send(event);
+            }
+        });
+
+        let selection_handles = [moved_handle, removed_handle];
+
+        self.handles.insert(selection.id(), selection_handles);
+    }
+
+    fn new(ctx: &mut AsyncCtx<'_, Ed>) -> Self {
+        let (event_tx, event_rx) = flume::unbounded();
+
+        let new_selections_handle = {
+            let event_tx = event_tx.clone();
+            ctx.with_ctx(|ctx| {
+                ctx.on_selection_created(move |selection, _created_by| {
+                    let _ = event_tx.send(event::SelectionEvent {
+                        buffer_id: selection.buffer_id(),
+                        selection_id: selection.id(),
+                        kind: event::SelectionEventKind::Created(
+                            selection.byte_range(),
+                        ),
+                    });
+                })
+            })
+        };
+
+        Self {
+            event_rx: event_rx.into_stream(),
+            event_tx,
+            handles: Default::default(),
+            new_selections_handle,
+        }
+    }
+
+    /// Removes the event handle corresponding to the selection with the given
+    /// ID.
+    fn remove(&mut self, selection_id: &Ed::SelectionId) {
+        self.handles.remove(selection_id);
+    }
+
+    fn select_next_some(
+        &mut self,
+    ) -> impl FusedFuture<Output = event::SelectionEvent<Ed>> {
+        StreamExt::select_next_some(&mut self.event_rx)
+    }
+}
+
 impl<Fs: fs::Fs, State> EventStreamBuilder<Fs, State> {
     pub(crate) fn push_directory(&mut self, dir: &Fs::Directory) {
         self.fs_streams.watch_directory(dir);
@@ -647,32 +708,11 @@ impl<Fs: fs::Fs, F: Filter<Fs>> EventStreamBuilder<Fs, Done<F>> {
     where
         B: CollabBackend<Fs = Fs>,
     {
-        let (selection_tx, selection_rx) = flume::unbounded();
-
-        let also_selection_tx = selection_tx.clone();
-
-        let new_selections_handle = ctx.with_ctx(|ctx| {
-            ctx.on_selection_created(move |selection, _created_by| {
-                let event = SelectionEvent {
-                    buffer_id: selection.buffer_id(),
-                    selection_id: selection.id(),
-                    kind: SelectionEventKind::Created(selection.byte_range()),
-                };
-                let _ = also_selection_tx.send(event);
-            })
-        });
-
         EventStream {
             agent_id: ctx.new_agent_id(),
-
             buffer_streams: BufferStreams::new(ctx),
             cursor_streams: CursorStreams::new(ctx),
-
-            selection_handles: Default::default(),
-            selection_rx: selection_rx.into_stream(),
-            selection_tx,
-            new_selections_handle,
-
+            selection_streams: SelectionStreams::new(ctx),
             fs_streams: self.fs_streams,
             project_filter: self.state.filter,
             buf_id_of_file_id: Default::default(),
