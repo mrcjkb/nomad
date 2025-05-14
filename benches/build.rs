@@ -65,7 +65,7 @@ fn checkout_neovim_commit(out_dir: &AbsPath) -> anyhow::Result<String> {
         r#"
 #[cfg(feature = "neovim-repo")]
 pub(crate) const NEOVIM_REPO_PATH: &::abs_path::AbsPath =
-    unsafe {{ &::abs_path::AbsPath::from_str_unchecked("{repo_path}") }};
+    unsafe {{ ::abs_path::AbsPath::from_str_unchecked("{repo_path}") }};
 "#
     ))
 }
