@@ -334,15 +334,20 @@ async fn read_node<Fs: fs::Fs>(
         .expect("node is under the root dir");
 
     let push_res = match &node {
-        FsNode::Directory(dir) => project_builder
-            .with_mut(|builder| builder.push_directory(path_in_project))
-            .map(|dir_id| {
-                node_id_maps.with_mut(|maps| {
-                    maps.node2dir.insert(dir.id(), dir_id);
+        FsNode::Directory(dir) => {
+            stream_builder.with_mut(|builder| builder.push_directory(dir));
+            project_builder
+                .with_mut(|builder| builder.push_directory(path_in_project))
+                .map(|dir_id| {
+                    node_id_maps.with_mut(|maps| {
+                        maps.node2dir.insert(dir.id(), dir_id);
+                    })
                 })
-            }),
+        },
 
         FsNode::File(file) => {
+            stream_builder.with_mut(|builder| builder.push_file(file));
+
             let contents =
                 file.read().await.map_err(ReadNodeError::ReadFile)?;
 
@@ -383,7 +388,6 @@ async fn read_node<Fs: fs::Fs>(
     if push_res.is_err() {
         Err(ReadNodeError::DuplicateNodeAtPath(node_path))
     } else {
-        stream_builder.with_mut(|builder| builder.push_node(&node));
         Ok(())
     }
 }
