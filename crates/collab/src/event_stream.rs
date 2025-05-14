@@ -8,15 +8,7 @@ use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
 use walkdir::Filter;
 
 use crate::backend::CollabBackend;
-use crate::event::{
-    self,
-    BufferEvent,
-    CursorEvent,
-    CursorEventKind,
-    Event,
-    SelectionEvent,
-    SelectionEventKind,
-};
+use crate::event::{self, Event, SelectionEvent, SelectionEventKind};
 use crate::seq_ext::StreamableSeq;
 
 type FxIndexMap<K, V> = indexmap::IndexMap<K, V, FxBuildHasher>;
@@ -84,10 +76,10 @@ struct FsStreams<Fs: fs::Fs> {
 
 struct BufferStreams<B: CollabBackend> {
     /// The receiver of buffer events.
-    event_rx: flume::r#async::RecvStream<'static, BufferEvent<B>>,
+    event_rx: flume::r#async::RecvStream<'static, event::BufferEvent<B>>,
 
     /// The sender of buffer events.
-    event_tx: flume::Sender<BufferEvent<B>>,
+    event_tx: flume::Sender<event::BufferEvent<B>>,
 
     /// Map from a buffer's ID to the event handles corresponding to the 3
     /// types of buffer events we're interested in: edits, removals, and saves.
@@ -136,18 +128,10 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
 
             return Ok(select_biased! {
                 buffer_event = self.buffer_streams.select_next_some() => {
-                    match &buffer_event {
-                        BufferEvent::Created(buffer_id, _) => {
-                            if !self.handle_new_buffer(buffer_id.clone(), ctx).await? {
-                                continue;
-                            }
-                        },
-                        BufferEvent::Removed(buffer_id) => {
-                            self.buffer_streams.remove(buffer_id);
-                        },
-                        _ => {},
+                    match self.handle_buffer_event(buffer_event, ctx).await? {
+                        Some(event) => Event::Buffer(event),
+                        None => continue,
                     }
-                    Event::Buffer(buffer_event)
                 },
                 cursor_event = self.cursor_streams.select_next_some() => {
                     match self.handle_cursor_event(cursor_event, ctx) {
@@ -291,13 +275,33 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
         Some(event)
     }
 
+    async fn handle_buffer_event(
+        &mut self,
+        event: event::BufferEvent<B>,
+        ctx: &AsyncCtx<'_, B>,
+    ) -> Result<Option<event::BufferEvent<B>>, EventRxError<B, F>> {
+        match &event {
+            event::BufferEvent::Created(buffer_id, _) => {
+                if !self.handle_new_buffer(buffer_id.clone(), ctx).await? {
+                    return Ok(None);
+                }
+            },
+            event::BufferEvent::Removed(buffer_id) => {
+                self.buffer_streams.remove(buffer_id);
+            },
+            _ => {},
+        }
+
+        Ok(Some(event))
+    }
+
     fn handle_cursor_event(
         &mut self,
-        event: CursorEvent<B>,
+        event: event::CursorEvent<B>,
         ctx: &AsyncCtx<'_, B>,
-    ) -> Option<CursorEvent<B>> {
+    ) -> Option<event::CursorEvent<B>> {
         match &event.kind {
-            CursorEventKind::Created(_) => {
+            event::CursorEventKind::Created(_) => {
                 if self.buffer_streams.is_watched(&event.buffer_id) {
                     ctx.with_ctx(|ctx| {
                         let cursor = ctx.cursor(event.cursor_id.clone())?;
@@ -308,8 +312,8 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                     None
                 }
             },
-            CursorEventKind::Moved(_) => Some(event),
-            CursorEventKind::Removed => {
+            event::CursorEventKind::Moved(_) => Some(event),
+            event::CursorEventKind::Removed => {
                 self.cursor_streams.remove(&event.cursor_id);
                 Some(event)
             },
@@ -447,7 +451,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
 }
 
 impl<B: CollabBackend> BufferStreams<B> {
-    /// Starts receiving [`BufferEvent`]s on the given buffer.
+    /// Starts receiving [`event::BufferEvent`]s on the given buffer.
     fn insert(&mut self, buffer: &B::Buffer<'_>, agent_id: AgentId) {
         let edits_handle = buffer.on_edited({
             let event_tx = self.event_tx.clone();
@@ -455,7 +459,7 @@ impl<B: CollabBackend> BufferStreams<B> {
                 if edit.made_by != agent_id {
                     return;
                 }
-                let _ = event_tx.send(BufferEvent::Edited(
+                let _ = event_tx.send(event::BufferEvent::Edited(
                     buf.id(),
                     edit.replacements.clone(),
                 ));
@@ -465,7 +469,7 @@ impl<B: CollabBackend> BufferStreams<B> {
         let removed_handle = buffer.on_removed({
             let event_tx = self.event_tx.clone();
             move |buf, _removed_by| {
-                let _ = event_tx.send(BufferEvent::Removed(buf.id()));
+                let _ = event_tx.send(event::BufferEvent::Removed(buf.id()));
             }
         });
 
@@ -475,7 +479,7 @@ impl<B: CollabBackend> BufferStreams<B> {
             move |buf, saved_by| {
                 saved_buffers.with_mut(|buffers| buffers.insert(buf.id()));
                 if saved_by != agent_id {
-                    let _ = event_tx.send(BufferEvent::Saved(buf.id()));
+                    let _ = event_tx.send(event::BufferEvent::Saved(buf.id()));
                 }
             }
         });
@@ -503,7 +507,7 @@ impl<B: CollabBackend> BufferStreams<B> {
             let event_tx = event_tx.clone();
             ctx.with_ctx(|ctx| {
                 ctx.on_buffer_created(move |buf, _created_by| {
-                    let _ = event_tx.send(BufferEvent::Created(
+                    let _ = event_tx.send(event::BufferEvent::Created(
                         buf.id(),
                         buf.path().into_owned(),
                     ));
@@ -527,21 +531,21 @@ impl<B: CollabBackend> BufferStreams<B> {
 
     fn select_next_some(
         &mut self,
-    ) -> impl FusedFuture<Output = BufferEvent<B>> {
+    ) -> impl FusedFuture<Output = event::BufferEvent<B>> {
         StreamExt::select_next_some(&mut self.event_rx)
     }
 }
 
 impl<Ed: CollabBackend> CursorStreams<Ed> {
-    /// Starts receiving [`CursorEvent`]s on the given cursor.
+    /// Starts receiving [`event::CursorEvent`]s on the given cursor.
     fn insert(&mut self, cursor: &Ed::Cursor<'_>) {
         let moved_handle = cursor.on_moved({
             let event_tx = self.event_tx.clone();
             move |cursor, _moved_by| {
-                let _ = event_tx.send(CursorEvent {
+                let _ = event_tx.send(event::CursorEvent {
                     buffer_id: cursor.buffer_id(),
                     cursor_id: cursor.id(),
-                    kind: CursorEventKind::Moved(cursor.byte_offset()),
+                    kind: event::CursorEventKind::Moved(cursor.byte_offset()),
                 });
             }
         });
@@ -549,10 +553,10 @@ impl<Ed: CollabBackend> CursorStreams<Ed> {
         let removed_handle = cursor.on_removed({
             let event_tx = self.event_tx.clone();
             move |cursor, _removed_by| {
-                let event = CursorEvent {
+                let event = event::CursorEvent {
                     buffer_id: cursor.buffer_id(),
                     cursor_id: cursor.id(),
-                    kind: CursorEventKind::Removed,
+                    kind: event::CursorEventKind::Removed,
                 };
                 let _ = event_tx.send(event);
             }
@@ -570,10 +574,12 @@ impl<Ed: CollabBackend> CursorStreams<Ed> {
             let event_tx = event_tx.clone();
             ctx.with_ctx(|ctx| {
                 ctx.on_cursor_created(move |cursor, _created_by| {
-                    let _ = event_tx.send(CursorEvent {
+                    let _ = event_tx.send(event::CursorEvent {
                         buffer_id: cursor.buffer_id(),
                         cursor_id: cursor.id(),
-                        kind: CursorEventKind::Created(cursor.byte_offset()),
+                        kind: event::CursorEventKind::Created(
+                            cursor.byte_offset(),
+                        ),
                     });
                 })
             })
@@ -594,7 +600,7 @@ impl<Ed: CollabBackend> CursorStreams<Ed> {
 
     fn select_next_some(
         &mut self,
-    ) -> impl FusedFuture<Output = CursorEvent<Ed>> {
+    ) -> impl FusedFuture<Output = event::CursorEvent<Ed>> {
         StreamExt::select_next_some(&mut self.event_rx)
     }
 }
