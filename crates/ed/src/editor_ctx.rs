@@ -51,6 +51,12 @@ impl<'a, B: Backend> EditorCtx<'a, B> {
 
     /// TODO: docs.
     #[inline]
+    pub fn cursor(&mut self, cursor_id: B::CursorId) -> Option<B::Cursor<'_>> {
+        self.backend_mut().cursor(cursor_id)
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn emit_error(&mut self, message: notify::Message) -> NotificationId {
         self.emit_message(notify::Level::Error, message)
     }

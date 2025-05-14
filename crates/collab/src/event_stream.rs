@@ -105,7 +105,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                     Event::Buffer(buffer_event)
                 },
                 cursor_event = self.cursor_rx.select_next_some() => {
-                    match self.handle_cursor_event(cursor_event) {
+                    match self.handle_cursor_event(cursor_event, ctx) {
                         Some(cursor_event) => Event::Cursor(cursor_event),
                         None => continue,
                     }
@@ -162,18 +162,6 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
         );
 
         self.node_to_buf_ids.insert(file_id, buffer.id());
-    }
-
-    fn watch(&mut self, node: &FsNode<B::Fs>, ctx: &AsyncCtx<'_, B>) {
-        self.fs_streams.watch_node(node);
-
-        if let FsNode::File(file) = node {
-            ctx.with_ctx(|ctx| {
-                if let Some(buffer) = ctx.buffer_at_path(file.path()) {
-                    self.watch_buffer(file.id(), &buffer);
-                }
-            });
-        }
     }
 
     #[allow(clippy::too_many_lines)]
@@ -269,15 +257,21 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     fn handle_cursor_event(
         &mut self,
         event: CursorEvent<B>,
+        ctx: &AsyncCtx<'_, B>,
     ) -> Option<CursorEvent<B>> {
         match &event.kind {
-            CursorEventKind::Created(_) => self
-                .buffer_handles
-                .contains_key(&event.buffer_id)
-                .then_some(event),
-
+            CursorEventKind::Created(_) => {
+                if !self.buffer_handles.contains_key(&event.buffer_id) {
+                    ctx.with_ctx(|ctx| {
+                        let cursor = ctx.cursor(event.cursor_id.clone())?;
+                        self.watch_cursor(&cursor);
+                        Some(event)
+                    })
+                } else {
+                    None
+                }
+            },
             CursorEventKind::Moved(_) => Some(event),
-
             CursorEventKind::Removed => {
                 self.cursor_handles.remove(&event.cursor_id);
                 Some(event)
@@ -344,6 +338,45 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                 .should_filter(parent_path, &meta)
                 .await
                 .map_err(EventRxError::FsFilter)?)
+    }
+
+    fn watch_cursor(&mut self, cursor: &B::Cursor<'_>) {
+        let tx = self.cursor_tx.clone();
+        let moved_handle = cursor.on_moved(move |cursor, _moved_by| {
+            let event = CursorEvent {
+                buffer_id: cursor.buffer_id(),
+                cursor_id: cursor.id(),
+                kind: CursorEventKind::Moved(cursor.byte_offset()),
+            };
+            let _ = tx.send(event);
+        });
+
+        let tx = self.cursor_tx.clone();
+        let removed_handle = cursor.on_removed(move |cursor, _removed_by| {
+            let event = CursorEvent {
+                buffer_id: cursor.buffer_id(),
+                cursor_id: cursor.id(),
+                kind: CursorEventKind::Removed,
+            };
+            let _ = tx.send(event);
+        });
+
+        self.cursor_handles.insert(
+            cursor.id(),
+            smallvec_inline![moved_handle, removed_handle],
+        );
+    }
+
+    fn watch(&mut self, node: &FsNode<B::Fs>, ctx: &AsyncCtx<'_, B>) {
+        self.fs_streams.watch_node(node);
+
+        if let FsNode::File(file) = node {
+            ctx.with_ctx(|ctx| {
+                if let Some(buffer) = ctx.buffer_at_path(file.path()) {
+                    self.watch_buffer(file.id(), &buffer);
+                }
+            });
+        }
     }
 }
 
