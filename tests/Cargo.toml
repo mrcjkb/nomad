@@ -6,6 +6,10 @@ authors.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[lib]
+# Needed to run Neovim tests.
+crate-type = ["cdylib"]
+
 [features]
 auth = ["dep:auth"]
 collab = ["dep:auth", "dep:collab", "dep:flume"]
@@ -36,6 +40,9 @@ neovim = { workspace = true, optional = true, features = ["test"] }
 futures-executor = { workspace = true, optional = true }
 tempdir = { workspace = true, optional = true }
 walkdir = { workspace = true, optional = true, features = ["gitignore"] }
+
+[build-dependencies]
+neovim = { workspace = true, features = ["test"] }
 
 [lints]
 workspace = true

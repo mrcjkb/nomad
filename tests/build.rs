@@ -1,7 +1,20 @@
 #![allow(missing_docs)]
 
 use core::str::FromStr;
+use std::env;
 use std::process::Command;
+
+fn main() {
+    setup_git();
+
+    if env::var("CARGO_FEATURE_NEOVIM").is_ok() {
+        setup_neovim();
+    }
+}
+
+fn setup_neovim() {
+    neovim::oxi::tests::build().expect("couldn't build neovim tests");
+}
 
 /// Enables the `git-in-PATH` feature iff git is in $PATH and its version is
 /// at least 2.32.
@@ -13,7 +26,7 @@ use std::process::Command;
 /// See [this][1] for more infos.
 ///
 /// [1]: https://github.com/git/git/blob/master/Documentation/RelNotes/2.32.0.adoc#updates-since-v231
-fn main() {
+fn setup_git() {
     let maybe_git_version = Command::new("git")
         .arg("--version")
         .output()
