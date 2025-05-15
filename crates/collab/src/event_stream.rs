@@ -1,6 +1,6 @@
 use abs_path::AbsPathBuf;
 use ed::backend::{AgentId, Buffer, Cursor, Selection};
-use ed::fs::{self, Directory, File, Fs, Metadata};
+use ed::fs::{self, Directory, File, Fs};
 use ed::{AsyncCtx, Shared};
 use futures_util::future::FusedFuture;
 use futures_util::select_biased;
@@ -14,32 +14,38 @@ use crate::seq_ext::StreamableSeq;
 
 type FxIndexMap<K, V> = indexmap::IndexMap<K, V, FxBuildHasher>;
 
+/// TODO: docs.
 pub(crate) struct EventStream<
     B: CollabBackend,
     F = <B as CollabBackend>::ProjectFilter,
 > {
     /// The [`AgentId`] of the `Session` that owns `Self`.
     agent_id: AgentId,
-    buffer_streams: BufferStreams<B>,
-    dir_streams: DirectoryStreams<B::Fs>,
-    file_streams: FileStreams<B::Fs>,
-    cursor_streams: CursorStreams<B>,
-    selection_streams: SelectionStreams<B>,
-
     /// Map from a file's node ID to the ID of the corresponding buffer.
     buf_id_of_file_id: FxHashMap<<B::Fs as Fs>::NodeId, B::BufferId>,
-
+    /// Streams for buffer events.
+    buffer_streams: BufferStreams<B>,
+    /// Streams for cursor events.
+    cursor_streams: CursorStreams<B>,
+    /// Streams for directory events.
+    dir_streams: DirectoryStreams<B::Fs>,
+    /// Streams for file events.
+    file_streams: FileStreams<B::Fs>,
     /// A filter used to check if [`fs::FsNode`]s created under the project root
     /// should be part of the project.
     project_filter: F,
-
     /// The ID of the project root.
     root_id: <B::Fs as Fs>::NodeId,
-
     /// The path to the project root.
     root_path: AbsPathBuf,
+    /// Streams for selection events.
+    selection_streams: SelectionStreams<B>,
 }
 
+/// A builder for [`EventStream`]s.
+///
+/// Unlike the [`EventStream`] it'll be built into, this type is *not* generic
+/// over any [`CollabBackend`], which allows it to be `Send`.
 pub(crate) struct EventStreamBuilder<Fs: fs::Fs, State = NeedsProjectFilter> {
     dir_streams: DirectoryStreams<Fs>,
     file_streams: FileStreams<Fs>,
@@ -48,16 +54,24 @@ pub(crate) struct EventStreamBuilder<Fs: fs::Fs, State = NeedsProjectFilter> {
     state: State,
 }
 
+/// An [`EventStreamBuilder`] typestate indicating that it won't be possible
+/// to call the [`build`](EventStreamBuilder::build) method until the user
+/// provides a [`walkdir::Filter`].
 pub(crate) struct NeedsProjectFilter;
 
+/// An [`EventStreamBuilder`] typestate indicating that it's ready to be built.
 pub(crate) struct Done<F> {
     filter: F,
 }
 
+/// The type of error that can occur when [`EventStream::next`] fails.
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
 #[display("{_0}")]
 pub(crate) enum EventRxError<B: CollabBackend, F: Filter<B::Fs>> {
-    FsFilter(F::Error),
+    /// The project filter returned an error.
+    Filter(F::Error),
+
+    /// We couldn't get the node at the given path.
     NodeAtPath(<B::Fs as Fs>::NodeAtPathError),
 }
 
@@ -178,11 +192,19 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
 
     pub(crate) fn watch_buffer(
         &mut self,
-        file_id: <B::Fs as fs::Fs>::NodeId,
         buffer: &B::Buffer<'_>,
+        file_id: <B::Fs as fs::Fs>::NodeId,
     ) {
         self.buffer_streams.insert(buffer, self.agent_id);
         self.buf_id_of_file_id.insert(file_id, buffer.id());
+    }
+
+    pub(crate) fn watch_cursor(&mut self, cursor: &B::Cursor<'_>) {
+        self.cursor_streams.insert(cursor);
+    }
+
+    pub(crate) fn watch_selection(&mut self, selection: &B::Selection<'_>) {
+        self.selection_streams.insert(selection);
     }
 
     async fn handle_buffer_event(
@@ -192,13 +214,50 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     ) -> Result<Option<event::BufferEvent<B>>, EventRxError<B, F>> {
         match &event {
             event::BufferEvent::Created(buffer_id, _) => {
-                if !self.handle_new_buffer(buffer_id.clone(), ctx).await? {
+                let Some(buffer_path) = ctx.with_ctx(|ctx| {
+                    let buf = ctx.buffer(buffer_id.clone())?;
+                    Some(buf.path().into_owned())
+                }) else {
+                    return Ok(None);
+                };
+
+                if !buffer_path.starts_with(&self.root_path) {
+                    return Ok(None);
+                }
+
+                let Some(node) = ctx
+                    .fs()
+                    .node_at_path(buffer_path)
+                    .await
+                    .map_err(EventRxError::NodeAtPath)?
+                else {
+                    return Ok(None);
+                };
+
+                if !self.should_watch_node(&node).await? {
+                    return Ok(None);
+                }
+
+                let fs::FsNode::File(file) = node else { return Ok(None) };
+
+                let is_watched = ctx.with_ctx(|ctx| {
+                    if let Some(buffer) = ctx.buffer(buffer_id.clone()) {
+                        self.watch_buffer(&buffer, file.id());
+                        true
+                    } else {
+                        false
+                    }
+                });
+
+                if !is_watched {
                     return Ok(None);
                 }
             },
+
             event::BufferEvent::Removed(buffer_id) => {
                 self.buffer_streams.remove(buffer_id);
             },
+
             _ => {},
         }
 
@@ -248,7 +307,7 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                     return Ok(None);
                 };
 
-                if self.should_watch(&node).await? {
+                if self.should_watch_node(&node).await? {
                     self.watch_node(&node, ctx);
                     Some(event)
                 } else {
@@ -328,46 +387,6 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
         Some(event)
     }
 
-    async fn handle_new_buffer(
-        &mut self,
-        buffer_id: B::BufferId,
-        ctx: &AsyncCtx<'_, B>,
-    ) -> Result<bool, EventRxError<B, F>> {
-        let Some(buffer_path) = ctx.with_ctx(|ctx| {
-            ctx.buffer(buffer_id.clone()).map(|buf| buf.path().into_owned())
-        }) else {
-            return Ok(false);
-        };
-
-        if !buffer_path.starts_with(&self.root_path) {
-            return Ok(false);
-        }
-
-        let Some(node) = ctx
-            .fs()
-            .node_at_path(buffer_path)
-            .await
-            .map_err(EventRxError::NodeAtPath)?
-        else {
-            return Ok(false);
-        };
-
-        if !self.should_watch(&node).await? {
-            return Ok(false);
-        }
-
-        let fs::FsNode::File(file) = node else { return Ok(false) };
-
-        Ok(ctx.with_ctx(|ctx| {
-            if let Some(buffer) = ctx.buffer(buffer_id) {
-                self.watch_buffer(file.id(), &buffer);
-                true
-            } else {
-                false
-            }
-        }))
-    }
-
     fn handle_selection_event(
         &mut self,
         event: event::SelectionEvent<B>,
@@ -399,24 +418,18 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
     /// # Panics
     ///
     /// Panics if the node is not in the root's subtree.
-    async fn should_watch(
+    async fn should_watch_node(
         &self,
         node: &fs::FsNode<B::Fs>,
     ) -> Result<bool, EventRxError<B, F>> {
         debug_assert!(node.path().starts_with(&self.root_path));
 
         let Some(parent_path) = node.path().parent() else { return Ok(false) };
-        let meta = node.meta();
-        Ok(!meta.node_kind().is_symlink()
-            && !self
-                .project_filter
-                .should_filter(parent_path, &meta)
-                .await
-                .map_err(EventRxError::FsFilter)?)
-    }
 
-    fn watch_cursor(&mut self, cursor: &B::Cursor<'_>) {
-        self.cursor_streams.insert(cursor);
+        self.project_filter
+            .should_filter(parent_path, &node.meta())
+            .await
+            .map_err(EventRxError::Filter)
     }
 
     fn watch_node(&mut self, node: &fs::FsNode<B::Fs>, ctx: &AsyncCtx<'_, B>) {
@@ -426,16 +439,12 @@ impl<B: CollabBackend, F: Filter<B::Fs>> EventStream<B, F> {
                 self.file_streams.insert(file);
                 ctx.with_ctx(|ctx| {
                     if let Some(buffer) = ctx.buffer_at_path(&*file.path()) {
-                        self.watch_buffer(file.id(), &buffer);
+                        self.watch_buffer(&buffer, file.id());
                     }
                 });
             },
             fs::FsNode::Symlink(_) => {},
         }
-    }
-
-    fn watch_selection(&mut self, selection: &B::Selection<'_>) {
-        self.selection_streams.insert(selection);
     }
 }
 

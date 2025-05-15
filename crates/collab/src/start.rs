@@ -295,7 +295,7 @@ async fn read_project<B: CollabBackend>(
         };
 
         if let Some(node_id) = node_id_maps.file2node.get(&file_id) {
-            event_stream.watch_buffer(node_id.clone(), &buffer);
+            event_stream.watch_buffer(&buffer, node_id.clone());
             id_maps.buffer2file.insert(buffer.id(), file_id);
             id_maps.file2buffer.insert(file_id, buffer.id());
         }
