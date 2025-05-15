@@ -5,7 +5,7 @@ use ed::backend::{AgentId, Buffer, Cursor};
 
 use crate::Neovim;
 use crate::buffer::{BufferId, NeovimBuffer, Point};
-use crate::events::EventHandle;
+use crate::events::{self, EventHandle, Events};
 use crate::oxi::api;
 
 /// TODO: docs.
@@ -55,10 +55,16 @@ impl Cursor for NeovimCursor<'_> {
     }
 
     #[inline]
-    fn on_removed<Fun>(&self, _fun: Fun) -> EventHandle
+    fn on_removed<Fun>(&self, mut fun: Fun) -> EventHandle
     where
         Fun: FnMut(&NeovimCursor<'_>, AgentId) + 'static,
     {
-        todo!()
+        Events::insert(
+            self.buffer.events().clone(),
+            events::BufLeave(self.buffer.id()),
+            move |(&buf, unfocused_by)| {
+                fun(&NeovimCursor::new(buf), unfocused_by)
+            },
+        )
     }
 }

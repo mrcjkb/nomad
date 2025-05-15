@@ -51,6 +51,7 @@ pub(crate) struct Events {
     on_buffer_focused: EventCallbacks<BufEnter>,
     on_buffer_removed: NoHashMap<BufferId, EventCallbacks<BufUnload>>,
     on_buffer_saved: NoHashMap<BufferId, EventCallbacks<BufWritePost>>,
+    on_buffer_unfocused: NoHashMap<BufferId, EventCallbacks<BufLeave>>,
 }
 
 #[derive(Default)]
@@ -77,6 +78,9 @@ pub(crate) enum EventCallbacks<T: Event> {
 pub(crate) struct BufEnter;
 
 #[derive(Clone, Copy)]
+pub(crate) struct BufLeave(pub(crate) BufferId);
+
+#[derive(Clone, Copy)]
 pub(crate) struct BufReadPost;
 
 #[derive(Clone, Copy)]
@@ -91,6 +95,7 @@ pub(crate) struct OnBytes(pub(crate) BufferId);
 #[derive(cauchy::From)]
 pub(crate) enum EventKind {
     BufEnter(#[from] BufEnter),
+    BufLeave(#[from] BufLeave),
     BufReadPost(#[from] BufReadPost),
     BufUnload(#[from] BufUnload),
     BufWritePost(#[from] BufWritePost),
@@ -99,18 +104,21 @@ pub(crate) enum EventKind {
 
 impl Events {
     pub(crate) fn new(augroup_name: &str) -> Self {
+        let augroup_id = api::create_augroup(
+            augroup_name,
+            &opts::CreateAugroupOpts::builder().clear(true).build(),
+        )
+        .expect("couldn't create augroup");
+
         Self {
-            augroup_id: api::create_augroup(
-                augroup_name,
-                &opts::CreateAugroupOpts::builder().clear(true).build(),
-            )
-            .expect("couldn't create augroup"),
+            augroup_id,
             agent_ids: Default::default(),
             on_buffer_created: Default::default(),
             on_buffer_edited: Default::default(),
             on_buffer_focused: Default::default(),
             on_buffer_removed: Default::default(),
             on_buffer_saved: Default::default(),
+            on_buffer_unfocused: Default::default(),
         }
     }
 
@@ -224,6 +232,62 @@ impl Event for BufEnter {
     #[inline]
     fn cleanup(&self, event_key: DefaultKey, events: &mut Events) {
         events.on_buffer_focused.remove(event_key);
+    }
+}
+
+impl Event for BufLeave {
+    type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
+    type RegisterOutput = AutocmdId;
+
+    #[inline]
+    fn get_or_insert_callbacks<'ev>(
+        &self,
+        events: &'ev mut Events,
+    ) -> &'ev mut EventCallbacks<Self> {
+        events.on_buffer_unfocused.entry(self.0).or_default()
+    }
+
+    #[inline]
+    fn register(&self, events: Shared<Events>) -> AutocmdId {
+        let opts = opts::CreateAutocmdOpts::builder()
+            .group(events.with(|events| events.augroup_id))
+            .callback(move |args: types::AutocmdCallbackArgs| {
+                events.with_mut(|inner| {
+                    let buffer =
+                        NeovimBuffer::new(BufferId::new(args.buffer), &events);
+
+                    let Some(callbacks) =
+                        inner.on_buffer_unfocused.get_mut(&buffer.id())
+                    else {
+                        return true;
+                    };
+
+                    for callback in callbacks.iter_mut() {
+                        callback((&buffer, AgentId::UNKNOWN));
+                    }
+
+                    false
+                })
+            })
+            .build();
+
+        api::create_autocmd(["BufLeave"], &opts)
+            .expect("couldn't create autocmd")
+    }
+
+    #[inline]
+    fn unregister(autocmd_id: Self::RegisterOutput) {
+        let _ = api::del_autocmd(autocmd_id);
+    }
+
+    #[inline]
+    fn cleanup(&self, event_key: DefaultKey, events: &mut Events) {
+        if let Some(callbacks) = events.on_buffer_unfocused.get_mut(&self.0) {
+            callbacks.remove(event_key);
+            if callbacks.is_empty() {
+                events.on_buffer_unfocused.remove(&self.0);
+            }
+        }
     }
 }
 
@@ -478,6 +542,7 @@ impl Drop for EventHandle {
         let key = self.event_key;
         self.events.with_mut(|events| match self.event_kind {
             EventKind::BufEnter(event) => event.cleanup(key, events),
+            EventKind::BufLeave(event) => event.cleanup(key, events),
             EventKind::BufReadPost(event) => event.cleanup(key, events),
             EventKind::BufUnload(event) => event.cleanup(key, events),
             EventKind::BufWritePost(event) => event.cleanup(key, events),

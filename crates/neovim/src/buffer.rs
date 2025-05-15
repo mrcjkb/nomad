@@ -54,6 +54,11 @@ impl<'a> NeovimBuffer<'a> {
         Self::new(BufferId::of_focused(), events)
     }
 
+    #[inline]
+    pub(crate) fn events(&self) -> &Shared<Events> {
+        self.events
+    }
+
     #[track_caller]
     #[inline]
     pub(crate) fn get_name(self) -> PathBuf {
