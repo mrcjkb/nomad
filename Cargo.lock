@@ -2890,6 +2890,7 @@ dependencies = [
  "futures-executor",
  "futures-lite",
  "mock",
+ "neovim",
  "tempdir 0.1.0-dev",
  "walkdir 0.1.0-dev",
 ]
