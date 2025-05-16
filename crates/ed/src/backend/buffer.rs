@@ -17,15 +17,27 @@ pub trait Buffer {
     fn byte_len(&self) -> ByteOffset;
 
     /// TODO: docs.
-    fn id(&self) -> <Self::Backend as Backend>::BufferId;
-
-    /// TODO: docs.
     fn edit<R>(&mut self, replacements: R, agent_id: AgentId)
     where
         R: IntoIterator<Item = Replacement>;
 
     /// TODO: docs.
+    fn id(&self) -> <Self::Backend as Backend>::BufferId;
+
+    /// TODO: docs.
     fn focus(&mut self);
+
+    /// TODO: docs.
+    fn for_each_cursor<Fun>(&mut self, fun: Fun)
+    where
+        Fun: FnMut(<Self::Backend as Backend>::Cursor<'_>);
+
+    /// TODO: docs.
+    fn num_cursors(&mut self) -> u32 {
+        let mut num_cursors = 0;
+        self.for_each_cursor(|_| num_cursors += 1);
+        num_cursors
+    }
 
     /// TODO: docs.
     fn on_edited<Fun>(

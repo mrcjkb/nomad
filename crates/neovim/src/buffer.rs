@@ -12,6 +12,7 @@ use ed::fs::AbsPath;
 use ed::{ByteOffset, Shared};
 
 use crate::Neovim;
+use crate::cursor::NeovimCursor;
 use crate::events::{self, EventHandle, Events};
 use crate::oxi::{BufHandle, api, mlua};
 
@@ -82,6 +83,31 @@ impl<'a> NeovimBuffer<'a> {
     pub(crate) fn new(id: BufferId, events: &'a Shared<Events>) -> Self {
         debug_assert!(id.is_valid());
         Self { id, events }
+    }
+
+    /// Converts the given [`ByteOffset`] to the corresponding [`Point`] in the
+    /// buffer.
+    #[track_caller]
+    #[inline]
+    pub(crate) fn point_of_byte_offset(
+        self,
+        byte_offset: ByteOffset,
+    ) -> Point {
+        let line_idx = self
+            .inner()
+            .call(move |_| {
+                api::call_function::<_, usize>(
+                    "byte2line",
+                    (byte_offset.into_u64() as u32,),
+                )
+                .expect("args are valid")
+            })
+            .expect("todo");
+
+        let line_byte_offset =
+            self.inner().get_offset(line_idx).expect("todo");
+
+        Point { line_idx, byte_offset: byte_offset - line_byte_offset }
     }
 
     /// Replaces the text in the given point range with the new text.
@@ -222,28 +248,6 @@ impl<'a> NeovimBuffer<'a> {
         text
     }
 
-    /// Converts the given [`ByteOffset`] to the corresponding [`Point`] in the
-    /// buffer.
-    #[track_caller]
-    #[inline]
-    fn point_of_byte_offset(self, byte_offset: ByteOffset) -> Point {
-        let line_idx = self
-            .inner()
-            .call(move |_| {
-                api::call_function::<_, usize>(
-                    "byte2line",
-                    (byte_offset.into_u64() as u32,),
-                )
-                .expect("args are valid")
-            })
-            .expect("todo");
-
-        let line_byte_offset =
-            self.inner().get_offset(line_idx).expect("todo");
-
-        Point { line_idx, byte_offset: byte_offset - line_byte_offset }
-    }
-
     /// Returns the [`Point`] at the end of the buffer.
     #[track_caller]
     #[inline]
@@ -314,11 +318,6 @@ impl Buffer for NeovimBuffer<'_> {
     }
 
     #[inline]
-    fn id(&self) -> BufferId {
-        self.id
-    }
-
-    #[inline]
     fn edit<R>(&mut self, replacements: R, agent_id: AgentId)
     where
         R: IntoIterator<Item = Replacement>,
@@ -341,10 +340,25 @@ impl Buffer for NeovimBuffer<'_> {
     }
 
     #[inline]
+    fn id(&self) -> BufferId {
+        self.id
+    }
+
+    #[inline]
     fn focus(&mut self) {
         api::Window::current()
             .set_buf(&self.inner())
             .expect("buffer is valid");
+    }
+
+    #[inline]
+    fn for_each_cursor<Fun>(&mut self, mut fun: Fun)
+    where
+        Fun: FnMut(NeovimCursor<'_>),
+    {
+        if self.is_focused() {
+            fun(NeovimCursor::new(*self));
+        }
     }
 
     #[inline]

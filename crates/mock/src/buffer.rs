@@ -80,6 +80,14 @@ impl<'a> Buffer<'a> {
             .contains_key(selection_id.id_in_buffer)
             .then_some(Selection { buffer: self, selection_id })
     }
+
+    fn reborrow(&mut self) -> Buffer<'_> {
+        Buffer {
+            inner: self.inner,
+            callbacks: self.callbacks,
+            current_buffer: self.current_buffer,
+        }
+    }
 }
 
 impl BufferId {
@@ -221,8 +229,28 @@ impl backend::Buffer for Buffer<'_> {
         });
     }
 
+    fn id(&self) -> BufferId {
+        self.id
+    }
+
     fn focus(&mut self) {
         *self.current_buffer = Some(self.id);
+    }
+
+    fn for_each_cursor<Fun>(&mut self, mut fun: Fun)
+    where
+        Fun: FnMut(Cursor<'_>),
+    {
+        let buffer_id = self.id();
+
+        let cursor_ids = self.inner.cursors.keys().collect::<Vec<_>>();
+
+        for id_in_buffer in cursor_ids {
+            fun(Cursor {
+                buffer: self.reborrow(),
+                cursor_id: CursorId { buffer_id, id_in_buffer },
+            });
+        }
     }
 
     fn on_edited<Fun>(&self, fun: Fun) -> mock::EventHandle
