@@ -191,10 +191,6 @@ impl backend::Buffer for Buffer<'_> {
         self.contents.len().into()
     }
 
-    fn id(&self) -> BufferId {
-        self.id
-    }
-
     fn edit<R>(&mut self, replacements: R, agent_id: AgentId)
     where
         R: IntoIterator<Item = Replacement>,
@@ -310,6 +306,20 @@ impl backend::Cursor for Cursor<'_> {
 
     fn id(&self) -> CursorId {
         self.cursor_id
+    }
+
+    fn r#move(&mut self, offset: ByteOffset, agent_id: AgentId) {
+        self.offset = offset;
+
+        self.buffer.callbacks.with_mut(|callbacks| {
+            for cb_kind in callbacks.values_mut() {
+                if let CallbackKind::CursorMoved(cursor_id, fun) = cb_kind {
+                    if *cursor_id == self.id() {
+                        fun(self, agent_id);
+                    }
+                }
+            }
+        });
     }
 
     fn on_moved<Fun>(&self, fun: Fun) -> mock::EventHandle

@@ -68,7 +68,6 @@ pub(crate) enum CallbackKind {
     BufferSaved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
     #[allow(dead_code)]
     CursorCreated(Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
-    #[allow(dead_code)]
     CursorMoved(CursorId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
     #[allow(dead_code)]
     CursorRemoved(CursorId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),

@@ -15,6 +15,9 @@ pub trait Cursor {
     /// Returns the cursor's ID.
     fn id(&self) -> <Self::Backend as Backend>::CursorId;
 
+    /// TODO: docs.
+    fn r#move(&mut self, offset: ByteOffset, agent_id: AgentId);
+
     /// Registers the given callback to be executed everytime the cursor is
     /// moved.
     ///

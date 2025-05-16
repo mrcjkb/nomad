@@ -33,8 +33,9 @@ impl Cursor for NeovimCursor<'_> {
 
     #[inline]
     fn byte_offset(&self) -> ByteOffset {
-        let win = api::Window::current();
-        let (row, col) = win.get_cursor().expect("couldn't get cursor");
+        let (row, col) =
+            api::Window::current().get_cursor().expect("couldn't get cursor");
+
         self.buffer.byte_offset_of_point(Point {
             line_idx: row - 1,
             byte_offset: col.into(),
@@ -44,6 +45,15 @@ impl Cursor for NeovimCursor<'_> {
     #[inline]
     fn id(&self) -> BufferId {
         self.buffer.id()
+    }
+
+    #[inline]
+    fn r#move(&mut self, offset: ByteOffset, _agent_id: AgentId) {
+        let point = self.buffer.point_of_byte_offset(offset);
+
+        api::Window::current()
+            .set_cursor(point.line_idx + 1, point.byte_offset.into())
+            .expect("couldn't set cursor");
     }
 
     #[inline]
