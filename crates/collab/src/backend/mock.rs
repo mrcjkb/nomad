@@ -10,10 +10,10 @@ use collab_server::Config;
 use collab_server::message::PeerId;
 use collab_server::test::{TestConfig as InnerConfig, TestSessionId};
 use duplex_stream::{DuplexStream, duplex};
-use ed::AsyncCtx;
 use ed::backend::{AgentId, ApiValue, Backend, BaseBackend};
 use ed::fs::{self, AbsPath, AbsPathBuf};
 use ed::notify::{self, MaybeResult};
+use ed::{BorrowState, Context};
 use serde::{Deserialize, Serialize};
 
 use crate::backend::{ActionForSelectedSession, CollabBackend};
@@ -225,9 +225,9 @@ where
 
     async fn confirm_start(
         project_root: &AbsPath,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> bool {
-        ctx.with_backend(|this| match &mut this.confirm_start_with {
+        ctx.with_editor(|this| match &mut this.confirm_start_with {
             Some(fun) => fun(project_root),
             None => true,
         })
@@ -235,10 +235,10 @@ where
 
     async fn connect_to_server(
         _: config::ServerAddress,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> Result<Self::Io, Self::ConnectToServerError> {
         let server_tx = ctx
-            .with_backend(|this| this.server_tx.clone())
+            .with_editor(|this| this.server_tx.clone())
             .ok_or(AnyError::from_str("no server set"))?;
 
         let (client_io, server_io) = duplex(usize::MAX);
@@ -250,16 +250,16 @@ where
 
     async fn copy_session_id(
         session_id: SessionId,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> Result<(), Self::CopySessionIdError> {
-        ctx.with_backend(|this| this.clipboard = Some(session_id));
+        ctx.with_editor(|this| this.clipboard = Some(session_id));
         Ok(())
     }
 
     async fn default_dir_for_remote_projects(
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> Result<AbsPathBuf, Self::DefaultDirForRemoteProjectsError> {
-        ctx.with_backend(|this| {
+        ctx.with_editor(|this| {
             this.default_dir_for_remote_projects
                 .clone()
                 .ok_or(NoDefaultDirForRemoteProjectsError)
@@ -267,9 +267,9 @@ where
     }
 
     async fn home_dir(
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> Result<AbsPathBuf, Self::HomeDirError> {
-        ctx.with_backend(|this| match &this.home_dir {
+        ctx.with_editor(|this| match &this.home_dir {
             Some(path) => Ok(path.clone()),
             None => Err(AnyError::from_str("no home directory configured")),
         })
@@ -277,26 +277,24 @@ where
 
     fn lsp_root(
         buffer_id: Self::BufferId,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> Result<Option<AbsPathBuf>, Self::LspRootError> {
-        Ok(ctx.with_backend(|this| this.lsp_root_with.as_mut()?(buffer_id)))
+        Ok(ctx.with_editor(|this| this.lsp_root_with.as_mut()?(buffer_id)))
     }
 
     fn project_filter(
         project_root: &<Self::Fs as fs::Fs>::Directory,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> Self::ProjectFilter {
-        ctx.with_backend(|this| {
-            this.project_filter_with.as_mut()(project_root)
-        })
+        ctx.with_editor(|this| this.project_filter_with.as_mut()(project_root))
     }
 
     async fn select_session<'pairs>(
         sessions: &'pairs [(AbsPathBuf, SessionId)],
         action: ActionForSelectedSession,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self>,
     ) -> Option<&'pairs (AbsPathBuf, SessionId)> {
-        ctx.with_backend(|this| {
+        ctx.with_editor(|this| {
             this.select_session_with.as_mut()?(sessions, action)
         })
     }
@@ -315,9 +313,8 @@ where
     type Cursor<'a> = <B as Backend>::Cursor<'a>;
     type CursorId = <B as Backend>::CursorId;
     type Fs = <B as Backend>::Fs;
-    type LocalExecutor = <B as Backend>::LocalExecutor;
-    type BackgroundExecutor = <B as Backend>::BackgroundExecutor;
     type Emitter<'this> = <B as Backend>::Emitter<'this>;
+    type Executor = <B as Backend>::Executor;
     type EventHandle = <B as Backend>::EventHandle;
     type Selection<'a> = <B as Backend>::Selection<'a>;
     type SelectionId = <B as Backend>::SelectionId;
@@ -340,7 +337,7 @@ where
     async fn create_buffer(
         file_path: &AbsPath,
         agent_id: AgentId,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self, impl BorrowState>,
     ) -> Result<Self::BufferId, Self::CreateBufferError> {
         <B as BaseBackend>::create_buffer(file_path, agent_id, ctx).await
     }
@@ -356,11 +353,8 @@ where
     fn emitter(&mut self) -> Self::Emitter<'_> {
         self.inner.emitter()
     }
-    fn local_executor(&mut self) -> &mut Self::LocalExecutor {
-        self.inner.local_executor()
-    }
-    fn background_executor(&mut self) -> &mut Self::BackgroundExecutor {
-        self.inner.background_executor()
+    fn executor(&mut self) -> &mut Self::Executor {
+        self.inner.executor()
     }
     fn on_buffer_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
     where

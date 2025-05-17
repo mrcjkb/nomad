@@ -17,7 +17,7 @@ mod read_neovim {
     use criterion::BenchmarkId;
     use ed::fs::os::{OsDirectory, OsFs};
     use ed::fs::{Directory, Fs};
-    use ed::{Backend, EditorCtx};
+    use ed::{Backend, Context};
     use futures_lite::future;
     use mock::Mock;
     use mock::fs::MockFs;
@@ -29,11 +29,11 @@ mod read_neovim {
     pub(super) fn from_mock_fs(group: &mut BenchmarkGroup<'_, WallTime>) {
         CollabMock::new(
             Mock::<MockFs>::default()
-                .with_background_executor(ThreadPool::new()),
+                .with_background_spawner(ThreadPool::default()),
         )
         .with_ctx(|ctx| {
             // Replicate the Neovim repo into the root of the mock filesystem.
-            ctx.spawn_and_block_on(async |ctx| {
+            ctx.block_on(async |ctx| {
                 ctx.fs().root().replicate_from(&neovim_repo()).await.unwrap();
             });
 
@@ -44,7 +44,7 @@ mod read_neovim {
     pub(super) fn from_real_fs(group: &mut BenchmarkGroup<'_, WallTime>) {
         CollabMock::new(
             Mock::<OsFs>::default()
-                .with_background_executor(ThreadPool::new()),
+                .with_background_spawner(ThreadPool::default()),
         )
         .with_project_filter(|project_root| {
             GitIgnore::new(project_root.path().to_owned())
@@ -69,7 +69,7 @@ mod read_neovim {
     fn bench_read_project<B: CollabBackend>(
         project_root: <B::Fs as Fs>::Directory,
         fs_name: &str,
-        ctx: &mut EditorCtx<B>,
+        ctx: &mut Context<B>,
         group: &mut BenchmarkGroup<'_, WallTime>,
     ) where
         <B::Fs as Fs>::Directory: Clone,
@@ -83,7 +83,7 @@ mod read_neovim {
             b.iter(|| {
                 let project_root = project_root.clone();
 
-                ctx.spawn_and_block_on(async move |ctx| {
+                ctx.block_on(async move |ctx| {
                     collab::start::benches::read_project(project_root, ctx)
                         .await
                         .unwrap()

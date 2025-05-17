@@ -9,19 +9,17 @@ use crate::backend::{
     AgentId,
     Api,
     ApiValue,
-    BackgroundExecutor,
     Buffer,
     Cursor,
     Key,
-    LocalExecutor,
     MapAccess,
     Selection,
     Value,
 };
+use crate::executor::Executor;
 use crate::notify::{self, Emitter, MaybeResult};
 use crate::plugin::Plugin;
-use crate::state::StateHandle;
-use crate::{AsyncCtx, EditorCtx, fs};
+use crate::{BorrowState, Context, fs};
 
 /// TODO: docs.
 pub trait Backend: 'static + Sized {
@@ -55,16 +53,13 @@ pub trait Backend: 'static + Sized {
     type CursorId: Clone + Debug + Eq + Hash;
 
     /// TODO: docs.
-    type LocalExecutor: LocalExecutor;
-
-    /// TODO: docs.
-    type BackgroundExecutor: BackgroundExecutor;
-
-    /// TODO: docs.
     type Fs: fs::Fs;
 
     /// TODO: docs.
     type Emitter<'this>: notify::Emitter;
+
+    /// TODO: docs.
+    type Executor: Executor;
 
     /// TODO: docs.
     type EventHandle;
@@ -105,7 +100,7 @@ pub trait Backend: 'static + Sized {
     fn create_buffer(
         file_path: &AbsPath,
         agent_id: AgentId,
-        ctx: &mut AsyncCtx<'_, Self>,
+        ctx: &mut Context<Self, impl BorrowState>,
     ) -> impl Future<Output = Result<Self::BufferId, Self::CreateBufferError>>;
 
     /// TODO: docs.
@@ -121,10 +116,7 @@ pub trait Backend: 'static + Sized {
     fn emitter(&mut self) -> Self::Emitter<'_>;
 
     /// TODO: docs.
-    fn local_executor(&mut self) -> &mut Self::LocalExecutor;
-
-    /// TODO: docs.
-    fn background_executor(&mut self) -> &mut Self::BackgroundExecutor;
+    fn executor(&mut self) -> &mut Self::Executor;
 
     /// TODO: docs.
     fn on_buffer_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
@@ -236,14 +228,7 @@ pub trait Backend: 'static + Sized {
 
     /// TODO: docs.
     #[inline]
-    fn with_ctx<R>(self, fun: impl FnOnce(&mut EditorCtx<Self>) -> R) -> R {
-        StateHandle::new(self).with_mut(|mut s| {
-            s.with_ctx(
-                &notify::Namespace::default(),
-                <crate::state::ResumeUnwinding as Plugin<Self>>::id(),
-                fun,
-            )
-            .expect("panics are resumed")
-        })
+    fn with_ctx<R>(self, fun: impl FnOnce(&mut Context<Self>) -> R) -> R {
+        fun(&mut Context::from_editor(self))
     }
 }

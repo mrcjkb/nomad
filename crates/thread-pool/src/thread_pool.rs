@@ -1,7 +1,7 @@
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
 
-use ed::backend::{BackgroundExecutor, Task};
+use ed::executor::{BackgroundSpawner, Task};
 
 /// TODO: docs.
 #[derive(Clone)]
@@ -11,56 +11,50 @@ pub struct ThreadPool {
 
 pin_project_lite::pin_project! {
     /// TODO: docs.
-    pub struct ThreadPoolTask<T> {
+    pub struct ThreadPoolTask<T: 'static> {
         #[pin]
-        inner: async_oneshot::Receiver<T>,
+        inner: flume::r#async::RecvFut<'static, T>,
         is_forever_pending: bool,
     }
 }
 
 impl ThreadPool {
-    /// TODO: docs.
-    #[track_caller]
-    #[inline]
-    pub fn new() -> Self {
-        Self {
-            inner: futures_executor::ThreadPool::builder()
-                .create()
-                .expect("couldn't create thread pool"),
-        }
-    }
-
     #[inline]
     fn spawn_inner<Fut>(&self, future: Fut) -> ThreadPoolTask<Fut::Output>
     where
         Fut: Future + Send + 'static,
         Fut::Output: Send + 'static,
     {
-        let (mut tx, rx) = async_oneshot::oneshot();
+        let (tx, rx) = flume::bounded(1);
         self.inner.spawn_ok(async move {
             // The task might've been detached, and that's ok.
             let _ = tx.send(future.await);
         });
-        ThreadPoolTask::new(rx)
+        ThreadPoolTask::new(rx.into_recv_async())
     }
 }
 
 impl<T> ThreadPoolTask<T> {
     #[inline]
-    pub(crate) fn new(inner: async_oneshot::Receiver<T>) -> Self {
+    pub(crate) fn new(inner: flume::r#async::RecvFut<'static, T>) -> Self {
         Self { inner, is_forever_pending: false }
     }
 }
 
 impl Default for ThreadPool {
+    #[track_caller]
     #[inline]
     fn default() -> Self {
-        Self::new()
+        Self {
+            inner: futures_executor::ThreadPool::builder()
+                .create()
+                .expect("couldn't create thread pool"),
+        }
     }
 }
 
-impl BackgroundExecutor for ThreadPool {
-    type Task<T> = ThreadPoolTask<T>;
+impl BackgroundSpawner for ThreadPool {
+    type Task<T: Send + 'static> = ThreadPoolTask<T>;
 
     #[inline]
     fn spawn<Fut>(&mut self, future: Fut) -> Self::Task<Fut::Output>
@@ -68,7 +62,7 @@ impl BackgroundExecutor for ThreadPool {
         Fut: Future + Send + 'static,
         Fut::Output: Send + 'static,
     {
-        self.spawn_inner(future)
+        Self::spawn_inner(self, future)
     }
 }
 
@@ -88,7 +82,7 @@ impl<T> Future for ThreadPoolTask<T> {
         }
         match ready!(this.inner.poll(ctx)) {
             Ok(value) => Poll::Ready(value),
-            Err(_closed) => {
+            Err(flume::RecvError::Disconnected) => {
                 // This only happens if the background executor is dropped,
                 // which should only happen when Neovim is shutting down.
                 *this.is_forever_pending = true;
