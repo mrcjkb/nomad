@@ -52,7 +52,10 @@ pub(crate) trait Event: Clone + Into<EventKind> {
         let Some(callbacks) = container.get_mut(self.key()) else { return };
         callbacks.remove(event_key);
         if callbacks.is_empty() {
-            Self::unregister(container.remove(self.key()).output);
+            match container.remove(self.key()) {
+                Some(callbacks) => Self::unregister(callbacks.output),
+                None => unreachable!("just checked"),
+            }
         }
     }
 }
@@ -662,7 +665,7 @@ pub(crate) trait CallbacksContainer<Ev: Event> {
 
     fn get_mut(&mut self, key: Self::Key) -> Option<&mut EventCallbacks<Ev>>;
     fn insert(&mut self, key: Self::Key, callbacks: EventCallbacks<Ev>);
-    fn remove(&mut self, key: Self::Key) -> EventCallbacks<Ev>;
+    fn remove(&mut self, key: Self::Key) -> Option<EventCallbacks<Ev>>;
 }
 
 impl<Ev: Event> CallbacksContainer<Ev> for Option<EventCallbacks<Ev>> {
@@ -678,8 +681,8 @@ impl<Ev: Event> CallbacksContainer<Ev> for Option<EventCallbacks<Ev>> {
     }
     #[track_caller]
     #[inline]
-    fn remove(&mut self, _: ()) -> EventCallbacks<Ev> {
-        self.take().expect("not removed yet")
+    fn remove(&mut self, _: ()) -> Option<EventCallbacks<Ev>> {
+        self.take()
     }
 }
 
@@ -702,8 +705,8 @@ where
     }
     #[track_caller]
     #[inline]
-    fn remove(&mut self, key: Key) -> EventCallbacks<Ev> {
-        Self::remove(self, &key).expect("not removed yet")
+    fn remove(&mut self, key: Key) -> Option<EventCallbacks<Ev>> {
+        Self::remove(self, &key)
     }
 }
 
@@ -719,7 +722,7 @@ impl<Ev: Event, T: CallbacksContainer<Ev>> CallbacksContainer<Ev> for &mut T {
         CallbacksContainer::insert(*self, key, callbacks);
     }
     #[inline]
-    fn remove(&mut self, key: Self::Key) -> EventCallbacks<Ev> {
+    fn remove(&mut self, key: Self::Key) -> Option<EventCallbacks<Ev>> {
         CallbacksContainer::remove(*self, key)
     }
 }
