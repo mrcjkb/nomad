@@ -68,13 +68,13 @@ pub(crate) struct EventsBorrow<'a> {
 pub(crate) struct Events {
     pub(crate) agent_ids: AgentIds,
     augroup_id: AugroupId,
-    on_buffer_created: Option<EventCallbacks<BufReadPost>>,
-    on_buffer_edited: NoHashMap<BufferId, EventCallbacks<OnBytes>>,
-    on_buffer_focused: Option<EventCallbacks<BufEnter>>,
-    on_buffer_removed: NoHashMap<BufferId, EventCallbacks<BufUnload>>,
-    on_buffer_saved: NoHashMap<BufferId, EventCallbacks<BufWritePost>>,
-    on_buffer_unfocused: NoHashMap<BufferId, EventCallbacks<BufLeave>>,
-    on_cursor_moved: NoHashMap<BufferId, EventCallbacks<CursorMoved>>,
+    on_buffer_created: Option<Callbacks<BufReadPost>>,
+    on_buffer_edited: NoHashMap<BufferId, Callbacks<OnBytes>>,
+    on_buffer_focused: Option<Callbacks<BufEnter>>,
+    on_buffer_removed: NoHashMap<BufferId, Callbacks<BufUnload>>,
+    on_buffer_saved: NoHashMap<BufferId, Callbacks<BufWritePost>>,
+    on_buffer_unfocused: NoHashMap<BufferId, Callbacks<BufLeave>>,
+    on_cursor_moved: NoHashMap<BufferId, Callbacks<CursorMoved>>,
 }
 
 #[derive(Default)]
@@ -87,9 +87,9 @@ pub(crate) struct AgentIds {
 }
 
 #[doc(hidden)]
-pub(crate) struct EventCallbacks<T: Event> {
+pub(crate) struct Callbacks<T: Event> {
     #[allow(clippy::type_complexity)]
-    callbacks: SlotMap<DefaultKey, Box<dyn FnMut(T::Args<'_>) + 'static>>,
+    inner: SlotMap<DefaultKey, Box<dyn FnMut(T::Args<'_>) + 'static>>,
     output: T::RegisterOutput,
 }
 
@@ -154,7 +154,7 @@ impl Events {
 
             event
                 .container(this)
-                .insert(event.key(), EventCallbacks { callbacks, output });
+                .insert(event.key(), Callbacks { inner: callbacks, output });
 
             event_key
         });
@@ -183,30 +183,30 @@ impl Events {
     }
 }
 
-impl<T: Event> EventCallbacks<T> {
+impl<T: Event> Callbacks<T> {
     #[inline]
     fn insert(
         &mut self,
         fun: impl FnMut(T::Args<'_>) + 'static,
     ) -> DefaultKey {
-        self.callbacks.insert(Box::new(fun))
+        self.inner.insert(Box::new(fun))
     }
 
     #[inline]
     fn is_empty(&self) -> bool {
-        self.callbacks.is_empty()
+        self.inner.is_empty()
     }
 
     #[inline]
     fn iter_mut(
         &mut self,
     ) -> impl Iterator<Item = &mut impl FnMut(T::Args<'_>)> + '_ {
-        self.callbacks.values_mut()
+        self.inner.values_mut()
     }
 
     #[inline]
     fn remove(&mut self, callback_key: DefaultKey) {
-        self.callbacks.remove(callback_key);
+        self.inner.remove(callback_key);
     }
 }
 
@@ -228,7 +228,7 @@ impl DerefMut for EventsBorrow<'_> {
 
 impl Event for BufEnter {
     type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
-    type Container<'ev> = &'ev mut Option<EventCallbacks<Self>>;
+    type Container<'ev> = &'ev mut Option<Callbacks<Self>>;
     type RegisterOutput = AutocmdId;
 
     #[inline]
@@ -247,6 +247,12 @@ impl Event for BufEnter {
                 let events = events.handle;
                 move |args: types::AutocmdCallbackArgs| {
                     events.with_mut(|inner| {
+                        // 💥 if one of the callbacks tries to register a new
+                        // event we'll borrow `events` mutably again!
+                        //
+                        // On the other hand, if we give the buffer some sort
+                        // of wrapper over a &mut Events, then we won't be able
+                        // to also mutably iterate over the callbacks.
                         let buffer = NeovimBuffer::new(
                             BufferId::new(args.buffer),
                             &events,
@@ -282,7 +288,7 @@ impl Event for BufEnter {
 
 impl Event for BufLeave {
     type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
-    type Container<'ev> = &'ev mut NoHashMap<BufferId, EventCallbacks<Self>>;
+    type Container<'ev> = &'ev mut NoHashMap<BufferId, Callbacks<Self>>;
     type RegisterOutput = AutocmdId;
 
     #[inline]
@@ -337,7 +343,7 @@ impl Event for BufLeave {
 
 impl Event for BufReadPost {
     type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
-    type Container<'ev> = &'ev mut Option<EventCallbacks<Self>>;
+    type Container<'ev> = &'ev mut Option<Callbacks<Self>>;
     type RegisterOutput = AutocmdId;
 
     #[inline]
@@ -391,7 +397,7 @@ impl Event for BufReadPost {
 
 impl Event for BufUnload {
     type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
-    type Container<'ev> = &'ev mut NoHashMap<BufferId, EventCallbacks<Self>>;
+    type Container<'ev> = &'ev mut NoHashMap<BufferId, Callbacks<Self>>;
     type RegisterOutput = AutocmdId;
 
     #[inline]
@@ -452,7 +458,7 @@ impl Event for BufUnload {
 
 impl Event for BufWritePost {
     type Args<'a> = (&'a NeovimBuffer<'a>, AgentId);
-    type Container<'ev> = &'ev mut NoHashMap<BufferId, EventCallbacks<Self>>;
+    type Container<'ev> = &'ev mut NoHashMap<BufferId, Callbacks<Self>>;
     type RegisterOutput = AutocmdId;
 
     #[inline]
@@ -513,7 +519,7 @@ impl Event for BufWritePost {
 
 impl Event for CursorMoved {
     type Args<'a> = (&'a NeovimCursor<'a>, AgentId);
-    type Container<'ev> = &'ev mut NoHashMap<BufferId, EventCallbacks<Self>>;
+    type Container<'ev> = &'ev mut NoHashMap<BufferId, Callbacks<Self>>;
     type RegisterOutput = (AutocmdId, AutocmdId);
 
     #[inline]
@@ -582,7 +588,7 @@ impl Event for CursorMoved {
 
 impl Event for OnBytes {
     type Args<'a> = (&'a NeovimBuffer<'a>, &'a Edit);
-    type Container<'ev> = &'ev mut NoHashMap<BufferId, EventCallbacks<Self>>;
+    type Container<'ev> = &'ev mut NoHashMap<BufferId, Callbacks<Self>>;
     type RegisterOutput = ();
 
     #[inline]
@@ -663,31 +669,31 @@ impl Drop for EventHandle {
 pub(crate) trait CallbacksContainer<Ev: Event> {
     type Key;
 
-    fn get_mut(&mut self, key: Self::Key) -> Option<&mut EventCallbacks<Ev>>;
-    fn insert(&mut self, key: Self::Key, callbacks: EventCallbacks<Ev>);
-    fn remove(&mut self, key: Self::Key) -> Option<EventCallbacks<Ev>>;
+    fn get_mut(&mut self, key: Self::Key) -> Option<&mut Callbacks<Ev>>;
+    fn insert(&mut self, key: Self::Key, callbacks: Callbacks<Ev>);
+    fn remove(&mut self, key: Self::Key) -> Option<Callbacks<Ev>>;
 }
 
-impl<Ev: Event> CallbacksContainer<Ev> for Option<EventCallbacks<Ev>> {
+impl<Ev: Event> CallbacksContainer<Ev> for Option<Callbacks<Ev>> {
     type Key = ();
 
     #[inline]
-    fn get_mut(&mut self, _: ()) -> Option<&mut EventCallbacks<Ev>> {
+    fn get_mut(&mut self, _: ()) -> Option<&mut Callbacks<Ev>> {
         self.as_mut()
     }
     #[inline]
-    fn insert(&mut self, _: (), callbacks: EventCallbacks<Ev>) {
+    fn insert(&mut self, _: (), callbacks: Callbacks<Ev>) {
         *self = Some(callbacks);
     }
     #[track_caller]
     #[inline]
-    fn remove(&mut self, _: ()) -> Option<EventCallbacks<Ev>> {
+    fn remove(&mut self, _: ()) -> Option<Callbacks<Ev>> {
         self.take()
     }
 }
 
 impl<Ev, Key, Hasher> CallbacksContainer<Ev>
-    for HashMap<Key, EventCallbacks<Ev>, Hasher>
+    for HashMap<Key, Callbacks<Ev>, Hasher>
 where
     Ev: Event,
     Key: Eq + Hash,
@@ -696,16 +702,16 @@ where
     type Key = Key;
 
     #[inline]
-    fn get_mut(&mut self, key: Key) -> Option<&mut EventCallbacks<Ev>> {
+    fn get_mut(&mut self, key: Key) -> Option<&mut Callbacks<Ev>> {
         Self::get_mut(self, &key)
     }
     #[inline]
-    fn insert(&mut self, key: Key, callbacks: EventCallbacks<Ev>) {
+    fn insert(&mut self, key: Key, callbacks: Callbacks<Ev>) {
         Self::insert(self, key, callbacks);
     }
     #[track_caller]
     #[inline]
-    fn remove(&mut self, key: Key) -> Option<EventCallbacks<Ev>> {
+    fn remove(&mut self, key: Key) -> Option<Callbacks<Ev>> {
         Self::remove(self, &key)
     }
 }
@@ -714,15 +720,15 @@ impl<Ev: Event, T: CallbacksContainer<Ev>> CallbacksContainer<Ev> for &mut T {
     type Key = T::Key;
 
     #[inline]
-    fn get_mut(&mut self, key: Self::Key) -> Option<&mut EventCallbacks<Ev>> {
+    fn get_mut(&mut self, key: Self::Key) -> Option<&mut Callbacks<Ev>> {
         CallbacksContainer::get_mut(*self, key)
     }
     #[inline]
-    fn insert(&mut self, key: Self::Key, callbacks: EventCallbacks<Ev>) {
+    fn insert(&mut self, key: Self::Key, callbacks: Callbacks<Ev>) {
         CallbacksContainer::insert(*self, key, callbacks);
     }
     #[inline]
-    fn remove(&mut self, key: Self::Key) -> Option<EventCallbacks<Ev>> {
+    fn remove(&mut self, key: Self::Key) -> Option<Callbacks<Ev>> {
         CallbacksContainer::remove(*self, key)
     }
 }

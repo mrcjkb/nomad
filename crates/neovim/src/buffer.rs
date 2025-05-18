@@ -66,6 +66,39 @@ impl<'a> NeovimBuffer<'a> {
         self.inner().get_name().expect("buffer exists")
     }
 
+    /// Returns the text in the given point range.
+    #[track_caller]
+    #[inline]
+    pub(crate) fn get_text_in_point_range(
+        &self,
+        point_range: Range<Point>,
+    ) -> CompactString {
+        let lines = self
+            .inner()
+            .get_text(
+                point_range.start.line_idx..point_range.end.line_idx,
+                point_range.start.byte_offset.into(),
+                point_range.end.byte_offset.into(),
+                &Default::default(),
+            )
+            .expect("couldn't get text");
+
+        let mut text = CompactString::default();
+
+        let num_lines = lines.len();
+
+        for (idx, line) in lines.enumerate() {
+            let line = line.to_str().expect("line is not UTF-8");
+            text.push_str(line);
+            let is_last = idx + 1 == num_lines;
+            if !is_last {
+                text.push('\n');
+            }
+        }
+
+        text
+    }
+
     #[inline]
     pub(crate) fn inner(&self) -> api::Buffer {
         debug_assert!(self.id.is_valid());
@@ -94,7 +127,7 @@ impl<'a> NeovimBuffer<'a> {
         byte_offset: ByteOffset,
     ) -> Point {
         if byte_offset == 0 {
-            // `byte2line` can't handle 0.
+            // byte2line can't handle 0.
             return Point::zero();
         }
 
@@ -127,6 +160,36 @@ impl<'a> NeovimBuffer<'a> {
             self.inner().get_offset(line_idx).expect("todo");
 
         Point { line_idx, byte_offset: byte_offset - line_byte_offset }
+    }
+
+    /// Returns the [`Point`] at the end of the buffer.
+    #[track_caller]
+    #[inline]
+    pub(crate) fn point_of_eof(self) -> Point {
+        fn point_of_eof(buffer: NeovimBuffer) -> Result<Point, api::Error> {
+            let nvim_buf = buffer.inner();
+
+            let num_lines = nvim_buf.line_count()?;
+
+            if num_lines == 0 {
+                return Ok(Point::zero());
+            }
+
+            let last_line_len = nvim_buf.get_offset(num_lines)?
+            // `get_offset(line_count)` seems to always include the trailing
+            // newline, even when `eol` is turned off.
+            //
+            // TODO: shouldn't we only correct this if `eol` is turned off?
+            - 1
+            - nvim_buf.get_offset(num_lines - 1)?;
+
+            Ok(Point {
+                line_idx: num_lines - 1,
+                byte_offset: ByteOffset::new(last_line_len),
+            })
+        }
+
+        point_of_eof(self).expect("not deleted")
     }
 
     /// Replaces the text in the given point range with the new text.
@@ -232,69 +295,6 @@ impl<'a> NeovimBuffer<'a> {
             Ordering::Equal => None,
             Ordering::Greater => Some(head..anchor),
         }
-    }
-
-    /// Returns the text in the given point range.
-    #[track_caller]
-    #[inline]
-    fn get_text_in_point_range(
-        &self,
-        point_range: Range<Point>,
-    ) -> CompactString {
-        let lines = self
-            .inner()
-            .get_text(
-                point_range.start.line_idx..point_range.end.line_idx,
-                point_range.start.byte_offset.into(),
-                point_range.end.byte_offset.into(),
-                &Default::default(),
-            )
-            .expect("couldn't get text");
-
-        let mut text = CompactString::default();
-
-        let num_lines = lines.len();
-
-        for (idx, line) in lines.enumerate() {
-            let line = line.to_str().expect("line is not UTF-8");
-            text.push_str(line);
-            let is_last = idx + 1 == num_lines;
-            if !is_last {
-                text.push('\n');
-            }
-        }
-
-        text
-    }
-
-    /// Returns the [`Point`] at the end of the buffer.
-    #[track_caller]
-    #[inline]
-    fn point_of_eof(self) -> Point {
-        fn point_of_eof(buffer: NeovimBuffer) -> Result<Point, api::Error> {
-            let nvim_buf = buffer.inner();
-
-            let num_lines = nvim_buf.line_count()?;
-
-            if num_lines == 0 {
-                return Ok(Point::zero());
-            }
-
-            let last_line_len = nvim_buf.get_offset(num_lines)?
-            // `get_offset(line_count)` seems to always include the trailing
-            // newline, even when `eol` is turned off.
-            //
-            // TODO: shouldn't we only correct this if `eol` is turned off?
-            - 1
-            - nvim_buf.get_offset(num_lines - 1)?;
-
-            Ok(Point {
-                line_idx: num_lines - 1,
-                byte_offset: ByteOffset::new(last_line_len),
-            })
-        }
-
-        point_of_eof(self).expect("not deleted")
     }
 }
 
