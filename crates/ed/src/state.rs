@@ -275,9 +275,9 @@ where
     fn handle_panic(
         &self,
         info: PanicInfo,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
+        _: &mut Context<Ed, Borrowed<'_>>,
     ) {
-        Plugin::handle_panic(self, info, ctx);
+        panic::resume_unwind(info.payload);
     }
 }
 
@@ -302,8 +302,8 @@ impl<Ed: Backend> Plugin<Ed> for ResumeUnwinding {
     fn handle_panic(
         &self,
         info: PanicInfo,
-        _: &mut Context<Ed, Borrowed<'_>>,
+        ctx: &mut Context<Ed, Borrowed<'_>>,
     ) {
-        panic::resume_unwind(info.payload);
+        PanicHandler::handle_panic(self, info, ctx);
     }
 }

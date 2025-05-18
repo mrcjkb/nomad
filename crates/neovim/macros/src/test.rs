@@ -67,7 +67,7 @@ pub(crate) fn test(
             #asyncness fn inner(#ctx_name: #ctx_ty) #test_output {
                 #test_body
             }
-            let neovim = ::neovim::Neovim::init(#augroup_name);
+            let neovim = ::neovim::Neovim::new_test(#augroup_name);
             #run_test
         }
     })

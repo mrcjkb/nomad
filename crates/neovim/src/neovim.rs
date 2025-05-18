@@ -17,6 +17,7 @@ pub struct Neovim {
     emitter: notify::NeovimEmitter,
     events: Shared<Events>,
     executor: executor::NeovimExecutor,
+    reinstate_panic_hook: bool,
 }
 
 /// TODO: docs.
@@ -28,18 +29,32 @@ pub struct CreateBufferError {
 impl Neovim {
     /// TODO: docs.
     #[inline]
-    pub fn init(augroup_name: &str) -> Self {
+    pub fn set_emitter(&mut self, emitter: impl Into<notify::NeovimEmitter>) {
+        self.emitter = emitter.into();
+    }
+
+    /// Should only be called by the `#[neovim::plugin]` macro.
+    #[doc(hidden)]
+    #[inline]
+    pub fn new_plugin(augroup_name: &str) -> Self {
+        Self::new_inner(augroup_name, false)
+    }
+
+    /// Should only be called by the `#[neovim::test]` macro.
+    #[doc(hidden)]
+    #[inline]
+    pub fn new_test(augroup_name: &str) -> Self {
+        Self::new_inner(augroup_name, true)
+    }
+
+    #[inline]
+    fn new_inner(augroup_name: &str, reinstate_panic_hook: bool) -> Self {
         Self {
             events: Shared::new(Events::new(augroup_name)),
             emitter: Default::default(),
             executor: Default::default(),
+            reinstate_panic_hook,
         }
-    }
-
-    /// TODO: docs.
-    #[inline]
-    pub fn set_emitter(&mut self, emitter: impl Into<notify::NeovimEmitter>) {
-        self.emitter = emitter.into();
     }
 }
 
