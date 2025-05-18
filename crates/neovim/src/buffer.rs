@@ -324,9 +324,9 @@ impl Buffer for NeovimBuffer<'_> {
     {
         for replacement in replacements {
             self.events.with_mut(|events| {
-                let ids = &mut events.agent_ids.edited_buffer;
-                let maybe_prev = ids.insert(self.id(), agent_id);
-                debug_assert!(maybe_prev.is_none());
+                if events.contains(&events::OnBytes(self.id())) {
+                    events.agent_ids.edited_buffer.insert(self.id(), agent_id);
+                }
             });
 
             let range = replacement.removed_range();

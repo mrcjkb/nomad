@@ -230,9 +230,12 @@ impl BaseBackend for Neovim {
             let this = ed.as_mut();
 
             this.events.with_mut(|events| {
-                let ids = &mut events.agent_ids.created_buffer;
-                let maybe_prev = ids.insert(buf_id, agent_id);
-                debug_assert!(maybe_prev.is_none());
+                if events.contains(&events::BufReadPost) {
+                    events.agent_ids.created_buffer.insert(buf_id, agent_id);
+                }
+                if events.contains(&events::BufEnter) {
+                    events.agent_ids.focused_buffer.insert(buf_id, agent_id);
+                }
             });
 
             let buffer = NeovimBuffer::new(buf_id, &this.events);
