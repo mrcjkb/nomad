@@ -104,12 +104,12 @@ pub(crate) fn on_cursor_moved_1<Ed: Backend>(ctx: &mut Context<Ed, Borrowed>) {
 
     foo_txt.for_each_cursor(|mut cursor| {
         cursor.r#move(5usize.into(), agent_id);
-
-        offsets.with(|vec| {
-            assert_eq!(*vec.last().unwrap(), 5usize);
-        });
-
-        // Moving the cursor shouldn't cause a new one to be created.
-        assert_eq!(num_created.copied(), 1);
     });
+
+    offsets.with(|vec| {
+        assert_eq!(*vec.last().unwrap(), 5usize);
+    });
+
+    // Moving the cursor shouldn't cause a new one to be created.
+    assert_eq!(num_created.copied(), 1);
 }
