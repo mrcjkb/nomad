@@ -21,6 +21,13 @@ impl<'a> NeovimCursor<'a> {
         debug_assert!(buffer.is_focused());
         Self { buffer }
     }
+
+    /// Returns the [`Point`] this cursor is currently at.
+    fn point(&self) -> Point {
+        let (row, col) =
+            api::Window::current().get_cursor().expect("couldn't get cursor");
+        Point { line_idx: row - 1, byte_offset: col.into() }
+    }
 }
 
 impl Cursor for NeovimCursor<'_> {
@@ -33,13 +40,7 @@ impl Cursor for NeovimCursor<'_> {
 
     #[inline]
     fn byte_offset(&self) -> ByteOffset {
-        let (row, col) =
-            api::Window::current().get_cursor().expect("couldn't get cursor");
-
-        self.buffer.byte_offset_of_point(Point {
-            line_idx: row - 1,
-            byte_offset: col.into(),
-        })
+        self.buffer.byte_offset_of_point(self.point())
     }
 
     #[inline]
