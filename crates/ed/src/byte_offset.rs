@@ -55,6 +55,13 @@ impl Add<usize> for ByteOffset {
     }
 }
 
+impl AddAssign<usize> for ByteOffset {
+    #[inline]
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
+    }
+}
+
 impl Sub<Self> for ByteOffset {
     type Output = Self;
 
@@ -68,6 +75,13 @@ impl SubAssign<Self> for ByteOffset {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         self.0 -= rhs.0;
+    }
+}
+
+impl SubAssign<usize> for ByteOffset {
+    #[inline]
+    fn sub_assign(&mut self, rhs: usize) {
+        self.0 -= rhs;
     }
 }
 
