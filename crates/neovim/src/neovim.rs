@@ -52,10 +52,8 @@ impl Neovim {
         Self::new_inner(augroup_name, false)
     }
 
-    /// Should only be called by the `#[neovim::test]` macro.
-    #[doc(hidden)]
     #[inline]
-    pub fn new_test(augroup_name: &str) -> Self {
+    pub(crate) fn new_test(augroup_name: &str) -> Self {
         Self::new_inner(augroup_name, true)
     }
 

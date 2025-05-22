@@ -14,7 +14,7 @@ pub(crate) fn test(
         expand_test,
         maybe_terminator_arg,
         maybe_terminator_name,
-        test_output,
+        maybe_test_output,
     ) = if test_fn.sig.asyncness.is_none() {
         // Sync test.
         (
@@ -40,7 +40,7 @@ pub(crate) fn test(
     Ok(quote! {
         #[::neovim::oxi::test(nvim_oxi = ::neovim::oxi)]
         #(#test_attrs)*
-        fn #test_name(#maybe_terminator_arg) #test_output {
+        fn #test_name(#maybe_terminator_arg) #maybe_test_output {
             ::neovim::tests::test_macro::#expand_test(
                 {
                     #test_fn
