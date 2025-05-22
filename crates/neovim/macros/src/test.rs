@@ -1,76 +1,53 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::ItemFn;
 use syn::parse::Nothing;
-use syn::spanned::Spanned;
+use syn::{Ident, ItemFn};
 
 #[inline]
 pub(crate) fn test(
     attr: proc_macro::TokenStream,
-    item: ItemFn,
+    test_fn: ItemFn,
 ) -> syn::Result<TokenStream> {
     syn::parse::<Nothing>(attr)?;
 
-    if item.sig.inputs.len() != 1 {
-        return Err(syn::Error::new(
-            item.sig.ident.span(),
-            "expected exactly one argument",
-        ));
-    }
-
-    let asyncness = &item.sig.asyncness;
-    let test_attrs = &item.attrs;
-    let test_name = &item.sig.ident;
-    let test_body = &item.block;
-    let test_output = &item.sig.output;
-
-    let ctx_arg = match item.sig.inputs.first().expect("just checked") {
-        syn::FnArg::Typed(arg) => arg,
-        syn::FnArg::Receiver(_) => {
-            return Err(syn::Error::new(
-                item.sig.ident.span(),
-                "expected a named function argument, not self",
-            ));
-        },
-    };
-
-    let ctx_name = match &*ctx_arg.pat {
-        syn::Pat::Ident(pat_ident) => &pat_ident.ident,
-        other => {
-            return Err(syn::Error::new(
-                other.span(),
-                "expected a named function argument",
-            ));
-        },
-    };
-
-    let ctx_ty = &ctx_arg.ty;
-
-    let augroup_name = test_name.to_string();
-
-    let run_test = if asyncness.is_some() {
-        quote! {
-            ::ed::backend::Backend::with_ctx(neovim, |ctx| {
-                ctx.spawn_local_unprotected(inner)
-            })
-            .await
-        }
+    let (
+        expand_test,
+        maybe_terminator_arg,
+        maybe_terminator_name,
+        test_output,
+    ) = if test_fn.sig.asyncness.is_none() {
+        // Sync test.
+        (
+            Ident::new("sync_test", Span::call_site()),
+            None,
+            None,
+            Some(&test_fn.sig.output),
+        )
     } else {
-        quote! {
-            ::ed::backend::Backend::with_ctx(neovim, inner)
-        }
+        // Async test.
+        let terminator = Ident::new("terminator", Span::call_site());
+        (
+            Ident::new("async_test", Span::call_site()),
+            Some(quote!(#terminator: ::neovim::oxi::tests::TestTerminator)),
+            Some(terminator),
+            None,
+        )
     };
+
+    let test_attrs = &test_fn.attrs;
+    let test_name = &test_fn.sig.ident;
 
     Ok(quote! {
         #[::neovim::oxi::test(nvim_oxi = ::neovim::oxi)]
         #(#test_attrs)*
-        #asyncness fn #test_name() #test_output {
-            #[inline]
-            #asyncness fn inner(#ctx_name: #ctx_ty) #test_output {
-                #test_body
-            }
-            let neovim = ::neovim::Neovim::new_test(#augroup_name);
-            #run_test
+        fn #test_name(#maybe_terminator_arg) #test_output {
+            ::neovim::tests::test_macro::#expand_test(
+                {
+                    #test_fn
+                    #test_name
+                },
+                ::core::stringify!(#test_name),
+            )(#maybe_terminator_name)
         }
     })
 }
