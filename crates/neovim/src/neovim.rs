@@ -33,6 +33,12 @@ impl Neovim {
         self.emitter = emitter.into();
     }
 
+    /// TODO: docs.
+    #[cfg(feature = "test")]
+    pub fn feedkeys(&self, _keys: &str) {
+        todo!();
+    }
+
     /// Should only be called by the `#[neovim::plugin]` macro.
     #[doc(hidden)]
     #[inline]

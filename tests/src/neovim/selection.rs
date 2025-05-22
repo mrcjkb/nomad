@@ -1,6 +1,7 @@
 use ed::Context;
 use futures_lite::StreamExt;
-use neovim::{ContextExt, Neovim};
+use neovim::Neovim;
+use neovim::tests::ContextExt;
 
 use crate::ed::selection::SelectionEvent;
 

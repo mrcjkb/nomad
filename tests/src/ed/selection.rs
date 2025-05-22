@@ -18,9 +18,9 @@ impl SelectionEvent {
     /// Returns a never-ending [`Stream`] of [`SelectionEvent`]s on the current
     /// buffer.
     #[track_caller]
-    pub(crate) fn new_stream(
-        ctx: &mut Context<impl Backend>,
-    ) -> impl Stream<Item = Self> {
+    pub(crate) fn new_stream<Ed: Backend>(
+        ctx: &mut Context<Ed>,
+    ) -> impl Stream<Item = Self> + use<Ed> {
         let (tx, rx) = flume::unbounded();
 
         let buffer_id = ctx.with_borrowed(|ctx| {
