@@ -33,21 +33,21 @@ impl SelectionEvent {
                     return;
                 }
 
-                tx.send(Self::Created(selection.byte_range().convert()))
-                    .unwrap();
+                let byte_range = selection.byte_range().convert();
+                let _ = tx.send(Self::Created(byte_range));
 
                 mem::forget(selection.on_moved({
                     let tx = tx.clone();
                     move |selection, _moved_by| {
-                        tx.send(Self::Moved(selection.byte_range().convert()))
-                            .unwrap();
+                        let byte_range = selection.byte_range().convert();
+                        let _ = tx.send(Self::Moved(byte_range));
                     }
                 }));
 
                 mem::forget(selection.on_removed({
                     let tx = tx.clone();
                     move |_selection_id, _moved_by| {
-                        tx.send(Self::Removed).unwrap();
+                        let _ = tx.send(Self::Removed);
                     }
                 }));
             },
