@@ -37,12 +37,7 @@ impl Neovim {
     #[cfg(feature = "test")]
     pub fn feedkeys(&self, keys: &str) {
         let keys = oxi::api::replace_termcodes(keys, true, false, true);
-        // FIXME: `feedkeys()` should work with `nvim_oxi::String`s.
-        oxi::api::feedkeys(
-            &*keys.to_string_lossy(),
-            oxi::api::types::Mode::Normal,
-            false,
-        );
+        oxi::api::feedkeys(&keys, c"n", false);
     }
 
     /// Should only be called by the `#[neovim::plugin]` macro.
