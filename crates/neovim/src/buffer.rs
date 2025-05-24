@@ -282,7 +282,7 @@ impl<'a> NeovimBuffer<'a> {
             return None;
         }
 
-        let (start, end) = {
+        let (start, mut end) = {
             let (_bufnum, anchor_row, anchor_col) =
                 api::call_function::<_, (u32, usize, usize)>("getpos", ('v',))
                     .expect("couldn't call getpos");
@@ -312,6 +312,13 @@ impl<'a> NeovimBuffer<'a> {
                 (head, anchor)
             }
         };
+
+        // Neovim always allows you to select one more character past the end
+        // of the line, which is usually interpreted as having selected the
+        // following newline.
+        //
+        // Clearly that doesn't work if you're already at the end of the file.
+        end = end.min(self.point_of_eof());
 
         Some(self.byte_offset_of_point(start)..self.byte_offset_of_point(end))
     }

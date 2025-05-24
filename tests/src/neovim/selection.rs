@@ -20,3 +20,23 @@ async fn selection_events_1(ctx: &mut Context<Neovim>) {
     ctx.feedkeys("<Esc>");
     assert_eq!(events.next().await.unwrap(), SelectionEvent::Removed);
 }
+
+#[neovim::test]
+async fn selection_events_past_eof(ctx: &mut Context<Neovim>) {
+    ctx.feedkeys("iHello<Esc>0");
+
+    let mut events = SelectionEvent::new_stream(ctx);
+
+    ctx.feedkeys("v");
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Created(0..1));
+
+    ctx.feedkeys("w");
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Moved(0..5));
+
+    // We're already at EOF, so trying to select one more character shouldn't
+    // do anything.
+    ctx.feedkeys("<Right>");
+
+    ctx.feedkeys("<Esc>");
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Removed);
+}
