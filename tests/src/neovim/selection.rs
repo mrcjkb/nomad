@@ -38,5 +38,30 @@ async fn charwise_past_eof(ctx: &mut Context<Neovim>) {
     ctx.feedkeys("<Right>");
 
     ctx.feedkeys("<Esc>");
+
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Removed);
+}
+
+#[neovim::test]
+async fn charwise_past_eol(ctx: &mut Context<Neovim>) {
+    ctx.feedkeys("iHello<CR>World<Esc>0<Up>");
+
+    let mut events = SelectionEvent::new_stream(ctx);
+
+    ctx.feedkeys("v");
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Created(0..1));
+
+    ctx.feedkeys("e");
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Moved(0..5));
+
+    // In Neovim, trying to select past the end of the line will include the
+    // following newline in the selection (if there is one).
+    ctx.feedkeys("<Right>");
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Moved(0..6));
+
+    ctx.feedkeys("<Down>");
+    assert_eq!(events.next().await.unwrap(), SelectionEvent::Moved(0..11));
+
+    ctx.feedkeys("<Esc>");
     assert_eq!(events.next().await.unwrap(), SelectionEvent::Removed);
 }
