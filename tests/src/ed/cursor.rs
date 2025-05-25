@@ -1,115 +1,151 @@
 use core::mem;
+use core::time::Duration;
 
 use abs_path::path;
-use ed::backend::{Backend, Buffer, Cursor, Replacement};
-use ed::{Borrowed, ByteOffset, Context, Shared};
+use ed::backend::{AgentId, Backend, Buffer, Cursor, Replacement};
+use ed::{ByteOffset, Context};
+use futures_util::stream::{FusedStream, StreamExt};
+use futures_util::{FutureExt, select_biased};
 
-pub(crate) fn on_cursor_created_1<Ed: Backend>(
-    ctx: &mut Context<Ed, Borrowed>,
-) {
+pub(crate) async fn on_cursor_created_1(ctx: &mut Context<impl Backend>) {
     let agent_id = ctx.new_agent_id();
 
-    let num_created = Shared::<usize>::new(0);
+    let mut events = CursorEvent::new_stream(ctx);
 
-    let _handle = ctx.on_cursor_created({
-        let num_created = num_created.clone();
-        move |_cursor, created_by| {
-            assert_eq!(created_by, agent_id);
-            num_created.with_mut(|count| *count += 1);
-        }
-    });
-
-    ctx.block_on(async move |ctx| {
-        // Focusing the buffer should create a cursor.
+    // Focusing the buffer should create a cursor.
+    let foo_id =
         ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap();
-    });
 
-    assert_eq!(num_created.copied(), 1);
+    match events.next().await.unwrap() {
+        CursorEvent::Created(creation) => {
+            assert_eq!(creation.buffer_id, foo_id);
+            assert_eq!(creation.created_by, agent_id)
+        },
+        other => panic!("expected Created event, got {other:?}"),
+    }
 }
 
-pub(crate) fn on_cursor_created_2<Ed: Backend>(
-    ctx: &mut Context<Ed, Borrowed>,
-) {
+pub(crate) async fn on_cursor_created_2(ctx: &mut Context<impl Backend>) {
     let agent_id = ctx.new_agent_id();
 
-    let foo_id = ctx.block_on(async move |ctx| {
-        ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap()
-    });
+    let foo_id =
+        ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap();
 
-    let num_created = Shared::<usize>::new(0);
-
-    let _handle = ctx.on_cursor_created({
-        let num_created = num_created.clone();
-        move |_cursor, created_by| {
-            assert_eq!(created_by, agent_id);
-            num_created.with_mut(|count| *count += 1);
-        }
-    });
+    let mut events = CursorEvent::new_stream(ctx);
 
     // foo.txt is currently focused, so focusing it again shouldn't do
     // anything.
-    ctx.buffer(foo_id.clone()).unwrap().focus(agent_id);
-    assert_eq!(num_created.copied(), 0);
+    ctx.with_borrowed(|ctx| ctx.buffer(foo_id).unwrap().focus(agent_id));
 
     // Now create and focus bar.txt, which should create a cursor.
-    ctx.block_on(async move |ctx| {
-        ctx.create_and_focus(path!("/bar.txt"), agent_id).await.unwrap()
-    });
-    assert_eq!(num_created.copied(), 1);
+    let bar_id =
+        ctx.create_and_focus(path!("/bar.txt"), agent_id).await.unwrap();
+
+    match events.next().await.unwrap() {
+        CursorEvent::Created(creation) => {
+            assert_eq!(creation.buffer_id, bar_id);
+            assert_eq!(creation.created_by, agent_id);
+        },
+        other => panic!("expected Created event, got {other:?}"),
+    }
 }
 
-pub(crate) fn on_cursor_moved_1<Ed: Backend>(ctx: &mut Context<Ed, Borrowed>) {
+pub(crate) async fn on_cursor_moved_1(ctx: &mut Context<impl Backend>) {
     let agent_id = ctx.new_agent_id();
 
-    let num_created = Shared::<usize>::new(0);
+    let mut events = CursorEvent::new_stream(ctx);
 
-    let offsets = Shared::<Vec<ByteOffset>>::default();
+    let foo_id =
+        ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap();
 
-    let _handle = ctx.on_cursor_created({
-        let num_created = num_created.clone();
-        let offsets = offsets.clone();
-        move |cursor, created_by| {
-            assert_eq!(created_by, agent_id);
-            num_created.with_mut(|count| *count += 1);
+    ctx.with_borrowed(|ctx| {
+        let mut foo = ctx.buffer(foo_id.clone()).unwrap();
+        foo.edit([Replacement::insertion(0usize, "Hello world")], agent_id);
+    });
 
-            let offsets = offsets.clone();
-            let handle = cursor.on_moved(move |cursor, moved_by| {
-                assert_eq!(moved_by, agent_id);
-                offsets.with_mut(|vec| vec.push(cursor.byte_offset()));
+    // Drain the event stream.
+    let sleep = async_io::Timer::after(Duration::from_millis(500));
+    select_biased! {
+        _event = events.select_next_some() => {},
+        _now = FutureExt::fuse(sleep) => {},
+    }
+
+    ctx.with_borrowed(|ctx| {
+        let mut foo = ctx.buffer(foo_id.clone()).unwrap();
+        foo.for_each_cursor(|mut cursor| {
+            cursor.r#move(5usize.into(), agent_id);
+        });
+    });
+
+    match events.next().await.unwrap() {
+        CursorEvent::Moved(movement) => {
+            assert_eq!(movement.byte_offset, 5usize);
+            assert_eq!(movement.buffer_id, foo_id);
+            assert_eq!(movement.moved_by, agent_id);
+        },
+        other => panic!("expected Moved event, got {other:?}"),
+    }
+}
+
+#[derive(cauchy::Debug, cauchy::PartialEq)]
+pub(crate) enum CursorEvent<Ed: Backend> {
+    Created(CursorCreation<Ed>),
+    Moved(CursorMovement<Ed>),
+    Removed(AgentId),
+}
+
+#[derive(cauchy::Debug, cauchy::PartialEq)]
+pub(crate) struct CursorCreation<Ed: Backend> {
+    pub(crate) buffer_id: Ed::BufferId,
+    pub(crate) byte_offset: ByteOffset,
+    pub(crate) created_by: AgentId,
+}
+
+#[derive(cauchy::Debug, cauchy::PartialEq)]
+pub(crate) struct CursorMovement<Ed: Backend> {
+    pub(crate) buffer_id: Ed::BufferId,
+    pub(crate) byte_offset: ByteOffset,
+    pub(crate) moved_by: AgentId,
+}
+
+impl<Ed: Backend> CursorEvent<Ed> {
+    /// Returns a never-ending [`Stream`] of [`CursorEvent`]s on the current
+    /// buffer.
+    #[track_caller]
+    pub(crate) fn new_stream(
+        ctx: &mut Context<Ed>,
+    ) -> impl FusedStream<Item = Self> + Unpin + use<Ed> {
+        let (tx, rx) = flume::unbounded();
+
+        mem::forget(ctx.on_cursor_created(move |cursor, created_by| {
+            let event = Self::Created(CursorCreation {
+                buffer_id: cursor.buffer_id(),
+                byte_offset: cursor.byte_offset(),
+                created_by,
             });
+            let _ = tx.send(event);
 
-            mem::forget(handle);
-        }
-    });
+            mem::forget(cursor.on_moved({
+                let tx = tx.clone();
+                move |cursor, moved_by| {
+                    let event = Self::Moved(CursorMovement {
+                        buffer_id: cursor.buffer_id(),
+                        byte_offset: cursor.byte_offset(),
+                        moved_by,
+                    });
+                    let _ = tx.send(event);
+                }
+            }));
 
-    let foo_id = ctx.block_on(async move |ctx| {
-        ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap()
-    });
+            mem::forget(cursor.on_removed({
+                let tx = tx.clone();
+                move |_selection_id, removed_by| {
+                    let event = Self::Removed(removed_by);
+                    let _ = tx.send(event);
+                }
+            }));
+        }));
 
-    assert_eq!(num_created.copied(), 1);
-
-    // We've created a cursor but never moved it, so we shouldn't have pushed
-    // any offsets yet.
-    assert!(offsets.with(|vec| vec.is_empty()));
-
-    let mut foo_txt = ctx.buffer(foo_id).unwrap();
-
-    // Fill the buffer with some text. This may or may not move the cursor.
-    foo_txt.edit(
-        [Replacement::new(0usize.into()..0usize.into(), "Hello world")],
-        agent_id,
-    );
-
-    assert_eq!(foo_txt.num_cursors(), 1);
-
-    foo_txt.for_each_cursor(|mut cursor| {
-        cursor.r#move(5usize.into(), agent_id);
-    });
-
-    offsets.with(|vec| {
-        assert_eq!(*vec.last().unwrap(), 5usize);
-    });
-
-    // Moving the cursor shouldn't cause a new one to be created.
-    assert_eq!(num_created.copied(), 1);
+        rx.into_stream()
+    }
 }

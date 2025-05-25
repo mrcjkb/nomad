@@ -93,11 +93,27 @@ impl Replacement {
 
     /// TODO: docs.
     #[inline]
+    pub fn insertion(
+        at_offset: impl Into<ByteOffset>,
+        text: impl Into<SmolStr>,
+    ) -> Self {
+        let offset = at_offset.into();
+        Self::new(offset..offset, text)
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn new(
         removed_range: Range<ByteOffset>,
         inserted_text: impl Into<SmolStr>,
     ) -> Self {
         Self { removed_range, inserted_text: inserted_text.into() }
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn removal(byte_range: Range<ByteOffset>) -> Self {
+        Self::new(byte_range, "")
     }
 
     /// TODO: docs.

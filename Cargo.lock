@@ -2858,6 +2858,7 @@ dependencies = [
  "abs-path",
  "async-io",
  "auth",
+ "cauchy",
  "collab",
  "ed",
  "flume",

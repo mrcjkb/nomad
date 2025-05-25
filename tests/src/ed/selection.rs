@@ -46,7 +46,7 @@ impl SelectionEvent {
 
                 mem::forget(selection.on_removed({
                     let tx = tx.clone();
-                    move |_selection_id, _moved_by| {
+                    move |_selection_id, _removed_by| {
                         let _ = tx.send(Self::Removed);
                     }
                 }));

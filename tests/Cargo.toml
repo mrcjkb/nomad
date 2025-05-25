@@ -30,6 +30,7 @@ neovim-nightly = ["neovim", "neovim/nightly"]
 
 [dependencies]
 abs-path = { workspace = true, features = ["macros"] }
+cauchy = { workspace = true }
 ed = { workspace = true }
 flume = { workspace = true }
 futures-lite = { workspace = true, features = ["default"] }
