@@ -1,5 +1,7 @@
+use core::time::Duration;
+
 use ed::Context;
-use futures_util::StreamExt;
+use futures_util::{FutureExt, StreamExt, select_biased};
 use neovim::Neovim;
 use neovim::tests::ContextExt;
 
@@ -98,4 +100,25 @@ async fn linewise_simple(ctx: &mut Context<Neovim>) {
 
     ctx.feedkeys("<Esc>");
     assert_eq!(events.next().await.unwrap(), SelectionEvent::Removed);
+}
+
+#[neovim::test]
+async fn blockwise_is_ignored(ctx: &mut Context<Neovim>) {
+    ctx.feedkeys("iHello<CR>2<Left>");
+
+    let mut events = SelectionEvent::new_stream(ctx);
+
+    ctx.feedkeys("<C-v>");
+
+    let sleep = async_io::Timer::after(Duration::from_millis(500));
+
+    select_biased! {
+        _event = events.select_next_some() => {
+            panic!(
+                "blockwise selections are not currently supported, we \
+                 shouldn't emit an event!"
+            )
+        },
+        _now = FutureExt::fuse(sleep) => {},
+    }
 }
