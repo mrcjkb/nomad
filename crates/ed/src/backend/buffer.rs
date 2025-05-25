@@ -1,3 +1,4 @@
+use core::fmt;
 use core::ops::Range;
 use std::borrow::Cow;
 
@@ -20,6 +21,9 @@ pub trait Buffer {
     fn edit<R>(&mut self, replacements: R, agent_id: AgentId)
     where
         R: IntoIterator<Item = Replacement>;
+
+    /// TODO: docs.
+    fn get_text(&self, byte_range: Range<ByteOffset>) -> impl Chunks;
 
     /// TODO: docs.
     fn id(&self) -> <Self::Backend as Backend>::BufferId;
@@ -65,6 +69,12 @@ pub trait Buffer {
 
     /// TODO: docs.
     fn path(&self) -> Cow<'_, AbsPath>;
+}
+
+/// TODO: docs.
+pub trait Chunks: fmt::Display + for<'a> PartialEq<&'a str> {
+    /// TODO: docs.
+    fn iter(&self) -> impl Iterator<Item = impl AsRef<str>>;
 }
 
 /// TODO: docs.
@@ -120,5 +130,12 @@ impl Replacement {
     #[inline]
     pub fn removed_range(&self) -> Range<ByteOffset> {
         self.removed_range.clone()
+    }
+}
+
+impl<T: AsRef<str> + fmt::Display + for<'a> PartialEq<&'a str>> Chunks for T {
+    #[inline]
+    fn iter(&self) -> impl Iterator<Item = impl AsRef<str>> {
+        core::iter::once(self)
     }
 }

@@ -13,7 +13,7 @@ pub use agent_id::AgentId;
 pub use api::Api;
 pub use backend::Backend;
 pub use base_backend::BaseBackend;
-pub use buffer::{Buffer, Edit, Replacement};
+pub use buffer::{Buffer, Chunks, Edit, Replacement};
 pub use cursor::Cursor;
 pub use selection::Selection;
 pub use value::{Key, MapAccess, Value};

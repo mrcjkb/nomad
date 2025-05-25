@@ -31,7 +31,7 @@ async fn fuzz_edits(num_epochs: u32, ctx: &mut Context<impl Backend>) {
         .await
         .unwrap();
 
-    let mut edits = Edit::new_stream(buf_id, ctx);
+    let mut edits = Edit::new_stream(buf_id.clone(), ctx);
 
     // A string to which we'll apply the same edits we apply to the buffer.
     let mut expected_contents = String::new();
@@ -63,9 +63,9 @@ async fn fuzz_edits(num_epochs: u32, ctx: &mut Context<impl Backend>) {
             // Make sure the buffer's contents are the same as the string.
             ctx.with_borrowed(|ctx| {
                 let buf = ctx.buffer(buf_id.clone()).unwrap();
-                let buf_contents = buf.get_text(0.into()..buf.byte_len());
+                let buf_contents = buf.get_text(0usize.into()..buf.byte_len());
 
-                if buf_contents != expected_contents {
+                if buf_contents != &*expected_contents {
                     panic!(
                         "buffer and string diverged after {} \
                          epochs:\n{buf_contents}\nvs\n{expected_contents}",

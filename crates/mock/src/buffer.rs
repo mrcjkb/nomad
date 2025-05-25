@@ -3,7 +3,7 @@ use std::borrow::Cow;
 
 use abs_path::AbsPath;
 use ed::ByteOffset;
-use ed::backend::{self, AgentId, Buffer as _, Edit, Replacement};
+use ed::backend::{self, AgentId, Buffer as _, Chunks, Edit, Replacement};
 use slotmap::SlotMap;
 
 use crate::mock::{self, CallbackKind, Callbacks};
@@ -247,6 +247,11 @@ impl backend::Buffer for Buffer<'_> {
                 }
             }
         });
+    }
+
+    fn get_text(&self, byte_range: Range<ByteOffset>) -> impl Chunks {
+        let range = byte_range.start.into()..byte_range.end.into();
+        &self.contents[range]
     }
 
     fn id(&self) -> BufferId {

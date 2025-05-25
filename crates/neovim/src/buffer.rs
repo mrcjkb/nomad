@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 
 use compact_str::CompactString;
-use ed::backend::{AgentId, Buffer, Edit, Replacement};
+use ed::backend::{AgentId, Buffer, Chunks, Edit, Replacement};
 use ed::fs::AbsPath;
 use ed::{ByteOffset, Shared};
 
@@ -477,6 +477,13 @@ impl Buffer for NeovimBuffer<'_> {
                 replacement.inserted_text(),
             );
         }
+    }
+
+    #[inline]
+    fn get_text(&self, byte_range: Range<ByteOffset>) -> impl Chunks {
+        let start = self.point_of_byte(byte_range.start);
+        let end = self.point_of_byte(byte_range.end);
+        self.get_text_in_point_range(start..end)
     }
 
     #[inline]
