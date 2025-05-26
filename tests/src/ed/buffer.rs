@@ -1,4 +1,4 @@
-use core::{iter, mem};
+use core::{fmt, iter, mem};
 
 use ed::backend::{Buffer, Edit, Replacement};
 use ed::{Backend, Context};
@@ -21,7 +21,14 @@ pub(crate) async fn fuzz_edits(
     let mut edits = Edit::new_stream(buf_id.clone(), ctx);
 
     // A string to which we'll apply the same edits we apply to the buffer.
-    let mut expected_contents = String::new();
+    //
+    // Even though we just created the buffer, we shouldn't assume that the
+    // contents of a new buffer are empty. For example, in Neovim buffers
+    // already contain a trailing newline by default.
+    let mut expected_contents = ctx.with_borrowed(|ctx| {
+        let buf = ctx.buffer(buf_id.clone()).unwrap();
+        buf.get_text(0usize.into()..buf.byte_len()).to_string()
+    });
 
     fuzz::run_async(async |rng| {
         for epoch_idx in 0..num_epochs {
@@ -54,9 +61,11 @@ pub(crate) async fn fuzz_edits(
 
                 if buf_contents != &*expected_contents {
                     panic!(
-                        "buffer and string diverged after {} \
-                         epochs:\n{buf_contents}\nvs\n{expected_contents}",
-                        epoch_idx + 1
+                        "buffer and string diverged after {num_epochs} \
+                         epochs:\n{lhs}\nvs\n{rhs}",
+                        num_epochs = epoch_idx + 1,
+                        lhs = DisplayBufContents(buf_contents),
+                        rhs = DisplayBufContents(&expected_contents),
                     );
                 }
             });
@@ -134,3 +143,11 @@ trait EditExt {
 }
 
 impl EditExt for Edit {}
+
+struct DisplayBufContents<T>(T);
+
+impl<T: fmt::Display> fmt::Display for DisplayBufContents<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "```\n{}\n```", self.0)
+    }
+}
