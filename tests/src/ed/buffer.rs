@@ -7,23 +7,10 @@ use rand::Rng;
 
 use crate::utils::{CodeDistribution, Convert, fuzz};
 
-pub(crate) async fn fuzz_edits_10(ctx: &mut Context<impl Backend>) {
-    fuzz_edits(10, ctx).await;
-}
-
-pub(crate) async fn fuzz_edits_100(ctx: &mut Context<impl Backend>) {
-    fuzz_edits(100, ctx).await;
-}
-
-pub(crate) async fn fuzz_edits_1_000(ctx: &mut Context<impl Backend>) {
-    fuzz_edits(1_000, ctx).await;
-}
-
-pub(crate) async fn fuzz_edits_10_000(ctx: &mut Context<impl Backend>) {
-    fuzz_edits(10_000, ctx).await;
-}
-
-async fn fuzz_edits(num_epochs: u32, ctx: &mut Context<impl Backend>) {
+pub(crate) async fn fuzz_edits(
+    num_epochs: u32,
+    ctx: &mut Context<impl Backend>,
+) {
     let agent_id = ctx.new_agent_id();
 
     let buf_id = ctx
