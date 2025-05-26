@@ -2,7 +2,7 @@ use ed::backend::Backend;
 use mock::fs::MockFs;
 use mock::{ContextExt, Mock};
 
-mod ed_cursor {
+mod ed_buffer {
     //! Contains the editor-agnostic buffer tests.
 
     use super::*;
