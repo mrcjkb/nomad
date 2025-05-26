@@ -5,7 +5,7 @@ use ed::{Backend, Context};
 use futures_util::stream::{FusedStream, StreamExt};
 use rand::Rng;
 
-use crate::utils::{Convert, fuzz};
+use crate::utils::{CodeDistribution, Convert, fuzz};
 
 pub(crate) async fn fuzz_edits_10(ctx: &mut Context<impl Backend>) {
     fuzz_edits(10, ctx).await;
@@ -82,8 +82,48 @@ async fn fuzz_edits(num_epochs: u32, ctx: &mut Context<impl Backend>) {
 ///
 /// All [`ByteOffset`](ed::ByteOffset)s in the generated [`Replacement`] are
 /// guaranteed to be valid char boundaries in the string.
-fn gen_replacement(_s: &str, _rng: &mut impl Rng) -> Replacement {
-    todo!();
+fn gen_replacement(s: &str, rng: &mut impl Rng) -> Replacement {
+    // Taken from u8::is_utf8_char_boundary(), which is not public.
+    let is_byte_char_boundary = |byte: u8| (byte as i8) >= -0x40;
+
+    let clip_to_char_boundary = |offset| {
+        if offset >= s.len() {
+            return s.len();
+        } else if s.is_char_boundary(offset) {
+            return offset;
+        }
+
+        let num_bytes_to_prev_boundary = s.as_bytes()[..offset]
+            .iter()
+            .copied()
+            .rposition(is_byte_char_boundary)
+            .unwrap();
+
+        let num_bytes_to_next_boundary = s.as_bytes()[offset..]
+            .iter()
+            .copied()
+            .position(is_byte_char_boundary)
+            .unwrap();
+
+        if num_bytes_to_prev_boundary <= num_bytes_to_next_boundary {
+            offset - num_bytes_to_prev_boundary
+        } else {
+            offset + num_bytes_to_next_boundary
+        }
+    };
+
+    // Make the average number of inserted bytes greater than the average
+    // number of deleted bytes to cause the buffer to grow over time.
+    let delete_num = rng.random_range(0..3);
+    let insert_num = rng.random_range(0..5);
+
+    let delete_from = clip_to_char_boundary(rng.random_range(0..s.len()));
+    let delete_to = clip_to_char_boundary(delete_from + delete_num);
+    let insertion_str = iter::repeat_with(|| rng.sample(CodeDistribution))
+        .take(insert_num)
+        .collect::<String>();
+
+    Replacement::new(delete_from.into()..delete_to.into(), insertion_str)
 }
 
 trait EditExt {
