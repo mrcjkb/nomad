@@ -2,7 +2,6 @@
 
 use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
-use core::num::NonZeroUsize;
 use core::ops::Range;
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -164,9 +163,42 @@ impl<'a> NeovimBuffer<'a> {
     #[track_caller]
     #[inline]
     pub(crate) fn point_of_byte(self, byte_offset: ByteOffset) -> Point {
+        debug_assert!(byte_offset <= self.byte_len());
+
         if byte_offset == 0 {
-            // byte2line can't handle 0.
+            // byte2line() can't handle 0.
             return Point::zero();
+        } else if byte_offset == 1 {
+            // byte2line() has a bug where it returns -1 if the buffer's
+            // "memline" (i.e. the object that stores its contents in memory)
+            // is not initialized.
+            //
+            // Because the memline seems to be lazily initialized when the user
+            // first edits the buffer, byte2line() will always return -1 on
+            // newly created buffers.
+            //
+            // I brought this up here
+            // https://github.com/neovim/neovim/issues/34199, but it was almost
+            // immediately closed as a "wontfix" for reasons that are still
+            // completely opaque to me.
+            //
+            // The TLDR of that issue is that the maintainers are not only not
+            // willing to fix the bug, but they don't even recognize it as
+            // such, so we have to handle it ourselves.
+            //
+            // Unfortunately there's no public API to check if a memline is
+            // initialized, however we can use the fact that in a buffer with
+            // an uninitialized memline there can only be up to two possible
+            // valid byte offsets: 0, and, if the buffer has a trailing
+            // newline, 1.
+            //
+            // Since we've already handled 0, we just need to check if the
+            // buffer has a trailing newline.
+            return if self.has_trailing_newline() {
+                Point { line_idx: 1, byte_offset: 0usize.into() }
+            } else {
+                Point { line_idx: 0, byte_offset: 0usize.into() }
+            };
         }
 
         let line_idx = self.call(move |this| {
@@ -199,9 +231,12 @@ impl<'a> NeovimBuffer<'a> {
     #[track_caller]
     #[inline]
     pub(crate) fn point_of_eof(self) -> Point {
-        let line_len = usize::from(self.line_len());
+        let has_trailing_newline = self.has_trailing_newline();
 
-        let byte_offset = if self.has_trailing_newline() {
+        let line_len = self.inner().line_count().expect("buffer is valid")
+            + has_trailing_newline as usize;
+
+        let byte_offset = if has_trailing_newline {
             0usize.into()
         } else {
             self.byte_of_line(line_len) - self.byte_of_line(line_len - 1)
@@ -342,17 +377,6 @@ impl<'a> NeovimBuffer<'a> {
         };
 
         bool_opt("fixeol") && (bool_opt("eol") || !bool_opt("binary"))
-    }
-
-    /// Returns the number of lines in the buffer, which is defined as being
-    /// one more than the number of newline characters in the buffer.
-    ///
-    /// Note that an empty empty buffer will a `line_len` of 1.
-    #[inline]
-    fn line_len(&self) -> NonZeroUsize {
-        NonZeroUsize::new(self.inner().line_count().expect("buffer is valid"))
-            .expect("the output of line_count() is always >=1 ")
-            .saturating_add(self.has_trailing_newline() as usize)
     }
 
     /// Returns the selected byte range in the buffer, assuming:
