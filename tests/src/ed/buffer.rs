@@ -32,7 +32,7 @@ pub(crate) async fn fuzz_edits(
 
     fuzz::run_async(async |rng| {
         for epoch_idx in 0..num_epochs {
-            let replacement = gen_replacement(&expected_contents, rng);
+            let replacement = random_replacement(&expected_contents, rng);
 
             // Apply the replacement to the string.
             expected_contents.replace_range(
@@ -74,11 +74,13 @@ pub(crate) async fn fuzz_edits(
     .await;
 }
 
-/// Generates a random replacement to be applied to the given string.
+/// Generates a random [`Replacement`] to be applied to the given string.
 ///
-/// All [`ByteOffset`](ed::ByteOffset)s in the generated [`Replacement`] are
-/// guaranteed to be valid char boundaries in the string.
-fn gen_replacement(s: &str, rng: &mut impl Rng) -> Replacement {
+/// The replacement is guaranteed to not be a no-op (i.e. it either deletes
+/// characters, inserts some, or both), and the [`ByteOffset`](ed::ByteOffset)s
+/// representing the range to delete are guaranteed to be valid char boundaries
+/// in the string.
+fn random_replacement(s: &str, rng: &mut impl Rng) -> Replacement {
     // Taken from u8::is_utf8_char_boundary(), which is not public.
     let is_char_boundary = |byte: u8| (byte as i8) >= -0x40;
 
@@ -112,6 +114,12 @@ fn gen_replacement(s: &str, rng: &mut impl Rng) -> Replacement {
 
     let delete_from = clip_to_char_boundary(rng.random_range(0..=s.len()));
     let delete_to = clip_to_char_boundary(delete_from + delete_num);
+
+    // If we generated a no-op replacement, try again.
+    if (delete_from..delete_to).len() + insert_num == 0 {
+        return random_replacement(s, rng);
+    }
+
     let insert_str = iter::repeat_with(|| rng.sample(CodeDistribution))
         .take(insert_num)
         .collect::<String>();
