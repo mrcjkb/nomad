@@ -140,7 +140,9 @@ impl<Ed: CollabBackend> ProjectHandle<Ed> {
                 self.integrate_fs_op(file_creation, ctx).await
             },
             Message::CreatedSelection(selection_creation) => todo!(),
-            Message::DeletedCursor(cursor_deletion) => todo!(),
+            Message::DeletedCursor(cursor_deletion) => {
+                self.integrate_cursor_deletion(cursor_deletion, ctx).await
+            },
             Message::DeletedFsNode(deletion) => {
                 self.integrate_fs_op(deletion, ctx).await
             },
@@ -216,6 +218,22 @@ impl<Ed: CollabBackend> ProjectHandle<Ed> {
         self.with_project(|proj| {
             proj.peer_tooltips.insert(cur_id, peer_tooltip_id);
         });
+    }
+
+    async fn integrate_cursor_deletion(
+        &self,
+        deletion: text::CursorDeletion,
+        ctx: &mut Context<Ed>,
+    ) {
+        let Some(tooltip_id) = self.with_project(|proj| {
+            proj.project
+                .integrate_cursor_deletion(deletion)
+                .and_then(|cursor_id| proj.peer_tooltips.remove(&cursor_id))
+        }) else {
+            return;
+        };
+
+        Ed::remove_peer_tooltip(tooltip_id, ctx).await;
     }
 
     async fn integrate_cursor_movement(
