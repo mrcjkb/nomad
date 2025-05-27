@@ -101,13 +101,13 @@ impl<'a> NeovimBuffer<'a> {
         // However, because get_text() seems to already clamp offsets in lines,
         // we just set the end to `(line_idx - 1, Integer::MAX)` and let it
         // figure out the offset.
-
         let needs_to_clamp_end = self.has_trailing_newline()
             && point_range.end == self.point_of_eof();
 
         if needs_to_clamp_end {
             point_range.end.line_idx -= 1;
             point_range.end.byte_offset = (oxi::Integer::MAX as usize).into();
+            point_range.start = point_range.start.min(point_range.end);
         }
 
         let lines = self
@@ -254,9 +254,24 @@ impl<'a> NeovimBuffer<'a> {
     #[inline]
     pub(crate) fn replace_text_in_point_range(
         &self,
-        delete_range: Range<Point>,
+        mut delete_range: Range<Point>,
         insert_text: &str,
     ) {
+        // We need to clamp the end in the same way we do in
+        // get_text_in_point_range(). See that comment for more details.
+        //
+        // FIXME: this means it's actually impossible to delete a buffer's
+        // trailing newline.
+        let needs_to_clamp_end = self.has_trailing_newline()
+            && delete_range.end == self.point_of_eof();
+
+        if needs_to_clamp_end {
+            delete_range.end.line_idx -= 1;
+            let penultimate_line = self.get_line(delete_range.end.line_idx);
+            delete_range.end.byte_offset = penultimate_line.len().into();
+            delete_range.start = delete_range.start.min(delete_range.end);
+        }
+
         // If the text has a trailing newline, Neovim expects an additional
         // empty line to be included.
         let lines = insert_text
