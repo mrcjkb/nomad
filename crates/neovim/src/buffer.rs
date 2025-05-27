@@ -168,7 +168,7 @@ impl<'a> NeovimBuffer<'a> {
         if byte_offset == 0 {
             // byte2line() can't handle 0.
             return Point::zero();
-        } else if byte_offset == 1 {
+        } else if byte_offset == 1 && self.byte_len() == 1 {
             // byte2line() has a bug where it returns -1 if the buffer's
             // "memline" (i.e. the object that stores its contents in memory)
             // is not initialized.
@@ -195,9 +195,9 @@ impl<'a> NeovimBuffer<'a> {
             // Since we've already handled 0, we just need to check if the
             // buffer has a trailing newline.
             return if self.has_trailing_newline() {
-                Point { line_idx: 1, byte_offset: 0usize.into() }
+                Point::new(1, 0)
             } else {
-                Point { line_idx: 0, byte_offset: 0usize.into() }
+                Point::new(0, 1)
             };
         }
 
@@ -221,28 +221,31 @@ impl<'a> NeovimBuffer<'a> {
             line_idx + is_offset_after_newline as usize
         });
 
-        let line_byte_offset =
-            self.inner().get_offset(line_idx).expect("todo");
+        let line_byte_offset = self
+            .inner()
+            .get_offset(line_idx)
+            .expect("line index is within bounds");
 
-        Point { line_idx, byte_offset: byte_offset - line_byte_offset }
+        Point::new(line_idx, usize::from(byte_offset) - line_byte_offset)
     }
 
     /// Returns the [`Point`] at the end of the buffer.
     #[track_caller]
     #[inline]
     pub(crate) fn point_of_eof(self) -> Point {
+        let num_rows = self.inner().line_count().expect("buffer is valid");
+
         let has_trailing_newline = self.has_trailing_newline();
 
-        let line_len = self.inner().line_count().expect("buffer is valid")
-            + has_trailing_newline as usize;
+        let num_lines = num_rows - 1 + has_trailing_newline as usize;
 
-        let byte_offset = if has_trailing_newline {
-            0usize.into()
+        let last_line_len = if has_trailing_newline {
+            0
         } else {
-            self.byte_of_line(line_len) - self.byte_of_line(line_len - 1)
+            self.get_line(num_rows - 1).len()
         };
 
-        Point { line_idx: line_len - 1, byte_offset }
+        Point::new(num_lines, last_line_len)
     }
 
     /// Replaces the text in the given point range with the new text.
@@ -508,9 +511,14 @@ impl BufferId {
 }
 
 impl Point {
-    /// TODO: docs.
+    #[inline]
+    pub(crate) fn new(line_idx: usize, byte_offset: usize) -> Self {
+        Self { line_idx, byte_offset: byte_offset.into() }
+    }
+
+    #[inline]
     pub(crate) fn zero() -> Self {
-        Self { line_idx: 0, byte_offset: ByteOffset::new(0) }
+        Self::new(0, 0)
     }
 }
 
