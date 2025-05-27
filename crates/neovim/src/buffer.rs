@@ -1,6 +1,7 @@
 //! TODO: docs.
 
 use core::cmp::Ordering;
+use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops::Range;
 use std::borrow::Cow;
@@ -27,7 +28,7 @@ pub struct NeovimBuffer<'a> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct BufferId(BufHandle);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) struct Point {
     /// The index of the line in the buffer.
     pub(crate) line_idx: usize,
@@ -206,7 +207,7 @@ impl<'a> NeovimBuffer<'a> {
                     "byte2line",
                     (byte_offset.into_u64() as u32,),
                 ).expect("offset is within bounds")
-                // byte2line returns 1-based line numbers.
+                // byte2line() returns 1-based line numbers.
                 - 1;
 
             // Whether the character immediately to the left of the given
@@ -216,8 +217,8 @@ impl<'a> NeovimBuffer<'a> {
                 .expect("line index is within bounds")
                 == byte_offset;
 
-            // byte2line interprets newlines as being the last character
-            // of the previous line instead of starting a new one.
+            // byte2line() interprets newlines as being the last character
+            // of the line they end instead of starting a new one.
             line_idx + is_offset_after_newline as usize
         });
 
@@ -669,6 +670,15 @@ impl Hash for BufferId {
 }
 
 impl nohash::IsEnabled for BufferId {}
+
+impl fmt::Debug for Point {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Point")
+            .field(&self.line_idx)
+            .field(&usize::from(self.byte_offset))
+            .finish()
+    }
+}
 
 impl PartialOrd for Point {
     #[inline]
