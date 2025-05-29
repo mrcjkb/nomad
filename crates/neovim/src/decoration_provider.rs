@@ -4,10 +4,16 @@ use compact_str::CompactString;
 use ed::Shared;
 use nohash::IntMap as NoHashMap;
 use slotmap::SlotMap;
-use smallvec::SmallVec;
 
 use crate::buffer::{BufferId, Point};
 use crate::oxi::api;
+
+/// TODO: docs.
+pub struct HighlightRange {
+    decoration_provider: DecorationProvider,
+    buffer_id: BufferId,
+    range_id: slotmap::DefaultKey,
+}
 
 pub(crate) struct DecorationProvider {
     inner: Shared<DecorationProviderInner>,
@@ -28,7 +34,6 @@ struct HighlightRangeInner {
     extmark_id: u32,
     highlight_group_name: CompactString,
     point_range: Range<Point>,
-    was_dropped: bool,
 }
 
 impl DecorationProvider {
@@ -88,14 +93,7 @@ impl DecorationProvider {
 
 impl HighlightRanges {
     fn redraw(&mut self, namespace_id: u32) {
-        let mut keys_of_dropped_ranges = SmallVec::<[_; 4]>::new();
-
-        for (range_key, range) in &self.inner {
-            if range.was_dropped {
-                keys_of_dropped_ranges.push(range_key);
-                continue;
-            }
-
+        for range in self.inner.values() {
             let opts = api::opts::SetExtmarkOpts::builder()
                 .end_row(range.point_range.end.line_idx)
                 .end_col(range.point_range.end.byte_offset.into())
@@ -113,16 +111,26 @@ impl HighlightRanges {
                 )
                 .expect("couldn't set extmark");
         }
+    }
+}
 
-        self.inner.retain(|key, _| {
-            if let Some(idx) = keys_of_dropped_ranges
-                .iter()
-                .position(|&dropped_key| dropped_key == key)
-            {
-                keys_of_dropped_ranges.swap_remove(idx);
-                false
-            } else {
-                true
+impl Drop for HighlightRange {
+    #[inline]
+    fn drop(&mut self) {
+        self.decoration_provider.inner.with_mut(|inner| {
+            let highlight_ranges = &mut inner
+                .highlight_ranges
+                .get_mut(&self.buffer_id)
+                .expect(
+                    "there's still at least one HighlightRange on the given \
+                     buffer",
+                )
+                .inner;
+
+            highlight_ranges.remove(self.range_id);
+
+            if highlight_ranges.is_empty() {
+                inner.highlight_ranges.remove(&self.buffer_id);
             }
         });
     }
