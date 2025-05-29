@@ -559,7 +559,7 @@ impl BufferId {
     }
 }
 
-impl HighlightRange<'_> {
+impl<'a> HighlightRange<'a> {
     /// TODO: docs.
     #[inline]
     pub fn buffer(&self) -> NeovimBuffer<'_> {
@@ -581,6 +581,22 @@ impl HighlightRange<'_> {
     #[inline]
     pub fn set_highlight_group(&self, highlight_group_name: &str) {
         self.handle.inner.set_hl_group(highlight_group_name);
+    }
+
+    #[inline]
+    pub(crate) fn new(
+        buffer: NeovimBuffer<'a>,
+        handle: &'a HighlightRangeHandle,
+    ) -> Self {
+        debug_assert_eq!(buffer.id(), handle.buffer_id());
+        Self { buffer, handle }
+    }
+}
+
+impl HighlightRangeHandle {
+    #[inline]
+    pub(crate) fn buffer_id(&self) -> BufferId {
+        self.inner.buffer_id()
     }
 }
 

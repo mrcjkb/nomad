@@ -6,7 +6,13 @@ use ed::notify::Namespace;
 use ed::plugin::Plugin;
 use ed::{BorrowState, Context, Shared};
 
-use crate::buffer::{BufferId, NeovimBuffer, Point};
+use crate::buffer::{
+    BufferId,
+    HighlightRange,
+    HighlightRangeHandle,
+    NeovimBuffer,
+    Point,
+};
 use crate::cursor::NeovimCursor;
 use crate::decoration_provider::DecorationProvider;
 use crate::events::{self, EventHandle, Events};
@@ -29,6 +35,16 @@ pub struct CreateBufferError {
 }
 
 impl Neovim {
+    /// TODO: docs.
+    #[inline]
+    pub fn highlight_range<'a>(
+        &'a self,
+        handle: &'a HighlightRangeHandle,
+    ) -> Option<HighlightRange<'a>> {
+        self.buffer_inner(handle.buffer_id())
+            .map(|buffer| HighlightRange::new(buffer, handle))
+    }
+
     /// TODO: docs.
     #[inline]
     pub fn set_emitter(&mut self, emitter: impl Into<notify::NeovimEmitter>) {
