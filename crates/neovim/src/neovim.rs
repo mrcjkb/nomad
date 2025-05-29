@@ -8,6 +8,7 @@ use ed::{BorrowState, Context, Shared};
 
 use crate::buffer::{BufferId, NeovimBuffer, Point};
 use crate::cursor::NeovimCursor;
+use crate::decoration_provider::DecorationProvider;
 use crate::events::{self, EventHandle, Events};
 use crate::selection::NeovimSelection;
 use crate::{api, executor, notify, oxi, serde, value};
@@ -17,6 +18,7 @@ pub struct Neovim {
     emitter: notify::NeovimEmitter,
     events: Shared<Events>,
     executor: executor::NeovimExecutor,
+    decoration_provider: DecorationProvider,
     reinstate_panic_hook: bool,
 }
 
@@ -51,6 +53,7 @@ impl Neovim {
             events: Shared::new(Events::new(augroup_name)),
             emitter: Default::default(),
             executor: Default::default(),
+            decoration_provider: DecorationProvider::new(augroup_name),
             reinstate_panic_hook,
         }
     }
