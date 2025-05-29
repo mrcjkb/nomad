@@ -36,6 +36,26 @@ struct HighlightRangeInner {
     point_range: Range<Point>,
 }
 
+impl HighlightRange {
+    #[inline]
+    fn with_inner<T>(
+        &self,
+        fun: impl FnOnce(&mut HighlightRangeInner) -> T,
+    ) -> T {
+        self.decoration_provider.inner.with_mut(|decoration_provider| {
+            let inner = decoration_provider
+                .highlight_ranges
+                .get_mut(&self.buffer_id)
+                .expect("not removed until all ranges buffer are dropped")
+                .inner
+                .get_mut(self.range_id)
+                .expect("not removed until this range is dropped");
+
+            fun(inner)
+        })
+    }
+}
+
 impl DecorationProvider {
     #[inline]
     pub(crate) fn new(namespace_name: &str) -> Self {
@@ -121,10 +141,7 @@ impl Drop for HighlightRange {
             let highlight_ranges = &mut inner
                 .highlight_ranges
                 .get_mut(&self.buffer_id)
-                .expect(
-                    "there's still at least one HighlightRange on the given \
-                     buffer",
-                )
+                .expect("not removed until all ranges buffer are dropped")
                 .inner;
 
             highlight_ranges.remove(self.range_id);
