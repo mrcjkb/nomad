@@ -1,4 +1,7 @@
 use core::marker::PhantomData;
+use core::ops::Deref;
+
+use ed::backend::Buffer;
 
 use crate::buffer::{BufferId, NeovimBuffer};
 use crate::events::{Callbacks, Event, EventKind, Events, EventsBorrow};
@@ -10,16 +13,31 @@ pub(crate) trait NeovimOption: 'static + Sized {
     const LONG_NAME: &'static str;
 
     /// TODO: docs.
-    type Value: oxi::conversion::FromObject;
+    type Value: oxi::conversion::ToObject + oxi::conversion::FromObject;
 
     /// TODO: docs.
-    type LocalCtx: ?Sized;
+    type Opts: ?Sized + Deref<Target = api::opts::OptionOpts>;
 
     /// TODO: docs.
-    fn get(&self, ctx: &Self::LocalCtx) -> Self::Value;
+    #[track_caller]
+    #[inline]
+    fn get(&self, opts: &Self::Opts) -> Self::Value {
+        match api::get_option_value(Self::LONG_NAME, opts) {
+            Ok(value) => value,
+            Err(err) => {
+                panic!("couldn't get option {:?}: {err}", Self::LONG_NAME)
+            },
+        }
+    }
 
     /// TODO: docs.
-    fn set(&mut self, value: Self::Value, ctx: &Self::LocalCtx);
+    #[track_caller]
+    #[inline]
+    fn set(&mut self, value: Self::Value, opts: &Self::Opts) {
+        if let Err(err) = api::set_option_value(Self::LONG_NAME, value, opts) {
+            panic!("couldn't set option {:?}: {err}", Self::LONG_NAME);
+        }
+    }
 }
 
 /// TODO: docs.
@@ -31,8 +49,82 @@ pub(crate) trait WatchedOption: NeovimOption {
     fn event_kind() -> EventKind;
 }
 
+/// The "binary" option.
+pub(crate) struct Binary;
+
+/// The "endofline" option.
+pub(crate) struct EndOfLine;
+
+/// The "fixendofline" option.
+pub(crate) struct FixEndOfLine;
+
 /// TODO: docs.
 pub(crate) struct OptionSet<T: NeovimOption>(PhantomData<T>);
+
+/// The [`Opts`](NeovimOption::Opts) for all buffer-local options.
+pub(crate) struct BufferLocalOpts(api::opts::OptionOpts);
+
+impl NeovimOption for Binary {
+    const LONG_NAME: &'static str = "binary";
+    type Value = bool;
+    type Opts = BufferLocalOpts;
+}
+
+impl NeovimOption for EndOfLine {
+    const LONG_NAME: &'static str = "endofline";
+    type Value = bool;
+    type Opts = BufferLocalOpts;
+}
+
+impl NeovimOption for FixEndOfLine {
+    const LONG_NAME: &'static str = "fixendofline";
+    type Value = bool;
+    type Opts = BufferLocalOpts;
+}
+
+impl WatchedOption for EndOfLine {
+    #[inline]
+    fn callbacks(
+        _events: &mut Events,
+    ) -> &mut Option<Callbacks<OptionSet<Self>>> {
+        todo!();
+    }
+
+    #[inline]
+    fn event_kind() -> EventKind {
+        todo!();
+    }
+}
+
+impl WatchedOption for FixEndOfLine {
+    #[inline]
+    fn callbacks(
+        _events: &mut Events,
+    ) -> &mut Option<Callbacks<OptionSet<Self>>> {
+        todo!();
+    }
+
+    #[inline]
+    fn event_kind() -> EventKind {
+        todo!();
+    }
+}
+
+impl From<&NeovimBuffer<'_>> for BufferLocalOpts {
+    #[inline]
+    fn from(buf: &NeovimBuffer) -> Self {
+        Self(api::opts::OptionOpts::builder().buffer(buf.id().into()).build())
+    }
+}
+
+impl Deref for BufferLocalOpts {
+    type Target = api::opts::OptionOpts;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<T: WatchedOption> Event for OptionSet<T> {
     /// A tuple of `(buffer, old_value, new_value)`, where `buffer` is only

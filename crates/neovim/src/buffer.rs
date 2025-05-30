@@ -17,6 +17,7 @@ use crate::Neovim;
 use crate::cursor::NeovimCursor;
 use crate::decoration_provider::{self, DecorationProvider};
 use crate::events::{self, EventHandle, Events};
+use crate::option::{Binary, EndOfLine, FixEndOfLine, NeovimOption};
 use crate::oxi::{self, BufHandle, String as NvimString, api, mlua};
 
 /// TODO: docs.
@@ -409,16 +410,9 @@ impl<'a> NeovimBuffer<'a> {
             .expect("replacing text failed");
 
         if should_unset_eol_fixeol {
-            let opts =
-                api::opts::OptionOpts::builder().buffer(self.inner()).build();
-
-            let set_bool_opt = |opt_name: &str, value: bool| {
-                api::set_option_value(opt_name, value, &opts)
-                    .expect("couldn't set option");
-            };
-
-            set_bool_opt("eol", false);
-            set_bool_opt("fixeol", false);
+            let opts = self.into();
+            EndOfLine.set(false, &opts);
+            FixEndOfLine.set(false, &opts);
         }
     }
 
@@ -535,15 +529,8 @@ impl<'a> NeovimBuffer<'a> {
     /// TODO: docs.
     #[inline]
     fn is_eol_on(&self) -> bool {
-        let opts =
-            api::opts::OptionOpts::builder().buffer(self.inner()).build();
-
-        let bool_opt = |opt_name: &str| {
-            api::get_option_value::<bool>(opt_name, &opts)
-                .expect("couldn't get option")
-        };
-
-        bool_opt("eol") || (bool_opt("fixeol") && !bool_opt("binary"))
+        let opts = self.into();
+        EndOfLine.get(&opts) || (FixEndOfLine.get(&opts) && !Binary.get(&opts))
     }
 
     /// Returns the byte length of the line at the given index, *without* any
