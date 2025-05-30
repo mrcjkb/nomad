@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use ed::Shared;
 use ed::backend::{AgentId, Edit};
-use nohash::IntMap as NoHashMap;
+use nohash::{IntMap as NoHashMap, IntSet as NoHashSet};
 use slotmap::SlotMap;
 use smallvec::{SmallVec, smallvec_inline};
 
@@ -89,6 +89,7 @@ pub(crate) struct AgentIds {
     pub(crate) created_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) edited_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) focused_buffer: NoHashMap<BufferId, AgentId>,
+    pub(crate) has_just_deleted_trailing_newline: NoHashSet<BufferId>,
     pub(crate) removed_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) saved_buffer: NoHashMap<BufferId, AgentId>,
 }

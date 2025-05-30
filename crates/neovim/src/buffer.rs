@@ -167,9 +167,14 @@ impl<'a> NeovimBuffer<'a> {
         &self,
         mut point_range: Range<Point>,
     ) -> CompactString {
-        // If the buffer has a trailing newline and the end of the range is
-        // after it, we need to clamp the end back to the end of the previous
-        // line or get_text() will return an out-of-bounds error.
+        if point_range.is_empty() {
+            return CompactString::default();
+        }
+
+        // If the buffer's "eol" option is set and the end of the range is
+        // after the trailing newline, we need to clamp the end back to the end
+        // of the previous line or get_text() will return an out-of-bounds
+        // error.
         //
         // For example, if the buffer contains "Hello\nWorld\n" and the point
         // range is `(0, 0)..(2, 0)`, we need to clamp the end to `(1, 5)`.
@@ -177,13 +182,12 @@ impl<'a> NeovimBuffer<'a> {
         // However, because get_text() seems to already clamp offsets in lines,
         // we just set the end to `(line_idx - 1, Integer::MAX)` and let it
         // figure out the offset.
-        let needs_to_clamp_end = self.has_trailing_newline()
-            && point_range.end == self.point_of_eof();
+        let needs_to_clamp_end =
+            self.is_eol_on() && point_range.end == self.point_of_eof();
 
         if needs_to_clamp_end {
             point_range.end.line_idx -= 1;
             point_range.end.byte_offset = (oxi::Integer::MAX as usize).into();
-            point_range.start = point_range.start.min(point_range.end);
         }
 
         let lines = self
@@ -270,12 +274,9 @@ impl<'a> NeovimBuffer<'a> {
             // Unfortunately there's no public API to check if a memline is
             // initialized, however we can use the fact that in a buffer with
             // an uninitialized memline there can only be up to two possible
-            // valid byte offsets: 0, and, if the buffer has a trailing
-            // newline, 1.
-            //
-            // Since we've already handled 0, we just need to check if the
-            // buffer has a trailing newline.
-            return if self.has_trailing_newline() {
+            // valid byte offsets: 0 (which we already checked), and — if "eol"
+            // is set — 1.
+            return if self.is_eol_on() {
                 Point::new(1, 0)
             } else {
                 Point::new(0, 1)
@@ -316,15 +317,12 @@ impl<'a> NeovimBuffer<'a> {
     pub(crate) fn point_of_eof(self) -> Point {
         let num_rows = self.inner().line_count().expect("buffer is valid");
 
-        let has_trailing_newline = self.has_trailing_newline();
+        let is_eol_on = self.is_eol_on();
 
-        let num_lines = num_rows - 1 + has_trailing_newline as usize;
+        let num_lines = num_rows - 1 + is_eol_on as usize;
 
-        let last_line_len = if has_trailing_newline {
-            0
-        } else {
-            self.line_len(num_rows - 1).into()
-        };
+        let last_line_len =
+            if is_eol_on { 0 } else { self.line_len(num_rows - 1).into() };
 
         Point::new(num_lines, last_line_len)
     }
@@ -346,11 +344,8 @@ impl<'a> NeovimBuffer<'a> {
 
         // We need to clamp the end in the same way we do in
         // get_text_in_point_range(). See that comment for more details.
-        //
-        // FIXME: this means it's actually impossible to delete a buffer's
-        // trailing newline.
-        let needs_to_clamp_end = self.has_trailing_newline()
-            && delete_range.end == self.point_of_eof();
+        let needs_to_clamp_end =
+            self.is_eol_on() && delete_range.end == self.point_of_eof();
 
         if needs_to_clamp_end {
             let end = &mut delete_range.end;
@@ -364,6 +359,46 @@ impl<'a> NeovimBuffer<'a> {
             .lines()
             .chain(insert_text.ends_with('\n').then_some(""));
 
+        // If we needed to clamp the end of the range, it means the user also
+        // wanted to delete the trailing newline.
+        //
+        // However, Neovim made the unfortunate design decision of assuming
+        // that every buffer ends in `\n`, and all the buffer-editing APIs will
+        // return an error if you try to set the end position of the deleted
+        // range past it.
+        //
+        // The only way to get around this is to unset both the "eol" and
+        // "fixeol" options, which acts as if the trailing newline was deleted,
+        // even marking the buffer as "modified".
+        //
+        // The drawback of this approach is that the trailing newline won't be
+        // re-inserted the next time the buffer is saved, unless the user
+        // manually re-enables either "eol", "fixeol", or both.
+        //
+        // While this sucks, it sucks less than not respecting the user's
+        // intent.
+        let should_unset_eol_fixeol = needs_to_clamp_end;
+
+        if should_unset_eol_fixeol {
+            // If someone is receiving edit events for this buffer, we need to
+            // store this buffer's ID in the set of buffers that just had their
+            // trailing newline deleted so that:
+            //
+            // 1) in `Self::replacement_of_on_bytes()` we'll know to extend the
+            //    deleted range by 1;
+            //
+            // 2) we'll know to ignore the `OptionSet` autocommands that will
+            //    be triggered when we unset "eol" and "fixeol";
+            self.events.with_mut(|events| {
+                if events.contains(&events::OnBytes(self.id())) {
+                    events
+                        .agent_ids
+                        .has_just_deleted_trailing_newline
+                        .insert(self.id());
+                }
+            });
+        }
+
         self.inner()
             .set_text(
                 delete_range.start.line_idx..delete_range.end.line_idx,
@@ -372,6 +407,19 @@ impl<'a> NeovimBuffer<'a> {
                 lines,
             )
             .expect("replacing text failed");
+
+        if should_unset_eol_fixeol {
+            let opts =
+                api::opts::OptionOpts::builder().buffer(self.inner()).build();
+
+            let set_bool_opt = |opt_name: &str, value: bool| {
+                api::set_option_value(opt_name, value, &opts)
+                    .expect("couldn't set option");
+            };
+
+            set_bool_opt("eol", false);
+            set_bool_opt("fixeol", false);
+        }
     }
 
     /// Converts the arguments given to the
@@ -399,26 +447,37 @@ impl<'a> NeovimBuffer<'a> {
 
         debug_assert_eq!(buf, self.inner());
 
-        let deleted_range =
-            (start_offset).into()..(start_offset + old_end_len).into();
+        let has_just_deleted_trailing_newline = self.events.with(|events| {
+            events
+                .agent_ids
+                .has_just_deleted_trailing_newline
+                .contains(&self.id())
+        });
 
-        let start =
+        let deletion_start = start_offset.into();
+
+        let deletion_end = (start_offset
+            + old_end_len
+            // Add 1 if the user just called
+            // `Self::replace_text_in_point_range()` with a byte range that
+            // included the trailing newline.
+            + has_just_deleted_trailing_newline as usize)
+            .into();
+
+        let insertion_start =
             Point { line_idx: start_row, byte_offset: start_col.into() };
 
-        let end = Point {
+        let insertion_end = Point {
             line_idx: start_row + new_end_row,
             byte_offset: (start_col * (new_end_row == 0) as usize
                 + new_end_col)
                 .into(),
         };
 
-        let inserted_text = if start == end {
-            Default::default()
-        } else {
-            self.get_text_in_point_range(start..end)
-        };
-
-        Replacement::new(deleted_range, &*inserted_text)
+        Replacement::new(
+            deletion_start..deletion_end,
+            &*self.get_text_in_point_range(insertion_start..insertion_end),
+        )
     }
 
     #[track_caller]
@@ -475,13 +534,13 @@ impl<'a> NeovimBuffer<'a> {
 
     /// TODO: docs.
     #[inline]
-    fn has_trailing_newline(&self) -> bool {
+    fn is_eol_on(&self) -> bool {
         let opts =
             api::opts::OptionOpts::builder().buffer(self.inner()).build();
 
         let bool_opt = |opt_name: &str| {
             api::get_option_value::<bool>(opt_name, &opts)
-                .expect("buffer is valid")
+                .expect("couldn't get option")
         };
 
         bool_opt("eol") || (bool_opt("fixeol") && !bool_opt("binary"))
@@ -505,7 +564,7 @@ impl<'a> NeovimBuffer<'a> {
                 oxi::Object::from("$"),
             ]),
         )
-        .expect("could not call getbufoneline()");
+        .expect("could not call col()");
 
         (col - 1).into()
     }
