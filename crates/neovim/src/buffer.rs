@@ -387,8 +387,8 @@ impl<'a> NeovimBuffer<'a> {
             // 1) in `Self::replacement_of_on_bytes()` we'll know to extend the
             //    deleted range by 1;
             //
-            // 2) we'll know to ignore the `OptionSet` autocommands that will
-            //    be triggered when we unset "eol" and "fixeol";
+            // 2) we'll know to ignore the next `OptionSet` autocommands that
+            //    will be triggered when we unset "eol" and "fixeol";
             self.events.with_mut(|events| {
                 if events.contains(&events::OnBytes(self.id())) {
                     events

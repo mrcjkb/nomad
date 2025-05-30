@@ -1,4 +1,5 @@
 use core::cell::RefCell;
+use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash};
@@ -14,7 +15,7 @@ use crate::buffer::{BufferId, NeovimBuffer};
 use crate::cursor::NeovimCursor;
 use crate::decoration_provider::DecorationProvider;
 use crate::mode::ModeStr;
-use crate::oxi::api::{self, opts, types};
+use crate::oxi::{self, api};
 
 type AugroupId = u32;
 type AutocmdId = u32;
@@ -27,7 +28,7 @@ pub struct EventHandle {
     event_keys_kind: SmallVec<[(slotmap::DefaultKey, EventKind); 1]>,
 }
 
-pub(crate) trait Event: Clone + Into<EventKind> {
+pub(crate) trait Event: Sized {
     /// The type of arguments given to the callbacks registered for this
     /// event.
     type Args<'a>;
@@ -43,6 +44,9 @@ pub(crate) trait Event: Clone + Into<EventKind> {
 
     /// TODO: docs.
     fn key(&self) -> <Self::Container<'_> as CallbacksContainer<Self>>::Key;
+
+    /// TODO: docs.
+    fn kind(&self) -> EventKind;
 
     /// TODO: docs.
     fn register(&self, events: EventsBorrow) -> Self::RegisterOutput;
@@ -131,16 +135,32 @@ pub(crate) struct ModeChanged;
 #[derive(Clone, Copy)]
 pub(crate) struct OnBytes(pub(crate) BufferId);
 
-#[derive(cauchy::From)]
+pub(crate) struct OptionSet<T: NeovimOption>(PhantomData<T>);
+
 pub(crate) enum EventKind {
-    BufEnter(#[from] BufEnter),
-    BufLeave(#[from] BufLeave),
-    BufReadPost(#[from] BufReadPost),
-    BufUnload(#[from] BufUnload),
-    BufWritePost(#[from] BufWritePost),
-    CursorMoved(#[from] CursorMoved),
-    ModeChanged(#[from] ModeChanged),
-    OnBytes(#[from] OnBytes),
+    BufEnter(BufEnter),
+    BufLeave(BufLeave),
+    BufReadPost(BufReadPost),
+    BufUnload(BufUnload),
+    BufWritePost(BufWritePost),
+    CursorMoved(CursorMoved),
+    ModeChanged(ModeChanged),
+    OnBytes(OnBytes),
+}
+
+/// TODO: docs.
+pub(crate) trait NeovimOption: 'static + Sized {
+    /// TODO: docs.
+    const LONG_NAME: &'static str;
+
+    /// TODO: docs.
+    type Value: oxi::conversion::FromObject;
+
+    fn container(
+        events: &mut Events,
+    ) -> &mut Option<Callbacks<OptionSet<Self>>>;
+
+    fn kind() -> EventKind;
 }
 
 impl EventHandle {
@@ -174,7 +194,7 @@ impl Events {
         event: T,
         fun: impl FnMut(T::Args<'_>) + 'static,
     ) -> EventHandle {
-        let event_kind = event.clone().into();
+        let event_kind = event.kind();
 
         let event_key = events.with_mut(|this| {
             if let Some(callbacks) = event.container(this).get_mut(event.key())
@@ -205,7 +225,7 @@ impl Events {
     ) -> Self {
         let augroup_id = api::create_augroup(
             augroup_name,
-            &opts::CreateAugroupOpts::builder().clear(true).build(),
+            &api::opts::CreateAugroupOpts::builder().clear(true).build(),
         )
         .expect("couldn't create augroup");
 
@@ -297,6 +317,11 @@ impl Event for BufEnter {
     }
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::BufEnter(*self)
+    }
+
+    #[inline]
     fn key(&self) {}
 
     #[inline]
@@ -306,9 +331,9 @@ impl Event for BufEnter {
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::CreateAutocmdOpts::builder()
+        let opts = api::opts::CreateAutocmdOpts::builder()
             .group(augroup_id)
-            .callback(move |args: types::AutocmdCallbackArgs| {
+            .callback(move |args: api::types::AutocmdCallbackArgs| {
                 let buffer_id = BufferId::new(args.buffer);
 
                 let Some((callbacks, focused_by)) = events.with_mut(|ev| {
@@ -361,16 +386,21 @@ impl Event for BufLeave {
     }
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::BufLeave(*self)
+    }
+
+    #[inline]
     fn register(&self, events: EventsBorrow) -> AutocmdId {
         let augroup_id = events.augroup_id;
 
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::CreateAutocmdOpts::builder()
+        let opts = api::opts::CreateAutocmdOpts::builder()
             .group(augroup_id)
             .buffer(self.0.into())
-            .callback(move |args: types::AutocmdCallbackArgs| {
+            .callback(move |args: api::types::AutocmdCallbackArgs| {
                 let buffer_id = BufferId::new(args.buffer);
 
                 let Some((callbacks, removed_by)) = events.with_mut(|ev| {
@@ -414,15 +444,20 @@ impl Event for BufReadPost {
     fn key(&self) {}
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::BufReadPost(*self)
+    }
+
+    #[inline]
     fn register(&self, events: EventsBorrow) -> AutocmdId {
         let augroup_id = events.augroup_id;
 
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::CreateAutocmdOpts::builder()
+        let opts = api::opts::CreateAutocmdOpts::builder()
             .group(augroup_id)
-            .callback(move |args: types::AutocmdCallbackArgs| {
+            .callback(move |args: api::types::AutocmdCallbackArgs| {
                 let buffer_id = BufferId::new(args.buffer);
 
                 let Some((callbacks, created_by)) = events.with_mut(|ev| {
@@ -475,16 +510,21 @@ impl Event for BufUnload {
     }
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::BufUnload(*self)
+    }
+
+    #[inline]
     fn register(&self, events: EventsBorrow) -> AutocmdId {
         let augroup_id = events.augroup_id;
 
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::CreateAutocmdOpts::builder()
+        let opts = api::opts::CreateAutocmdOpts::builder()
             .group(augroup_id)
             .buffer(self.0.into())
-            .callback(move |args: types::AutocmdCallbackArgs| {
+            .callback(move |args: api::types::AutocmdCallbackArgs| {
                 let buffer_id = BufferId::new(args.buffer);
 
                 let Some((callbacks, removed_by)) = events.with_mut(|ev| {
@@ -537,16 +577,21 @@ impl Event for BufWritePost {
     }
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::BufWritePost(*self)
+    }
+
+    #[inline]
     fn register(&self, events: EventsBorrow) -> AutocmdId {
         let augroup_id = events.augroup_id;
 
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::CreateAutocmdOpts::builder()
+        let opts = api::opts::CreateAutocmdOpts::builder()
             .group(augroup_id)
             .buffer(self.0.into())
-            .callback(move |args: types::AutocmdCallbackArgs| {
+            .callback(move |args: api::types::AutocmdCallbackArgs| {
                 let buffer_id = BufferId::new(args.buffer);
 
                 let Some((callbacks, saved_by)) = events.with_mut(|ev| {
@@ -599,16 +644,21 @@ impl Event for CursorMoved {
     }
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::CursorMoved(*self)
+    }
+
+    #[inline]
     fn register(&self, events: EventsBorrow) -> Self::RegisterOutput {
         let augroup_id = events.augroup_id;
 
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::CreateAutocmdOpts::builder()
+        let opts = api::opts::CreateAutocmdOpts::builder()
             .group(augroup_id)
             .buffer(self.0.into())
-            .callback(move |args: types::AutocmdCallbackArgs| {
+            .callback(move |args: api::types::AutocmdCallbackArgs| {
                 let buffer_id = BufferId::new(args.buffer);
 
                 let Some((callbacks, moved_by)) = events.with_mut(|ev| {
@@ -664,15 +714,20 @@ impl Event for ModeChanged {
     fn key(&self) {}
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::ModeChanged(*self)
+    }
+
+    #[inline]
     fn register(&self, events: EventsBorrow) -> Self::RegisterOutput {
         let augroup_id = events.augroup_id;
 
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::CreateAutocmdOpts::builder()
+        let opts = api::opts::CreateAutocmdOpts::builder()
             .group(augroup_id)
-            .callback(move |args: types::AutocmdCallbackArgs| {
+            .callback(move |args: api::types::AutocmdCallbackArgs| {
                 let buffer_id = BufferId::new(args.buffer);
 
                 let Some(callbacks) = events.with(|ev| {
@@ -725,14 +780,19 @@ impl Event for OnBytes {
     }
 
     #[inline]
+    fn kind(&self) -> EventKind {
+        EventKind::OnBytes(*self)
+    }
+
+    #[inline]
     fn register(&self, events: EventsBorrow) {
         let buffer_id = self.0;
 
         let buf_fields = events.borrow.buffer_fields.clone();
         let events = events.handle;
 
-        let opts = opts::BufAttachOpts::builder()
-            .on_bytes(move |args: opts::OnBytesArgs| {
+        let opts = api::opts::BufAttachOpts::builder()
+            .on_bytes(move |args: api::opts::OnBytesArgs| {
                 let Some((callbacks, edited_by)) = events.with_mut(|ev| {
                     let callbacks = ev.on_buffer_edited.get(&buffer_id)?;
 
@@ -771,6 +831,79 @@ impl Event for OnBytes {
 
     #[inline]
     fn unregister((): Self::RegisterOutput) {}
+}
+
+impl<T: NeovimOption> Event for OptionSet<T> {
+    /// A tuple of `(buffer, old_value, new_value)`, where `buffer` is only
+    /// present for buffer-local options.
+    type Args<'a> = (Option<NeovimBuffer<'a>>, &'a T::Value, &'a T::Value);
+    type Container<'ev> = &'ev mut Option<Callbacks<Self>>;
+    type RegisterOutput = u32;
+
+    #[inline]
+    fn container<'ev>(&self, events: &'ev mut Events) -> Self::Container<'ev> {
+        T::container(events)
+    }
+
+    #[inline]
+    fn key(&self) {}
+
+    #[inline]
+    fn kind(&self) -> EventKind {
+        T::kind()
+    }
+
+    #[inline]
+    fn register(&self, events: EventsBorrow) -> Self::RegisterOutput {
+        let augroup_id = events.augroup_id;
+
+        let buf_fields = events.borrow.buffer_fields.clone();
+        let events = events.handle;
+
+        let opts = api::opts::CreateAutocmdOpts::builder()
+            .group(augroup_id)
+            .patterns([T::LONG_NAME])
+            .callback(move |_: api::types::AutocmdCallbackArgs| {
+                let is_local = api::get_vvar::<oxi::String>("option_type")
+                    .expect("couldn't get option_type")
+                    == "local";
+
+                let buffer = is_local.then(|| {
+                    Events::buffer(
+                        BufferId::of_focused(),
+                        &events,
+                        &buf_fields,
+                    )
+                });
+
+                let old_value = api::get_vvar::<T::Value>("option_old")
+                    .expect("couldn't get option_old");
+
+                let new_value = api::get_vvar::<T::Value>("option_new")
+                    .expect("couldn't get option_new");
+
+                let Some(callbacks) = events.with_mut(|ev| {
+                    T::container(ev).as_ref().map(Callbacks::cloned)
+                }) else {
+                    return true;
+                };
+
+                for callback in callbacks {
+                    callback((buffer, &old_value, &new_value));
+                }
+
+                false
+            })
+            .build();
+
+        api::create_autocmd(["OptionSet"], &opts)
+            .expect("couldn't create autocmd on OptionSet")
+    }
+
+    #[inline]
+    fn unregister(autocmd_id: Self::RegisterOutput) {
+        let _ = api::del_autocmd(autocmd_id);
+    }
 }
 
 impl Drop for EventHandle {
