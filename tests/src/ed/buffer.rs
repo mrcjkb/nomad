@@ -127,7 +127,7 @@ fn random_replacement(s: &str, rng: &mut impl Rng) -> Replacement {
     Replacement::new(delete_from.into()..delete_to.into(), insert_str)
 }
 
-trait EditExt {
+pub(crate) trait EditExt {
     /// Returns a never-ending stream of [`Edit`]s on the buffer with the given
     /// ID.
     fn new_stream<Ed: Backend>(

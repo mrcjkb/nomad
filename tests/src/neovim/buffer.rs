@@ -1,5 +1,85 @@
 use ed::Context;
+use ed::backend::{AgentId, Buffer, Edit, Replacement};
+use futures_util::stream::StreamExt;
 use neovim::Neovim;
+use neovim::buffer::BufferId;
+use neovim::oxi::api::{self, opts};
+
+use crate::ed::buffer::EditExt;
+
+#[neovim::test]
+async fn deleting_trailing_newline_is_like_unsetting_eol(
+    ctx: &mut Context<Neovim>,
+) {
+    let agent_id = ctx.new_agent_id();
+
+    let buffer_id = BufferId::of_focused();
+
+    let mut edit_stream = Edit::new_stream(buffer_id, ctx);
+
+    ctx.with_borrowed(|ctx| {
+        let mut buf = ctx.buffer(buffer_id).unwrap();
+        assert_eq!(buf.get_text(0usize.into()..buf.byte_len()), "\n");
+        buf.edit(
+            [Replacement::removal(0usize.into()..1usize.into())],
+            agent_id,
+        );
+    });
+
+    let edit = edit_stream.next().await.unwrap();
+
+    assert_eq!(edit.made_by, agent_id);
+    assert_eq!(
+        &*edit.replacements,
+        &[Replacement::removal(0usize.into()..1usize.into())]
+    );
+
+    let opts = opts::OptionOpts::builder().buffer(buffer_id.into()).build();
+    assert!(!api::get_option_value::<bool>("eol", &opts).unwrap());
+    assert!(!api::get_option_value::<bool>("fixeol", &opts).unwrap());
+}
+
+#[neovim::test]
+async fn unsetting_eol_is_like_deleting_trailing_newline(
+    ctx: &mut Context<Neovim>,
+) {
+    let buffer_id = BufferId::of_focused();
+
+    let mut edit_stream = Edit::new_stream(buffer_id, ctx);
+
+    let opts = opts::OptionOpts::builder().buffer(buffer_id.into()).build();
+    api::set_option_value("eol", false, &opts).unwrap();
+    api::set_option_value("fixeol", false, &opts).unwrap();
+
+    let edit = edit_stream.next().await.unwrap();
+
+    assert_eq!(edit.made_by, AgentId::UNKNOWN);
+    assert_eq!(
+        &*edit.replacements,
+        &[Replacement::removal(0usize.into()..1usize.into())]
+    );
+}
+
+#[neovim::test]
+async fn setting_eol_is_like_inserting_trailing_newline(
+    ctx: &mut Context<Neovim>,
+) {
+    let buffer_id = BufferId::of_focused();
+
+    let opts = opts::OptionOpts::builder().buffer(buffer_id.into()).build();
+    api::set_option_value("eol", false, &opts).unwrap();
+    api::set_option_value("fixeol", false, &opts).unwrap();
+
+    let mut edit_stream = Edit::new_stream(buffer_id, ctx);
+
+    let opts = opts::OptionOpts::builder().buffer(buffer_id.into()).build();
+    api::set_option_value("eol", true, &opts).unwrap();
+
+    let edit = edit_stream.next().await.unwrap();
+
+    assert_eq!(edit.made_by, AgentId::UNKNOWN);
+    assert_eq!(&*edit.replacements, &[Replacement::insertion(0usize, "\n")]);
+}
 
 mod ed_buffer {
     //! Contains the editor-agnostic buffer tests.

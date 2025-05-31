@@ -648,7 +648,7 @@ mod neovim_error_impls {
                 HomeDir(err) => return err.to_message(),
                 InvalidBufId(buf_id) => {
                     msg.push_str("there's no buffer whose handle is ")
-                        .push_invalid(buf_id.handle().to_smolstr());
+                        .push_invalid(buf_id.bufnr().to_smolstr());
                 },
                 CouldntFindRoot(buffer_path) => {
                     msg.push_str("couldn't find project root for buffer at ")
@@ -688,7 +688,7 @@ pub mod benches {
     where
         B: CollabBackend,
     {
-        super::read_project(project_root.path(), PeerId::new(1), ctx)
+        super::read_project(&*project_root.path(), PeerId::new(1), ctx)
             .await
             .map(|_| ())
     }

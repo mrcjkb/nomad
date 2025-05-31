@@ -188,8 +188,8 @@ impl<'a> NeovimBuffer<'a> {
         // range is `(0, 0)..(2, 0)`, we need to clamp the end to `(1, 5)`.
         //
         // However, because get_text() seems to already clamp offsets in lines,
-        // we just set the end to `(line_idx - 1, Integer::MAX)` and let it
-        // figure out the offset.
+        // we just set the end's line offset to `(line_idx - 1, Integer::MAX)`
+        // and let get_text() figure it out.
         let needs_to_clamp_end =
             self.is_eol_on() && point_range.end == self.point_of_eof();
 
@@ -259,7 +259,6 @@ impl<'a> NeovimBuffer<'a> {
         debug_assert!(byte_offset <= self.byte_len());
 
         if byte_offset == 0 {
-            // byte2line() can't handle 0.
             return Point::zero();
         } else if byte_offset == 1 && self.byte_len() == 1 {
             // byte2line() has a bug where it returns -1 if the buffer's
@@ -294,7 +293,7 @@ impl<'a> NeovimBuffer<'a> {
         let line_idx = self.call(move |this| {
             let line_idx = api::call_function::<_, usize>(
                     "byte2line",
-                    (byte_offset.into_u64() as u32,),
+                    (byte_offset.into_u64() as u32 + 1,),
                 ).expect("offset is within bounds")
                 // byte2line() returns 1-based line numbers.
                 - 1;
@@ -659,20 +658,21 @@ impl<'a> NeovimBuffer<'a> {
 }
 
 impl BufferId {
-    /// TODO: docs.
+    /// Returns the underlying buffer number of this [`BufferId`].
     #[inline]
-    pub fn handle(self) -> BufHandle {
-        self.0
+    pub fn bufnr(self) -> u32 {
+        self.0 as u32
+    }
+
+    /// Returns the [`BufferId`] of the currently focused buffer.
+    #[inline]
+    pub fn of_focused() -> Self {
+        Self::new(api::Buffer::current())
     }
 
     #[inline]
     pub(crate) fn is_valid(self) -> bool {
         api::Buffer::from(self).is_valid()
-    }
-
-    #[inline]
-    pub(crate) fn of_focused() -> Self {
-        Self::new(api::Buffer::current())
     }
 
     #[inline]
@@ -936,14 +936,14 @@ impl From<api::Buffer> for BufferId {
 impl mlua::IntoLua for BufferId {
     #[inline]
     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
-        self.handle().into_lua(lua)
+        self.0.into_lua(lua)
     }
 }
 
 impl Hash for BufferId {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_i32(self.handle());
+        state.write_i32(self.0);
     }
 }
 

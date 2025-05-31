@@ -72,7 +72,9 @@ pub trait Buffer {
 }
 
 /// TODO: docs.
-pub trait Chunks: fmt::Display + for<'a> PartialEq<&'a str> {
+pub trait Chunks:
+    fmt::Display + fmt::Debug + for<'a> PartialEq<&'a str>
+{
     /// TODO: docs.
     fn iter(&self) -> impl Iterator<Item = impl AsRef<str>>;
 }
@@ -133,7 +135,9 @@ impl Replacement {
     }
 }
 
-impl<T: AsRef<str> + fmt::Display + for<'a> PartialEq<&'a str>> Chunks for T {
+impl<T: AsRef<str> + fmt::Display + fmt::Debug + for<'a> PartialEq<&'a str>>
+    Chunks for T
+{
     #[inline]
     fn iter(&self) -> impl Iterator<Item = impl AsRef<str>> {
         core::iter::once(self)
