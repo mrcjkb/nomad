@@ -59,6 +59,9 @@ pub(crate) struct EndOfLine;
 pub(crate) struct FixEndOfLine;
 
 /// TODO: docs.
+pub(crate) struct UneditableEndOfLine;
+
+/// TODO: docs.
 pub(crate) struct OptionSet<T>(PhantomData<T>);
 
 /// The [`Opts`](NeovimOption::Opts) for all buffer-local options.
@@ -87,6 +90,27 @@ impl NeovimOption for FixEndOfLine {
     const LONG_NAME: &'static str = "fixendofline";
     type Value = bool;
     type Opts = BufferLocalOpts;
+}
+
+impl NeovimOption for UneditableEndOfLine {
+    const LONG_NAME: &'static str = unimplemented!();
+    type Value = bool;
+    type Opts = BufferLocalOpts;
+
+    #[inline]
+    fn get(&self, opts: &Self::Opts) -> Self::Value {
+        EndOfLine.get(opts) || (FixEndOfLine.get(opts) && !Binary.get(opts))
+    }
+
+    #[inline]
+    fn set(&mut self, value: Self::Value, opts: &Self::Opts) {
+        if value {
+            EndOfLine.set(true, opts);
+        } else {
+            EndOfLine.set(false, opts);
+            FixEndOfLine.set(false, opts);
+        }
+    }
 }
 
 impl WatchedOption for Binary {
