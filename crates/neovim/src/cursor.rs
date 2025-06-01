@@ -54,8 +54,22 @@ impl Cursor for NeovimCursor<'_> {
         self.buffer().id()
     }
 
+    #[track_caller]
     #[inline]
-    fn r#move(&mut self, offset: ByteOffset, _agent_id: AgentId) {
+    fn r#move(&mut self, offset: ByteOffset, agent_id: AgentId) {
+        debug_assert!(
+            offset <= self.buffer().byte_len(),
+            "offset {offset:?} is past end of buffer, length is {:?}",
+            self.buffer().byte_len()
+        );
+
+        self.buffer().events().with_mut(|events| {
+            let buf_id = self.buffer_id();
+            if events.contains(&events::CursorMoved(buf_id)) {
+                events.agent_ids.moved_cursor.insert(buf_id, agent_id);
+            }
+        });
+
         let point = self.buffer().point_of_byte(offset);
 
         api::Window::current()

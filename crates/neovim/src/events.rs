@@ -93,6 +93,7 @@ pub(crate) struct AgentIds {
     pub(crate) created_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) edited_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) focused_buffer: NoHashMap<BufferId, AgentId>,
+    pub(crate) moved_cursor: NoHashMap<BufferId, AgentId>,
     pub(crate) removed_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) saved_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) set_uneditable_eol: SetUneditableEolAgentIds,
@@ -648,7 +649,14 @@ impl Event for CursorMoved {
 
                 let Some((callbacks, moved_by)) = events.with_mut(|ev| {
                     let callbacks = ev.on_cursor_moved.get(&buffer_id)?;
-                    Some((callbacks.cloned(), AgentId::UNKNOWN))
+
+                    let moved_by = ev
+                        .agent_ids
+                        .moved_cursor
+                        .remove(&buffer_id)
+                        .unwrap_or(AgentId::UNKNOWN);
+
+                    Some((callbacks.cloned(), moved_by))
                 }) else {
                     return true;
                 };
