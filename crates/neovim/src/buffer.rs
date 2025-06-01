@@ -18,13 +18,7 @@ use crate::Neovim;
 use crate::cursor::NeovimCursor;
 use crate::decoration_provider::{self, DecorationProvider};
 use crate::events::{self, EventHandle, Events};
-use crate::option::{
-    Binary,
-    EndOfLine,
-    FixEndOfLine,
-    NeovimOption,
-    OptionSet,
-};
+use crate::option::{NeovimOption, UneditableEndOfLine};
 use crate::oxi::{self, BufHandle, String as NvimString, api, mlua};
 
 /// TODO: docs.
@@ -179,10 +173,9 @@ impl<'a> NeovimBuffer<'a> {
             return CompactString::default();
         }
 
-        // If the buffer's "eol" option is set and the end of the range is
-        // after the trailing newline, we need to clamp the end back to the end
-        // of the previous line or get_text() will return an out-of-bounds
-        // error.
+        // If the buffer has an uneditable eol and the end of the range
+        // includes it, we need to clamp the end back to the end of the
+        // previous line or get_text() will return an out-of-bounds error.
         //
         // For example, if the buffer contains "Hello\nWorld\n" and the point
         // range is `(0, 0)..(2, 0)`, we need to clamp the end to `(1, 5)`.
@@ -190,8 +183,8 @@ impl<'a> NeovimBuffer<'a> {
         // However, because get_text() seems to already clamp offsets in lines,
         // we just set the end's line offset to `(line_idx - 1, Integer::MAX)`
         // and let get_text() figure it out.
-        let needs_to_clamp_end =
-            self.is_eol_on() && point_range.end == self.point_of_eof();
+        let needs_to_clamp_end = self.has_uneditable_eol()
+            && point_range.end == self.point_of_eof();
 
         if needs_to_clamp_end {
             point_range.end.line_idx -= 1;
@@ -281,9 +274,9 @@ impl<'a> NeovimBuffer<'a> {
             // Unfortunately there's no public API to check if a memline is
             // initialized, however we can use the fact that in a buffer with
             // an uninitialized memline there can only be up to two possible
-            // valid byte offsets: 0 (which we already checked), and — if "eol"
-            // is set — 1.
-            return if self.is_eol_on() {
+            // valid byte offsets: 0 (which we already checked), and — if the
+            // buffer has an uneditable eol — 1.
+            return if self.has_uneditable_eol() {
                 Point::new(1, 0)
             } else {
                 Point::new(0, 1)
@@ -324,12 +317,15 @@ impl<'a> NeovimBuffer<'a> {
     pub(crate) fn point_of_eof(self) -> Point {
         let num_rows = self.inner().line_count().expect("buffer is valid");
 
-        let is_eol_on = self.is_eol_on();
+        let has_uneditable_eol = self.has_uneditable_eol();
 
-        let num_lines = num_rows - 1 + is_eol_on as usize;
+        let num_lines = num_rows - 1 + has_uneditable_eol as usize;
 
-        let last_line_len =
-            if is_eol_on { 0 } else { self.line_len(num_rows - 1).into() };
+        let last_line_len = if has_uneditable_eol {
+            0
+        } else {
+            self.line_len(num_rows - 1).into()
+        };
 
         Point::new(num_lines, last_line_len)
     }
@@ -341,6 +337,7 @@ impl<'a> NeovimBuffer<'a> {
         &self,
         mut delete_range: Range<Point>,
         insert_text: &str,
+        _agent_id: AgentId,
     ) {
         debug_assert!(delete_range.start <= delete_range.end);
         debug_assert!(delete_range.end <= self.point_of_eof());
@@ -351,8 +348,8 @@ impl<'a> NeovimBuffer<'a> {
 
         // We need to clamp the end in the same way we do in
         // get_text_in_point_range(). See that comment for more details.
-        let needs_to_clamp_end =
-            self.is_eol_on() && delete_range.end == self.point_of_eof();
+        let needs_to_clamp_end = self.has_uneditable_eol()
+            && delete_range.end == self.point_of_eof();
 
         if needs_to_clamp_end {
             let end = &mut delete_range.end;
@@ -374,9 +371,9 @@ impl<'a> NeovimBuffer<'a> {
         // return an error if you try to set the end position of the deleted
         // range past it.
         //
-        // The only way to get around this is to unset both the "eol" and
-        // "fixeol" options, which acts as if the trailing newline was deleted,
-        // even marking the buffer as "modified".
+        // The only way to get around this is to unset the uneditable eol,
+        // which acts as if the trailing newline was deleted, even marking the
+        // buffer as "modified".
         //
         // The drawback of this approach is that the trailing newline won't be
         // re-inserted the next time the buffer is saved, unless the user
@@ -384,9 +381,9 @@ impl<'a> NeovimBuffer<'a> {
         //
         // While this sucks, it sucks less than not respecting the user's
         // intent.
-        let should_unset_eol_fixeol = needs_to_clamp_end;
+        let should_unset_uneditable_eol = needs_to_clamp_end;
 
-        if should_unset_eol_fixeol && !delete_range.is_empty() {
+        if should_unset_uneditable_eol && !delete_range.is_empty() {
             // If someone is receiving edit events for this buffer, we need to
             // mark this buffer's ID as the one that just had their trailing
             // newline deleted so that:
@@ -394,8 +391,7 @@ impl<'a> NeovimBuffer<'a> {
             // 1) in `Self::replacement_of_on_bytes()` we'll know to extend the
             //    deleted range by 1;
             //
-            // 2) we'll know to ignore the next `OptionSet` autocommands that
-            //    will be triggered when we unset "eol" and "fixeol";
+            // 2) we'll know to ignore the next event for UneditableEndOfLine;
             self.events.with_mut(|events| {
                 if events.contains(&events::OnBytes(self.id())) {
                     events.agent_ids.has_just_deleted_trailing_newline =
@@ -413,13 +409,11 @@ impl<'a> NeovimBuffer<'a> {
             )
             .expect("replacing text failed");
 
-        if should_unset_eol_fixeol {
-            let opts = self.into();
-            EndOfLine.set(false, &opts);
-            FixEndOfLine.set(false, &opts);
+        if should_unset_uneditable_eol {
+            UneditableEndOfLine.set(false, &self.into());
 
-            // All the callbacks registered to `OnBytes`, "eol" and "fixeol"
-            // have now been executed, so we can cleanup the state.
+            // The callbacks registered to OnBytes and UneditableEndOfLine have
+            // now been executed, so we can cleanup the state.
             self.events.with_mut(|events| {
                 events.agent_ids.has_just_deleted_trailing_newline = None;
             });
@@ -536,13 +530,8 @@ impl<'a> NeovimBuffer<'a> {
 
     /// TODO: docs.
     #[inline]
-    fn is_eol_on(&self) -> bool {
-        let opts = self.into();
-        is_eol_on(
-            EndOfLine.get(&opts),
-            FixEndOfLine.get(&opts),
-            Binary.get(&opts),
-        )
+    fn has_uneditable_eol(&self) -> bool {
+        UneditableEndOfLine.get(&self.into())
     }
 
     /// Returns the byte length of the line at the given index, *without* any
@@ -762,6 +751,7 @@ impl Buffer for NeovimBuffer<'_> {
             self.replace_text_in_point_range(
                 deletion_start..deletion_end,
                 replacement.inserted_text(),
+                agent_id,
             );
         }
     }
@@ -808,91 +798,55 @@ impl Buffer for NeovimBuffer<'_> {
                 move |(this, edit)| fun.with_mut(|fun| fun(this, edit))
             });
 
-        // Setting/unsetting the right combination of "endofline",
-        // "fixendofline" and "binary" behaves as if deleting/inserting a
-        // trailing newline, so we need to listen for all three events.
+        // Setting/unsetting the uneditable eol behaves as if
+        // deleting/inserting a trailing newline, so we need to react to it.
 
         let buffer_id = self.id();
 
-        let end_of_line_set_handle = Events::insert(
+        let uneditable_eol_set_handle = Events::insert(
             self.events.clone(),
-            OptionSet::<EndOfLine>::new(),
-            {
-                let fun = fun.clone();
-                move |(buf, &old_value, &new_value)| {
-                    let buf = buf.expect("endofline is buffer-local");
-                    if buf.id() != buffer_id {
-                        return;
-                    }
-
-                    let opts = (&buf).into();
-                    let fix_end_of_line = FixEndOfLine.get(&opts);
-                    let binary = Binary.get(&opts);
-
-                    react_to_eol_changes(
-                        &buf,
-                        (old_value, new_value),
-                        (fix_end_of_line, fix_end_of_line),
-                        (binary, binary),
-                        &fun,
-                    );
+            UneditableEndOfLine,
+            move |(buf, was_set, is_set, set_by)| {
+                if buf.id() != buffer_id {
+                    return;
                 }
+
+                // If 'endofline' and 'fixendofline' were turned off by us in
+                // `NeovimBuffer::replace_text_in_point_range()`, the callback
+                // registered to `OnBytes` already took care of including the
+                // trailing newline in the deleted range, so we don't need to
+                // do anything here.
+                if buf.events.with(|events| {
+                    events.agent_ids.has_just_deleted_trailing_newline
+                        == Some(buf.id())
+                }) {
+                    return;
+                }
+
+                let byte_len = buf.byte_len();
+
+                let replacement = match (was_set, is_set) {
+                    // The trailing newline was deleted.
+                    (true, false) => {
+                        Replacement::removal(byte_len..byte_len + 1)
+                    },
+                    // The trailing newline was added.
+                    (false, true) => {
+                        Replacement::insertion(byte_len - 1, "\n")
+                    },
+                    _ => return,
+                };
+
+                let edit = Edit {
+                    made_by: set_by,
+                    replacements: smallvec_inline![replacement],
+                };
+
+                fun.with_mut(|fun| fun(&buf, &edit));
             },
         );
 
-        let fix_end_of_line_set_handle = Events::insert(
-            self.events.clone(),
-            OptionSet::<FixEndOfLine>::new(),
-            {
-                let fun = fun.clone();
-                move |(buf, &old_value, &new_value)| {
-                    let buf = buf.expect("fixendofline is buffer-local");
-                    if buf.id() != buffer_id {
-                        return;
-                    }
-
-                    let opts = (&buf).into();
-                    let end_of_line = EndOfLine.get(&opts);
-                    let binary = Binary.get(&opts);
-
-                    react_to_eol_changes(
-                        &buf,
-                        (end_of_line, end_of_line),
-                        (old_value, new_value),
-                        (binary, binary),
-                        &fun,
-                    );
-                }
-            },
-        );
-
-        let binary_set_handle =
-            Events::insert(self.events.clone(), OptionSet::<Binary>::new(), {
-                let fun = fun.clone();
-                move |(buf, &old_value, &new_value)| {
-                    let buf = buf.expect("binary is buffer-local");
-                    if buf.id() != buffer_id {
-                        return;
-                    }
-
-                    let opts = (&buf).into();
-                    let end_of_line = EndOfLine.get(&opts);
-                    let fix_end_of_line = FixEndOfLine.get(&opts);
-
-                    react_to_eol_changes(
-                        &buf,
-                        (end_of_line, end_of_line),
-                        (fix_end_of_line, fix_end_of_line),
-                        (old_value, new_value),
-                        &fun,
-                    );
-                }
-            });
-
-        on_bytes_handle
-            .merge(end_of_line_set_handle)
-            .merge(fix_end_of_line_set_handle)
-            .merge(binary_set_handle)
+        on_bytes_handle.merge(uneditable_eol_set_handle)
     }
 
     #[inline]
@@ -1032,47 +986,4 @@ impl Ord for Point {
             .cmp(&other.line_idx)
             .then(self.byte_offset.cmp(&other.byte_offset))
     }
-}
-
-fn is_eol_on(eol: bool, fixeol: bool, binary: bool) -> bool {
-    eol || (fixeol && !binary)
-}
-
-fn react_to_eol_changes(
-    buf: &NeovimBuffer,
-    (old_eol, new_eol): (bool, bool),
-    (old_fixeol, new_fixeol): (bool, bool),
-    (old_binary, new_binary): (bool, bool),
-    fun: &Shared<impl FnMut(&NeovimBuffer, &Edit)>,
-) {
-    // If 'endofline' and 'fixendofline' were turned off by us in
-    // `NeovimBuffer::replace_text_in_point_range()`, the callback registered
-    // to `OnBytes` already took care of including the trailing newline in the
-    // deleted range, so we don't need to do anything here.
-    if buf.events.with(|events| {
-        events.agent_ids.has_just_deleted_trailing_newline == Some(buf.id())
-    }) {
-        return;
-    }
-
-    let was_eol_on = is_eol_on(old_eol, old_fixeol, old_binary);
-
-    let is_eol_on = is_eol_on(new_eol, new_fixeol, new_binary);
-
-    let byte_len = buf.byte_len();
-
-    let replacement = match (was_eol_on, is_eol_on) {
-        // The trailing newline was deleted.
-        (true, false) => Replacement::removal(byte_len..byte_len + 1),
-        // The trailing newline was added.
-        (false, true) => Replacement::insertion(byte_len - 1, "\n"),
-        _ => return,
-    };
-
-    let edit = Edit {
-        made_by: AgentId::UNKNOWN,
-        replacements: smallvec_inline![replacement],
-    };
-
-    fun.with_mut(|fun| fun(buf, &edit));
 }

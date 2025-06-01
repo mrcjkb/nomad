@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use core::ops::Deref;
 
 use ed::Shared;
-use ed::backend::Buffer;
+use ed::backend::{AgentId, Buffer};
 
 use crate::buffer::{BufferId, NeovimBuffer};
 use crate::events::{
@@ -183,48 +183,6 @@ impl NeovimOption for UneditableEndOfLine {
     }
 }
 
-impl WatchedOption for Binary {
-    #[inline]
-    fn callbacks(
-        events: &mut Events,
-    ) -> &mut Option<Callbacks<OptionSet<Self>>> {
-        &mut events.on_binary_set
-    }
-
-    #[inline]
-    fn event_kind() -> EventKind {
-        EventKind::BinarySet(OptionSet::<Self>::new())
-    }
-}
-
-impl WatchedOption for EndOfLine {
-    #[inline]
-    fn callbacks(
-        events: &mut Events,
-    ) -> &mut Option<Callbacks<OptionSet<Self>>> {
-        &mut events.on_end_of_line_set
-    }
-
-    #[inline]
-    fn event_kind() -> EventKind {
-        EventKind::EndOfLineSet(OptionSet::<Self>::new())
-    }
-}
-
-impl WatchedOption for FixEndOfLine {
-    #[inline]
-    fn callbacks(
-        events: &mut Events,
-    ) -> &mut Option<Callbacks<OptionSet<Self>>> {
-        &mut events.on_fix_end_of_line_set
-    }
-
-    #[inline]
-    fn event_kind() -> EventKind {
-        EventKind::FixEndOfLineSet(OptionSet::<Self>::new())
-    }
-}
-
 impl From<&NeovimBuffer<'_>> for BufferLocalOpts {
     #[inline]
     fn from(buf: &NeovimBuffer) -> Self {
@@ -285,16 +243,13 @@ impl<T: WatchedOption> Event for OptionSet<T> {
 }
 
 impl Event for UneditableEndOfLine {
-    type Args<'a> = (NeovimBuffer<'a>, bool, bool);
+    type Args<'a> = (NeovimBuffer<'a>, bool, bool, AgentId);
     type Container<'ev> = &'ev mut Option<Callbacks<Self>>;
     type RegisterOutput = (AutocmdId, AutocmdId, AutocmdId);
 
     #[inline]
-    fn container<'ev>(
-        &self,
-        _events: &'ev mut Events,
-    ) -> Self::Container<'ev> {
-        todo!()
+    fn container<'ev>(&self, events: &'ev mut Events) -> Self::Container<'ev> {
+        &mut events.on_uneditable_eol_set
     }
 
     #[inline]
@@ -302,15 +257,39 @@ impl Event for UneditableEndOfLine {
 
     #[inline]
     fn kind(&self) -> EventKind {
-        todo!()
+        EventKind::UneditableEolSet(Self)
     }
 
     #[allow(clippy::too_many_lines)]
     #[inline]
     fn register(&self, mut events: EventsBorrow) -> Self::RegisterOutput {
+        let on_option_set =
+            |buffer: NeovimBuffer,
+             old_value: bool,
+             new_value: bool,
+             events: &Shared<Events>| {
+                let Some((callbacks, set_by)) = events.with_mut(|events| {
+                    let callbacks = events.on_uneditable_eol_set.as_ref()?;
+                    let set_by = events
+                        .agent_ids
+                        .set_uneditable_eol
+                        .remove(&buffer.id())
+                        .unwrap_or(AgentId::UNKNOWN);
+                    Some((callbacks.cloned(), set_by))
+                }) else {
+                    return true;
+                };
+
+                for callback in callbacks {
+                    callback((buffer, old_value, new_value, set_by));
+                }
+
+                false
+            };
+
         let eol_autocmd_id = OptionSet::<EndOfLine>::register_inner(
             events.reborrow(),
-            |maybe_buffer, &old_eol, &new_eol, events| {
+            move |maybe_buffer, &old_eol, &new_eol, events| {
                 let buffer = maybe_buffer.expect("'eol' is buffer-local");
                 let opts = (&buffer).into();
                 let fix_eol = FixEndOfLine.get(&opts);
@@ -325,13 +304,13 @@ impl Event for UneditableEndOfLine {
                     || fix_eol,
                     || binary,
                 );
-                todo!();
+                on_option_set(buffer, old_value, new_value, events)
             },
         );
 
         let fixeol_autocmd_id = OptionSet::<FixEndOfLine>::register_inner(
             events.reborrow(),
-            |maybe_buffer, &old_fix_eol, &new_fix_eol, events| {
+            move |maybe_buffer, &old_fix_eol, &new_fix_eol, events| {
                 let buffer = maybe_buffer.expect("'fixeol' is buffer-local");
                 let opts = (&buffer).into();
                 let eol = EndOfLine.get(&opts);
@@ -346,13 +325,13 @@ impl Event for UneditableEndOfLine {
                     || new_fix_eol,
                     || binary,
                 );
-                todo!();
+                on_option_set(buffer, old_value, new_value, events)
             },
         );
 
         let binary_autocmd_id = OptionSet::<Binary>::register_inner(
             events.reborrow(),
-            |maybe_buffer, &old_binary, &new_binary, events| {
+            move |maybe_buffer, &old_binary, &new_binary, events| {
                 let buffer = maybe_buffer.expect("'binary' is buffer-local");
                 let opts = (&buffer).into();
                 let eol = EndOfLine.get(&opts);
@@ -367,7 +346,7 @@ impl Event for UneditableEndOfLine {
                     || fix_eol,
                     || new_binary,
                 );
-                todo!();
+                on_option_set(buffer, old_value, new_value, events)
             },
         );
 

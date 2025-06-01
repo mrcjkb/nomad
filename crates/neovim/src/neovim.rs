@@ -287,6 +287,7 @@ impl BaseBackend for Neovim {
             buffer.replace_text_in_point_range(
                 Point::zero()..Point::zero(),
                 &contents,
+                agent_id,
             );
 
             buffer.inner().set_name(file_path).expect("couldn't set name");

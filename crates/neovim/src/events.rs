@@ -14,7 +14,7 @@ use crate::buffer::{BufferId, NeovimBuffer};
 use crate::cursor::NeovimCursor;
 use crate::decoration_provider::DecorationProvider;
 use crate::mode::ModeStr;
-use crate::option::{Binary, EndOfLine, FixEndOfLine, OptionSet};
+use crate::option::UneditableEndOfLine;
 use crate::oxi::api;
 
 pub(crate) type AugroupId = u32;
@@ -78,10 +78,7 @@ pub(crate) struct Events {
     pub(crate) agent_ids: AgentIds,
     pub(crate) augroup_id: AugroupId,
     pub(crate) buffer_fields: BufferFields,
-    pub(crate) on_binary_set: Option<Callbacks<OptionSet<Binary>>>,
-    pub(crate) on_end_of_line_set: Option<Callbacks<OptionSet<EndOfLine>>>,
-    pub(crate) on_fix_end_of_line_set:
-        Option<Callbacks<OptionSet<FixEndOfLine>>>,
+    pub(crate) on_uneditable_eol_set: Option<Callbacks<UneditableEndOfLine>>,
     on_buffer_created: Option<Callbacks<BufReadPost>>,
     on_buffer_edited: NoHashMap<BufferId, Callbacks<OnBytes>>,
     on_buffer_focused: Option<Callbacks<BufEnter>>,
@@ -100,6 +97,7 @@ pub(crate) struct AgentIds {
     pub(crate) has_just_deleted_trailing_newline: Option<BufferId>,
     pub(crate) removed_buffer: NoHashMap<BufferId, AgentId>,
     pub(crate) saved_buffer: NoHashMap<BufferId, AgentId>,
+    pub(crate) set_uneditable_eol: NoHashMap<BufferId, AgentId>,
 }
 
 /// Additional fields needed to call [`NeovimBuffer::new`].
@@ -139,17 +137,15 @@ pub(crate) struct ModeChanged;
 pub(crate) struct OnBytes(pub(crate) BufferId);
 
 pub(crate) enum EventKind {
-    BinarySet(OptionSet<Binary>),
     BufEnter(BufEnter),
     BufLeave(BufLeave),
     BufReadPost(BufReadPost),
     BufUnload(BufUnload),
     BufWritePost(BufWritePost),
     CursorMoved(CursorMoved),
-    EndOfLineSet(OptionSet<EndOfLine>),
-    FixEndOfLineSet(OptionSet<FixEndOfLine>),
     ModeChanged(ModeChanged),
     OnBytes(OnBytes),
+    UneditableEolSet(UneditableEndOfLine),
 }
 
 impl EventHandle {
@@ -229,7 +225,6 @@ impl Events {
             augroup_id,
             agent_ids: Default::default(),
             buffer_fields,
-            on_binary_set: Default::default(),
             on_buffer_created: Default::default(),
             on_buffer_edited: Default::default(),
             on_buffer_focused: Default::default(),
@@ -237,9 +232,8 @@ impl Events {
             on_buffer_saved: Default::default(),
             on_buffer_unfocused: Default::default(),
             on_cursor_moved: Default::default(),
-            on_end_of_line_set: Default::default(),
-            on_fix_end_of_line_set: Default::default(),
             on_mode_changed: Default::default(),
+            on_uneditable_eol_set: Default::default(),
         }
     }
 
@@ -838,17 +832,15 @@ impl Drop for EventHandle {
         self.events.with_mut(|events| {
             for (key, kind) in self.event_keys_kind.drain(..) {
                 match kind {
-                    EventKind::BinarySet(ev) => ev.cleanup(key, events),
                     EventKind::BufEnter(ev) => ev.cleanup(key, events),
                     EventKind::BufLeave(ev) => ev.cleanup(key, events),
                     EventKind::BufReadPost(ev) => ev.cleanup(key, events),
                     EventKind::BufUnload(ev) => ev.cleanup(key, events),
                     EventKind::BufWritePost(ev) => ev.cleanup(key, events),
                     EventKind::CursorMoved(ev) => ev.cleanup(key, events),
-                    EventKind::EndOfLineSet(ev) => ev.cleanup(key, events),
-                    EventKind::FixEndOfLineSet(ev) => ev.cleanup(key, events),
                     EventKind::ModeChanged(ev) => ev.cleanup(key, events),
                     EventKind::OnBytes(ev) => ev.cleanup(key, events),
+                    EventKind::UneditableEolSet(ev) => ev.cleanup(key, events),
                 }
             }
         })
