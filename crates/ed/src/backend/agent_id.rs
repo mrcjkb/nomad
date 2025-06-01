@@ -1,8 +1,9 @@
 use core::cmp::Ordering;
-use core::hash::{Hash, Hasher};
+use core::fmt;
+use core::num::NonZeroU64;
 
 /// TODO: docs.
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct AgentId(u64);
 
 impl AgentId {
@@ -16,6 +17,11 @@ impl AgentId {
     }
 
     #[inline]
+    pub(crate) fn new(id: NonZeroU64) -> Self {
+        Self(id.into())
+    }
+
+    #[inline]
     pub(crate) fn post_inc(&mut self) -> Self {
         let id = self.0;
         self.0 += 1;
@@ -23,10 +29,16 @@ impl AgentId {
     }
 }
 
+impl fmt::Debug for AgentId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AgentId").field(&format_args!("UNKNOWN")).finish()
+    }
+}
+
 impl Default for AgentId {
     #[inline]
     fn default() -> Self {
-        Self(1)
+        Self::UNKNOWN
     }
 }
 
@@ -45,12 +57,5 @@ impl PartialOrd for AgentId {
         } else {
             self.0.partial_cmp(&other.0)
         }
-    }
-}
-
-impl Hash for AgentId {
-    #[inline]
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        hasher.write_u64(self.0);
     }
 }

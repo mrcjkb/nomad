@@ -1,6 +1,7 @@
 use core::any::{self, Any};
 use core::cell::Cell;
 use core::marker::PhantomData;
+use core::num::NonZeroU64;
 use core::ops::{Deref, DerefMut};
 use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
@@ -123,7 +124,7 @@ impl<B: Backend> State<B> {
             panic_hook: PanicHook::set(&backend),
             backend,
             modules: FxHashMap::default(),
-            next_agent_id: AgentId::default(),
+            next_agent_id: AgentId::new(NonZeroU64::new(1).expect("not zero")),
             panic_handlers: FxHashMap::from_iter(core::iter::once((
                 <ResumeUnwinding as Plugin<B>>::id(),
                 RESUME_UNWINDING as &'static dyn PanicHandler<B>,

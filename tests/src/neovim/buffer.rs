@@ -1,5 +1,5 @@
 use ed::Context;
-use ed::backend::{AgentId, Buffer, Edit, Replacement};
+use ed::backend::{Buffer, Edit, Replacement};
 use futures_util::stream::StreamExt;
 use neovim::Neovim;
 use neovim::buffer::BufferId;
