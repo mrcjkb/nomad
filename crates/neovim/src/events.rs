@@ -17,8 +17,8 @@ use crate::mode::ModeStr;
 use crate::option::{Binary, EndOfLine, FixEndOfLine, OptionSet};
 use crate::oxi::api;
 
-type AugroupId = u32;
-type AutocmdId = u32;
+pub(crate) type AugroupId = u32;
+pub(crate) type AutocmdId = u32;
 
 /// TODO: docs.
 pub struct EventHandle {
@@ -170,6 +170,13 @@ impl EventHandle {
             events,
             event_keys_kind: smallvec_inline![(event_key, event_kind)],
         }
+    }
+}
+
+impl<'a> EventsBorrow<'a> {
+    #[inline]
+    pub(crate) fn reborrow(&mut self) -> EventsBorrow<'_> {
+        EventsBorrow { borrow: self.borrow, handle: self.handle.clone() }
     }
 }
 
