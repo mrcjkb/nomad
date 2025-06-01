@@ -8,12 +8,41 @@ use crate::oxi::api;
 /// TODO: docs.
 pub trait ContextExt {
     /// TODO: docs.
-    fn cmd(&mut self, cmd: &str) {
+    fn cmd(&self, cmd: &str) {
         api::command(cmd).expect("couldn't execute command");
     }
 
+    /// Enters insert mode as if "a" was typed in normal mode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if Neovim is not in normal mode.
+    #[track_caller]
+    fn enter_insert_with_a(&self) {
+        assert!(api::get_mode().mode == "n", "not in normal mode");
+        api::feedkeys(c"a", c"n", false);
+    }
+
+    /// Enters insert mode as if "i" was typed in normal mode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if Neovim is not in normal mode.
+    #[track_caller]
+    fn enter_insert_with_i(&self) {
+        assert!(api::get_mode().mode == "n", "not in normal mode");
+        self.cmd("startinsert");
+    }
+
     /// TODO: docs.
-    fn feedkeys(&mut self, keys: &str) {
+    ///
+    /// Note that if Neovim is in insert mode after processing the keys, an
+    /// implicit `<Esc>` will be added to put it back in normal mode.
+    ///
+    /// If you want to enter insert mode, use
+    /// [`enter_insert_with_i`](ContextExt::enter_insert_with_i) or
+    /// [`enter_insert_with_a`](ContextExt::enter_insert_with_a).
+    fn feedkeys(&self, keys: &str) {
         let keys = api::replace_termcodes(keys, true, false, true);
         api::feedkeys(&keys, c"x", false);
     }

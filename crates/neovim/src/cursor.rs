@@ -78,8 +78,10 @@ impl Cursor for NeovimCursor<'_> {
                 let fun = fun.clone();
                 let old_point = old_point.clone();
                 move |(this, moved_by)| {
-                    old_point.set(this.point());
-                    fun.with_mut(|fun| fun(this, moved_by));
+                    let new_point = this.point();
+                    if old_point.replace(new_point) != new_point {
+                        fun.with_mut(|fun| fun(this, moved_by));
+                    }
                 }
             },
         );
