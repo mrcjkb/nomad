@@ -61,7 +61,7 @@ pub mod test_macro {
     ) -> impl FnOnce() -> Out + UnwindSafe
     where
         Out: oxi::IntoResult<()>,
-        Out::Error: fmt::Display,
+        Out::Error: fmt::Debug,
     {
         || Neovim::new_test(test_name).with_ctx(test_fn)
     }
@@ -74,17 +74,14 @@ pub mod test_macro {
     ) -> impl FnOnce(oxi::tests::TestTerminator) + UnwindSafe
     where
         Out: oxi::IntoResult<()>,
-        Out::Error: fmt::Display,
+        Out::Error: fmt::Debug,
     {
         move |terminator| {
             let terminator = Arc::new(terminator);
 
-            let prev_hook = panic::take_hook();
-
             panic::set_hook({
                 let terminator = terminator.clone();
                 Box::new(move |info| {
-                    prev_hook(info);
                     let failure =
                         oxi::tests::TestFailure::<Infallible>::Panic(info);
                     terminator.terminate(Err(failure));
