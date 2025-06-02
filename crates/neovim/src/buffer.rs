@@ -175,10 +175,6 @@ impl<'a> NeovimBuffer<'a> {
         &self,
         mut point_range: Range<Point>,
     ) -> CompactString {
-        if point_range.is_empty() {
-            return CompactString::default();
-        }
-
         // If the buffer has an uneditable eol and the end of the range
         // includes it, we need to clamp the end back to the end of the
         // previous line or get_text() will return an out-of-bounds error.
@@ -195,6 +191,7 @@ impl<'a> NeovimBuffer<'a> {
         if needs_to_clamp_end {
             point_range.end.line_idx -= 1;
             point_range.end.byte_offset = (oxi::Integer::MAX as usize).into();
+            point_range.start = point_range.start.min(point_range.end);
         }
 
         let lines = self
@@ -341,19 +338,30 @@ impl<'a> NeovimBuffer<'a> {
         debug_assert!(delete_range.start <= delete_range.end);
         debug_assert!(delete_range.end <= self.point_of_eof());
 
-        if delete_range.is_empty() {
-            return;
-        }
-
         // We need to clamp the end in the same way we do in
         // get_text_in_point_range(). See that comment for more details.
         let needs_to_clamp_end = self.has_uneditable_eol()
             && delete_range.end == self.point_of_eof();
 
-        if needs_to_clamp_end {
+        let insert_after_uneditable_eof = if needs_to_clamp_end {
             let end = &mut delete_range.end;
             end.line_idx -= 1;
             end.byte_offset = self.line_len(end.line_idx);
+            if delete_range.start > delete_range.end {
+                delete_range.start = delete_range.end;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if insert_after_uneditable_eof {
+            panic!(
+                "caller wants to insert text after uneditable eol, but we \
+                 can't do it :("
+            );
         }
 
         // If we needed to clamp the end of the range, it means the user also
