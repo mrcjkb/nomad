@@ -89,6 +89,26 @@ impl<E: fmt::Display> FuzzResult for Result<(), E> {
     }
 }
 
+impl FuzzResult for never::Never {
+    type Error = Infallible;
+
+    fn into_result(self) -> Result<(), Self::Error> {
+        unreachable!()
+    }
+}
+
+mod never {
+    pub(crate) type Never = <fn() -> ! as FnRet>::Output;
+
+    pub(crate) trait FnRet {
+        type Output;
+    }
+
+    impl<R> FnRet for fn() -> R {
+        type Output = R;
+    }
+}
+
 pin_project_lite::pin_project! {
     /// A [`Future`] wrapper that makes it possible to track the caller of an
     /// async function on stable.
