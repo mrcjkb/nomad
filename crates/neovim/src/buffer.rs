@@ -190,10 +190,10 @@ impl<'a> NeovimBuffer<'a> {
         // However, because get_text() seems to already clamp offsets in lines,
         // we just set the end's line offset to `(line_idx - 1, Integer::MAX)`
         // and let get_text() figure it out.
-        let needs_to_clamp_end = self.has_uneditable_eol()
-            && point_range.end == self.point_of_eof();
+        let should_clamp_end =
+            self.is_point_after_uneditable_eol(point_range.end);
 
-        if needs_to_clamp_end {
+        if should_clamp_end {
             point_range.end.line_idx -= 1;
             point_range.end.byte_offset = (oxi::Integer::MAX as usize).into();
 
@@ -228,7 +228,7 @@ impl<'a> NeovimBuffer<'a> {
             }
         }
 
-        if needs_to_clamp_end {
+        if should_clamp_end {
             text.push('\n');
         }
 
@@ -241,7 +241,6 @@ impl<'a> NeovimBuffer<'a> {
         self.id.into()
     }
 
-    #[track_caller]
     #[inline]
     pub(crate) fn is_focused(&self) -> bool {
         api::Window::current().get_buf().expect("window is valid")
@@ -364,8 +363,8 @@ impl<'a> NeovimBuffer<'a> {
         // points of the deleted range in the same way we do in
         // get_text_in_point_range(). See that comment for more details.
 
-        let should_clamp_end = self.has_uneditable_eol()
-            && delete_range.end == self.point_of_eof();
+        let should_clamp_end =
+            self.is_point_after_uneditable_eol(delete_range.end);
 
         if should_clamp_end {
             let end = &mut delete_range.end;
@@ -594,6 +593,13 @@ impl<'a> NeovimBuffer<'a> {
     #[inline]
     fn has_uneditable_eol(&self) -> bool {
         UneditableEndOfLine.get(&self.into())
+    }
+
+    #[inline]
+    pub(crate) fn is_point_after_uneditable_eol(&self, point: Point) -> bool {
+        !self.is_empty()
+            && self.has_uneditable_eol()
+            && point == self.point_of_eof()
     }
 
     /// Returns the byte length of the line at the given index, *without* any
