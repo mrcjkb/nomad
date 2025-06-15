@@ -125,10 +125,7 @@ impl Replacement {
 
     /// TODO: docs.
     #[inline]
-    pub fn insertion(
-        at_offset: ByteOffset,
-        text: impl Into<SmolStr>,
-    ) -> Self {
+    pub fn insertion(at_offset: ByteOffset, text: impl Into<SmolStr>) -> Self {
         Self::new(at_offset..at_offset, text)
     }
 

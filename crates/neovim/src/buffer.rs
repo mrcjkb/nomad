@@ -330,11 +330,8 @@ impl<'a> NeovimBuffer<'a> {
 
         let num_lines = num_lines - 1 + has_uneditable_eol as usize;
 
-        let last_line_len = if has_uneditable_eol {
-            0
-        } else {
-            self.line_len(num_lines - 1)
-        };
+        let last_line_len =
+            if has_uneditable_eol { 0 } else { self.line_len(num_lines - 1) };
 
         Point::new(num_lines, last_line_len)
     }
@@ -504,8 +501,7 @@ impl<'a> NeovimBuffer<'a> {
         let should_extend_start =
             should_extend_end && should_start_at_next_line;
 
-        let deletion_start =
-            start_offset + should_extend_start as usize;
+        let deletion_start = start_offset + should_extend_start as usize;
 
         let deletion_end =
             start_offset + old_end_len + should_extend_end as usize;
@@ -520,8 +516,7 @@ impl<'a> NeovimBuffer<'a> {
 
         let insertion_end = Point {
             line_idx: start_row + new_end_row,
-            byte_offset: start_col * (new_end_row == 0) as usize
-                + new_end_col
+            byte_offset: start_col * (new_end_row == 0) as usize + new_end_col,
         };
 
         Replacement::new(
@@ -562,9 +557,7 @@ impl<'a> NeovimBuffer<'a> {
     fn byte_of_line(&self, line_offset: usize) -> ByteOffset {
         // get_offset() already takes care of only counting the final newline
         // if `eol` is enabled.
-        self.inner()
-            .get_offset(line_offset)
-            .expect("line index out of bounds")
+        self.inner().get_offset(line_offset).expect("line index out of bounds")
     }
 
     /// Returns the contents of the line at the given index, *without* any
