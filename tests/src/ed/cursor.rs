@@ -1,7 +1,6 @@
 use core::mem;
 use core::time::Duration;
 
-use abs_path::path;
 use ed::backend::{AgentId, Backend, Buffer, Cursor, Replacement};
 use ed::{ByteOffset, Context};
 use futures_util::stream::{FusedStream, StreamExt};

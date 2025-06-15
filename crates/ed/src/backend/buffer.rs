@@ -28,6 +28,12 @@ pub trait Buffer {
     /// TODO: docs.
     fn id(&self) -> <Self::Backend as Backend>::BufferId;
 
+    /// Whether the buffer is empty, i.e. whether `byte_len()` is 0.
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.byte_len() == 0
+    }
+
     /// TODO: docs.
     fn focus(&mut self, agent_id: AgentId);
 

@@ -322,6 +322,11 @@ impl<'a> NeovimBuffer<'a> {
     #[track_caller]
     #[inline]
     pub(crate) fn point_of_eof(&self) -> Point {
+        // Workaround for https://github.com/neovim/neovim/issues/34272.
+        if self.is_empty() {
+            return Point::zero();
+        }
+
         let num_rows = self.inner().line_count().expect("buffer is valid");
 
         let has_uneditable_eol = self.has_uneditable_eol();
