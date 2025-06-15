@@ -15,11 +15,11 @@ pub(crate) async fn on_cursor_created_1(ctx: &mut Context<impl TestEditor>) {
     let mut events = CursorEvent::new_stream(ctx);
 
     // Focusing the buffer should create a cursor.
-    let foo_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
+    let buf_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
 
     match events.next().await.unwrap() {
         CursorEvent::Created(creation) => {
-            assert_eq!(creation.buffer_id, foo_id);
+            assert_eq!(creation.buffer_id, buf_id);
             assert_eq!(creation.created_by, agent_id)
         },
         other => panic!("expected Created event, got {other:?}"),
@@ -29,21 +29,19 @@ pub(crate) async fn on_cursor_created_1(ctx: &mut Context<impl TestEditor>) {
 pub(crate) async fn on_cursor_created_2(ctx: &mut Context<impl TestEditor>) {
     let agent_id = ctx.new_agent_id();
 
-    let foo_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
+    let scratch1_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
 
     let mut events = CursorEvent::new_stream(ctx);
 
-    // foo.txt is currently focused, so focusing it again shouldn't do
-    // anything.
-    ctx.with_borrowed(|ctx| ctx.buffer(foo_id).unwrap().focus(agent_id));
+    // Focusing the buffer again shouldn't do anything.
+    ctx.with_borrowed(|ctx| ctx.buffer(scratch1_id).unwrap().focus(agent_id));
 
-    // Now create and focus bar.txt, which should create a cursor.
-    let bar_id =
-        ctx.create_and_focus(path!("/bar.txt"), agent_id).await.unwrap();
+    // Now create and focus a second buffer, which should create a cursor.
+    let scratch2_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
 
     match events.next().await.unwrap() {
         CursorEvent::Created(creation) => {
-            assert_eq!(creation.buffer_id, bar_id);
+            assert_eq!(creation.buffer_id, scratch2_id);
             assert_eq!(creation.created_by, agent_id);
         },
         other => panic!("expected Created event, got {other:?}"),
@@ -55,11 +53,11 @@ pub(crate) async fn on_cursor_moved_1(ctx: &mut Context<impl TestEditor>) {
 
     let mut events = CursorEvent::new_stream(ctx);
 
-    let foo_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
+    let buf_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
 
     ctx.with_borrowed(|ctx| {
-        let mut foo = ctx.buffer(foo_id.clone()).unwrap();
-        foo.edit([Replacement::insertion(0usize, "Hello world")], agent_id);
+        let mut buf = ctx.buffer(buf_id.clone()).unwrap();
+        buf.edit([Replacement::insertion(0usize, "Hello world")], agent_id);
     });
 
     // Drain the event stream.
@@ -70,8 +68,8 @@ pub(crate) async fn on_cursor_moved_1(ctx: &mut Context<impl TestEditor>) {
     }
 
     ctx.with_borrowed(|ctx| {
-        let mut foo = ctx.buffer(foo_id.clone()).unwrap();
-        foo.for_each_cursor(|mut cursor| {
+        let mut buf = ctx.buffer(buf_id.clone()).unwrap();
+        buf.for_each_cursor(|mut cursor| {
             cursor.r#move(5usize.into(), agent_id);
         });
     });
@@ -79,7 +77,7 @@ pub(crate) async fn on_cursor_moved_1(ctx: &mut Context<impl TestEditor>) {
     match events.next().await.unwrap() {
         CursorEvent::Moved(movement) => {
             assert_eq!(movement.byte_offset, 5usize);
-            assert_eq!(movement.buffer_id, foo_id);
+            assert_eq!(movement.buffer_id, buf_id);
             assert_eq!(movement.moved_by, agent_id);
         },
         other => panic!("expected Moved event, got {other:?}"),

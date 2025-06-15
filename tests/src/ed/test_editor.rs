@@ -32,7 +32,7 @@ impl TestEditor for neovim::Neovim {
             ctx.with_editor(|nvim| nvim.create_buf(true, true, agent_id));
 
         // The (fix)eol options mess us the fuzzy edits tests because inserting
-        // text in an empty buffer will also cause a trailing \n to be
+        // when the buffer is empty will also cause a trailing \n to be
         // inserted, so unset them.
         let opts =
             opts::OptionOpts::builder().buffer(buffer_id.into()).build();
