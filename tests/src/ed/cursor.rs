@@ -7,14 +7,15 @@ use ed::{ByteOffset, Context};
 use futures_util::stream::{FusedStream, StreamExt};
 use futures_util::{FutureExt, select_biased};
 
-pub(crate) async fn on_cursor_created_1(ctx: &mut Context<impl Backend>) {
+use crate::ed::{ContextExt, TestEditor};
+
+pub(crate) async fn on_cursor_created_1(ctx: &mut Context<impl TestEditor>) {
     let agent_id = ctx.new_agent_id();
 
     let mut events = CursorEvent::new_stream(ctx);
 
     // Focusing the buffer should create a cursor.
-    let foo_id =
-        ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap();
+    let foo_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
 
     match events.next().await.unwrap() {
         CursorEvent::Created(creation) => {
@@ -25,11 +26,10 @@ pub(crate) async fn on_cursor_created_1(ctx: &mut Context<impl Backend>) {
     }
 }
 
-pub(crate) async fn on_cursor_created_2(ctx: &mut Context<impl Backend>) {
+pub(crate) async fn on_cursor_created_2(ctx: &mut Context<impl TestEditor>) {
     let agent_id = ctx.new_agent_id();
 
-    let foo_id =
-        ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap();
+    let foo_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
 
     let mut events = CursorEvent::new_stream(ctx);
 
@@ -50,13 +50,12 @@ pub(crate) async fn on_cursor_created_2(ctx: &mut Context<impl Backend>) {
     }
 }
 
-pub(crate) async fn on_cursor_moved_1(ctx: &mut Context<impl Backend>) {
+pub(crate) async fn on_cursor_moved_1(ctx: &mut Context<impl TestEditor>) {
     let agent_id = ctx.new_agent_id();
 
     let mut events = CursorEvent::new_stream(ctx);
 
-    let foo_id =
-        ctx.create_and_focus(path!("/foo.txt"), agent_id).await.unwrap();
+    let foo_id = ctx.create_and_focus_scratch_buffer(agent_id).await;
 
     ctx.with_borrowed(|ctx| {
         let mut foo = ctx.buffer(foo_id.clone()).unwrap();

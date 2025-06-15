@@ -5,26 +5,20 @@ use ed::{Backend, Context};
 use futures_util::stream::{FusedStream, StreamExt};
 use rand::Rng;
 
+use crate::ed::{ContextExt, TestEditor};
 use crate::utils::{CodeDistribution, Convert, fuzz};
 
 pub(crate) async fn fuzz_edits(
     num_epochs: u32,
-    ctx: &mut Context<impl Backend>,
+    ctx: &mut Context<impl TestEditor>,
 ) {
     let agent_id = ctx.new_agent_id();
 
-    let buf_id = ctx
-        .create_and_focus(abs_path::path!("/fuzz.txt"), agent_id)
-        .await
-        .unwrap();
+    let buf_id = ctx.create_scratch_buffer(agent_id).await;
 
     let mut edits = Edit::new_stream(buf_id.clone(), ctx);
 
     // A string to which we'll apply the same edits we apply to the buffer.
-    //
-    // Even though we just created the buffer, we shouldn't assume that the
-    // contents of a new buffer are empty. For example, in Neovim buffers
-    // already contain a trailing newline by default.
     let mut expected_contents = ctx.with_borrowed(|ctx| {
         let buf = ctx.buffer(buf_id.clone()).unwrap();
         buf.get_text(0usize.into()..buf.byte_len()).to_string()

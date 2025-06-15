@@ -36,6 +36,31 @@ pub struct CreateBufferError {
 }
 
 impl Neovim {
+    /// Same as [`oxi::api::create_buf`], but keeps track of the [`AgentId`]
+    /// that created the buffer.
+    #[inline]
+    pub fn create_buf(
+        &mut self,
+        is_listed: bool,
+        is_scratch: bool,
+        agent_id: AgentId,
+    ) -> BufferId {
+        let buffer_id = oxi::api::create_buf(is_listed, is_scratch)
+            .expect("couldn't create buffer")
+            .into();
+
+        self.events.with_mut(|events| {
+            if events.contains(&events::BufReadPost) {
+                events.agent_ids.created_buffer.insert(buffer_id, agent_id);
+            }
+            if events.contains(&events::BufEnter) {
+                events.agent_ids.focused_buffer.insert(buffer_id, agent_id);
+            }
+        });
+
+        buffer_id
+    }
+
     /// TODO: docs.
     #[inline]
     pub fn highlight_range<'a>(
@@ -265,21 +290,10 @@ impl BaseBackend for Neovim {
             Err(other) => return Err(CreateBufferError { inner: other }),
         };
 
-        let buf_id: BufferId = oxi::api::create_buf(true, false)
-            .expect("couldn't create buf")
-            .into();
-
         ctx.with_editor(|ed| {
             let this = ed.as_mut();
 
-            this.events.with_mut(|events| {
-                if events.contains(&events::BufReadPost) {
-                    events.agent_ids.created_buffer.insert(buf_id, agent_id);
-                }
-                if events.contains(&events::BufEnter) {
-                    events.agent_ids.focused_buffer.insert(buf_id, agent_id);
-                }
-            });
+            let buf_id = this.create_buf(true, false, agent_id);
 
             let buffer = this.buffer_inner(buf_id).expect("just created");
 

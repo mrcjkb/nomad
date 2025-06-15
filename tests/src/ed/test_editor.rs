@@ -1,0 +1,94 @@
+use ed::backend::{AgentId, Buffer};
+use ed::{Backend, BorrowState, Context};
+
+pub(crate) trait TestEditor: Backend {
+    fn create_scratch_buffer(
+        agent_id: AgentId,
+        ctx: &mut Context<Self, impl BorrowState>,
+    ) -> impl Future<Output = Self::BufferId>;
+}
+
+pub(crate) trait ContextExt<Ed: TestEditor> {
+    fn create_scratch_buffer(
+        &mut self,
+        agent_id: AgentId,
+    ) -> impl Future<Output = Ed::BufferId>;
+
+    fn create_and_focus_scratch_buffer(
+        &mut self,
+        agent_id: AgentId,
+    ) -> impl Future<Output = Ed::BufferId>;
+}
+
+#[cfg(feature = "neovim")]
+impl TestEditor for neovim::Neovim {
+    async fn create_scratch_buffer(
+        agent_id: AgentId,
+        ctx: &mut Context<Self, impl BorrowState>,
+    ) -> Self::BufferId {
+        use neovim::oxi::api::{self, opts};
+
+        let buffer_id =
+            ctx.with_editor(|nvim| nvim.create_buf(true, true, agent_id));
+
+        // The (fix)eol options mess us the fuzzy edits tests because inserting
+        // text in an empty buffer will also cause a trailing \n to be
+        // inserted, so unset them.
+        let opts =
+            opts::OptionOpts::builder().buffer(buffer_id.into()).build();
+        api::set_option_value::<bool>("eol", false, &opts).unwrap();
+        api::set_option_value::<bool>("fixeol", false, &opts).unwrap();
+
+        buffer_id
+    }
+}
+
+#[cfg(feature = "mock")]
+impl TestEditor for mock::Mock {
+    async fn create_scratch_buffer(
+        agent_id: AgentId,
+        ctx: &mut Context<Self, impl BorrowState>,
+    ) -> Self::BufferId {
+        let scratch_file_path = |num_scratch: u32| {
+            let file_name = format!("scratch-{num_scratch}.txt")
+                .parse::<abs_path::NodeNameBuf>()
+                .expect("it's valid");
+            abs_path::AbsPathBuf::root().join(&file_name)
+        };
+
+        let mut num_scratch = 0;
+
+        loop {
+            let file_path = scratch_file_path(num_scratch);
+            if ctx.with_editor(|ed| ed.buffer_at_path(&file_path).is_none()) {
+                return ctx
+                    .create_buffer(&file_path, agent_id)
+                    .await
+                    .expect("couldn't create buffer");
+            }
+            num_scratch += 1;
+        }
+    }
+}
+
+impl<Ed: TestEditor, Bs: BorrowState> ContextExt<Ed> for Context<Ed, Bs> {
+    async fn create_scratch_buffer(
+        &mut self,
+        agent_id: AgentId,
+    ) -> Ed::BufferId {
+        Ed::create_scratch_buffer(agent_id, self).await
+    }
+
+    async fn create_and_focus_scratch_buffer(
+        &mut self,
+        agent_id: AgentId,
+    ) -> Ed::BufferId {
+        let buffer_id = self.create_scratch_buffer(agent_id).await;
+        self.with_editor(|ed| {
+            if let Some(mut buffer) = ed.buffer(buffer_id.clone()) {
+                buffer.focus(agent_id);
+            }
+        });
+        buffer_id
+    }
+}
