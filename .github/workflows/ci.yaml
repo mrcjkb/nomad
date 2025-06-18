@@ -145,10 +145,13 @@ jobs:
             ${{ secrets.LAZY_AWAIT_DEPLOY_KEY }}
             ${{ secrets.PANDO_DEPLOY_KEY }}
             ${{ secrets.PUFF_DEPLOY_KEY }}
-      - name: Install Rust nightly with Clippy
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: clippy
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Check the nixpkgs flake input
+        uses: DeterminateSystems/flake-checker-action@main
+      - name: Enter the 'nix develop' environment
+        run: nix run .#nix-develop-gha
       - name: Run 'cargo clippy'
         run: cargo clippy --all-features --all-targets --tests --workspace
         env:
