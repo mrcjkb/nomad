@@ -186,6 +186,19 @@
                 ];
               }
             );
+            docs = crane.lib.cargoDoc (
+              crane.commonArgs
+              // {
+                cargoDocExtraArgs = lib.concatStringsSep " " [
+                  "--all-features"
+                  "--no-deps"
+                  "--workspace"
+                ];
+                env = {
+                  RUSTFLAGS = "--deny warnings";
+                };
+              }
+            );
           };
           packages = {
             neovim = neovim.packages.zero-dot-eleven;
