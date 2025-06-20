@@ -12,7 +12,6 @@ mock = ["collab-server/server", "collab-server/test", "dep:duplex-stream"]
 neovim = [
   "collab-server/nomad",
   "walkdir/gitignore",
-  #
   "dep:async-net",
   "dep:clipboard",
   "dep:home",

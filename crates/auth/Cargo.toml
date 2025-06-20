@@ -8,12 +8,7 @@ publish.workspace = true
 
 [features]
 mock = []
-neovim = [
-  "keyring/apple-native",
-  "keyring/secret-service",
-  #
-  "dep:neovim",
-]
+neovim = ["keyring/apple-native", "keyring/secret-service", "dep:neovim"]
 
 [dependencies]
 collab-server = { git = "ssh://git@github.com/nomad/collab.git", default-features = false, features = [

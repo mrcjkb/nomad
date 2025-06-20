@@ -224,20 +224,36 @@
             neovim = neovim.devShells.zero-dot-eleven;
             neovim-nightly = neovim.devShells.nightly;
           };
-          treefmt = {
-            inherit (config.flake-root) projectRootFile;
-            programs.nixfmt.enable = true;
-            programs.rustfmt = {
-              enable = true;
-              package = crane.lib.rustfmt;
-            };
-            programs.taplo = {
-              enable = true;
-              settings = {
-                reorder_arrays = true;
+          treefmt =
+            let
+              cargoSortPriority = 1;
+            in
+            {
+              inherit (config.flake-root) projectRootFile;
+              programs.nixfmt.enable = true;
+              programs.rustfmt = {
+                enable = true;
+                package = crane.lib.rustfmt;
+              };
+              programs.taplo = {
+                enable = true;
+                # cargo-sort messes up the indentation, so make sure to run
+                # taplo after it.
+                priority = cargoSortPriority + 1;
+              };
+              # TODO: make it format [workspace.dependencies].
+              settings.formatter.cargo-sort = {
+                command = "${pkgs.cargo-sort}/bin/cargo-sort";
+                options = [
+                  # Only sort *within* newline-separated dependency groups, not
+                  # *across* them.
+                  "--grouped"
+                  "--order=package,lib,features,dependencies,build-dependencies,dev-dependencies,lints"
+                ];
+                includes = [ "**/Cargo.toml" ];
+                priority = cargoSortPriority;
               };
             };
-          };
         };
     };
 
