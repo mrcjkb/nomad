@@ -1,7 +1,7 @@
 use core::fmt;
 
-use collab_server::message::Peer;
 use collab_server::SessionId;
+use collab_server::message::Peer;
 use eerie::fs::{AbsPath, AbsPathBuf};
 use eerie::{
     CursorCreation,

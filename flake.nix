@@ -4,6 +4,8 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
+    flake-root.url = "github:srid/flake-root";
+
     crane.url = "github:ipetkov/crane";
 
     rust-overlay = {
@@ -15,10 +17,16 @@
       url = "github:nix-community/neovim-nightly-overlay/master";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-parts.follows = "flake-parts";
+      inputs.treefmt-nix.follows = "treefmt-nix";
     };
 
     nix-develop-gha = {
       url = "github:nicknovitski/nix-develop";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -33,12 +41,17 @@
         "x86_64-linux"
       ];
 
+      imports = [
+        inputs.flake-root.flakeModule
+        inputs.treefmt-nix.flakeModule
+      ];
+
       perSystem =
         {
-          inputs',
           config,
           pkgs,
           lib,
+          inputs',
           ...
         }:
         let
@@ -200,6 +213,7 @@
                 };
               }
             );
+            fmt = config.treefmt.build.check inputs.self;
           };
           packages = {
             neovim = neovim.packages.zero-dot-eleven;
@@ -210,7 +224,14 @@
             neovim = neovim.devShells.zero-dot-eleven;
             neovim-nightly = neovim.devShells.nightly;
           };
-          formatter = pkgs.nixfmt-rfc-style;
+          treefmt = {
+            inherit (config.flake-root) projectRootFile;
+            programs.nixfmt.enable = true;
+            programs.rustfmt = {
+              enable = true;
+              package = crane.lib.rustfmt;
+            };
+          };
         };
     };
 
