@@ -180,6 +180,7 @@
                 cargoClippyExtraArgs = lib.concatStringsSep " " [
                   "--all-features"
                   "--all-targets"
+                  "--no-deps"
                   "--workspace"
                   "--"
                   "--deny warnings"
