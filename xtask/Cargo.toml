@@ -9,11 +9,8 @@ publish.workspace = true
 [dependencies]
 abs-path = { workspace = true, features = ["macros"] }
 anyhow = "1.0"
-cargo_metadata = "0.19"
+cargo_metadata = "0.20"
 clap = { version = "4", features = ["derive"] }
-ed = { workspace = true, features = ["os-fs"] }
-futures-executor = { workspace = true }
-root-finder = { workspace = true }
 xshell = "0.2"
 
 [lints]

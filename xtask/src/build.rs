@@ -5,10 +5,14 @@ use std::env;
 use abs_path::{AbsPath, AbsPathBuf, NodeNameBuf, node};
 use anyhow::{Context, anyhow};
 use cargo_metadata::TargetKind;
-use ed::fs::os::OsFs;
-use futures_executor::block_on;
-use root_finder::markers;
 use xshell::cmd;
+
+const WORKSPACE_ROOT: &'static AbsPath = {
+    match AbsPath::from_str(env!("CARGO_MANIFEST_DIR")) {
+        Ok(manifest_dir) => manifest_dir.parent().expect("not root"),
+        Err(_) => panic!("$CARGO_MANIFEST_DIR not absolute"),
+    }
+};
 
 #[derive(Debug, Copy, Clone, clap::Args)]
 pub(crate) struct BuildArgs {
@@ -23,7 +27,6 @@ pub(crate) struct BuildArgs {
 
 pub(crate) fn build(args: BuildArgs) -> anyhow::Result<()> {
     Build::new(xshell::Shell::new()?)
-        .find_project_root()?
         .parse_package()?
         .build_plugin(args)?
         .fix_library_name()
@@ -34,43 +37,24 @@ struct Build<State> {
     state: State,
 }
 
-struct FindProjectRoot;
-
-struct ParsePackage {
-    project_root: AbsPathBuf,
-}
+struct ParsePackage;
 
 struct BuildPlugin {
-    project_root: AbsPathBuf,
     package: cargo_metadata::Package,
 }
 
 struct FixLibraryName {
-    project_root: AbsPathBuf,
     package: cargo_metadata::Package,
-}
-
-impl Build<FindProjectRoot> {
-    fn find_project_root(self) -> anyhow::Result<Build<ParsePackage>> {
-        let project_root = self.state.call(&self.sh)?;
-        Ok(Build { sh: self.sh, state: ParsePackage { project_root } })
-    }
-
-    fn new(sh: xshell::Shell) -> Self {
-        Self { sh, state: FindProjectRoot }
-    }
 }
 
 impl Build<ParsePackage> {
     fn parse_package(self) -> anyhow::Result<Build<BuildPlugin>> {
         let package = self.state.call()?;
-        Ok(Build {
-            sh: self.sh,
-            state: BuildPlugin {
-                project_root: self.state.project_root,
-                package,
-            },
-        })
+        Ok(Build { sh: self.sh, state: BuildPlugin { package } })
+    }
+
+    fn new(sh: xshell::Shell) -> Self {
+        Self { sh, state: ParsePackage }
     }
 }
 
@@ -82,10 +66,7 @@ impl Build<BuildPlugin> {
         self.state.call(args, &self.sh)?;
         Ok(Build {
             sh: self.sh,
-            state: FixLibraryName {
-                project_root: self.state.project_root,
-                package: self.state.package,
-            },
+            state: FixLibraryName { package: self.state.package },
         })
     }
 }
@@ -96,21 +77,9 @@ impl Build<FixLibraryName> {
     }
 }
 
-impl FindProjectRoot {
-    fn call(&self, sh: &xshell::Shell) -> anyhow::Result<AbsPathBuf> {
-        let current_dir = sh.current_dir();
-        let current_dir = <&AbsPath>::try_from(&*current_dir)?;
-        let root_finder = root_finder::Finder::new(OsFs::default());
-        block_on(root_finder.find_root(current_dir, markers::Git))?
-            .ok_or_else(|| anyhow!("Could not find the project root"))
-    }
-}
-
 impl ParsePackage {
     fn call(&self) -> anyhow::Result<cargo_metadata::Package> {
-        let cargo_dot_toml = self
-            .project_root
-            .clone()
+        let cargo_dot_toml = WORKSPACE_ROOT
             .join(node!("crates"))
             .join(node!("mad-neovim"))
             .join(node!("Cargo.toml"));
@@ -142,9 +111,7 @@ impl BuildPlugin {
         let artifact_dir_args = ["-Zunstable-options", "--artifact-dir"]
             .into_iter()
             .map(Cow::Borrowed)
-            .chain(iter::once(Cow::Owned(
-                artifact_dir(&self.project_root).to_string(),
-            )));
+            .chain(iter::once(Cow::Owned(artifact_dir().to_string())));
 
         // Specify which package to build.
         let package_args =
@@ -209,16 +176,13 @@ impl FixLibraryName {
         )
         .parse::<NodeNameBuf>()
         .unwrap();
-        force_rename(
-            artifact_dir(&self.project_root).push(source),
-            artifact_dir(&self.project_root).push(dest),
-        )
-        .context("Failed to rename the library")
+        force_rename(artifact_dir().push(source), artifact_dir().push(dest))
+            .context("Failed to rename the library")
     }
 }
 
-fn artifact_dir(project_root: &AbsPath) -> AbsPathBuf {
-    project_root.join(node!("lua"))
+fn artifact_dir() -> AbsPathBuf {
+    WORKSPACE_ROOT.join(node!("lua"))
 }
 
 fn force_rename(src: &AbsPath, dst: &AbsPath) -> anyhow::Result<()> {

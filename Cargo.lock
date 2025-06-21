@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "abs-path"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/abs-path.git#5942e37256ecbf4fcc075ca3889899f4ffa02461"
+source = "git+ssh://git@github.com/nomad/abs-path.git#3686c06a8e4243f9e42ceae4af36f3ea98634ad0"
 dependencies = [
  "abs-path-core",
  "abs-path-macros",
@@ -14,7 +14,7 @@ dependencies = [
 [[package]]
 name = "abs-path-core"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/abs-path.git#5942e37256ecbf4fcc075ca3889899f4ffa02461"
+source = "git+ssh://git@github.com/nomad/abs-path.git#3686c06a8e4243f9e42ceae4af36f3ea98634ad0"
 dependencies = [
  "compact_str",
  "serde",
@@ -24,7 +24,7 @@ dependencies = [
 [[package]]
 name = "abs-path-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/abs-path.git#5942e37256ecbf4fcc075ca3889899f4ffa02461"
+source = "git+ssh://git@github.com/nomad/abs-path.git#3686c06a8e4243f9e42ceae4af36f3ea98634ad0"
 dependencies = [
  "abs-path-core",
  "quote",
@@ -414,15 +414,6 @@ dependencies = [
 
 [[package]]
 name = "cargo-platform"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e35af189006b9c0f00a064685c727031e3ed2d8020f7ba284d78cc2671bd36ea"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "cargo-platform"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84982c6c0ae343635a3a4ee6dedef965513735c8b183caa7289fa6e27399ebd4"
@@ -448,26 +439,12 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.19.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd5eb614ed4c27c5d706420e4320fbe3216ab31fa1c33cd8246ac36dae4479ba"
-dependencies = [
- "camino",
- "cargo-platform 0.1.9",
- "semver",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "cargo_metadata"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f7835cfc6135093070e95eb2b53e5d9b5c403dc3a6be6040ee026270aa82502"
 dependencies = [
  "camino",
- "cargo-platform 0.2.0",
+ "cargo-platform",
  "cargo-util-schemas",
  "semver",
  "serde",
@@ -1965,7 +1942,7 @@ name = "nvim-oxi"
 version = "0.6.0"
 source = "git+https://github.com/noib3/nvim-oxi#5ee2096e70021c9b2801e179bf287f6d26c3df54"
 dependencies = [
- "cargo_metadata 0.20.0",
+ "cargo_metadata",
  "mlua",
  "nvim-oxi-api",
  "nvim-oxi-libuv",
@@ -3676,11 +3653,8 @@ version = "0.1.0-dev"
 dependencies = [
  "abs-path",
  "anyhow",
- "cargo_metadata 0.19.2",
+ "cargo_metadata",
  "clap",
- "ed",
- "futures-executor",
- "root-finder",
  "xshell",
 ]
 
