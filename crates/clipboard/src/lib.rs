@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(
-        all(target_os = "linux", feature = "__ci"),
+        all(headless, target_os = "linux"),
         ignore = "fails on headless X11"
     )]
     fn clipboard_set_get_cycle() {

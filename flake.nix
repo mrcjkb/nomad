@@ -95,12 +95,14 @@
                     # `workspace.package.name` set in the workspace's
                     # Cargo.lock, so add a `pname` here to silence that.
                     pname = "mad";
-                    # The .git directory is always removed from the flake's
-                    # source files, so set the latest commit's hash and
-                    # timestamp via environment variables or crates/version's
-                    # build script will fail.
-                    COMMIT_HASH = inputs.self.rev or (lib.removeSuffix "-dirty" inputs.self.dirtyRev);
-                    COMMIT_UNIX_TIMESTAMP = toString inputs.self.lastModified;
+                    env = {
+                      # The .git directory is always removed from the flake's
+                      # source files, so set the latest commit's hash and
+                      # timestamp via environment variables or crates/version's
+                      # build script will fail.
+                      COMMIT_HASH = inputs.self.rev or (lib.removeSuffix "-dirty" inputs.self.dirtyRev);
+                      COMMIT_UNIX_TIMESTAMP = toString inputs.self.lastModified;
+                    };
                   };
                 in
                 args // { cargoArtifacts = craneLib.buildDepsOnly args; };
@@ -252,9 +254,11 @@
                   mkdir -p $out
                   mv codecov.json $out/
                 '';
-                # Clear default args since we're handling the build phase
-                # manually.
-                # cargoLlvmCovExtraArgs = "";
+                env = (crane.commonArgs.env or { }) // {
+                  # Setting this will disable some tests that fail in headless
+                  # environments like CI.
+                  HEADLESS = "true";
+                };
               }
             );
             neovim = neovim.packages.zero-dot-eleven;

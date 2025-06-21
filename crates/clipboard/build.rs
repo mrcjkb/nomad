@@ -3,7 +3,9 @@
 use std::env;
 
 fn main() {
-    if env::var("CI").as_deref() == Ok("true") {
-        println!("cargo:rustc-cfg=feature=\"__ci\"");
+    println!("cargo::rustc-check-cfg=cfg(headless)");
+
+    if env::var("HEADLESS").as_deref() == Ok("true") {
+        println!("cargo:rustc-cfg=headless");
     }
 }
