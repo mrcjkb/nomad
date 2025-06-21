@@ -135,6 +135,10 @@ pub enum ActionForSelectedSession {
 }
 
 /// TODO: docs.
+pub type SessionId<B> =
+    <<B as CollabEditor>::ServerConfig as collab_server::Config>::SessionId;
+
+/// TODO: docs.
 pub(crate) type MessageRx<B> = collab_server::client::ClientRx<Reader<B>>;
 
 /// TODO: docs.
@@ -147,10 +151,6 @@ pub(crate) type Reader<B> =
 /// TODO: docs.
 pub(crate) type Writer<B> =
     futures_util::io::WriteHalf<<B as CollabEditor>::Io>;
-
-/// TODO: docs.
-pub(crate) type SessionId<B> =
-    <<B as CollabEditor>::ServerConfig as collab_server::Config>::SessionId;
 
 /// TODO: docs.
 pub(crate) type Welcome<B> =

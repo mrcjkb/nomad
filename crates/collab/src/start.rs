@@ -419,7 +419,7 @@ pub enum StartError<Ed: CollabEditor> {
     UserNotLoggedIn,
 }
 
-/// The type of error that can occur when [read](`read_node`)ing a node fails.
+/// The type of error that can occur when reading a [`FsNode`] fails.
 #[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum ReadNodeError<Fs: fs::Fs> {
     /// TODO: docs.
@@ -438,8 +438,7 @@ pub enum ReadNodeError<Fs: fs::Fs> {
     ReadSymlink(<Fs::Symlink as Symlink>::ReadError),
 }
 
-/// The type of error that can occur when [read](`read_project`)ing a project
-/// fails.
+/// The type of error that can occur when reading a [`Project`] fails.
 #[derive(cauchy::Debug, cauchy::PartialEq)]
 pub enum ReadProjectError<Ed: CollabEditor> {
     /// TODO: docs.

@@ -9,8 +9,8 @@ use crate::collab::Collab;
 use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::project::{NoActiveSessionError, Projects};
 
-/// An `Action` that pastes the [`SessionId`] of any active session to the
-/// user's clipboard.
+/// An `Action` that pastes the [`SessionId`](crate::editors::SessionId) of any
+/// active session to the user's clipboard.
 #[derive(cauchy::Clone)]
 pub struct Yank<Ed: CollabEditor> {
     projects: Projects<Ed>,
