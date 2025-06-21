@@ -28,7 +28,7 @@ pub(crate) trait StreamableSeq:
     IndexableSeq<Value: Stream + Unpin>
 {
     /// TODO: docs.
-    fn as_stream(&mut self, seed: u64) -> StreamSeq<Self> {
+    fn as_stream(&mut self, seed: u64) -> StreamSeq<'_, Self> {
         StreamSeq { rng: fastrand::Rng::with_seed(seed), seq: self }
     }
 }

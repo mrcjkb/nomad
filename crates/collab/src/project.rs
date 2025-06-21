@@ -8,7 +8,7 @@ use std::sync::Arc;
 use abs_path::{AbsPath, AbsPathBuf};
 use collab_project::fs::{DirectoryId, FileId, FileMut, FsOp, Node, NodeMut};
 use collab_project::{PeerId, text};
-use collab_server::message::{GitHubHandle, Message, Peer, Peers};
+use collab_server::message::{Message, Peer, Peers};
 use ed::fs::{self, File as _, Symlink as _};
 use ed::{AgentId, Context, Editor, Shared, notify};
 use fxhash::{FxHashMap, FxHashSet};
@@ -50,10 +50,10 @@ pub struct NoActiveSessionError<B>(PhantomData<B>);
 
 /// TODO: docs.
 pub(crate) struct Project<Ed: CollabEditor> {
-    agent_id: AgentId,
+    _agent_id: AgentId,
     host_id: PeerId,
     id_maps: IdMaps<Ed>,
-    local_peer: Peer,
+    _local_peer: Peer,
     peer_tooltips: FxHashMap<text::CursorId, Ed::PeerTooltip>,
     project: collab_project::Project,
     remote_peers: FxHashMap<PeerId, Peer>,
@@ -138,23 +138,23 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
             Message::CreatedFile(file_creation) => {
                 self.integrate_fs_op(file_creation, ctx).await
             },
-            Message::CreatedSelection(selection_creation) => todo!(),
+            Message::CreatedSelection(_selection_creation) => todo!(),
             Message::DeletedCursor(cursor_deletion) => {
                 self.integrate_cursor_deletion(cursor_deletion, ctx).await
             },
             Message::DeletedFsNode(deletion) => {
                 self.integrate_fs_op(deletion, ctx).await
             },
-            Message::DeletedSelection(selection_deletion) => todo!(),
-            Message::EditedBinary(binary_edit) => todo!(),
-            Message::EditedText(text_edit) => todo!(),
+            Message::DeletedSelection(_selection_deletion) => todo!(),
+            Message::EditedBinary(_binary_edit) => todo!(),
+            Message::EditedText(_text_edit) => todo!(),
             Message::MovedCursor(cursor_movement) => {
                 self.integrate_cursor_movement(cursor_movement, ctx).await
             },
             Message::MovedFsNode(movement) => {
                 self.integrate_fs_op(movement, ctx).await
             },
-            Message::MovedSelection(selection_movement) => todo!(),
+            Message::MovedSelection(_selection_movement) => todo!(),
             Message::PeerDisconnected(peer_id) => {
                 self.integrate_peer_left(peer_id, ctx).await
             },
@@ -170,7 +170,7 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
                     "received unexpected ProjectResponse message",
                 ));
             },
-            Message::SavedTextFile(global_file_id) => todo!(),
+            Message::SavedTextFile(_global_file_id) => todo!(),
         }
     }
 
@@ -918,10 +918,10 @@ impl<Ed: CollabEditor> ProjectGuard<Ed> {
             .collect();
 
         self.projects.insert(Project {
-            agent_id: args.agent_id,
+            _agent_id: args.agent_id,
             host_id: args.host_id,
             id_maps: args.id_maps,
-            local_peer: args.local_peer,
+            _local_peer: args.local_peer,
             peer_tooltips: FxHashMap::default(),
             project: args.project,
             remote_peers,

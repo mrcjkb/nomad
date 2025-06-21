@@ -9,7 +9,7 @@ use rand::SeedableRng;
 use rand_chacha::ChaChaRng;
 
 #[track_caller]
-pub(crate) fn run<T: FuzzResult>(fun: impl FnOnce(&mut ChaChaRng) -> T) {
+pub(crate) fn _run<T: FuzzResult>(fun: impl FnOnce(&mut ChaChaRng) -> T) {
     let seed = seed();
     set_panic_hook(seed);
     let mut rng = ChaChaRng::seed_from_u64(seed);

@@ -6,7 +6,6 @@ use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::ops::Range;
 use std::borrow::Cow;
-use std::path::PathBuf;
 
 use compact_str::CompactString;
 use ed::fs::AbsPath;
@@ -194,12 +193,6 @@ impl<'a> NeovimBuffer<'a> {
     #[inline]
     pub(crate) fn events(&self) -> Shared<Events> {
         self.events.clone()
-    }
-
-    #[track_caller]
-    #[inline]
-    pub(crate) fn get_name(&self) -> PathBuf {
-        self.inner().get_name().expect("buffer exists")
     }
 
     /// Returns the text in the given point range.
@@ -1018,7 +1011,7 @@ impl Buffer for NeovimBuffer<'_> {
 
     #[inline]
     fn path(&self) -> Cow<'_, AbsPath> {
-        // self.get_name().to_string_lossy().into_owned().into()
+        // self.inner().get_name().expect("buffer exists")
         todo!();
     }
 }

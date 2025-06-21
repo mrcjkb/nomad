@@ -86,13 +86,6 @@ impl UneditableEndOfLine {
     }
 }
 
-impl<T: WatchedOption> OptionSet<T> {
-    #[inline]
-    pub(crate) fn new() -> Self {
-        Self(PhantomData)
-    }
-}
-
 impl<T: NeovimOption> OptionSet<T> {
     #[inline]
     fn register_inner<F>(events: EventsBorrow, on_option_set: F) -> AutocmdId
