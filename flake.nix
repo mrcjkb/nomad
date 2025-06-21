@@ -58,7 +58,18 @@
           crane =
             let
               mkToolchain =
-                pkgs: (inputs.rust-overlay.lib.mkRustBin { } pkgs).fromRustupToolchainFile ./rust-toolchain.toml;
+                pkgs:
+                let
+                  toolchain =
+                    (inputs.rust-overlay.lib.mkRustBin { } pkgs).fromRustupToolchainFile
+                      ./rust-toolchain.toml;
+                in
+                toolchain.override {
+                  extensions = (toolchain.extensions or [ ]) ++ [
+                    # Needed by cargo-llvm-cov to generate coverage.
+                    "llvm-tools-preview"
+                  ];
+                };
               craneLib = (inputs.crane.mkLib pkgs).overrideToolchain mkToolchain;
             in
             {
@@ -84,6 +95,8 @@
                     # `workspace.package.name` set in the workspace's
                     # Cargo.lock, so add a `pname` here to silence that.
                     pname = "mad";
+                    COMMIT_HASH = inputs.self.rev;
+                    COMMIT_UNIX_TIMESTAMP = toString inputs.self.lastModified;
                   };
                 in
                 args // { cargoArtifacts = craneLib.buildDepsOnly args; };
@@ -216,6 +229,28 @@
             fmt = config.treefmt.build.check inputs.self;
           };
           packages = {
+            coverage = crane.lib.cargoLlvmCov (
+              crane.commonArgs
+              // {
+                buildPhaseCargoCommand = ''
+                  # Run unit tests.
+                  (cd crates && cargo llvm-cov test --no-report)
+
+                  # Run integration tests.
+                  (cd tests && cargo llvm-cov test --no-report --features=auth,collab,walkdir)
+
+                  # Generate coverage report.
+                  cargo llvm-cov report --codecov --output-path codecov.json
+                '';
+                installPhaseCommand = ''
+                  mkdir -p $out
+                  mv codecov.json $out/
+                '';
+                # Clear default args since we're handling the build phase
+                # manually.
+                # cargoLlvmCovExtraArgs = "";
+              }
+            );
             neovim = neovim.packages.zero-dot-eleven;
             neovim-nightly = neovim.packages.nightly;
           };
