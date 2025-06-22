@@ -279,13 +279,15 @@ impl<T: Default, Access: SharedAccess> Default for Shared<T, Access> {
     }
 }
 
-impl<T, Access: SharedAccess> Clone for Shared<T, Access> {
+impl<T: ?Sized, Access: SharedAccess> Clone for Shared<T, Access> {
     fn clone(&self) -> Self {
         Self { container: self.container.clone() }
     }
 }
 
-impl<T: fmt::Debug, Access: SharedAccess> fmt::Debug for Shared<T, Access> {
+impl<T: fmt::Debug + ?Sized, Access: SharedAccess> fmt::Debug
+    for Shared<T, Access>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.with(|field| f.debug_tuple("Shared").field(&field).finish())
     }

@@ -2,7 +2,16 @@ use core::ops::{Deref, DerefMut, Range};
 use std::borrow::Cow;
 
 use abs_path::AbsPath;
-use ed::{self, AgentId, Buffer as _, ByteOffset, Chunks, Edit, Replacement};
+use ed::{
+    self,
+    AgentId,
+    Buffer as _,
+    ByteOffset,
+    Chunks,
+    Edit,
+    Replacement,
+    Shared,
+};
 use slotmap::SlotMap;
 
 use crate::mock::{self, CallbackKind, Callbacks};
@@ -88,20 +97,26 @@ impl<'a> Buffer<'a> {
         let id_in_buffer =
             self.cursors.insert(CursorInner { offset: byte_offset });
 
-        self.for_each_cursor(|cursor| {
-            cursor.buffer.callbacks.with_mut(|callbacks| {
-                for cb_kind in callbacks.values_mut() {
-                    if let CallbackKind::CursorCreated(fun) = cb_kind {
-                        fun(&cursor, agent_id);
-                    }
-                }
-            });
+        let on_cursor_created = self.callbacks.with(|callbacks| {
+            callbacks
+                .values()
+                .filter_map(|cb_kind| match cb_kind {
+                    CallbackKind::CursorCreated(fun) => Some(fun.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         });
 
-        Cursor {
+        let cursor = Cursor {
             cursor_id: CursorId { buffer_id: self.id(), id_in_buffer },
             buffer: self.reborrow(),
+        };
+
+        for callback in on_cursor_created {
+            callback.with_mut(|cb| cb(&cursor, agent_id));
         }
+
+        cursor
     }
 
     fn reborrow(&mut self) -> Buffer<'_> {
@@ -236,15 +251,23 @@ impl ed::Buffer for Buffer<'_> {
             }
         }
 
-        self.callbacks.with_mut(|callbacks| {
-            for cb_kind in callbacks.values_mut() {
-                if let CallbackKind::BufferEdited(buf_id, fun) = cb_kind
-                    && *buf_id == self.id()
-                {
-                    fun(self, &edit);
-                }
-            }
+        let on_buffer_edited = self.callbacks.with(|callbacks| {
+            callbacks
+                .values()
+                .filter_map(|cb_kind| match cb_kind {
+                    CallbackKind::BufferEdited(buf_id, fun)
+                        if *buf_id == self.id() =>
+                    {
+                        Some(fun.clone())
+                    },
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         });
+
+        for callback in on_buffer_edited {
+            callback.with_mut(|cb| cb(self, &edit));
+        }
     }
 
     fn get_text(&self, byte_range: Range<ByteOffset>) -> impl Chunks {
@@ -283,7 +306,8 @@ impl ed::Buffer for Buffer<'_> {
     where
         Fun: FnMut(&Buffer<'_>, &Edit) + 'static,
     {
-        let cb_kind = CallbackKind::BufferEdited(self.id(), Box::new(fun));
+        let cb_kind =
+            CallbackKind::BufferEdited(self.id(), Shared::new(Box::new(fun)));
         self.callbacks.insert(cb_kind)
     }
 
@@ -291,7 +315,8 @@ impl ed::Buffer for Buffer<'_> {
     where
         Fun: FnMut(BufferId, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::BufferRemoved(self.id(), Box::new(fun));
+        let cb_kind =
+            CallbackKind::BufferRemoved(self.id(), Shared::new(Box::new(fun)));
         self.callbacks.insert(cb_kind)
     }
 
@@ -299,7 +324,8 @@ impl ed::Buffer for Buffer<'_> {
     where
         Fun: FnMut(&Buffer<'_>, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::BufferSaved(self.id(), Box::new(fun));
+        let cb_kind =
+            CallbackKind::BufferSaved(self.id(), Shared::new(Box::new(fun)));
         self.callbacks.insert(cb_kind)
     }
 
@@ -341,22 +367,31 @@ impl ed::Cursor for Cursor<'_> {
     fn r#move(&mut self, offset: ByteOffset, agent_id: AgentId) {
         self.offset = offset;
 
-        self.buffer.callbacks.with_mut(|callbacks| {
-            for cb_kind in callbacks.values_mut() {
-                if let CallbackKind::CursorMoved(cursor_id, fun) = cb_kind
-                    && *cursor_id == self.id()
-                {
-                    fun(self, agent_id);
-                }
-            }
+        let on_cursor_moved = self.buffer.callbacks.with(|callbacks| {
+            callbacks
+                .values()
+                .filter_map(|cb_kind| match cb_kind {
+                    CallbackKind::CursorMoved(cursor_id, fun)
+                        if *cursor_id == self.id() =>
+                    {
+                        Some(fun.clone())
+                    },
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         });
+
+        for callback in on_cursor_moved {
+            callback.with_mut(|cb| cb(self, agent_id));
+        }
     }
 
     fn on_moved<Fun>(&self, fun: Fun) -> mock::EventHandle
     where
         Fun: FnMut(&Cursor<'_>, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::CursorMoved(self.id(), Box::new(fun));
+        let cb_kind =
+            CallbackKind::CursorMoved(self.id(), Shared::new(Box::new(fun)));
         self.buffer.callbacks.insert(cb_kind)
     }
 
@@ -364,7 +399,8 @@ impl ed::Cursor for Cursor<'_> {
     where
         Fun: FnMut(CursorId, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::CursorRemoved(self.id(), Box::new(fun));
+        let cb_kind =
+            CallbackKind::CursorRemoved(self.id(), Shared::new(Box::new(fun)));
         self.buffer.callbacks.insert(cb_kind)
     }
 }
@@ -408,7 +444,10 @@ impl ed::Selection for Selection<'_> {
     where
         Fun: FnMut(&Selection<'_>, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::SelectionMoved(self.id(), Box::new(fun));
+        let cb_kind = CallbackKind::SelectionMoved(
+            self.id(),
+            Shared::new(Box::new(fun)),
+        );
         self.buffer.callbacks.insert(cb_kind)
     }
 
@@ -416,7 +455,10 @@ impl ed::Selection for Selection<'_> {
     where
         Fun: FnMut(SelectionId, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::SelectionRemoved(self.id(), Box::new(fun));
+        let cb_kind = CallbackKind::SelectionRemoved(
+            self.id(),
+            Shared::new(Box::new(fun)),
+        );
         self.buffer.callbacks.insert(cb_kind)
     }
 }

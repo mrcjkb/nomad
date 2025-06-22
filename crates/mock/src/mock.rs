@@ -60,28 +60,45 @@ pub(crate) struct Callbacks {
 #[allow(clippy::type_complexity)]
 #[allow(dead_code)]
 pub(crate) enum CallbackKind {
-    BufferCreated(Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
-    BufferEdited(BufferId, Box<dyn FnMut(&Buffer<'_>, &Edit) + 'static>),
+    BufferCreated(Shared<Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>>),
+    BufferEdited(
+        BufferId,
+        Shared<Box<dyn FnMut(&Buffer<'_>, &Edit) + 'static>>,
+    ),
     #[allow(dead_code)]
-    BufferRemoved(BufferId, Box<dyn FnMut(BufferId, AgentId) + 'static>),
+    BufferRemoved(
+        BufferId,
+        Shared<Box<dyn FnMut(BufferId, AgentId) + 'static>>,
+    ),
     #[allow(dead_code)]
-    BufferSaved(BufferId, Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>),
+    BufferSaved(
+        BufferId,
+        Shared<Box<dyn FnMut(&Buffer<'_>, AgentId) + 'static>>,
+    ),
     #[allow(dead_code)]
-    CursorCreated(Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
-    CursorMoved(CursorId, Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>),
+    CursorCreated(Shared<Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>>),
+    CursorMoved(
+        CursorId,
+        Shared<Box<dyn FnMut(&Cursor<'_>, AgentId) + 'static>>,
+    ),
     #[allow(dead_code)]
-    CursorRemoved(CursorId, Box<dyn FnMut(CursorId, AgentId) + 'static>),
+    CursorRemoved(
+        CursorId,
+        Shared<Box<dyn FnMut(CursorId, AgentId) + 'static>>,
+    ),
     #[allow(dead_code)]
-    SelectionCreated(Box<dyn FnMut(&Selection<'_>, AgentId) + 'static>),
+    SelectionCreated(
+        Shared<Box<dyn FnMut(&Selection<'_>, AgentId) + 'static>>,
+    ),
     #[allow(dead_code)]
     SelectionMoved(
         SelectionId,
-        Box<dyn FnMut(&Selection<'_>, AgentId) + 'static>,
+        Shared<Box<dyn FnMut(&Selection<'_>, AgentId) + 'static>>,
     ),
     #[allow(dead_code)]
     SelectionRemoved(
         SelectionId,
-        Box<dyn FnMut(SelectionId, AgentId) + 'static>,
+        Shared<Box<dyn FnMut(SelectionId, AgentId) + 'static>>,
     ),
 }
 
@@ -134,6 +151,7 @@ where
 }
 
 impl Callbacks {
+    #[track_caller]
     pub(crate) fn insert(&self, kind: CallbackKind) -> EventHandle {
         EventHandle {
             key: self.inner.with_mut(|map| map.insert(kind)),
@@ -141,11 +159,11 @@ impl Callbacks {
         }
     }
 
-    pub(crate) fn with_mut<R>(
+    pub(crate) fn with<R>(
         &self,
-        f: impl FnOnce(&mut SlotMap<DefaultKey, CallbackKind>) -> R,
+        f: impl FnOnce(&SlotMap<DefaultKey, CallbackKind>) -> R,
     ) -> R {
-        self.inner.with_mut(f)
+        self.inner.with(f)
     }
 }
 
@@ -222,14 +240,15 @@ where
     where
         Fun: FnMut(&Self::Buffer<'_>, AgentId) + 'static,
     {
-        self.callbacks.insert(CallbackKind::BufferCreated(Box::new(fun)))
+        self.callbacks
+            .insert(CallbackKind::BufferCreated(Shared::new(Box::new(fun))))
     }
 
     fn on_cursor_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&Self::Cursor<'_>, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::CursorCreated(Box::new(fun));
+        let cb_kind = CallbackKind::CursorCreated(Shared::new(Box::new(fun)));
         self.callbacks.insert(cb_kind)
     }
 
@@ -237,7 +256,8 @@ where
     where
         Fun: FnMut(&Self::Selection<'_>, AgentId) + 'static,
     {
-        let cb_kind = CallbackKind::SelectionCreated(Box::new(fun));
+        let cb_kind =
+            CallbackKind::SelectionCreated(Shared::new(Box::new(fun)));
         self.callbacks.insert(cb_kind)
     }
 
@@ -310,13 +330,19 @@ where
 
             let buffer = this.buffer_mut(buffer_id);
 
-            buffer.callbacks.with_mut(|callbacks| {
-                for cb_kind in callbacks.values_mut() {
-                    if let CallbackKind::BufferCreated(fun) = cb_kind {
-                        fun(&buffer, agent_id);
-                    }
-                }
+            let on_buffer_created = buffer.callbacks.with(|callbacks| {
+                callbacks
+                    .values()
+                    .filter_map(|cb_kind| match cb_kind {
+                        CallbackKind::BufferCreated(fun) => Some(fun.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
             });
+
+            for callback in on_buffer_created {
+                callback.with_mut(|cb| cb(&buffer, agent_id));
+            }
 
             Ok(buffer_id)
         })
