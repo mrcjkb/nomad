@@ -128,11 +128,7 @@
               }
             );
           };
-          devShells = {
-            default = crane.lib.devShell {
-              inherit (config) checks;
-            };
-          };
+          devShells.default = crane.devShell;
         };
     };
 

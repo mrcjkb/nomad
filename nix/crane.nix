@@ -3,6 +3,7 @@
 {
   perSystem =
     {
+      config,
       pkgs,
       lib,
       ...
@@ -27,6 +28,7 @@
         in
         {
           lib = craneLib;
+
           commonArgs =
             let
               args = {
@@ -58,6 +60,10 @@
               };
             in
             args // { cargoArtifacts = craneLib.buildDepsOnly args; };
+
+          devShell = craneLib.devShell {
+            inherit (config) checks;
+          };
         };
     };
 }
