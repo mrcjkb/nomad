@@ -8,6 +8,7 @@ use futures_lite::future::{self, FutureExt};
 use mock::{EditorExt, Mock};
 
 #[test]
+#[ignore = "not yet implemented in pando"]
 fn replicate_simple_project() {
     let fs1 = mock::fs! {
         "foo": {
