@@ -151,7 +151,6 @@ where
 }
 
 impl Callbacks {
-    #[track_caller]
     pub(crate) fn insert(&self, kind: CallbackKind) -> EventHandle {
         EventHandle {
             key: self.inner.with_mut(|map| map.insert(kind)),
