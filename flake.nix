@@ -96,7 +96,7 @@
                   "--no-deps"
                   "--workspace"
                 ];
-                env = {
+                env = (crane.commonArgs.env or { }) // {
                   RUSTFLAGS = "--deny warnings";
                 };
               }
