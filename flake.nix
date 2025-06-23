@@ -44,8 +44,12 @@
       imports = [
         inputs.flake-root.flakeModule
         inputs.treefmt-nix.flakeModule
+        ./nix/clippy.nix
+        ./nix/coverage.nix
         ./nix/crane.nix
+        ./nix/docs.nix
         ./nix/formatter.nix
+        ./nix/github-actions.nix
         ./nix/neovim.nix
       ];
 
@@ -53,81 +57,20 @@
         {
           config,
           lib,
-          inputs',
           crane,
           ...
         }:
         {
-          apps =
-            {
-              nix-develop-gha = {
-                type = "app";
-                program = "${inputs'.nix-develop-gha.packages.default}/bin/nix-develop-gha";
-              };
-            }
-            # Workaround for https://github.com/NixOS/nix/issues/8881 so that
-            # we can run individual checks with `nix run .#check-<foo>`.
-            // lib.mapAttrs' (name: check: {
-              name = "check-${name}";
-              value = {
-                type = "app";
-                program = "${check}";
-              };
-            }) config.checks;
-          checks = {
-            clippy = crane.lib.cargoClippy (
-              crane.commonArgs
-              // {
-                cargoClippyExtraArgs = lib.concatStringsSep " " [
-                  "--all-features"
-                  "--all-targets"
-                  "--no-deps"
-                  "--workspace"
-                  "--"
-                  "--deny warnings"
-                ];
-              }
-            );
-            docs = crane.lib.cargoDoc (
-              crane.commonArgs
-              // {
-                cargoDocExtraArgs = lib.concatStringsSep " " [
-                  "--all-features"
-                  "--no-deps"
-                  "--workspace"
-                ];
-                env = (crane.commonArgs.env or { }) // {
-                  RUSTFLAGS = "--deny warnings";
-                };
-              }
-            );
-          };
-          packages = {
-            coverage = crane.lib.cargoLlvmCov (
-              crane.commonArgs
-              // {
-                buildPhaseCargoCommand = ''
-                  # Run unit tests.
-                  (cd crates && cargo llvm-cov test --no-report)
+          # Workaround for https://github.com/NixOS/nix/issues/8881 so that
+          # we can run individual checks with `nix run .#check-<foo>`.
+          apps = lib.mapAttrs' (name: check: {
+            name = "check-${name}";
+            value = {
+              type = "app";
+              program = "${check}";
+            };
+          }) config.checks;
 
-                  # Run integration tests.
-                  (cd tests && cargo llvm-cov test --no-report --features=auth,collab,mock,walkdir)
-
-                  # Generate coverage report.
-                  cargo llvm-cov report --codecov --output-path codecov.json
-                '';
-                installPhaseCommand = ''
-                  mkdir -p $out
-                  mv codecov.json $out/
-                '';
-                env = (crane.commonArgs.env or { }) // {
-                  # Setting this will disable some tests that fail in headless
-                  # environments like CI.
-                  HEADLESS = "true";
-                };
-              }
-            );
-          };
           devShells.default = crane.devShell;
         };
     };
