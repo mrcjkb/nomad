@@ -82,11 +82,7 @@
                     nativeBuildInputs = with pkgs; [ pkg-config ];
                     buildInputs =
                       with pkgs;
-                      [
-                        # Needed by /benches to let git2 clone the Neovim repo.
-                        openssl
-                      ]
-                      ++ lib.lists.optionals stdenv.isLinux [
+                      lib.lists.optionals stdenv.isLinux [
                         # Needed by /crates/auth to let "keyring" access the
                         # Secret Service.
                         dbus
