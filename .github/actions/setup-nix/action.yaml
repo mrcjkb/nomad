@@ -1,4 +1,4 @@
-name: "Nix, Cachix & devshell"
+name: "Nix, Cachix and devshell"
 
 description: "Installs Nix, sets up Cachix and optionally enters a Nix devshell"
 

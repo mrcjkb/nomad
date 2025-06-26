@@ -1,0 +1,86 @@
+name: "Build and Release"
+
+on:
+  workflow_call:
+    inputs:
+      cachix_auth_token:
+        description: "Auth token for pushing Nix artifacts to Cachix"
+        required: true
+        type: string
+      is_stable:
+        description: "Whether we're building for a stable release or nightly"
+        required: true
+        type: boolean
+      release_name:
+        description: "Name of the release"
+        required: true
+        type: string
+      release_body:
+        description: "A markdown-formatter string describing changes in this release"
+        required: true
+        type: string
+
+jobs:
+  build-neovim:
+    name: build Neovim plugins
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      include:
+        - os: ubuntu-latest
+          targets: "aarch64-unknown-linux-gnu,x86_64-unknown-linux-gnu"
+        - os: macos-latest
+          targets: "aarch64-apple-darwin,x86_64-apple-darwin"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup Rust cache
+        uses: ./.github/actions/setup-rust-cache
+
+      - name: Enter Neovim build environment
+        uses: ./.github/actions/setup-nix
+        with:
+          cachix-auth-token: ${{ inputs.cachix_auth_token }}
+          devshell: ".#ci-neovim-build"
+
+      - name: Build the Neovim plugins for all Neovim versions and targets
+        run: |
+          mkdir -p build
+
+          IFS=',' read -ra TARGETS <<< "${{ matrix.targets }}"
+
+          for neovim in "0.11" "nightly"; do
+            for target in "${TARGETS[@]}"; do
+              nightly_flag=$([ "$neovim" = "nightly" ] && echo "--nightly" || echo "")
+              cargo xtask build $nightly_flag -- --release --target $target
+              tar -czf "build/mad-neovim-$neovim-$target.tar.gz" lua
+            done
+          done
+
+      - name: Upload all artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mad-neovim-${{ matrix.os }}
+          path: build/
+
+  release:
+    needs: [build-neovim]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          name: ${{ inputs.release_name }}
+          body: ${{ inputs.release_body }}
+          make_latest: ${{ toString(inputs.is_stable) }}
+          prerelease: ${{ !inputs.is_stable }}
+
+      - name: Delete all artifacts after creating the release
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: '*'
