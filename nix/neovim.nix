@@ -13,8 +13,20 @@
       ...
     }:
     let
-      mkNeovimPkg =
+      mkPackage =
         isNightly: if isNightly then inputs'.neovim-nightly-overlay.packages.default else pkgs.neovim;
+
+      mkCIShell =
+        {
+          isNightly,
+        }:
+        {
+          packages = with crane.lib; [
+            cargo
+            rustc
+            (mkPackage isNightly)
+          ];
+        };
 
       mkDevShell =
         {
@@ -22,7 +34,7 @@
         }:
         config.devShells.default.overrideAttrs (drv: {
           nativeBuildInputs = (drv.nativeBuildInputs or [ ]) ++ [
-            (mkNeovimPkg isNightly)
+            (mkPackage isNightly)
           ];
         });
 
@@ -91,7 +103,7 @@
               "--no-fail-fast"
             ];
             nativeBuildInputs = (crane.commonArgs.nativeBuildInputs or [ ]) ++ [
-              (mkNeovimPkg isNightly)
+              (mkPackage isNightly)
             ];
           }
         );
@@ -100,6 +112,10 @@
       checks = {
         tests-neovim = mkTests { isNightly = false; };
         tests-neovim-nightly = mkTests { isNightly = true; };
+      };
+      ciDevShells = {
+        tests-neovim = mkCIShell { isNightly = false; };
+        tests-neovim-nightly = mkCIShell { isNightly = true; };
       };
       devShells = {
         neovim = mkDevShell { isNightly = false; };

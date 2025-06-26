@@ -44,6 +44,7 @@
       imports = [
         inputs.flake-root.flakeModule
         inputs.treefmt-nix.flakeModule
+        ./nix/ci.nix
         ./nix/clippy.nix
         ./nix/coverage.nix
         ./nix/crane.nix

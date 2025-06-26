@@ -27,7 +27,7 @@ jobs:
         uses: ./.github/actions/setup-nix
         with:
           cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          devshell: ".#gha-tests"
+          devshell: ".#ci-tests"
           ssh-private-keys: |
             ${{ secrets.ABS_PATH_DEPLOY_KEY }}
             ${{ secrets.CAUCHY_DEPLOY_KEY }}
@@ -145,25 +145,27 @@ jobs:
   #       neovim: [v0.11.2, nightly]
   #       include:
   #         - neovim: v0.11.2
-  #           check: "check-tests-neovim"
+  #           devshell: ".#ci-tests-neovim"
+  #           features: "neovim"
   #         - neovim: nightly
-  #           check: "check-tests-neovim-nightly"
+  #           devshell: ".#ci-tests-neovim-nightly"
+  #           features: "neovim-nightly"
   #   runs-on: ${{ matrix.os }}
   #   steps:
   #     - uses: actions/checkout@v4
-  #     # TODO: remove after publishing private crates.
-  #     - name: Add the deploy keys of all private repos we depend on
-  #       uses: webfactory/ssh-agent@v0.9.1
+  #     - name: Setup Rust cache
+  #       uses: ./.github/actions/setup-rust-cache
+  #     - name: Enter Neovim test environment
+  #       uses: ./.github/actions/setup-nix
   #       with:
-  #         ssh-private-key: |
+  #         cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+  #         devshell: ${{ matrix.devshell }}
+  #         ssh-private-keys: |
   #           ${{ secrets.ABS_PATH_DEPLOY_KEY }}
   #           ${{ secrets.CAUCHY_DEPLOY_KEY }}
   #           ${{ secrets.COLLAB_DEPLOY_KEY }}
   #           ${{ secrets.LAZY_AWAIT_DEPLOY_KEY }}
   #           ${{ secrets.PANDO_DEPLOY_KEY }}
   #           ${{ secrets.PUFF_DEPLOY_KEY }}
-  #     - name: Install Nix
-  #       uses: DeterminateSystems/nix-installer-action@main
-  #     - uses: DeterminateSystems/magic-nix-cache-action@main
   #     - name: Run Neovim tests
-  #       run: nix run .#${{ matrix.check }} --accept-flake-config
+  #       run: cargo test --package=tests --features=${{ matrix.features }} --no-fail-fast
