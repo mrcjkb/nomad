@@ -135,37 +135,37 @@ jobs:
       - name: Check formatting
         run: nix run .#check-format
 
-  # tests-neovim:
-  #   name: Neovim tests
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       # os: [ubuntu-latest, macos-latest]
-  #       os: [ubuntu-latest]
-  #       neovim: [v0.11.2, nightly]
-  #       include:
-  #         - neovim: v0.11.2
-  #           devshell: ".#ci-tests-neovim"
-  #           features: "neovim"
-  #         - neovim: nightly
-  #           devshell: ".#ci-tests-neovim-nightly"
-  #           features: "neovim-nightly"
-  #   runs-on: ${{ matrix.os }}
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Setup Rust cache
-  #       uses: ./.github/actions/setup-rust-cache
-  #     - name: Enter Neovim test environment
-  #       uses: ./.github/actions/setup-nix
-  #       with:
-  #         cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
-  #         devshell: ${{ matrix.devshell }}
-  #         ssh-private-keys: |
-  #           ${{ secrets.ABS_PATH_DEPLOY_KEY }}
-  #           ${{ secrets.CAUCHY_DEPLOY_KEY }}
-  #           ${{ secrets.COLLAB_DEPLOY_KEY }}
-  #           ${{ secrets.LAZY_AWAIT_DEPLOY_KEY }}
-  #           ${{ secrets.PANDO_DEPLOY_KEY }}
-  #           ${{ secrets.PUFF_DEPLOY_KEY }}
-  #     - name: Run Neovim tests
-  #       run: cargo test --package=tests --features=${{ matrix.features }} --no-fail-fast
+  tests-neovim:
+    name: Neovim tests
+    strategy:
+      fail-fast: false
+      matrix:
+        # os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
+        neovim: [v0.11.2, nightly]
+        include:
+          - neovim: v0.11.2
+            devshell: ".#ci-tests-neovim"
+            features: "neovim"
+          - neovim: nightly
+            devshell: ".#ci-tests-neovim-nightly"
+            features: "neovim-nightly"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust cache
+        uses: ./.github/actions/setup-rust-cache
+      - name: Enter Neovim test environment
+        uses: ./.github/actions/setup-nix
+        with:
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          devshell: ${{ matrix.devshell }}
+          ssh-private-keys: |
+            ${{ secrets.ABS_PATH_DEPLOY_KEY }}
+            ${{ secrets.CAUCHY_DEPLOY_KEY }}
+            ${{ secrets.COLLAB_DEPLOY_KEY }}
+            ${{ secrets.LAZY_AWAIT_DEPLOY_KEY }}
+            ${{ secrets.PANDO_DEPLOY_KEY }}
+            ${{ secrets.PUFF_DEPLOY_KEY }}
+      - name: Run Neovim tests
+        run: cargo test --package=tests --features=${{ matrix.features }} --no-fail-fast
