@@ -81,7 +81,7 @@ impl ParsePackage {
     fn call(&self) -> anyhow::Result<cargo_metadata::Package> {
         let cargo_dot_toml = WORKSPACE_ROOT
             .join(node!("crates"))
-            .join(node!("mad-neovim"))
+            .join(node!("nomad-neovim"))
             .join(node!("Cargo.toml"));
 
         let metadata = cargo_metadata::MetadataCommand::new()

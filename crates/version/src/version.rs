@@ -55,7 +55,7 @@ impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "mad.nvim {semantic} ({commit} {date})",
+            "Nomad {semantic} ({commit} {date})",
             semantic = self.semantic,
             commit = self.commit,
             date = self.date,

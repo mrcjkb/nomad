@@ -7,18 +7,18 @@ use ed::{Borrowed, Context};
 use neovim::Neovim;
 
 #[neovim::plugin]
-fn mad() -> Mad {
-    Mad
+fn nomad() -> Nomad {
+    Nomad
 }
 
-struct Mad;
+struct Nomad;
 
-impl Plugin<Neovim> for Mad {
+impl Plugin<Neovim> for Nomad {
     const COMMAND_NAME: Name = "Mad";
 }
 
-impl Module<Neovim> for Mad {
-    const NAME: Name = "mad";
+impl Module<Neovim> for Nomad {
+    const NAME: Name = "nomad";
 
     type Config = Empty;
 

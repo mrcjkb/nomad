@@ -1671,17 +1671,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
-name = "mad-neovim"
-version = "0.1.0-dev"
-dependencies = [
- "auth",
- "collab",
- "ed",
- "neovim",
- "version",
-]
-
-[[package]]
 name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1831,6 +1820,17 @@ name = "nohash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0f889fb66f7acdf83442c35775764b51fed3c606ab9cee51500dbde2cf528ca"
+
+[[package]]
+name = "nomad-neovim"
+version = "0.1.0-dev"
+dependencies = [
+ "auth",
+ "collab",
+ "ed",
+ "neovim",
+ "version",
+]
 
 [[package]]
 name = "notify"

@@ -59,7 +59,7 @@
                     --format-version 1 \
                     --no-deps \
                     --offline \
-                    --manifest-path ${crane.commonArgs.src}/crates/mad-neovim/Cargo.toml | \
+                    --manifest-path ${crane.commonArgs.src}/crates/nomad-neovim/Cargo.toml | \
                   jq '
                     .workspace_default_members[0] as $default_id |
                     .packages[] |

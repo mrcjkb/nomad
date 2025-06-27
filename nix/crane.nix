@@ -45,7 +45,7 @@
                 # Crane will emit a warning if there's no
                 # `workspace.package.name` set in the workspace's Cargo.lock,
                 # so add a `pname` here to silence that.
-                pname = "mad";
+                pname = "nomad";
                 env = {
                   # Crane will run all 'cargo' invocation with `--release` if
                   # this is not unset.
