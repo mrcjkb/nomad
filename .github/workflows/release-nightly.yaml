@@ -2,8 +2,8 @@ name: Release Nightly
 
 on:
  schedule:
-   # Every night at 2AM UTC+0.
-   - cron: "0 2 * * *"
+   # Every night at 4AM UTC+0.
+   - cron: "0 4 * * *"
 
 env:
   NIGHTLY_TAG: nightly
