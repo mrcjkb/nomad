@@ -23,7 +23,7 @@ on:
         description: "A markdown-formatted string describing changes in this release"
         required: true
         type: string
-      tag:
+      release_tag:
         description: "The tag to attach the release to"
         required: true
         type: string
@@ -91,9 +91,9 @@ jobs:
           body: ${{ inputs.release_body }}
           make_latest: ${{ toString(inputs.is_stable) }}
           prerelease: ${{ !inputs.is_stable }}
-          tag_name: ${{ inputs.tag }}
+          tag_name: ${{ inputs.release_tag }}
 
       - name: Delete all artifacts after creating the release
         uses: geekyeggo/delete-artifact@v5
         with:
-          name: '*'
+          name: "*"
