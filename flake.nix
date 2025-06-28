@@ -52,6 +52,7 @@
         ./nix/formatter.nix
         ./nix/github-actions.nix
         ./nix/neovim.nix
+        ./nix/rust.nix
         ./nix/tests.nix
       ];
 
@@ -60,7 +61,7 @@
           config,
           lib,
           pkgs,
-          crane,
+          rust,
           ...
         }:
         {
@@ -78,7 +79,20 @@
             };
           }) config.checks;
 
-          devShells.default = crane.devShell;
+          devShells.default = pkgs.mkShell {
+            buildInputs = rust.buildInputs;
+
+            packages = rust.nativeBuildInputs ++ [
+              (rust.toolchain.override {
+                extensions = [
+                  "clippy"
+                  "rust-analyzer"
+                  "rust-src"
+                  "rustfmt"
+                ];
+              })
+            ];
+          };
         };
     };
 

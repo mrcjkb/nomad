@@ -10,6 +10,7 @@
       lib,
       inputs',
       crane,
+      rust,
       ...
     }:
     let
@@ -21,9 +22,8 @@
           isNightly,
         }:
         {
-          packages = with crane.lib; [
-            cargo
-            rustc
+          packages = [
+            (rust.toolchain)
             (mkPackage isNightly)
           ];
         };
@@ -44,7 +44,7 @@
           isRelease ? true,
         }:
         let
-          xtask = "${crane.xtask}/bin/xtask";
+          xtask = "${rust.xtask}/bin/xtask";
 
           # Get the crate's name and version.
           crateInfos = builtins.fromJSON (
