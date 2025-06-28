@@ -1,10 +1,9 @@
-use core::{fmt, iter, str};
-use std::{env, fs};
+use core::{iter, str};
+use std::{env, fs, process};
 
 use abs_path::{AbsPath, AbsPathBuf, NodeNameBuf, node};
 use anyhow::{Context, anyhow};
 use cargo_metadata::TargetKind;
-use xshell::cmd;
 
 use crate::WORKSPACE_ROOT;
 use crate::neovim::CARGO_TOML_META;
@@ -26,8 +25,6 @@ pub(crate) struct BuildArgs {
 }
 
 pub(crate) fn build(args: BuildArgs) -> anyhow::Result<()> {
-    let sh = xshell::Shell::new()?;
-
     fs::create_dir_all(&args.out_dir)?;
 
     let artifact_dir = args.out_dir.clone().join(node!("lua"));
@@ -42,20 +39,28 @@ pub(crate) fn build(args: BuildArgs) -> anyhow::Result<()> {
     // Specify which package to build.
     let package_args = ["--package", &package_meta.name].into_iter();
 
-    let is_nightly = args.nightly
-        || NeovimVersion::detect(&sh).map(|v| v.is_nightly()).unwrap_or(false);
-
     let feature_args =
-        is_nightly.then_some("--features=neovim-nightly").into_iter();
+        args.nightly.then_some("--features=neovim-nightly").into_iter();
 
     let profile_args = args.release.then_some("--release").into_iter();
 
-    let build_args = artifact_dir_args
-        .chain(package_args)
-        .chain(feature_args)
-        .chain(profile_args);
+    let output = process::Command::new("cargo")
+        .arg("build")
+        .args(artifact_dir_args)
+        .args(package_args)
+        .args(feature_args)
+        .args(profile_args)
+        .stdout(process::Stdio::inherit())
+        .stderr(process::Stdio::inherit())
+        .output()?;
 
-    cmd!(sh, "cargo build {build_args...}").run()?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "cargo build failed with exit code {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
 
     fix_library_name(&artifact_dir)?;
 
@@ -111,84 +116,4 @@ fn force_rename(src: &AbsPath, dst: &AbsPath) -> anyhow::Result<()> {
     }
     fs::rename(src, dst)?;
     Ok(())
-}
-
-/// The possible Neovim versions our plugin can be built for.
-#[derive(Debug, Copy, Clone)]
-enum NeovimVersion {
-    /// The latest stable version.
-    ZeroDotEleven,
-
-    /// The latest nightly version.
-    Nightly,
-}
-
-struct SemanticVersion {
-    major: u8,
-    minor: u8,
-    patch: u8,
-}
-
-impl NeovimVersion {
-    fn detect(sh: &xshell::Shell) -> Option<Self> {
-        let version = "--version";
-        let stdout = cmd!(sh, "nvim {version}").read().ok()?;
-        let (_, rest) = stdout.lines().next()?.split_once("NVIM v")?;
-        rest.parse::<Self>().ok()
-    }
-
-    fn is_nightly(self) -> bool {
-        matches!(self, Self::Nightly)
-    }
-}
-
-impl str::FromStr for NeovimVersion {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let nightly_suffix = "-dev";
-        let is_nightly = s.ends_with(nightly_suffix);
-        let version = s
-            [..s.len() - (is_nightly as usize) * nightly_suffix.len()]
-            .parse::<SemanticVersion>()
-            .context("Failed to parse Neovim version")?;
-        if version.major == 0 && version.minor == 11 {
-            Ok(Self::ZeroDotEleven)
-        } else if version.major == 0 && version.minor == 12 && is_nightly {
-            Ok(Self::Nightly)
-        } else {
-            Err(anyhow!(
-                "Unsupported Neovim version: {version}{}",
-                if is_nightly { nightly_suffix } else { "" }
-            ))
-        }
-    }
-}
-
-impl fmt::Display for SemanticVersion {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
-
-impl str::FromStr for SemanticVersion {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split('.');
-        let major =
-            parts.next().ok_or_else(|| anyhow!("major version is missing"))?;
-        let minor =
-            parts.next().ok_or_else(|| anyhow!("minor version is missing"))?;
-        let patch =
-            parts.next().ok_or_else(|| anyhow!("patch version is missing"))?;
-        if parts.next().is_some() {
-            return Err(anyhow!("too many version parts"));
-        }
-        Ok(Self {
-            major: major.parse()?,
-            minor: minor.parse()?,
-            patch: patch.parse()?,
-        })
-    }
 }
