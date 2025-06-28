@@ -7,12 +7,7 @@ use anyhow::{Context, anyhow};
 use cargo_metadata::TargetKind;
 use xshell::cmd;
 
-const WORKSPACE_ROOT: &AbsPath = {
-    match AbsPath::from_str(env!("CARGO_MANIFEST_DIR")) {
-        Ok(manifest_dir) => manifest_dir.parent().expect("not root"),
-        Err(_) => panic!("$CARGO_MANIFEST_DIR not absolute"),
-    }
-};
+use crate::WORKSPACE_ROOT;
 
 #[derive(Debug, Copy, Clone, clap::Args)]
 pub(crate) struct BuildArgs {

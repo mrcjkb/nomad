@@ -82,7 +82,7 @@
                 nightlyFlag = lib.optionalString isNightly "--nightly";
                 releaseFlag = lib.optionalString isRelease "--release";
               in
-              "cargo xtask build ${nightlyFlag} ${releaseFlag}";
+              "cargo xtask neovim build ${nightlyFlag} ${releaseFlag}";
             installPhaseCommand = ''
               mkdir -p $out
               mv lua $out/
