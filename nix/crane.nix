@@ -11,17 +11,32 @@
     {
       _module.args.crane =
         let
-          craneLib = ((inputs.crane.mkLib pkgs).overrideToolchain rust.mkToolchain).overrideScope (
-            # Override Crane's 'filterCargoSources' to also keep all Lua files
-            # and all symlinks under `lua/nomad`.
-            final: prev: {
-              filterCargoSources =
-                path: type:
-                (prev.filterCargoSources path type)
-                || (lib.hasSuffix ".lua" (builtins.baseNameOf path))
-                || (type == "symlink" && lib.hasInfix "lua/nomad" path);
-            }
-          );
+          craneLib =
+            ((inputs.crane.mkLib pkgs).overrideToolchain (
+              pkgs:
+              let
+                toolchain = rust.mkToolchain pkgs;
+              in
+              # No fucking clue why this is necessary, but not having it causes
+              # `lib.getExe' toolchain "cargo"` in the rust.xtask derivation to
+              # return a store path like
+              # /nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-rust-default-1.89.0-nightly-2025-06-22/bin/cargo
+              toolchain.override {
+                extensions = (toolchain.extensions or [ ]);
+              }
+            )).overrideScope
+              (
+                # Override Crane's 'filterCargoSources' to also keep all Lua
+                # files and all symlinks under `lua/nomad`.
+                final: prev: {
+                  filterCargoSources =
+                    path: type:
+                    (prev.filterCargoSources path type)
+                    || (lib.hasSuffix ".lua" (builtins.baseNameOf path))
+                    || (type == "symlink" && lib.hasInfix "lua/nomad" path);
+
+                }
+              );
 
           depsArgs = {
             inherit (rust) buildInputs nativeBuildInputs;
