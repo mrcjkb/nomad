@@ -28,8 +28,8 @@
         nativeBuildInputs = with pkgs; [ pkg-config ];
 
         # Returns the human-readable architecture string for the given package
-        # set ("x86_64" or "aarch64") to be used in the file names of release
-        # artifacts.
+        # set ("x86_64" or "aarch64") to be used in the release artifacts' file
+        # names.
         getArchString =
           pkgs:
           let
@@ -43,8 +43,8 @@
             throw "unsupported target architecture: ${hostPlatform.system}";
 
         # Returns the human-readable OS string for the given package set
-        # ("linux" or "darwin") to be used in the file names of release
-        # artifacts.
+        # ("linux" or "darwin") to be used in the release artifacts' file
+        # names.
         getOSString =
           pkgs:
           let
@@ -56,6 +56,10 @@
             "macos"
           else
             throw "unsupported target OS: ${hostPlatform.system}";
+
+        # Our workspace doesn't have a default package, so set one here to be
+        # used in the release artifacts' file names.
+        workspaceName = "nomad";
 
         # A compiled version of the xtask executable defined in this workspace.
         xtask = crane.lib.buildPackage rec {

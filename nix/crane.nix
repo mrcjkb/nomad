@@ -41,10 +41,7 @@
 
           depsArgs = {
             inherit (common) buildInputs nativeBuildInputs;
-            # Crane will emit a warning if there's no `workspace.package.name`
-            # set in the workspace's Cargo.lock, so add a `pname` here to
-            # silence that.
-            pname = "nomad";
+            pname = common.workspaceName;
             src = craneLib.cleanCargoSource (craneLib.path ../.);
             strictDeps = true;
           };

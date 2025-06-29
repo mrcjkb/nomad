@@ -132,23 +132,25 @@
               mkArchiveName =
                 args:
                 let
-                  inherit (crateInfos) name version;
+                  inherit (common) workspaceName;
+                  inherit (crateInfos) version;
                   neovimVersion = if args.isNightly then "nightly" else "stable";
                   arch = common.getArchString args.pkgs;
                   os = common.getOSString args.pkgs;
                 in
-                "${name}-${version}-for-neovim-${neovimVersion}-${arch}-${os}.tar.gz";
+                "${workspaceName}-${version}-for-neovim-${neovimVersion}-${os}-${arch}.tar.gz";
 
-              archivePlugins = builtins.map (
-                args:
+              archivePlugins =
                 let
-                  archiveName = mkArchiveName args;
-                  plugin = mkPlugin args;
+                  archivePlugin =
+                    args:
+                    let
+                      archiveName = mkArchiveName args;
+                      plugin = mkPlugin args;
+                    in
+                    "tar -czf \"$out/${archiveName}\" -C \"${plugin}\" lua";
                 in
-                ''
-                  tar -czf "$out/${archiveName}" -C "${plugin}" lua
-                ''
-              ) args;
+                builtins.map archivePlugin args;
             in
             ''
               runHook preInstall
