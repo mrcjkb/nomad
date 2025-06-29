@@ -53,20 +53,26 @@
         {
           isNightly,
           isRelease ? true,
-          ...
+          targetPkgs ? pkgs,
         }:
-        crane.lib.buildPackage (
-          crane.commonArgs
+        let
+          inherit (targetPkgs.stdenv) buildPlatform hostPlatform;
+          # Use native crane unless cross-compiling.
+          targetCrane = if buildPlatform != hostPlatform then crane.overridePkgs targetPkgs else crane;
+        in
+        targetCrane.lib.buildPackage (
+          targetCrane.commonArgs
           // {
             pname = crateInfos.name;
             version = crateInfos.version;
             doCheck = false;
-            buildPhaseCargoCommand =
-              let
-                nightlyFlag = lib.optionalString isNightly "--nightly";
-                releaseFlag = lib.optionalString isRelease "--release";
-              in
-              "${xtask} neovim build ${nightlyFlag} ${releaseFlag} --out-dir=$out";
+            buildPhaseCargoCommand = ''
+              ${xtask} neovim build \
+                ${lib.optionalString isNightly "--nightly"} \
+                ${lib.optionalString isRelease "--release"} \
+                --target=${hostPlatform.config} \
+                --out-dir=$out
+            '';
             # Installation was already handled by the build command.
             doNotPostBuildInstallCargoBinaries = true;
             installPhaseCommand = "";
@@ -120,12 +126,12 @@
             let
               args = [
                 {
-                  inherit pkgs;
                   isNightly = false;
+                  targetPkgs = pkgs;
                 }
                 {
-                  inherit pkgs;
                   isNightly = true;
+                  targetPkgs = pkgs;
                 }
               ];
 
@@ -135,8 +141,8 @@
                   inherit (common) workspaceName;
                   inherit (crateInfos) version;
                   neovimVersion = if args.isNightly then "nightly" else "stable";
-                  arch = common.getArchString args.pkgs;
-                  os = common.getOSString args.pkgs;
+                  arch = common.getArchString args.targetPkgs;
+                  os = common.getOSString args.targetPkgs;
                 in
                 "${workspaceName}-${version}-for-neovim-${neovimVersion}-${os}-${arch}.tar.gz";
 
