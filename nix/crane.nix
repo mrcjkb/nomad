@@ -5,6 +5,7 @@
     {
       pkgs,
       lib,
+      common,
       rust,
       ...
     }:
@@ -18,8 +19,8 @@
                 toolchain = rust.mkToolchain pkgs;
               in
               # No fucking clue why this is necessary, but not having it causes
-              # `lib.getExe' toolchain "cargo"` in the rust.xtask derivation to
-              # return a store path like
+              # `lib.getExe' toolchain "cargo"` in the common.xtask derivation
+              # to return a store path like
               # /nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-rust-default-1.89.0-nightly-2025-06-22/bin/cargo
               toolchain.override {
                 extensions = (toolchain.extensions or [ ]);
@@ -39,7 +40,7 @@
               );
 
           depsArgs = {
-            inherit (rust) buildInputs nativeBuildInputs;
+            inherit (common) buildInputs nativeBuildInputs;
             # Crane will emit a warning if there's no `workspace.package.name`
             # set in the workspace's Cargo.lock, so add a `pname` here to
             # silence that.

@@ -9,6 +9,7 @@
       pkgs,
       lib,
       inputs',
+      common,
       crane,
       rust,
       ...
@@ -44,7 +45,7 @@
           isRelease ? true,
         }:
         let
-          xtask = "${rust.xtask}/bin/xtask";
+          xtask = "${common.xtask}/bin/xtask";
 
           # Get the crate's name and version.
           crateInfos = builtins.fromJSON (
@@ -85,7 +86,7 @@
               "--features=neovim${lib.optionalString isNightly "-nightly"}"
               "--no-fail-fast"
             ];
-            nativeBuildInputs = (crane.commonArgs.nativeBuildInputs or [ ]) ++ [
+            nativeBuildInputs = (common.nativeBuildInputs or [ ]) ++ [
               (mkPackage isNightly)
             ];
           }

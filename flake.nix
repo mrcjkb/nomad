@@ -46,6 +46,7 @@
         inputs.treefmt-nix.flakeModule
         ./nix/ci.nix
         ./nix/clippy.nix
+        ./nix/common.nix
         ./nix/coverage.nix
         ./nix/crane.nix
         ./nix/docs.nix
@@ -61,6 +62,7 @@
           config,
           lib,
           pkgs,
+          common,
           rust,
           ...
         }:
@@ -80,9 +82,9 @@
           }) config.checks;
 
           devShells.default = pkgs.mkShell {
-            buildInputs = rust.buildInputs;
+            buildInputs = common.buildInputs;
 
-            packages = rust.nativeBuildInputs ++ [
+            packages = common.nativeBuildInputs ++ [
               (rust.toolchain.override {
                 extensions = [
                   "clippy"
