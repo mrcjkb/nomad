@@ -15,6 +15,16 @@
       ...
     }:
     let
+      xtask = "${common.xtask}/bin/xtask";
+
+      crateInfos = builtins.fromJSON (
+        builtins.readFile (
+          pkgs.runCommand "crate-infos" { } ''
+            ${xtask} neovim print-crate-infos > $out
+          ''
+        )
+      );
+
       mkPackage =
         isNightly: if isNightly then inputs'.neovim-nightly-overlay.packages.default else pkgs.neovim;
 
@@ -43,19 +53,8 @@
         {
           isNightly,
           isRelease ? true,
+          ...
         }:
-        let
-          xtask = "${common.xtask}/bin/xtask";
-
-          # Get the crate's name and version.
-          crateInfos = builtins.fromJSON (
-            builtins.readFile (
-              pkgs.runCommand "crate-infos" { } ''
-                ${xtask} neovim print-crate-infos > $out
-              ''
-            )
-          );
-        in
         crane.lib.buildPackage (
           crane.commonArgs
           // {
@@ -108,24 +107,55 @@
       packages = {
         neovim = mkPlugin { isNightly = false; };
         neovim-nightly = mkPlugin { isNightly = true; };
-        neovim-release-artifacts = builtins.derivation {
-          # - os: ubuntu-latest
-          #   targets: "aarch64-unknown-linux-gnu,x86_64-unknown-linux-gnu"
-          # - os: macos-latest
-          #   targets: "aarch64-apple-darwin,x86_64-apple-darwin"
-          #
-          #
-          # mkdir -p build
-          #
-          # IFS=',' read -ra TARGETS <<< "${{ matrix.targets }}"
-          #
-          # for neovim in "0.11" "nightly"; do
-          #   for target in "${TARGETS[@]}"; do
-          #     nightly_flag=$([ "$neovim" = "nightly" ] && echo "--nightly" || echo "")
-          #     cargo xtask build $nightly_flag -- --release --target $target
-          #     tar -czf "build/mad-neovim-$neovim-$target.tar.gz" lua
-          #   done
-          # done
+        neovim-release-artifacts = pkgs.stdenv.mkDerivation {
+          inherit (crateInfos) version;
+          pname = "${crateInfos.name}-release-artifacts";
+          src = null;
+          dontUnpack = true;
+          nativeBuildInputs = with pkgs; [
+            gnutar
+            gzip
+          ];
+          installPhase =
+            let
+              args = [
+                {
+                  inherit pkgs;
+                  isNightly = false;
+                }
+                {
+                  inherit pkgs;
+                  isNightly = true;
+                }
+              ];
+
+              mkArchiveName =
+                args:
+                let
+                  inherit (crateInfos) name version;
+                  neovimVersion = if args.isNightly then "nightly" else "stable";
+                  arch = common.getArchString args.pkgs;
+                  os = common.getOSString args.pkgs;
+                in
+                "${name}-${version}-for-neovim-${neovimVersion}-${arch}-${os}.tar.gz";
+
+              archivePlugins = builtins.map (
+                args:
+                let
+                  archiveName = mkArchiveName args;
+                  plugin = mkPlugin args;
+                in
+                ''
+                  tar -czf "$out/${archiveName}" -C "${plugin}" lua
+                ''
+              ) args;
+            in
+            ''
+              runHook preInstall
+              mkdir -p $out
+              ${lib.concatStringsSep "\n" archivePlugins}
+              runHook postInstall
+            '';
         };
       };
     };

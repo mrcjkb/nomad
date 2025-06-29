@@ -4,7 +4,6 @@
   perSystem =
     {
       pkgs,
-      lib,
       crane,
       ...
     }:

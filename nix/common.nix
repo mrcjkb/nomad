@@ -1,4 +1,4 @@
-{ inputs, ... }:
+{ ... }:
 
 {
   perSystem =
@@ -26,6 +26,36 @@
         # enabled (excluding packages from the Rust toolchain like cargo and
         # rustc).
         nativeBuildInputs = with pkgs; [ pkg-config ];
+
+        # Returns the human-readable architecture string for the given package
+        # set ("x86_64" or "aarch64") to be used in the file names of release
+        # artifacts.
+        getArchString =
+          pkgs:
+          let
+            inherit (pkgs.stdenv) hostPlatform;
+          in
+          if hostPlatform.isx86_64 then
+            "x86_64"
+          else if hostPlatform.isAarch64 then
+            "aarch64"
+          else
+            throw "unsupported target architecture: ${hostPlatform.system}";
+
+        # Returns the human-readable OS string for the given package set
+        # ("linux" or "darwin") to be used in the file names of release
+        # artifacts.
+        getOSString =
+          pkgs:
+          let
+            inherit (pkgs.stdenv) hostPlatform;
+          in
+          if hostPlatform.isLinux then
+            "linux"
+          else if hostPlatform.isDarwin then
+            "macos"
+          else
+            throw "unsupported target OS: ${hostPlatform.system}";
 
         # A compiled version of the xtask executable defined in this workspace.
         xtask = crane.lib.buildPackage rec {
