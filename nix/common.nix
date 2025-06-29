@@ -84,6 +84,23 @@
               --set RUSTC ${lib.getExe' rust.toolchain "rustc"}
           '';
         };
+
+        lib = {
+          cartesianProduct =
+            specs:
+            let
+              # Fold over the specs, extending each partial combination with
+              # every value for the current key.
+              step = (
+                acc: spec:
+                lib.flatten (
+                  builtins.map (combo: builtins.map (val: combo // { "${spec.name}" = val; }) spec.values) acc
+                )
+              );
+            in
+            # Start with a list containing a single empty attrset.
+            builtins.foldl' step [ { } ] specs;
+        };
       };
     };
 }

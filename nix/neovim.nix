@@ -57,8 +57,9 @@
         }:
         let
           inherit (targetPkgs.stdenv) buildPlatform hostPlatform;
+          isCross = buildPlatform != hostPlatform;
           # Use native crane unless cross-compiling.
-          targetCrane = if buildPlatform != hostPlatform then crane.overridePkgs targetPkgs else crane;
+          targetCrane = if isCross then crane.overridePkgs targetPkgs else crane;
         in
         targetCrane.lib.buildPackage (
           targetCrane.commonArgs
@@ -70,7 +71,7 @@
               ${xtask} neovim build \
                 ${lib.optionalString isNightly "--nightly"} \
                 ${lib.optionalString isRelease "--release"} \
-                --target=${hostPlatform.config} \
+                ${lib.optionalString isCross "--target=${hostPlatform.config}"} \
                 --out-dir=$out
             '';
             # Installation was already handled by the build command.
@@ -124,14 +125,17 @@
           ];
           installPhase =
             let
-              args = [
+              args = common.lib.cartesianProduct [
                 {
-                  isNightly = false;
-                  targetPkgs = pkgs;
+                  name = "isNightly";
+                  values = [
+                    true
+                    false
+                  ];
                 }
                 {
-                  isNightly = true;
-                  targetPkgs = pkgs;
+                  name = "targetPkgs";
+                  values = [ pkgs ];
                 }
               ];
 
