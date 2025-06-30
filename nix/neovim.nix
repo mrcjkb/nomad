@@ -186,8 +186,8 @@
         neovim = mkPlugin { isNightly = false; };
         neovim-nightly = mkPlugin { isNightly = true; };
         neovim-release-artifacts-linux = mkReleaseArtifacts [
-          pkgs.pkgsCross.aarch64-linux
-          pkgs.pkgsCross.x86_64-linux
+          pkgs.pkgsCross.aarch64-multiplatform
+          pkgs.pkgsCross.gnu64
         ];
         # Cross-compiling for macOS requires proprietary Apple tooling which is
         # only available when building on a macOS host.
