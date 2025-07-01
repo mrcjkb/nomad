@@ -16,6 +16,6 @@ return function(opts, ctx)
       :on_stdout(ctx.emit)
       :on_stderr(ctx.emit)
       :on_done(function(res)
-        ctx.on_done(res:map(tostring))
+        ctx.on_done(res:map_err(tostring))
       end)
 end
