@@ -7,6 +7,11 @@
 ---@field on_done fun(res: nomad.result.Result<nil, string>)
 ---@field override fun(self: nomad.neovim.build.Context, overrides: table<string, any>): nomad.neovim.build.Context
 
+---@class (exact) nomad.neovim.build.ContextOpts
+---
+---@field on_done fun(res: nomad.result.Result<nil, string>)
+---@field override fun(self: nomad.neovim.build.Context, overrides: table<string, any>): nomad.neovim.build.Context
+
 ---@type nomad.path
 local path = require("nomad.path")
 
@@ -58,5 +63,5 @@ end
 
 ---@type nomad.neovim.build.contexts
 return {
-  lazy = require("nomad.neovim.build.contexts.lazy"),
+  lazy = unpack(require("nomad.neovim.build.contexts.lazy")),
 }
