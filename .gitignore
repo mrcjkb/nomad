@@ -1,3 +1,5 @@
+/.direnv
+/.envrc
 /lua/nomad.so
 /result
 /target
