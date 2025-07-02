@@ -3,7 +3,7 @@
 ---@type nomad.neovim.Command
 local Command = require("nomad.neovim.command")
 
----@param opts nomad.neovim.build.NixOpts?
+---@param opts nomad.neovim.build.NixOpts
 ---@param ctx nomad.neovim.build.Context
 return function(opts, ctx)
   Command.new("nix")

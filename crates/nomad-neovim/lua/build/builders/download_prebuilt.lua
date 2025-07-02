@@ -41,7 +41,7 @@ local get_artifact_url = function(tag, artifact_name)
       :format(tag, artifact_name)
 end
 
----@param opts nomad.neovim.build.DownloadPrebuiltOpts?
+---@param opts nomad.neovim.build.DownloadPrebuiltOpts
 ---@param ctx nomad.neovim.build.Context
 return function(opts, ctx)
   ---@type string
