@@ -25,6 +25,13 @@ function Builder:build(driver)
 end
 
 ---@param self nomad.neovim.build.Builder
+---@param ctx nomad.neovim.build.Context
+function Builder:build2(ctx)
+  local build_res = ctx.executor.block_on(self.run(ctx.emit))
+  if build_res:is_err() then error(build_res:unwrap_err()) end
+end
+
+---@param self nomad.neovim.build.Builder
 ---@param fallback_builder nomad.neovim.build.Builder
 ---@return nomad.neovim.build.Builder
 function Builder:fallback(fallback_builder)

@@ -5,14 +5,13 @@ local Command = require("nomad.neovim.command")
 
 ---@param opts nomad.neovim.build.CargoOpts
 ---@param ctx nomad.neovim.build.Context
+---@return nomad.future.Future<nomad.Result<nil, string>>
 return function(opts, ctx)
-  Command.new("cargo")
+  return Command.new("cargo")
       :args({ "xtask", "neovim", "build", "--release" })
       :arg(vim.version().prerelease and "--nightly" or nil)
       :current_dir(ctx:repo_dir())
       :on_stdout(ctx.emit)
       :on_stderr(ctx.emit)
-      :on_done(function(res)
-        ctx.on_done(res:map_err(tostring))
-      end)
+      :and_then(function(res) return res:map_err(tostring) end)
 end

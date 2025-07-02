@@ -43,6 +43,7 @@ end
 
 ---@param opts nomad.neovim.build.DownloadPrebuiltOpts
 ---@param ctx nomad.neovim.build.Context
+---@return nomad.future.Future<nomad.Result<nil, string>>
 return function(opts, ctx)
   ---@type string
   local tag
@@ -53,19 +54,19 @@ return function(opts, ctx)
   ---@type string
   local out_dir
 
-  Command.new("git")
+  return Command.new("git")
       :args({ "describe", "--tags", "--exact-match" })
       :current_dir(ctx:repo_dir())
       :on_stdout(function(line) tag = line end)
-      :on_done(function(res)
+      :and_then(function(res)
         -- We're not on a tag, so we can't download a pre-built artifact.
-        if res:is_err() then return ctx.on_done(res) end
-        if tag == nil then return ctx.on_done(Result.err("not on a tag")) end
+        if res:is_err() then return res:map_err(tostring) end
+        if tag == nil then return Result.err("not on a tag") end
 
         local nomad_version = tag:gsub("^v", "")
         local res = get_artifact_name(nomad_version)
         -- We don't offer pre-built artifacts for this machine.
-        if res:is_err() then return ctx.on_done(res:map(function() end)) end
+        if res:is_err() then return res:map(function() end) end
 
         artifact_name = res:unwrap()
 
@@ -76,7 +77,7 @@ return function(opts, ctx)
         return Command.new("mkdir"):args({ "-p", out_dir })
       end)
       :on_done(function(res)
-        if res:is_err() then return ctx.on_done(res:map_err(tostring)) end
+        if res:is_err() then return res:map_err(tostring) end
 
         return Command.new("curl")
             -- Follow redirects.
@@ -87,20 +88,18 @@ return function(opts, ctx)
             :on_stdout(ctx.emit)
       end)
       :on_done(function(res)
-        if res:is_err() then return ctx.on_done(res:map_err(tostring)) end
+        if res:is_err() then return res:map_err(tostring) end
 
         return Command.new("tar")
             :args({ "-xzf", out_dir:join(artifact_name) })
             :args({ "-C", out_dir })
       end)
       :on_done(function(res)
-        if res:is_err() then return ctx.on_done(res:map_err(tostring)) end
+        if res:is_err() then return res:map_err(tostring) end
 
         return Command.new("cp")
             :args({ out_dir:join("/lua/*"), "lua/" })
             :current_dir(ctx:repo_dir())
       end)
-      :on_done(function(res)
-        ctx.on_done(res:map_err(tostring))
-      end)
+      :on_done(function(res) res:map_err(tostring) end)
 end
