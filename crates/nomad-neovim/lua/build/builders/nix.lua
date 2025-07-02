@@ -14,13 +14,13 @@ return function(opts, ctx)
       :on_stdout(ctx.emit)
       :on_stderr(ctx.emit)
       :on_done(function(res)
-        if res:is_err() then return ctx.on_done(res) end
+        if res:is_err() then return ctx.on_done(res:map_err(tostring)) end
 
         return process.command.new("cp")
             :args({ "result/lua/*", "lua/" })
             :current_dir(ctx.repo_dir())
       end)
       :on_done(function(res)
-        ctx.on_done(res:map(tostring))
+        ctx.on_done(res:map_err(tostring))
       end)
 end
