@@ -7,6 +7,7 @@
 ---@field on_stderr fun(self: nomad.neovim.process.Command, handler: fun(stdout_line: string)): nomad.neovim.process.Command
 ---@field on_done fun(self: nomad.neovim.process.Command, handler: fun(res: nomad.Result<nil, integer>): nomad.neovim.process.Command?): nomad.neovim.process.Command?
 
+local future = require("nomad.future")
 ---@type nomad.Result
 local Result = require("nomad.result")
 
@@ -59,29 +60,43 @@ function Command:on_stderr(handler)
   return self
 end
 
-function Command:on_done(handler)
-  vim.system(self.cmd, {
-    cwd = tostring(self.cwd),
-    stdout = function(_, data)
-      if not data then return end
-      if not self.on_stdout_line then return end
-      for line in data:gmatch("([^\n]+)") do
-        self.on_stdout_line(line)
-      end
-    end,
-    stderr = function(_, data)
-      if not data then return end
-      if not self.on_stderr_line then return end
-      for line in data:gmatch("([^\n]+)") do
-        self.on_stderr_line(line)
-      end
-    end,
-    text = true,
-  }, function(out)
-    local res = out.code == 0 and Result.ok(nil) or Result.err(out.code)
-    local maybe_next = handler(res)
-    if not maybe_next then return end
-    -- TODO: how do we chain commands?
+---@param self nomad.neovim.Command
+---@return nomad.future.Future<nomad.Result<nil, integer>>
+function Command:into_future()
+  ---@type integer?
+  local exit_code = nil
+
+  local start = function(waker)
+    vim.system(self.cmd, {
+      cwd = tostring(self.cwd),
+      stdout = function(_, data)
+        if not data then return end
+        if not self.on_stdout_line then return end
+        for line in data:gmatch("([^\n]+)") do
+          self.on_stdout_line(line)
+        end
+      end,
+      stderr = function(_, data)
+        if not data then return end
+        if not self.on_stderr_line then return end
+        for line in data:gmatch("([^\n]+)") do
+          self.on_stderr_line(line)
+        end
+      end,
+      text = true,
+    }, function(out)
+      exit_code = out.code
+      waker:wake()
+    end)
+  end
+
+  local has_started = false
+
+  return future.Future.new(function(waker)
+    if not has_started then start(waker) end
+    has_started = true
+    if not exit_code then return end
+    return exit_code == 0 and Result.ok(nil) or Result.err(exit_code)
   end)
 end
 

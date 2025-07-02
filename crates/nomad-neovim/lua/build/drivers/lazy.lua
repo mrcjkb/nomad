@@ -16,9 +16,11 @@ end
 -- completes.
 --
 -- See https://lazy.folke.io/developers#building for more infos.
-local executor = future.Executor.new({
+--
+---@type nomad.future.Executor
+local executor = {
   block_on = function(fut)
-    local waker = future.Waker.new_dummy()
+    local waker = future.Waker.noop
 
     while not fut:poll(waker) do
       -- Yield with the message in front of the queue (if any), which will
@@ -34,7 +36,7 @@ local executor = future.Executor.new({
 
     return fut:poll(waker)
   end
-})
+}
 
 ---@type nomad.neovim.build.Driver
 return {
