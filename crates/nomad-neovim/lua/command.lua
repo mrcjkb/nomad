@@ -8,6 +8,7 @@
 ---@field on_done fun(self: nomad.neovim.Command, handler: fun(res: nomad.Result<nil, integer>): nomad.neovim.Command?): nomad.neovim.Command?
 
 local future = require("nomad.future")
+local Option = require("nomad.option")
 ---@type nomad.Result
 local Result = require("nomad.result")
 
@@ -92,21 +93,25 @@ function Command:into_future()
     end)
   end
 
-  local has_completed = false
   local has_started = false
 
   return future.Future.new(function(ctx)
-    if has_completed then
+    if exit_code then
       error("called poll() on a Command that has already completed")
     end
 
     -- Update the waker.
     wake = ctx.wake
+
     if not has_started then start() end
     has_started = true
-    if not exit_code then return end
-    has_completed = true
-    return exit_code == 0 and Result.ok(nil) or Result.err(exit_code)
+
+    if exit_code then
+      local res = exit_code == 0 and Result.ok(nil) or Result.err(exit_code)
+      return Option.some(res)
+    else
+      return Option.none()
+    end
   end)
 end
 
