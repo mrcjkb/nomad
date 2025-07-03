@@ -6,6 +6,8 @@
 ---Fallback.
 ---@field fallback fun(self: nomad.neovim.build.Builder, fallback_builder: nomad.neovim.build.Builder): nomad.neovim.build.Builder
 
+local Context = require("nomad.neovim.build.context")
+
 local Builder = {}
 Builder.__index = Builder
 
@@ -21,9 +23,9 @@ end
 ---@param self nomad.neovim.build.Builder
 ---@param driver nomad.neovim.build.Driver
 function Builder:build(driver)
-  local build_fut = self.build_fn(driver.ctx)
-  local build_res = driver.executor.block_on(build_fut)
-  if build_res:is_err() then error(build_res:unwrap_err()) end
+  local build_ctx = Context.new({ emit = driver.emit })
+  local build_fut = self.build_fn(build_ctx)
+  driver.block_on_build(build_fut)
 end
 
 ---@param self nomad.neovim.build.Builder

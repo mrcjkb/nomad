@@ -1,34 +1,17 @@
---- An executor takes a future and blocks the current thread until the future
---- completes, returning its value.
+--- A future is a unit of lazy, asynchronous computation. It can be polled with
+--- a context, and:
 ---
---- @class (exact) nomad.future.Executor
+--- * if the future hasn't yet completed, it must schedule the `ctx.wake`
+--- function to be called when it's ready to make some progress;
 ---
---- @field block_on fun(fut: nomad.future.Future<T>): T
-
+--- * if the future has completed, polling it will return the output of the
+---   computation.
+--- @class (exact) nomad.future.Future<T>: { poll: fun(self: nomad.future.Future<T>, ctx: nomad.future.Context): T? }
 
 --- TODO: docs.
 ---
 --- @class (exact) nomad.future.Context
 --- @field wake fun()
---- @field yield fun()
-
-
---- A waker is used by a future to notify the executor that it's ready to be
---- polled again.
----
---- @class (exact) nomad.future.Waker
---- @field wake fun(self: nomad.future.Waker)
-
-
---- A future is a unit of lazy, asynchronous computation. It can be polled with
---- a waker, and:
----
---- * if the future hasn't yet completed, it uses the waker to schedule itself
----   to be polled again when it's ready to make some progress;
----
---- * if the future has completed, polling it will return the output of the
----   computation.
---- @class (exact) nomad.future.Future<T>: { poll: fun(self: nomad.future.Future<T>, waker: nomad.future.Waker): T? }
 
 local Future = {}
 Future.__index = Future
@@ -37,18 +20,17 @@ Future.__index = Future
 --- @param poll fun(wake: fun()): T?
 --- @return nomad.future.Future<T>
 Future.new = function(poll)
-  return setmetatable({
-    _has_completed = false,
-    _poll = poll,
-  }, Future)
+  local self = setmetatable({}, Future)
+  self._poll = poll
+  return self
 end
 
 --- @generic T
 --- @param self nomad.future.Future<T>
---- @param waker nomad.future.Waker
+--- @param ctx nomad.future.Context
 --- @return T?
-function Future:poll(waker)
-  return self._poll(self, waker)
+function Future:poll(ctx)
+  return self._poll(self, ctx)
 end
 
 --- @generic T
@@ -56,47 +38,51 @@ end
 --- @param ctx nomad.future.Context
 --- @return T
 function Future:await(ctx)
-  if self._has_completed then
-    error("called await() on a Future that has already completed")
-  end
-
   while true do
-    local poll = self:poll(ctx.waker)
-    if poll then
-      self._has_completed = true
-      return poll
+    local maybe_out = self:poll(ctx)
+    if maybe_out then
+      return maybe_out
     end
-    ctx.yield()
+    local success = pcall(coroutine.yield)
+    if not success then
+      error("await() can only be called from within an async block", 0)
+    end
   end
-end
-
-local Waker = {}
-Waker.__index = Future
-
---- @param wake fun()
---- @return nomad.future.Waker
-Waker.new = function(wake)
-  return setmetatable({ _wake = wake }, Waker)
-end
-
---- A waker that does nothing when a`wake()`n.
----
---- @type nomad.future.Waker
-Waker.noop = Waker.new(function() end)
-
-function Waker:wake()
-  self._wake(self)
 end
 
 ---@generic T
 ---@param fun fun(ctx: nomad.future.Context): T
 ---@return nomad.future.Future<T>
 local async = function(fun)
-  error("todo")
+  -- We'll assign this to the right context when the future is polled.
+  local ctx
+
+  local thread = coroutine.create(function() return fun(ctx) end)
+
+  local is_done = false
+
+  return Future.new(function(new_ctx)
+    if is_done then
+      error("called poll() on a Future that has already completed", 0)
+    end
+
+    -- Update the context.
+    ctx = new_ctx
+
+    local success, output = coroutine.resume(thread)
+
+    -- Rethrow the error, with level=0 to preserve the original error location.
+    if not success then error(output, 0) end
+
+    -- The coroutine has completed, and we can return its output.
+    if coroutine.status(thread) == "dead" then
+      is_done = true
+      return output
+    end
+  end)
 end
 
 return {
   async = async,
   Future = Future,
-  Waker = Waker,
 }

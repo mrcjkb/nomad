@@ -1,34 +1,43 @@
 --- @type [string]
 local message_queue = {}
 
---- @type nomad.future.Context
-local lazy_ctx = {
-  -- Lazy already takes care of scheduling a coroutine.resume() to run in the
-  -- next tick of the event loop every time we yield, so we don't need to do
-  -- anything here.
-  --
-  -- See https://lazy.folke.io/developers#building for more infos.
-  wake = function() end,
-
-  yield = function()
-    -- Yield with the message in front of the queue (if any), which will
-    -- cause it to be displayed in Lazy's UI.
-    local maybe_msg = table.remove(message_queue, 1)
-    coroutine.yield(maybe_msg)
-  end,
-}
-
 --- @type nomad.neovim.build.Driver
 return {
-  block_on = function(fut)
-    local out = fut:await(lazy_ctx)
+  block_on_build = function(build_fut)
+    --- Lazy already takes care of scheduling a coroutine.resume() to run in
+    --- the next tick of the event loop every time we yield, so we can just use
+    --- a no-op waker that does nothing.
+    ---
+    --- See https://lazy.folke.io/developers#building for more infos.
+    ---
+    ---@type nomad.future.Context
+    local noop_ctx = { wake = function() end }
+
+    ---@type nomad.Result<nil, string>
+    local build_res
+
+    -- Keep polling the future until it completes.
+    while true do
+      local maybe_res = build_fut:poll(noop_ctx)
+
+      if maybe_res then
+        build_res = maybe_res
+        break
+      end
+
+      -- Yield with the message in front of the queue (if any), which will
+      -- cause it to be displayed in Lazy's UI.
+      coroutine.yield(table.remove(message_queue, 1))
+    end
 
     -- The future is done, but display any remaining messages before returning.
     for _, msg in ipairs(message_queue) do
       coroutine.yield(msg)
     end
 
-    return out
+    if build_res:is_err() then
+      error(build_res:unwrap_err())
+    end
   end,
 
   emit = function(message)
