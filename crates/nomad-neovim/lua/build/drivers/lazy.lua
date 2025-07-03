@@ -18,7 +18,7 @@ return {
 
     -- Keep polling the future until it completes.
     while true do
-      local maybe_res = build_fut:poll(noop_ctx)
+      local maybe_res = build_fut.poll(noop_ctx)
 
       if maybe_res then
         build_res = maybe_res

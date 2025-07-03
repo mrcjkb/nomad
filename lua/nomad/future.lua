@@ -6,7 +6,7 @@
 ---
 --- * if the future has completed, polling it will return the output of the
 ---   computation.
---- @class (exact) nomad.future.Future<T>: { poll: fun(self: nomad.future.Future<T>, ctx: nomad.future.Context): nomad.Option<T> }
+--- @class (exact) nomad.future.Future<T>: { poll: fun(ctx: nomad.future.Context): nomad.Option<T> }
 
 --- TODO: docs.
 ---
@@ -23,16 +23,8 @@ Future.__index = Future
 --- @return nomad.future.Future<T>
 Future.new = function(poll)
   local self = setmetatable({}, Future)
-  self._poll = poll
+  self.poll = poll
   return self
-end
-
---- @generic T
---- @param self nomad.future.Future<T>
---- @param ctx nomad.future.Context
---- @return T?
-function Future:poll(ctx)
-  return self._poll(ctx)
 end
 
 --- @generic T
@@ -41,7 +33,7 @@ end
 --- @return T
 function Future:await(ctx)
   while true do
-    local maybe_out = self._poll(ctx)
+    local maybe_out = self.poll(ctx)
     if maybe_out:is_some() then
       return maybe_out:unwrap()
     end
@@ -87,7 +79,7 @@ local async = function(fun)
       is_done = true
       return Option.some(output)
     else
-      return Option.none()
+      return Option.none
     end
   end)
 end

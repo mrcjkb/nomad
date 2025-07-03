@@ -110,7 +110,7 @@ function Command:into_future()
       local res = exit_code == 0 and Result.ok(nil) or Result.err(exit_code)
       return Option.some(res)
     else
-      return Option.none()
+      return Option.none
     end
   end)
 end

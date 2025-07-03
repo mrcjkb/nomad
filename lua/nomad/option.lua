@@ -11,13 +11,12 @@ Option.__tostring = function(self)
   end
 end
 
----@return nomad.Option<any>
-Option.none = function()
-  local self = setmetatable({}, Option)
-  self._is_some = false
-  self._value = nil
-  return self
-end
+local none = setmetatable({}, Option)
+none._is_some = false
+none._value = nil
+
+---@type nomad.Option<any>
+Option.none = none
 
 ---@generic T
 ---@param value T
