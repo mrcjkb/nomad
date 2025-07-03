@@ -40,9 +40,9 @@ return {
     end
   end,
 
-  emit = function(message)
-    -- Just push the message to the back of the queue, our yield() will take
-    -- care of displaying it in the UI.
+  notify = function(message)
+    -- Just push the message to the back of the queue, yielding will take care
+    -- of displaying it in the UI.
     message_queue[#message_queue + 1] = message
   end
 }

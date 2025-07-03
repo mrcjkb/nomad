@@ -15,8 +15,8 @@ return function(opts, build_ctx)
         :arg(".#neovim" .. (vim.version().prerelease and "-nightly" or ""))
         :arg("--accept-flake-config")
         :current_dir(build_ctx:repo_dir())
-        :on_stdout(build_ctx.emit)
-        :on_stderr(build_ctx.emit)
+        :on_stdout(build_ctx.notify)
+        :on_stderr(build_ctx.notify)
         :await(ctx)
 
     if build_res:is_err() then return build_res:map_err(tostring) end

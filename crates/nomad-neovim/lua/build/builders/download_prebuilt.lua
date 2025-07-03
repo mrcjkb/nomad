@@ -91,7 +91,7 @@ return function(opts, build_ctx)
         :arg("--output")
         :arg(out_dir:join(artifact_name))
         :arg(get_artifact_url(tag, artifact_name))
-        :on_stdout(build_ctx.emit)
+        :on_stdout(build_ctx.notify)
         :await(ctx)
 
     if curl_res:is_err() then return curl_res:map_err(tostring) end

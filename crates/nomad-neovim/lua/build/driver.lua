@@ -2,4 +2,4 @@
 ---
 ---@field block_on_build fun(fut: nomad.future.Future<nomad.Result<nil, string>>)
 ---
----@field emit fun(message: string)
+---@field notify fun(message: string)
