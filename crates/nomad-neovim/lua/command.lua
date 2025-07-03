@@ -93,7 +93,7 @@ function Command:into_future()
     end)
   end
 
-  local has_started = false
+  local is_first_poll = true
 
   return future.Future.new(function(ctx)
     if exit_code then
@@ -103,8 +103,10 @@ function Command:into_future()
     -- Update the waker.
     wake = ctx.wake
 
-    if not has_started then start() end
-    has_started = true
+    if is_first_poll then
+      start()
+      is_first_poll = false
+    end
 
     if exit_code then
       local res = exit_code == 0 and Result.ok(nil) or Result.err(exit_code)
@@ -113,6 +115,13 @@ function Command:into_future()
       return Option.none
     end
   end)
+end
+
+---@param self nomad.neovim.Command
+---@param ctx nomad.future.Context
+---@return nomad.Result<nil, integer>
+function Command:await(ctx)
+  return self:into_future():await(ctx)
 end
 
 return Command
