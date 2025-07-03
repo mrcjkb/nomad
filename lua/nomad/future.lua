@@ -6,6 +6,13 @@
 --- @field block_on fun(fut: nomad.future.Future<T>): T
 
 
+--- TODO: docs.
+---
+--- @class (exact) nomad.future.Context
+--- @field wake fun()
+--- @field yield fun()
+
+
 --- A waker is used by a future to notify the executor that it's ready to be
 --- polled again.
 ---
@@ -26,8 +33,14 @@
 local Future = {}
 Future.__index = Future
 
+--- @generic T
+--- @param poll fun(wake: fun()): T?
+--- @return nomad.future.Future<T>
 Future.new = function(poll)
-  return setmetatable({ _poll = poll }, Future)
+  return setmetatable({
+    _has_completed = false,
+    _poll = poll,
+  }, Future)
 end
 
 --- @generic T
@@ -38,12 +51,23 @@ function Future:poll(waker)
   return self._poll(self, waker)
 end
 
---- @generic T, U
+--- @generic T
 --- @param self nomad.future.Future<T>
---- @param handler fun(T): nomad.future.Future<U>|U
---- @return nomad.future.Future<U>
-function Future:and_then(handler)
-  error("todo")
+--- @param ctx nomad.future.Context
+--- @return T
+function Future:await(ctx)
+  if self._has_completed then
+    error("called await() on a Future that has already completed")
+  end
+
+  while true do
+    local poll = self:poll(ctx.waker)
+    if poll then
+      self._has_completed = true
+      return poll
+    end
+    ctx.yield()
+  end
 end
 
 local Waker = {}
@@ -64,7 +88,15 @@ function Waker:wake()
   self._wake(self)
 end
 
+---@generic T
+---@param fun fun(ctx: nomad.future.Context): T
+---@return nomad.future.Future<T>
+local async = function(fun)
+  error("todo")
+end
+
 return {
+  async = async,
   Future = Future,
   Waker = Waker,
 }

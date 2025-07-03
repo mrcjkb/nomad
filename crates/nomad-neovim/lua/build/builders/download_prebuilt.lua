@@ -1,10 +1,12 @@
 ---@class (exact) nomad.neovim.build.DownloadPrebuiltOpts
 
----@type nomad.neovim.Command
-local Command = require("nomad.neovim.command")
+local future = require("nomad.future")
 
 ---@type nomad.Result
 local Result = require("nomad.result")
+
+---@type nomad.neovim.Command
+local Command = require("nomad.neovim.command")
 
 --- NOTE: this has to be kept in sync with the 'mkArchiveName' function in
 --- neovim.nix which is responsible for naming the Neovim artifacts published
@@ -49,64 +51,62 @@ local get_artifact_url = function(tag, artifact_name)
 end
 
 ---@param opts nomad.neovim.build.DownloadPrebuiltOpts
----@param ctx nomad.neovim.build.Context
+---@param build_ctx nomad.neovim.build.Context
 ---@return nomad.future.Future<nomad.Result<nil, string>>
-return function(opts, ctx)
-  ---@type string
-  local tag
+return function(opts, build_ctx)
+  return future.async(function(ctx)
+    ---@type string
+    local tag
 
-  ---@type string
-  local artifact_name
+    local tag_res = Command.new("git")
+        :args({ "describe", "--tags", "--exact-match" })
+        :current_dir(build_ctx:repo_dir())
+        :on_stdout(function(line) tag = line end)
+        :await(ctx)
 
-  ---@type string
-  local out_dir
+    -- We're not on a tag, so we can't download a pre-built artifact.
+    if tag_res:is_err() then return tag_res:map_err(tostring) end
+    if tag == nil then return Result.err("not on a tag") end
 
-  return Command.new("git")
-      :args({ "describe", "--tags", "--exact-match" })
-      :current_dir(ctx:repo_dir())
-      :on_stdout(function(line) tag = line end)
-      :and_then(function(res)
-        -- We're not on a tag, so we can't download a pre-built artifact.
-        if res:is_err() then return res:map_err(tostring) end
-        if tag == nil then return Result.err("not on a tag") end
+    local nomad_version = tag:gsub("^v", "")
+    local artifact_res = get_artifact_name(nomad_version)
+    -- We don't offer pre-built artifacts for this machine.
+    if artifact_res:is_err() then return artifact_res:map(function() end) end
 
-        local nomad_version = tag:gsub("^v", "")
-        local res = get_artifact_name(nomad_version)
-        -- We don't offer pre-built artifacts for this machine.
-        if res:is_err() then return res:map(function() end) end
+    local artifact_name = artifact_res:unwrap()
 
-        artifact_name = res:unwrap()
+    -- /result is gitignored, which makes it a good place to store the
+    -- downloaded artifact under.
+    local out_dir = build_ctx:repo_dir():join("result")
 
-        -- /result is gitignored, which makes it a good place to store the
-        -- downloaded artifact under.
-        out_dir = ctx:repo_dir():join("result")
+    local mkdir_res = Command.new("mkdir")
+        :args({ "-p", out_dir })
+        :await(ctx)
 
-        return Command.new("mkdir"):args({ "-p", out_dir })
-      end)
-      :on_done(function(res)
-        if res:is_err() then return res:map_err(tostring) end
+    if mkdir_res:is_err() then return mkdir_res:map_err(tostring) end
 
-        return Command.new("curl")
-            -- Follow redirects.
-            :arg("--location")
-            :arg("--output")
-            :arg(out_dir:join(artifact_name))
-            :arg(get_artifact_url(tag, artifact_name))
-            :on_stdout(ctx.emit)
-      end)
-      :on_done(function(res)
-        if res:is_err() then return res:map_err(tostring) end
+    local curl_res = Command.new("curl")
+        -- Follow redirects.
+        :arg("--location")
+        :arg("--output")
+        :arg(out_dir:join(artifact_name))
+        :arg(get_artifact_url(tag, artifact_name))
+        :on_stdout(build_ctx.emit)
+        :await(ctx)
 
-        return Command.new("tar")
-            :args({ "-xzf", out_dir:join(artifact_name) })
-            :args({ "-C", out_dir })
-      end)
-      :on_done(function(res)
-        if res:is_err() then return res:map_err(tostring) end
+    if curl_res:is_err() then return curl_res:map_err(tostring) end
 
-        return Command.new("cp")
-            :args({ out_dir:join("/lua/*"), "lua/" })
-            :current_dir(ctx:repo_dir())
-      end)
-      :on_done(function(res) res:map_err(tostring) end)
+    local tar_res = Command.new("tar")
+        :args({ "-xzf", out_dir:join(artifact_name) })
+        :args({ "-C", out_dir })
+        :await(ctx)
+
+    if tar_res:is_err() then return tar_res:map_err(tostring) end
+
+    return Command.new("cp")
+        :args({ out_dir:join("/lua/*"), "lua/" })
+        :current_dir(build_ctx:repo_dir())
+        :await(ctx)
+        :map_err(tostring)
+  end)
 end

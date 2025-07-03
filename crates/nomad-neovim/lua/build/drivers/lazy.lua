@@ -1,45 +1,39 @@
-local future = require("nomad.future")
-local Context = require("nomad.neovim.build.context")
-
----@type [string]
+--- @type [string]
 local message_queue = {}
 
-local emit = function(message)
-  -- Just push the message to the back of the queue, the executor will take
-  -- care of displaying it in the UI.
-  message_queue[#message_queue + 1] = message
-end
+--- @type nomad.future.Context
+local lazy_ctx = {
+  -- Lazy already takes care of scheduling a coroutine.resume() to run in the
+  -- next tick of the event loop every time we yield, so we don't need to do
+  -- anything here.
+  --
+  -- See https://lazy.folke.io/developers#building for more infos.
+  wake = function() end,
 
--- Lazy already takes care of running the build() function in a coroutine which
--- is resumed()d on every tick of the event loop, so we don't need the waker to
--- do anything, and our executor can just keep yielding until the future
--- completes.
---
--- See https://lazy.folke.io/developers#building for more infos.
---
----@type nomad.future.Executor
-local executor = {
+  yield = function()
+    -- Yield with the message in front of the queue (if any), which will
+    -- cause it to be displayed in Lazy's UI.
+    local maybe_msg = table.remove(message_queue, 1)
+    coroutine.yield(maybe_msg)
+  end,
+}
+
+--- @type nomad.neovim.build.Driver
+return {
   block_on = function(fut)
-    local waker = future.Waker.noop
-
-    while not fut:poll(waker) do
-      -- Yield with the message in front of the queue (if any), which will
-      -- cause it to be displayed in Lazy's UI.
-      local maybe_msg = table.remove(message_queue, 1)
-      coroutine.yield(maybe_msg)
-    end
+    local out = fut:await(lazy_ctx)
 
     -- The future is done, but display any remaining messages before returning.
     for _, msg in ipairs(message_queue) do
       coroutine.yield(msg)
     end
 
-    return fut:poll(waker)
-  end
-}
+    return out
+  end,
 
----@type nomad.neovim.build.Driver
-return {
-  context = Context.new({ emit = emit }),
-  executor = executor
+  emit = function(message)
+    -- Just push the message to the back of the queue, our yield() will take
+    -- care of displaying it in the UI.
+    message_queue[#message_queue + 1] = message
+  end
 }

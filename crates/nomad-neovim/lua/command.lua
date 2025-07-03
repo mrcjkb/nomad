@@ -66,7 +66,7 @@ function Command:into_future()
   ---@type integer?
   local exit_code = nil
 
-  local start = function(waker)
+  local start = function(wake)
     vim.system(self.cmd, {
       cwd = tostring(self.cwd),
       stdout = function(_, data)
@@ -86,16 +86,22 @@ function Command:into_future()
       text = true,
     }, function(out)
       exit_code = out.code
-      waker:wake()
+      wake()
     end)
   end
 
+  local has_completed = false
   local has_started = false
 
-  return future.Future.new(function(waker)
-    if not has_started then start(waker) end
+  return future.Future.new(function(wake)
+    if has_completed then
+      error("called poll() on a Command that has already completed")
+    end
+
+    if not has_started then start(wake) end
     has_started = true
     if not exit_code then return end
+    has_completed = true
     return exit_code == 0 and Result.ok(nil) or Result.err(exit_code)
   end)
 end
