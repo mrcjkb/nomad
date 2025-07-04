@@ -35,12 +35,13 @@ end
 function Builder:fallback(fallback_builder)
   return Builder.new(function(build_ctx)
     return future.async(function(ctx)
-      return self.build_fn(build_ctx)
-          :await(ctx)
-          :map_err(function(build_err)
-            build_ctx.notify(build_err:unwrap_err())
-            return fallback_builder.build_fn(build_ctx):await(ctx)
-          end)
+      local build_res = self.build_fn(build_ctx):await(ctx)
+      if build_res:is_err() then
+        build_ctx.notify(build_res:unwrap_err())
+        return fallback_builder.build_fn(build_ctx):await(ctx)
+      else
+        return Result.ok(nil)
+      end
     end)
   end)
 end
