@@ -1,9 +1,9 @@
 ---@class (exact) nomad.neovim.build.Builder
 ---
----Build with the given driver.
----@field build fun(self: nomad.neovim.build.Builder, driver: nomad.neovim.build.Driver)
+--- Build with the given driver.
+---@field build fun(self: nomad.neovim.build.Builder, build_ctx: nomad.neovim.build.Context)
 ---
----Fallback.
+--- Fallback.
 ---@field fallback fun(self: nomad.neovim.build.Builder, fallback_builder: nomad.neovim.build.Builder): nomad.neovim.build.Builder
 
 ---@alias nomad.neovim.build.BuildFn fun(ctx: nomad.neovim.build.Context): nomad.future.Future<nomad.Result<nil, string>>
@@ -24,11 +24,9 @@ Builder.new = function(build_fn)
 end
 
 ---@param self nomad.neovim.build.Builder
----@param driver nomad.neovim.build.Driver
-function Builder:build(driver)
-  local build_ctx = Context.new({ notify = driver.notify })
-  local build_fut = self.build_fn(build_ctx)
-  driver.block_on_build(build_fut, 3)
+---@param build_ctx nomad.neovim.build.Context
+function Builder:build(build_ctx)
+  build_ctx.block_on_build(self.build_fn(build_ctx), 3)
 end
 
 ---@param self nomad.neovim.build.Builder

@@ -2,7 +2,9 @@
 ---@class nomad.neovim.Command
 
 local future = require("nomad.future")
+
 local Option = require("nomad.option")
+
 ---@type nomad.Result
 local Result = require("nomad.result")
 
@@ -45,7 +47,7 @@ function Command:args(args)
 end
 
 ---@param self nomad.neovim.Command
----@param dir neovim.path.Path
+---@param dir nomad.path.Path
 ---@return nomad.neovim.Command
 function Command:current_dir(dir)
   self._cwd = dir
@@ -60,6 +62,7 @@ function Command:on_stdout(handler)
   return self
 end
 
+---@param self nomad.neovim.Command
 ---@param handler fun(stderr_line: string)
 ---@return nomad.neovim.Command
 function Command:on_stderr(handler)

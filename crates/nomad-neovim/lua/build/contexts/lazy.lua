@@ -1,7 +1,7 @@
 ---@type [string]
 local message_queue = {}
 
----@type nomad.neovim.build.Driver
+---@type nomad.neovim.build.ContextOpts
 return {
   block_on_build = function(build_fut, error_lvl)
     --- Lazy already takes care of scheduling a coroutine.resume() to run in

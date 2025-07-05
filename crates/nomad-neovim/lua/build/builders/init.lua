@@ -1,13 +1,13 @@
 ---@class (exact) nomad.neovim.build.builders
 ---
----Build the plugin from source with Cargo (needs the Nightly toolchain to be
----installed).
+--- Build the plugin from source with Cargo (needs the Nightly toolchain to be
+--- installed).
 ---@field cargo fun(opts: nomad.neovim.build.CargoOpts?): nomad.neovim.build.Builder
 ---
----Download a prebuilt binary for this machine from GitHub releases.
+--- Download a prebuilt binary for this machine from GitHub releases.
 ---@field download_prebuilt fun(opts: nomad.neovim.build.DownloadPrebuiltOpts?): nomad.neovim.build.Builder
 ---
----Build the plugin from source with Nix.
+--- Build the plugin from source with Nix.
 ---@field nix fun(opts: nomad.neovim.build.NixOpts?): nomad.neovim.build.Builder
 
 ---@class (exact) nomad.neovim.build.BuilderSpec
@@ -76,14 +76,14 @@ end
 return {
   cargo = function(opts)
     local spec = require("nomad.neovim.build.builders.cargo")
-    return Builder.new(make_build_fn(spec, opts))
+    return Builder.new(make_build_fn(spec, opts or {}))
   end,
   download_prebuilt = function(opts)
     local spec = require("nomad.neovim.build.builders.download_prebuilt")
-    return Builder.new(make_build_fn(spec, opts))
+    return Builder.new(make_build_fn(spec, opts or {}))
   end,
   nix = function(opts)
     local spec = require("nomad.neovim.build.builders.nix")
-    return Builder.new(make_build_fn(spec, opts))
+    return Builder.new(make_build_fn(spec, opts or {}))
   end
 }

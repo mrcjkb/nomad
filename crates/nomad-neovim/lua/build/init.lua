@@ -1,13 +1,13 @@
 ---@class (exact) nomad.neovim.build
 ---
----Builders.
+--- Builders.
 ---@field builders nomad.neovim.build.builders
 ---
----Drivers.
----@field drivers nomad.neovim.build.drivers
+--- Build contexts.
+---@field contexts nomad.neovim.build.contexts
 
 ---@type nomad.neovim.build
 return {
   builders = require("nomad.neovim.build.builders"),
-  drivers = require("nomad.neovim.build.drivers"),
+  contexts = require("nomad.neovim.build.contexts"),
 }
