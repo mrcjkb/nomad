@@ -73,7 +73,7 @@ jobs:
           files: artifacts/**/*
           name: ${{ inputs.release_name }}
           body: ${{ inputs.release_body }}
-          make_latest: ${{ toString(inputs.is_stable) }}
+          make_latest: ${{ inputs.is_stable && "true" || "false" }}
           prerelease: ${{ !inputs.is_stable }}
           tag_name: ${{ inputs.release_tag }}
 
