@@ -61,6 +61,7 @@ jobs:
       - name: Upload all artifacts
         uses: actions/upload-artifact@v4
         with:
+          name: neovim-${{ matrix.os }}
           path: result/*
 
   release:
