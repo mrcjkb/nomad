@@ -139,7 +139,10 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
             Message::CreatedFile(file_creation) => {
                 self.integrate_fs_op(file_creation, ctx).await
             },
-            Message::CreatedSelection(_selection_creation) => todo!(),
+            Message::CreatedSelection(selection_creation) => {
+                self.integrate_selection_creation(selection_creation, ctx)
+                    .await
+            },
             Message::DeletedCursor(cursor_deletion) => {
                 self.integrate_cursor_deletion(cursor_deletion, ctx).await
             },
@@ -155,7 +158,10 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
             Message::MovedFsNode(movement) => {
                 self.integrate_fs_op(movement, ctx).await
             },
-            Message::MovedSelection(_selection_movement) => todo!(),
+            Message::MovedSelection(selection_movement) => {
+                self.integrate_selection_movement(selection_movement, ctx)
+                    .await;
+            },
             Message::PeerDisconnected(peer_id) => {
                 self.integrate_peer_left(peer_id, ctx).await
             },
@@ -321,6 +327,28 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
         self.with_project(|proj| {
             proj.peer_selections.insert(sel_id, peer_selection);
         });
+    }
+
+    async fn integrate_selection_movement(
+        &self,
+        movement: text::SelectionMovement,
+        ctx: &mut Context<Ed>,
+    ) {
+        let Some(move_selection) = self.with_project(|proj| {
+            let selection =
+                proj.project.integrate_selection_movement(movement)?;
+            let peer_selection =
+                proj.peer_selections.get_mut(&selection.id())?;
+            Some(Ed::move_peer_selection(
+                peer_selection,
+                selection.offset_range(),
+                ctx,
+            ))
+        }) else {
+            return;
+        };
+
+        move_selection.await;
     }
 
     #[allow(clippy::too_many_lines)]

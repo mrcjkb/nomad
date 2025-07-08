@@ -248,6 +248,20 @@ impl CollabEditor for Neovim {
             .map_err(|_| NeovimLspRootError { root_dir })
     }
 
+    fn move_peer_selection<'ctx>(
+        selection: &mut Self::PeerSelection,
+        selected_range: Range<ByteOffset>,
+        ctx: &'ctx mut Context<Self>,
+    ) -> impl Future<Output = ()> + use<'ctx> {
+        ctx.with_editor(|nvim| {
+            nvim.highlight_range(&selection.selection_highlight_handle)
+                .expect("invalid buffer ID")
+                .r#move(selected_range);
+        });
+
+        async {}
+    }
+
     fn move_peer_tooltip<'ctx>(
         tooltip: &mut Self::PeerTooltip,
         tooltip_offset: ByteOffset,

@@ -111,6 +111,13 @@ pub trait CollabEditor: Editor {
     ) -> Result<Option<AbsPathBuf>, Self::LspRootError>;
 
     /// TODO: docs.
+    fn move_peer_selection<'ctx>(
+        selection: &mut Self::PeerSelection,
+        offset_range: Range<ByteOffset>,
+        ctx: &'ctx mut Context<Self>,
+    ) -> impl Future<Output = ()> + use<'ctx, Self>;
+
+    /// TODO: docs.
     fn move_peer_tooltip<'ctx>(
         tooltip: &mut Self::PeerTooltip,
         tooltip_offset: ByteOffset,

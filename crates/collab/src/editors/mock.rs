@@ -308,6 +308,14 @@ where
         Ok(ctx.with_editor(|this| this.lsp_root_with.as_mut()?(buffer_id)))
     }
 
+    fn move_peer_selection<'ctx>(
+        _selection: &mut Self::PeerSelection,
+        _selected_range: Range<ByteOffset>,
+        _ctx: &'ctx mut Context<Self>,
+    ) -> impl Future<Output = ()> + use<'ctx, Ed, F> {
+        async move {}
+    }
+
     fn move_peer_tooltip<'ctx>(
         _tooltip: &mut Self::PeerTooltip,
         _tooltip_offset: ByteOffset,
