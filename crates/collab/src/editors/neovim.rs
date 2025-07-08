@@ -293,6 +293,14 @@ impl CollabEditor for Neovim {
         walkdir::GitIgnore::new(project_root.path().to_owned())
     }
 
+    async fn remove_peer_selection(
+        _selection: Self::PeerSelection,
+        _ctx: &mut Context<Self>,
+    ) {
+        // Dropping the selection will automatically remove the highlight, so
+        // we don't have to do anything here.
+    }
+
     async fn remove_peer_tooltip(
         _tooltip: Self::PeerTooltip,
         _ctx: &mut Context<Self>,

@@ -131,6 +131,12 @@ pub trait CollabEditor: Editor {
     ) -> Self::ProjectFilter;
 
     /// TODO: docs.
+    fn remove_peer_selection(
+        selection: Self::PeerSelection,
+        ctx: &mut Context<Self>,
+    ) -> impl Future<Output = ()>;
+
+    /// TODO: docs.
     fn remove_peer_tooltip(
         tooltip: Self::PeerTooltip,
         ctx: &mut Context<Self>,

@@ -149,7 +149,10 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
             Message::DeletedFsNode(deletion) => {
                 self.integrate_fs_op(deletion, ctx).await
             },
-            Message::DeletedSelection(_selection_deletion) => todo!(),
+            Message::DeletedSelection(selection_deletion) => {
+                self.integrate_selection_deletion(selection_deletion, ctx)
+                    .await;
+            },
             Message::EditedBinary(_binary_edit) => todo!(),
             Message::EditedText(_text_edit) => todo!(),
             Message::MovedCursor(cursor_movement) => {
@@ -327,6 +330,22 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
         self.with_project(|proj| {
             proj.peer_selections.insert(sel_id, peer_selection);
         });
+    }
+
+    async fn integrate_selection_deletion(
+        &self,
+        deletion: text::SelectionDeletion,
+        ctx: &mut Context<Ed>,
+    ) {
+        let Some(selection) = self.with_project(|proj| {
+            proj.project.integrate_selection_deletion(deletion).and_then(
+                |selection_id| proj.peer_selections.remove(&selection_id),
+            )
+        }) else {
+            return;
+        };
+
+        Ed::remove_peer_selection(selection, ctx).await;
     }
 
     async fn integrate_selection_movement(

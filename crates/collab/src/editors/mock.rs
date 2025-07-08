@@ -331,6 +331,12 @@ where
         ctx.with_editor(|this| this.project_filter_with.as_mut()(project_root))
     }
 
+    async fn remove_peer_selection(
+        _selection: Self::PeerSelection,
+        _ctx: &mut Context<Self>,
+    ) -> () {
+    }
+
     async fn remove_peer_tooltip(
         _tooltip: Self::PeerTooltip,
         _ctx: &mut Context<Self>,
