@@ -183,6 +183,7 @@ where
     type Selection<'a> = Selection<'a>;
     type SelectionId = SelectionId;
 
+    type BufferSaveError = ();
     type CreateBufferError = CreateBufferError<Fs>;
     type SerializeError = SerializeError;
     type DeserializeError = DeserializeError;

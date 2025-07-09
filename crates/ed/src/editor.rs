@@ -76,6 +76,9 @@ pub trait Editor: 'static + Sized {
     type SelectionId: Clone + Debug + Eq + Hash;
 
     /// TODO: docs.
+    type BufferSaveError: Debug;
+
+    /// TODO: docs.
     type CreateBufferError: Debug + notify::Error;
 
     /// TODO: docs.

@@ -226,7 +226,7 @@ impl SelectionInner {
     }
 }
 
-impl ed::Buffer for Buffer<'_> {
+impl<'a> ed::Buffer for Buffer<'a> {
     type Editor = mock::Mock;
 
     fn byte_len(&self) -> ByteOffset {
@@ -335,6 +335,15 @@ impl ed::Buffer for Buffer<'_> {
 
     fn path(&self) -> Cow<'_, AbsPath> {
         Cow::Borrowed(&self.file_path)
+    }
+
+    fn save(
+        &mut self,
+        _agent_id: AgentId,
+    ) -> impl Future<
+        Output = Result<(), <Self::Editor as ed::Editor>::BufferSaveError>,
+    > + use<'a> {
+        async { todo!() }
     }
 }
 

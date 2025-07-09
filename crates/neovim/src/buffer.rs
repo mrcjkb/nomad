@@ -819,7 +819,7 @@ impl Point {
     }
 }
 
-impl Buffer for NeovimBuffer<'_> {
+impl<'a> Buffer for NeovimBuffer<'a> {
     type Editor = Neovim;
 
     #[inline]
@@ -1013,6 +1013,18 @@ impl Buffer for NeovimBuffer<'_> {
     fn path(&self) -> Cow<'_, AbsPath> {
         // self.inner().get_name().expect("buffer exists")
         todo!();
+    }
+
+    #[inline]
+    fn save(
+        &mut self,
+        _agent_id: AgentId,
+    ) -> impl Future<
+        Output = Result<(), <Self::Editor as ed::Editor>::BufferSaveError>,
+    > + use<'a> {
+        // TODO: save agent ID.
+        let res = self.inner().call(|()| api::command("write"));
+        async { res }
     }
 }
 

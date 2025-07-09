@@ -126,6 +126,7 @@ impl Editor for Neovim {
     type Selection<'a> = NeovimSelection<'a>;
     type SelectionId = BufferId;
 
+    type BufferSaveError = oxi::api::Error;
     type CreateBufferError = CreateBufferError;
     type SerializeError = serde::NeovimSerializeError;
     type DeserializeError = serde::NeovimDeserializeError;

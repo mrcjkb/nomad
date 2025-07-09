@@ -71,6 +71,14 @@ pub trait Buffer {
 
     /// Returns the absolute path of the file associated with this buffer.
     fn path(&self) -> Cow<'_, AbsPath>;
+
+    /// TODO: docs.
+    fn save(
+        &mut self,
+        agent_id: AgentId,
+    ) -> impl Future<
+        Output = Result<(), <Self::Editor as Editor>::BufferSaveError>,
+    > + use<Self>;
 }
 
 /// TODO: docs.

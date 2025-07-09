@@ -371,6 +371,7 @@ where
     type Selection<'a> = <Ed as Editor>::Selection<'a>;
     type SelectionId = <Ed as Editor>::SelectionId;
 
+    type BufferSaveError = <Ed as Editor>::BufferSaveError;
     type CreateBufferError = <Ed as Editor>::CreateBufferError;
     type SerializeError = <Ed as Editor>::SerializeError;
     type DeserializeError = <Ed as Editor>::DeserializeError;
