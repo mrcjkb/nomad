@@ -38,7 +38,7 @@ auth = { path = "./crates/auth" }
 clipboard = { path = "./crates/clipboard" }
 collab = { path = "./crates/collab" }
 collab-project = { path = "./crates/collab-project" }
-collab-types = { path = "./crates/collab-types" }
+collab-types = { git = "ssh://git@github.com/nomad/nomad.git", rev = "57f8551" }
 ed = { path = "./crates/ed" }
 mock = { path = "./crates/mock" }
 neovim = { path = "./crates/neovim" }
