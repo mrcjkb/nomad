@@ -10,12 +10,12 @@ publish.workspace = true
 benches = []
 mock = ["collab-server/server", "collab-server/test", "dep:duplex-stream"]
 neovim = [
-	"collab-server/nomad",
-	"walkdir/gitignore",
-	"dep:async-net",
-	"dep:clipboard",
-	"dep:home",
-	"dep:neovim",
+  "collab-server/nomad",
+  "walkdir/gitignore",
+  "dep:async-net",
+  "dep:clipboard",
+  "dep:home",
+  "dep:neovim",
 ]
 
 [dependencies]
@@ -24,7 +24,7 @@ auth = { workspace = true }
 cauchy = { workspace = true }
 collab-project = { workspace = true }
 collab-server = { git = "ssh://git@github.com/nomad/collab-server.git", default-features = false, features = [
-	"client",
+  "client",
 ] }
 collab-types = { workspace = true }
 compact_str = { workspace = true }
@@ -42,7 +42,7 @@ smol_str = { workspace = true }
 walkdir = { workspace = true }
 
 # Mock-only dependencies.
-duplex-stream = { git = "ssh://git@github.com/nomad/collab.git", optional = true }
+duplex-stream = { git = "ssh://git@github.com/nomad/collab-server.git", optional = true }
 
 # Neovim-only dependencies.
 async-net = { workspace = true, optional = true }

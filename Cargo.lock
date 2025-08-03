@@ -659,7 +659,7 @@ dependencies = [
  "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=57f8551)",
  "compact_str",
  "derive_more",
- "duplex-stream 0.0.9 (git+ssh://git@github.com/nomad/collab.git)",
+ "duplex-stream",
  "ed",
  "fastrand",
  "flume",
@@ -698,7 +698,7 @@ dependencies = [
  "codecs",
  "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=57f8551)",
  "derive_more",
- "duplex-stream 0.0.9 (git+ssh://git@github.com/nomad/collab-server.git)",
+ "duplex-stream",
  "futures-executor",
  "futures-util",
  "generic-server",
@@ -990,17 +990,6 @@ name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
-
-[[package]]
-name = "duplex-stream"
-version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab.git#0765aa48cd950ceadd307d5a3207aa1d1e900226"
-dependencies = [
- "async-compat",
- "futures-util",
- "pin-project-lite",
- "tokio",
-]
 
 [[package]]
 name = "duplex-stream"
