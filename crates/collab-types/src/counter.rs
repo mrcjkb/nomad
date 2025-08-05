@@ -2,7 +2,9 @@ use core::ops::AddAssign;
 
 /// A counter over [`Integer`]s that can be [pre](Self::pre_increment) and
 /// [post](Self::post_increment) incremented.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Counter<T> {
