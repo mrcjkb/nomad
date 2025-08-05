@@ -175,11 +175,7 @@ async fn request_project<Ed: CollabEditor>(
             .id,
     };
 
-    welcome
-        .tx
-        .send(Message::ProjectRequest(request))
-        .await
-        .map_err(RequestProjectError::SendRequest)?;
+    welcome.tx.send(Message::ProjectRequest(request)).await?;
 
     let mut buffered = Vec::new();
 
@@ -188,14 +184,14 @@ async fn request_project<Ed: CollabEditor>(
             .rx
             .next()
             .await
-            .ok_or(RequestProjectError::SessionEnded)?
-            .map_err(RequestProjectError::RecvResponse)?;
+            .ok_or(RequestProjectError::SessionEnded)??;
 
         match message {
             Message::ProjectResponse(response) => {
-                // let proj = Project::from_state(local_id, *response.project);
-                let proj = todo!();
-                break Ok((proj, buffered));
+                break Ok((
+                    Project::decode(&response.encoded_project, local_id)?,
+                    buffered,
+                ));
             },
             other => buffered.push(other),
         }
@@ -380,13 +376,24 @@ pub enum JoinError<Ed: CollabEditor> {
 
 /// The type of error that can occur when requesting the state of the project
 /// from another peer in a session fails.
-#[derive(Debug, cauchy::PartialEq)]
+#[derive(Debug, cauchy::PartialEq, cauchy::From)]
 pub enum RequestProjectError {
     /// TODO: docs.
-    RecvResponse(#[partial_eq(skip)] client::ClientRxError),
+    DecodeProject(#[from] collab_project::DecodeError),
 
     /// TODO: docs.
-    SendRequest(#[partial_eq(skip)] io::Error),
+    RecvResponse(
+        #[from]
+        #[partial_eq(skip)]
+        client::ClientRxError,
+    ),
+
+    /// TODO: docs.
+    SendRequest(
+        #[from]
+        #[partial_eq(skip)]
+        io::Error,
+    ),
 
     /// TODO: docs.
     SessionEnded,
@@ -494,6 +501,7 @@ impl<Fs: fs::Fs> notify::Error for WriteProjectError<Fs> {
 impl notify::Error for RequestProjectError {
     fn to_message(&self) -> (notify::Level, notify::Message) {
         match self {
+            Self::DecodeProject(_err) => todo!(),
             Self::RecvResponse(_err) => todo!(),
             Self::SendRequest(_err) => todo!(),
             Self::SessionEnded => (

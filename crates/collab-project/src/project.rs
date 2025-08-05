@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use collab_types::annotation::AnnotationDeletion;
 use collab_types::binary::BinaryEdit;
 use collab_types::text::{
@@ -63,6 +65,10 @@ pub struct Project {
 /// resource (like cursors or selections) that is not owned by the local peer.
 pub struct LocalPeerIsNotOwnerError;
 
+/// TODO: docs.
+#[derive(Debug, PartialEq, Eq)]
+pub struct DecodeError;
+
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct Backlogs {
@@ -117,6 +123,15 @@ impl Project {
 
     /// TODO: docs.
     #[inline]
+    pub fn decode(
+        _encoded_buf: &[u8],
+        _local_id: PeerId,
+    ) -> Result<Self, DecodeError> {
+        todo!();
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn directory(
         &self,
         directory_id: LocalDirectoryId,
@@ -141,6 +156,20 @@ impl Project {
             },
             _ => None,
         }
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn encode(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.encode_into(&mut buf);
+        buf
+    }
+
+    /// TODO: docs.
+    #[inline]
+    pub fn encode_into(&self, _buf: &mut impl Write) {
+        todo!();
     }
 
     /// TODO: docs.

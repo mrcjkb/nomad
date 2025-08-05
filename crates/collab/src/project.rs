@@ -60,8 +60,6 @@ pub(crate) struct Project<Ed: CollabEditor> {
     id_maps: IdMaps<Ed>,
     /// The inner CRDT holding the entire state of the project.
     inner: collab_project::Project,
-    /// The ID of the local [`Peer`].
-    local_peer_id: PeerId,
     /// Map from a remote selections's ID to the corresponding selection
     /// displayed in the editor.
     peer_selections: FxHashMap<SelectionId, Ed::PeerSelection>,
@@ -181,8 +179,7 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
     ) -> collab_types::ProjectResponse {
         let (peers, encoded_project) = self.with_project(|proj| {
             let peers = proj.peers.values().cloned().collect();
-            // let project = Box::new(proj.inner.clone().into_state());
-            (peers, todo!())
+            (peers, proj.inner.encode())
         });
 
         collab_types::ProjectResponse {
@@ -1224,13 +1221,11 @@ impl<Ed: CollabEditor> ProjectGuard<Ed> {
             assert!(set.remove(&self.root));
         });
 
-        let local_peer_id = args.local_peer.id;
-
         let peers = args
             .remote_peers
             .into_iter()
             .map(|peer| (peer.id, peer))
-            .chain(iter::once((local_peer_id, args.local_peer)))
+            .chain(iter::once((args.local_peer.id, args.local_peer)))
             .collect();
 
         self.projects.insert(Project {
@@ -1238,7 +1233,6 @@ impl<Ed: CollabEditor> ProjectGuard<Ed> {
             host_id: args.host_id,
             id_maps: args.id_maps,
             inner: args.project,
-            local_peer_id,
             peer_selections: FxHashMap::default(),
             peer_tooltips: FxHashMap::default(),
             peers,
