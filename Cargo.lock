@@ -234,7 +234,7 @@ version = "0.1.0-dev"
 dependencies = [
  "abs-path",
  "collab-server",
- "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=57f8551)",
+ "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=5f685a2)",
  "ed",
  "event-listener",
  "keyring",
@@ -617,7 +617,7 @@ dependencies = [
 [[package]]
 name = "codecs"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#d7741c563ad72bf19e03e5eb32d13e843e6b3256"
+source = "git+ssh://git@github.com/nomad/collab-server.git#3b64dc10c85dcae591d36155a4f699e5db42eb47"
 dependencies = [
  "bincode",
  "bytes",
@@ -656,7 +656,7 @@ dependencies = [
  "clipboard",
  "collab-project",
  "collab-server",
- "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=57f8551)",
+ "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=5f685a2)",
  "compact_str",
  "derive_more",
  "duplex-stream",
@@ -680,7 +680,7 @@ name = "collab-project"
 version = "0.1.0-dev"
 dependencies = [
  "cauchy",
- "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=57f8551)",
+ "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=5f685a2)",
  "fxhash",
  "nohash",
  "serde",
@@ -691,12 +691,12 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#d7741c563ad72bf19e03e5eb32d13e843e6b3256"
+source = "git+ssh://git@github.com/nomad/collab-server.git#3b64dc10c85dcae591d36155a4f699e5db42eb47"
 dependencies = [
  "abs-path",
  "cauchy",
  "codecs",
- "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=57f8551)",
+ "collab-types 0.1.0-dev (git+ssh://git@github.com/nomad/nomad.git?rev=5f685a2)",
  "derive_more",
  "duplex-stream",
  "futures-executor",
@@ -730,7 +730,7 @@ dependencies = [
 [[package]]
 name = "collab-types"
 version = "0.1.0-dev"
-source = "git+ssh://git@github.com/nomad/nomad.git?rev=57f8551#57f8551291356b849231cfa4c6c4e3841b9790e3"
+source = "git+ssh://git@github.com/nomad/nomad.git?rev=5f685a2#5f685a29b4164ef2be0da7286f94dc2d68618748"
 dependencies = [
  "bytes",
  "cauchy",
@@ -994,7 +994,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "duplex-stream"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#d7741c563ad72bf19e03e5eb32d13e843e6b3256"
+source = "git+ssh://git@github.com/nomad/collab-server.git#3b64dc10c85dcae591d36155a4f699e5db42eb47"
 dependencies = [
  "async-compat",
  "futures-util",
@@ -1223,7 +1223,7 @@ dependencies = [
 [[package]]
 name = "generic-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#d7741c563ad72bf19e03e5eb32d13e843e6b3256"
+source = "git+ssh://git@github.com/nomad/collab-server.git#3b64dc10c85dcae591d36155a4f699e5db42eb47"
 dependencies = [
  "flume",
  "futures-util",
