@@ -15,37 +15,19 @@ pub enum Message {
     CreatedCursor(#[from] text::CursorCreation),
 
     /// TODO: docs.
-    CreatedDirectory(
-        #[from]
-        #[debug(skip)]
-        #[partial_eq(skip)]
-        fs::DirectoryCreation,
-    ),
+    CreatedDirectory(#[from] fs::DirectoryCreation),
 
     /// TODO: docs.
-    CreatedFile(
-        #[from]
-        #[debug(skip)]
-        #[partial_eq(skip)]
-        fs::FileCreation,
-    ),
+    CreatedFile(#[from] fs::FileCreation),
 
     /// TODO: docs.
     CreatedSelection(#[from] text::SelectionCreation),
 
     /// TODO: docs.
-    DeletedDirectory(
-        #[from]
-        #[debug(skip)]
-        fs::DirectoryDeletion,
-    ),
+    DeletedDirectory(#[from] fs::DirectoryDeletion),
 
     /// TODO: docs.
-    DeletedFile(
-        #[from]
-        #[debug(skip)]
-        fs::FileDeletion,
-    ),
+    DeletedFile(#[from] fs::FileDeletion),
 
     /// TODO: docs.
     EditedBinary(#[from] binary::BinaryEdit),
@@ -57,18 +39,10 @@ pub enum Message {
     MovedCursor(#[from] text::CursorMove),
 
     /// TODO: docs.
-    MovedDirectory(
-        #[from]
-        #[debug(skip)]
-        fs::DirectoryMove,
-    ),
+    MovedDirectory(#[from] fs::DirectoryMove),
 
     /// TODO: docs.
-    MovedFile(
-        #[from]
-        #[debug(skip)]
-        fs::FileMove,
-    ),
+    MovedFile(#[from] fs::FileMove),
 
     /// TODO: docs.
     MovedSelection(#[from] text::SelectionMove),
@@ -95,11 +69,7 @@ pub enum Message {
     RemovedSelection(text::SelectionRemoval),
 
     /// TODO: docs.
-    RenamedFsNode(
-        #[from]
-        #[debug(skip)]
-        fs::Rename,
-    ),
+    RenamedFsNode(#[from] fs::Rename),
 
     /// TODO: docs.
     SavedTextFile(fs::GlobalFileId),
