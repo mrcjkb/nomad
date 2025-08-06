@@ -9,5 +9,7 @@ pub mod symlink;
 pub mod text;
 
 pub use collab_types::puff::abs_path;
-pub use project::{DecodeError, LocalPeerIsNotOwnerError, Project};
+#[cfg(feature = "serde")]
+pub use project::DecodeError;
+pub use project::{LocalPeerIsNotOwnerError, Project};
 pub use project_builder::ProjectBuilder;

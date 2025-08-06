@@ -379,7 +379,11 @@ pub enum JoinError<Ed: CollabEditor> {
 #[derive(Debug, cauchy::PartialEq, cauchy::From)]
 pub enum RequestProjectError {
     /// TODO: docs.
-    DecodeProject(#[from] collab_project::DecodeError),
+    DecodeProject(
+        #[from]
+        #[partial_eq(skip)]
+        collab_project::DecodeError,
+    ),
 
     /// TODO: docs.
     RecvResponse(

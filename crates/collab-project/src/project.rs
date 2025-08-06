@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use collab_types::annotation::AnnotationDeletion;
 use collab_types::binary::BinaryEdit;
 use collab_types::text::{
@@ -32,8 +30,12 @@ pub struct Project {
 pub struct LocalPeerIsNotOwnerError;
 
 /// TODO: docs.
-#[derive(Debug, PartialEq, Eq)]
-pub struct DecodeError;
+#[derive(Debug, derive_more::Display, cauchy::From, cauchy::Error)]
+#[cfg(feature = "serde")]
+#[display("{inner}")]
+pub struct DecodeError {
+    inner: bincode::error::DecodeError,
+}
 
 /// TODO: docs.
 pub(crate) struct State<'proj> {
@@ -100,12 +102,18 @@ impl Project {
     }
 
     /// TODO: docs.
-    #[inline]
+    #[cfg(feature = "serde")]
     pub fn decode(
-        _encoded_buf: &[u8],
-        _local_id: PeerId,
+        encoded_buf: &[u8],
+        local_id: PeerId,
     ) -> Result<Self, DecodeError> {
-        todo!();
+        let (proj, num_read) = bincode::serde::seed_decode_from_slice(
+            Self::deserialize(local_id),
+            encoded_buf,
+            Self::bincode_config(),
+        )?;
+        assert_eq!(num_read, encoded_buf.len());
+        Ok(proj)
     }
 
     /// TODO: docs.
@@ -139,7 +147,7 @@ impl Project {
     }
 
     /// TODO: docs.
-    #[inline]
+    #[cfg(feature = "serde")]
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         self.encode_into(&mut buf);
@@ -147,9 +155,16 @@ impl Project {
     }
 
     /// TODO: docs.
-    #[inline]
-    pub fn encode_into(&self, _buf: &mut impl Write) {
-        todo!();
+    #[cfg(feature = "serde")]
+    pub fn encode_into(&self, buf: &mut impl std::io::Write) {
+        match bincode::serde::encode_into_std_write(
+            self.serialize().with_fs_state(true),
+            buf,
+            Self::bincode_config(),
+        ) {
+            Ok(_num_written) => (),
+            Err(err) => panic!("encoding should be infallible, but got {err}"),
+        }
     }
 
     /// TODO: docs.
@@ -532,6 +547,11 @@ impl Project {
     ) -> Option<binary::BinaryStateMut<'_>> {
         let (state, fs) = self.state_mut();
         binary::BinaryStateMut::new(fs.file_mut(file_id), state)
+    }
+
+    #[cfg(feature = "serde")]
+    fn bincode_config() -> impl bincode::config::Config {
+        bincode::config::standard()
     }
 
     #[inline]
