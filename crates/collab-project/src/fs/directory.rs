@@ -32,7 +32,7 @@ use crate::fs::{
     PuffDirectoryMut,
     PuffNode,
 };
-use crate::project::Contexts;
+use crate::project::{State, StateMut};
 use crate::symlink::SymlinkContents;
 use crate::text::TextContents;
 
@@ -41,18 +41,18 @@ pub type DirectoryContents = ();
 /// TODO: docs.
 pub struct Directory<'a, S = Visible> {
     inner: PuffDirectory<'a, S>,
-    ctxs: &'a Contexts,
+    state: State<'a>,
 }
 
 /// TODO: docs.
 pub struct DirectoryMut<'a, S = Editable> {
     inner: PuffDirectoryMut<'a, S>,
-    ctxs: &'a mut Contexts,
+    state: StateMut<'a>,
 }
 
 /// TODO: docs.
 pub struct Children<'a, S> {
-    ctxs: &'a Contexts,
+    state: State<'a>,
     parent: PuffChildren<'a, S>,
 }
 
@@ -66,9 +66,9 @@ impl<'a, S> Directory<'a, S> {
     #[inline]
     pub(crate) fn new(
         directory: PuffDirectory<'a, S>,
-        ctxs: &'a Contexts,
+        state: State<'a>,
     ) -> Self {
-        Self { inner: directory, ctxs }
+        Self { inner: directory, state }
     }
 }
 
@@ -76,7 +76,7 @@ impl<'a, S: IsVisible> Directory<'a, S> {
     /// TODO: docs.
     #[inline]
     pub fn children(&self) -> Children<'a, S> {
-        Children { ctxs: self.ctxs, parent: self.inner.children() }
+        Children { state: self.state, parent: self.inner.children() }
     }
 
     /// TODO: docs.
@@ -94,7 +94,7 @@ impl<'a, S: IsVisible> Directory<'a, S> {
     /// TODO: docs.
     #[inline]
     pub fn parent(&self) -> Option<Self> {
-        self.inner.parent().map(|dir| Self::new(dir, self.ctxs))
+        self.inner.parent().map(|dir| Self::new(dir, self.state))
     }
 
     /// TODO: docs.
@@ -114,15 +114,18 @@ impl<'a, S> DirectoryMut<'a, S> {
     /// TODO: docs.
     #[inline]
     pub fn as_directory(&self) -> Directory<'_, S> {
-        Directory { inner: self.inner.as_directory(), ctxs: self.ctxs }
+        Directory {
+            inner: self.inner.as_directory(),
+            state: self.state.as_ref(),
+        }
     }
 
     #[inline]
     pub(crate) fn new(
         directory: PuffDirectoryMut<'a, S>,
-        ctxs: &'a mut Contexts,
+        state: StateMut<'a>,
     ) -> Self {
-        Self { inner: directory, ctxs }
+        Self { inner: directory, state }
     }
 }
 
@@ -163,10 +166,11 @@ impl<'a> DirectoryMut<'a, Editable> {
         directory_name: NodeNameBuf,
     ) -> Result<(DirectoryCreation, DirectoryMut<'_>), NodeMut<'_>> {
         match self.inner.create_directory(directory_name, ()) {
-            Ok((creation, directory)) => {
-                Ok((creation, DirectoryMut::new(directory, self.ctxs)))
-            },
-            Err(node) => Err(NodeMut::new(node, self.ctxs)),
+            Ok((creation, directory)) => Ok((
+                creation,
+                DirectoryMut::new(directory, self.state.reborrow()),
+            )),
+            Err(node) => Err(NodeMut::new(node, self.state.reborrow())),
         }
     }
 
@@ -179,16 +183,17 @@ impl<'a> DirectoryMut<'a, Editable> {
     ) -> Result<(FileCreation, FileMut<'_>), NodeMut<'_>> {
         let file_contents = file_contents.into();
         let contents = FileContents::Binary(BinaryContents::new_local(
+            self.state.local_id(),
             file_contents.clone(),
-            &mut self.ctxs.binary,
+            self.state.binary_ctx_mut(),
         ));
         match self.inner.create_file(file_name, contents) {
             Ok((creation, file)) => Ok((
                 creation
                     .map_metadata(|_| NewFileContents::Binary(file_contents)),
-                FileMut::new(file, self.ctxs),
+                FileMut::new(file, self.state.reborrow()),
             )),
-            Err(node) => Err(NodeMut::new(node, self.ctxs)),
+            Err(node) => Err(NodeMut::new(node, self.state.reborrow())),
         }
     }
 
@@ -206,9 +211,9 @@ impl<'a> DirectoryMut<'a, Editable> {
             Ok((creation, file)) => Ok((
                 creation
                     .map_metadata(|_| NewFileContents::Symlink(target_path)),
-                FileMut::new(file, self.ctxs),
+                FileMut::new(file, self.state.reborrow()),
             )),
-            Err(node) => Err(NodeMut::new(node, self.ctxs)),
+            Err(node) => Err(NodeMut::new(node, self.state.reborrow())),
         }
     }
 
@@ -219,7 +224,7 @@ impl<'a> DirectoryMut<'a, Editable> {
         file_name: NodeNameBuf,
         file_contents: impl Into<Rope>,
     ) -> Result<(FileCreation, FileMut<'_>), NodeMut<'_>> {
-        let local_id = self.ctxs.text.cursors.local_id();
+        let local_id = self.state.local_id();
         let file_contents = file_contents.into();
 
         let contents = FileContents::Text(Box::new(TextContents::new(
@@ -231,9 +236,9 @@ impl<'a> DirectoryMut<'a, Editable> {
             Ok((creation, file)) => Ok((
                 creation
                     .map_metadata(|_| NewFileContents::Text(file_contents)),
-                FileMut::new(file, self.ctxs),
+                FileMut::new(file, self.state.reborrow()),
             )),
-            Err(node) => Err(NodeMut::new(node, self.ctxs)),
+            Err(node) => Err(NodeMut::new(node, self.state.reborrow())),
         }
     }
 
@@ -243,7 +248,7 @@ impl<'a> DirectoryMut<'a, Editable> {
         self.inner
             .delete()
             .map(|(deletion, _)| deletion)
-            .map_err(|inner| Self::new(inner, self.ctxs))
+            .map_err(|inner| Self::new(inner, self.state))
     }
 
     /// TODO: docs.
@@ -263,9 +268,9 @@ impl<'a, S: IsVisible> Iterator for Children<'a, S> {
     fn next(&mut self) -> Option<Self::Item> {
         self.parent.next().map(|node| match node {
             PuffNode::Directory(directory) => {
-                Node::Directory(Directory::new(directory, self.ctxs))
+                Node::Directory(Directory::new(directory, self.state))
             },
-            PuffNode::File(file) => Node::File(File::new(file, self.ctxs)),
+            PuffNode::File(file) => Node::File(File::new(file, self.state)),
         })
     }
 }

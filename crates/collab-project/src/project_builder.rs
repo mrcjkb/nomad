@@ -2,40 +2,28 @@ use std::sync::Arc;
 
 use collab_types::bytes::Bytes;
 use collab_types::crop::Rope;
-use collab_types::{PeerId, puff};
+use collab_types::puff;
 use puff::builder::CreateError;
 use puff::directory::LocalDirectoryId;
 use puff::file::LocalFileId;
 
-use crate::Project;
 use crate::abs_path::AbsPath;
-use crate::binary::BinaryContents;
 use crate::fs::{FileContents, ProjectTreeBuilder};
-use crate::project::Contexts;
 use crate::symlink::SymlinkContents;
 use crate::text::TextContents;
+use crate::{Project, binary};
 
 /// TODO: docs.
 pub struct ProjectBuilder {
-    inner: ProjectTreeBuilder,
-    contexts: Contexts,
+    pub(crate) inner: ProjectTreeBuilder,
+    pub(crate) binary_ctx: binary::BinaryCtx,
 }
 
 impl ProjectBuilder {
     /// TODO: docs.
     #[inline]
     pub fn build(self) -> Project {
-        let tree = self.inner.build();
-        Project { backlogs: Default::default(), contexts: self.contexts, tree }
-    }
-
-    /// TODO: docs.
-    #[inline]
-    pub fn new(peer_id: PeerId) -> Self {
-        Self {
-            inner: ProjectTreeBuilder::new(peer_id.into()),
-            contexts: Contexts::new(peer_id),
-        }
+        Project::from_builder(self)
     }
 
     /// TODO: docs.
@@ -45,10 +33,12 @@ impl ProjectBuilder {
         file_path: impl AsRef<AbsPath>,
         file_contents: impl Into<Bytes>,
     ) -> Result<LocalFileId, CreateError> {
-        let contents = FileContents::Binary(BinaryContents::new_local(
-            file_contents.into(),
-            &mut self.contexts.binary,
-        ));
+        let contents =
+            FileContents::Binary(binary::BinaryContents::new_local(
+                self.inner.peer_id().into(),
+                file_contents.into(),
+                &mut self.binary_ctx,
+            ));
         self.inner.push_file(file_path, contents)
     }
 
@@ -72,10 +62,8 @@ impl ProjectBuilder {
         file_path: impl AsRef<AbsPath>,
         file_contents: impl Into<Rope>,
     ) -> Result<LocalFileId, CreateError> {
-        let local_id = self.contexts.text.cursors.local_id();
-
         let contents = FileContents::Text(Box::new(TextContents::new(
-            local_id,
+            self.inner.peer_id().into(),
             file_contents.into(),
         )));
 

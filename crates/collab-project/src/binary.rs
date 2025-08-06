@@ -4,7 +4,7 @@ use std::collections::hash_map::Entry;
 
 use bytes::Bytes;
 use collab_types::binary::{BinaryEdit, BinaryEditTimestamp};
-use collab_types::lamport::{LamportClock, LamportTimestamp};
+use collab_types::lamport::LamportClock;
 use collab_types::{PeerId, bytes, puff};
 use fxhash::FxHashMap;
 use puff::file::{GlobalFileId, LocalFileId};
@@ -18,18 +18,18 @@ use crate::fs::{
     PuffFileMut,
     PuffFileStateMut,
 };
-use crate::project::Contexts;
+use crate::project::{State, StateMut};
 
 /// TODO: docs.
-pub struct BinaryFile<'a, S = Editable> {
-    inner: PuffFile<'a, S>,
-    ctxs: &'a Contexts,
+pub struct BinaryFile<'proj, S = Editable> {
+    inner: PuffFile<'proj, S>,
+    state: State<'proj>,
 }
 
 /// TODO: docs.
-pub struct BinaryFileMut<'a, S = Editable> {
-    inner: PuffFileMut<'a, S>,
-    ctxs: &'a mut Contexts,
+pub struct BinaryFileMut<'proj, S = Editable> {
+    inner: PuffFileMut<'proj, S>,
+    state: StateMut<'proj>,
 }
 
 /// TODO: docs.
@@ -40,17 +40,11 @@ pub(crate) struct BinaryContents {
     set_at: BinaryEditTimestamp,
 }
 
-#[derive(Clone)]
-pub(crate) struct BinaryCtx {
-    peer_id: PeerId,
-    edit_clock: LamportClock,
-}
-
-#[derive(Clone)]
+#[derive(Default, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub(crate) struct BinaryCtxState {
-    lamport_ts: LamportTimestamp,
+pub(crate) struct BinaryCtx {
+    edit_clock: LamportClock,
 }
 
 /// TODO: docs.
@@ -87,20 +81,20 @@ impl<'a, S> BinaryFile<'a, S> {
     }
 
     #[inline]
-    pub(crate) fn ctxs(&self) -> &'a Contexts {
-        self.ctxs
-    }
-
-    #[inline]
     pub(crate) fn inner(&self) -> PuffFile<'a, S> {
         self.inner
     }
 
     #[track_caller]
     #[inline]
-    pub(crate) fn new(inner: PuffFile<'a, S>, ctxs: &'a Contexts) -> Self {
+    pub(crate) fn new(inner: PuffFile<'a, S>, state: State<'a>) -> Self {
         debug_assert!(inner.metadata().is_binary());
-        Self { inner, ctxs }
+        Self { inner, state }
+    }
+
+    #[inline]
+    pub(crate) fn state(&self) -> State<'a> {
+        self.state
     }
 }
 
@@ -116,7 +110,7 @@ impl<'a, S> BinaryFileMut<'a, S> {
     /// TODO: docs.
     #[inline]
     pub fn as_file(&self) -> BinaryFile<'_, S> {
-        BinaryFile { inner: self.inner.as_file(), ctxs: self.ctxs }
+        BinaryFile { inner: self.inner.as_file(), state: self.state.as_ref() }
     }
 
     #[inline]
@@ -130,7 +124,7 @@ impl<'a, S> BinaryFileMut<'a, S> {
 
         match self.inner.metadata_mut() {
             FileContents::Binary(contents) => {
-                contents.integrate_edit(edit, &mut self.ctxs.binary)
+                contents.integrate_edit(edit, self.state.binary_ctx_mut())
             },
             _ => unreachable!(),
         }
@@ -143,12 +137,9 @@ impl<'a, S> BinaryFileMut<'a, S> {
 
     #[track_caller]
     #[inline]
-    pub(crate) fn new(
-        inner: PuffFileMut<'a, S>,
-        ctxs: &'a mut Contexts,
-    ) -> Self {
+    pub(crate) fn new(inner: PuffFileMut<'a, S>, state: StateMut<'a>) -> Self {
         debug_assert!(inner.metadata().is_binary());
-        Self { inner, ctxs }
+        Self { inner, state }
     }
 
     #[inline]
@@ -166,8 +157,9 @@ impl<'a> BinaryFileMut<'a, Editable> {
     pub fn replace(&mut self, new_contents: impl Into<Bytes>) -> BinaryEdit {
         let new_contents = new_contents.into();
         let contents = BinaryContents::new_local(
+            self.state.local_id(),
             new_contents.clone(),
-            &mut self.ctxs.binary,
+            self.state.binary_ctx_mut(),
         );
         let old_contents = self.contents_mut();
         debug_assert!(old_contents.set_at < contents.set_at);
@@ -199,12 +191,16 @@ impl BinaryContents {
     }
 
     #[inline]
-    pub(crate) fn new_local(inner: Bytes, ctx: &mut BinaryCtx) -> Self {
+    pub(crate) fn new_local(
+        local_id: PeerId,
+        inner: Bytes,
+        ctx: &mut BinaryCtx,
+    ) -> Self {
         Self {
             inner,
             set_at: BinaryEditTimestamp {
+                edited_by: local_id,
                 edited_at: ctx.edit_clock.tick(),
-                edited_by: ctx.peer_id,
             },
         }
     }
@@ -258,35 +254,28 @@ impl<'a> BinaryStateMut<'a> {
     #[inline]
     pub(crate) fn new(
         file_state: PuffFileStateMut<'a>,
-        ctxs: &'a mut Contexts,
+        state: StateMut<'a>,
     ) -> Option<Self> {
         match file_state {
             PuffFileStateMut::Visible(file) => {
-                match FileMut::new(file, ctxs) {
+                match FileMut::new(file, state) {
                     FileMut::Binary(file) => Some(Self::Visible(file)),
                     _ => None,
                 }
             },
             PuffFileStateMut::Backlogged(file) => {
-                match FileMut::new(file, ctxs) {
+                match FileMut::new(file, state) {
                     FileMut::Binary(file) => Some(Self::Backlogged(file)),
                     _ => None,
                 }
             },
             PuffFileStateMut::Deleted(file) => {
-                match FileMut::new(file, ctxs) {
+                match FileMut::new(file, state) {
                     FileMut::Binary(file) => Some(Self::Deleted(file)),
                     _ => None,
                 }
             },
         }
-    }
-}
-
-impl BinaryCtx {
-    #[inline]
-    pub(crate) fn new(local_id: PeerId) -> Self {
-        Self { peer_id: local_id, edit_clock: LamportClock::new(0) }
     }
 }
 

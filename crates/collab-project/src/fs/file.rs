@@ -7,7 +7,7 @@ use puff::node::{Editable, IsVisible, Visible};
 use crate::abs_path::{AbsPathBuf, NodeName, NodeNameBuf};
 use crate::binary::{BinaryContents, BinaryFile, BinaryFileMut};
 use crate::fs::{Directory, PuffFile, PuffFileMut};
-use crate::project::Contexts;
+use crate::project::{State, StateMut};
 use crate::symlink::{SymlinkContents, SymlinkFile, SymlinkFileMut};
 use crate::text::{TextContents, TextFile, TextFileMut};
 
@@ -75,24 +75,15 @@ impl<'a, S> File<'a, S> {
     }
 
     #[inline]
-    pub(crate) fn new(file: PuffFile<'a, S>, ctxs: &'a Contexts) -> Self {
+    pub(crate) fn new(file: PuffFile<'a, S>, state: State<'a>) -> Self {
         match file.metadata() {
             FileContents::Binary(_) => {
-                Self::Binary(BinaryFile::new(file, ctxs))
+                Self::Binary(BinaryFile::new(file, state))
             },
             FileContents::Symlink(_) => {
-                Self::Symlink(SymlinkFile::new(file, ctxs))
+                Self::Symlink(SymlinkFile::new(file, state))
             },
-            FileContents::Text(_) => Self::Text(TextFile::new(file, ctxs)),
-        }
-    }
-
-    #[inline]
-    fn ctxs(&self) -> &'a Contexts {
-        match self {
-            Self::Binary(file) => file.ctxs(),
-            Self::Symlink(file) => file.ctxs(),
-            Self::Text(file) => file.ctxs(),
+            FileContents::Text(_) => Self::Text(TextFile::new(file, state)),
         }
     }
 
@@ -102,6 +93,15 @@ impl<'a, S> File<'a, S> {
             Self::Binary(file) => file.inner(),
             Self::Symlink(file) => file.inner(),
             Self::Text(file) => file.inner(),
+        }
+    }
+
+    #[inline]
+    fn state(&self) -> State<'a> {
+        match self {
+            Self::Binary(file) => file.state(),
+            Self::Symlink(file) => file.state(),
+            Self::Text(file) => file.state(),
         }
     }
 }
@@ -122,7 +122,7 @@ impl<'a, S: IsVisible> File<'a, S> {
     /// TODO: docs.
     #[inline]
     pub fn parent(&self) -> Directory<'a, S> {
-        Directory::new(self.inner().parent(), self.ctxs())
+        Directory::new(self.inner().parent(), self.state())
     }
 }
 
@@ -152,18 +152,15 @@ impl<'a, S> FileMut<'a, S> {
     }
 
     #[inline]
-    pub(crate) fn new(
-        file: PuffFileMut<'a, S>,
-        ctxs: &'a mut Contexts,
-    ) -> Self {
+    pub(crate) fn new(file: PuffFileMut<'a, S>, state: StateMut<'a>) -> Self {
         match file.metadata() {
             FileContents::Binary(_) => {
-                Self::Binary(BinaryFileMut::new(file, ctxs))
+                Self::Binary(BinaryFileMut::new(file, state))
             },
             FileContents::Symlink(_) => {
-                Self::Symlink(SymlinkFileMut::new(file, ctxs))
+                Self::Symlink(SymlinkFileMut::new(file, state))
             },
-            FileContents::Text(_) => Self::Text(TextFileMut::new(file, ctxs)),
+            FileContents::Text(_) => Self::Text(TextFileMut::new(file, state)),
         }
     }
 

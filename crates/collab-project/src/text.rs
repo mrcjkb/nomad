@@ -34,7 +34,6 @@ use crate::annotation::{
     AnnotationRef,
     Annotations,
     AnnotationsIter,
-    AnnotationsState,
 };
 use crate::fs::{
     FileContents,
@@ -44,7 +43,7 @@ use crate::fs::{
     PuffFileState,
     PuffFileStateMut,
 };
-use crate::project::Contexts;
+use crate::project::{State, StateMut};
 
 /// TODO: docs.
 pub type ByteOffset = usize;
@@ -52,13 +51,13 @@ pub type ByteOffset = usize;
 /// TODO: docs.
 pub struct TextFile<'a, S = Visible> {
     inner: PuffFile<'a, S>,
-    ctxs: &'a Contexts,
+    state: State<'a>,
 }
 
 /// TODO: docs.
 pub struct TextFileMut<'a, S = Editable> {
     inner: PuffFileMut<'a, S>,
-    ctxs: &'a mut Contexts,
+    state: StateMut<'a>,
 }
 
 /// TODO: docs.
@@ -69,10 +68,10 @@ pub struct CursorId {
 
 /// TODO: docs.
 pub struct CursorRef<'a> {
-    contexts: &'a Contexts,
     file: PuffFileState<'a>,
     id: CursorId,
     offset: ByteOffset,
+    state: State<'a>,
 }
 
 /// TODO: docs.
@@ -89,10 +88,10 @@ pub struct SelectionId {
 
 /// TODO: docs.
 pub struct SelectionRef<'a> {
-    contexts: &'a Contexts,
     file: PuffFileState<'a>,
     id: SelectionId,
     offset_range: Range<ByteOffset>,
+    state: State<'a>,
 }
 
 /// TODO: docs.
@@ -139,17 +138,11 @@ pub struct TextFileSelections<'a, S = Visible> {
     file: TextFile<'a, S>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct TextCtx {
     pub(crate) cursors: Annotations<Cursor>,
     pub(crate) selections: Annotations<Selection>,
-}
-
-#[derive(Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) struct TextCtxState {
-    cursors: AnnotationsState<Cursor>,
-    selections: AnnotationsState<Selection>,
 }
 
 /// TODO: docs.
@@ -205,7 +198,10 @@ impl<'a, S> TextFile<'a, S> {
     /// Returns an iterator over the cursors in this text file.
     #[inline]
     pub fn cursors(&self) -> TextFileCursors<'a, S> {
-        TextFileCursors { inner: self.ctxs.text.cursors.iter(), file: *self }
+        TextFileCursors {
+            inner: self.state.text_ctx().cursors.iter(),
+            file: *self,
+        }
     }
 
     /// Returns this text file's global ID.
@@ -224,14 +220,9 @@ impl<'a, S> TextFile<'a, S> {
     #[inline]
     pub fn selections(&self) -> TextFileSelections<'a, S> {
         TextFileSelections {
-            inner: self.ctxs.text.selections.iter(),
+            inner: self.state.text_ctx().selections.iter(),
             file: *self,
         }
-    }
-
-    #[inline]
-    pub(crate) fn ctxs(&self) -> &'a Contexts {
-        self.ctxs
     }
 
     #[inline]
@@ -241,9 +232,14 @@ impl<'a, S> TextFile<'a, S> {
 
     #[track_caller]
     #[inline]
-    pub(crate) fn new(inner: PuffFile<'a, S>, ctxs: &'a Contexts) -> Self {
+    pub(crate) fn new(inner: PuffFile<'a, S>, state: State<'a>) -> Self {
         debug_assert!(inner.metadata().is_text());
-        Self { inner, ctxs }
+        Self { inner, state }
+    }
+
+    #[inline]
+    pub(crate) fn state(&self) -> State<'a> {
+        self.state
     }
 
     #[inline]
@@ -267,7 +263,7 @@ impl<'a, S> TextFileMut<'a, S> {
     /// TODO: docs.
     #[inline]
     pub fn as_file(&self) -> TextFile<'_, S> {
-        TextFile { inner: self.inner.as_file(), ctxs: self.ctxs }
+        TextFile { inner: self.inner.as_file(), state: self.state.as_ref() }
     }
 
     #[inline]
@@ -291,12 +287,9 @@ impl<'a, S> TextFileMut<'a, S> {
 
     #[track_caller]
     #[inline]
-    pub(crate) fn new(
-        inner: PuffFileMut<'a, S>,
-        ctxs: &'a mut Contexts,
-    ) -> Self {
+    pub(crate) fn new(inner: PuffFileMut<'a, S>, state: StateMut<'a>) -> Self {
         debug_assert!(inner.metadata().is_text());
-        Self { inner, ctxs }
+        Self { inner, state }
     }
 
     #[inline]
@@ -315,12 +308,16 @@ impl<'a, S: IsVisible> TextFileMut<'a, S> {
         &mut self,
         offset: ByteOffset,
     ) -> (CursorId, CursorCreation) {
+        let local_id = self.state.local_id();
         let cursor = Cursor {
             anchor: self.contents_mut().create_cursor(offset),
             sequence_num: Counter::new(0),
         };
-        let (annotation, creation) =
-            self.ctxs.text.cursors.create(self.inner.as_file(), cursor);
+        let (annotation, creation) = self.state.text_ctx_mut().cursors.create(
+            local_id,
+            self.inner.as_file(),
+            cursor,
+        );
         (annotation.id().into(), creation)
     }
 
@@ -330,14 +327,18 @@ impl<'a, S: IsVisible> TextFileMut<'a, S> {
         &mut self,
         offset_range: Range<ByteOffset>,
     ) -> (SelectionId, SelectionCreation) {
+        let local_id = self.state.local_id();
         let anchor_range = self.contents_mut().create_selection(offset_range);
         let selection = Selection {
             start: anchor_range.start,
             end: anchor_range.end,
             sequence_num: Counter::new(0),
         };
-        let (annotation, creation) =
-            self.ctxs.text.selections.create(self.inner.as_file(), selection);
+        let (annotation, creation) = self
+            .state
+            .text_ctx_mut()
+            .selections
+            .create(local_id, self.inner.as_file(), selection);
         (SelectionId { inner: annotation.id() }, creation)
     }
 
@@ -367,7 +368,7 @@ impl<'a> CursorRef<'a> {
     pub fn file(&self) -> Option<TextFile<'a>> {
         match self.file {
             PuffFileState::Visible(file) => {
-                Some(TextFile::new(file, self.contexts))
+                Some(TextFile::new(file, self.state))
             },
             _ => None,
         }
@@ -393,9 +394,9 @@ impl<'a> CursorRef<'a> {
 
     #[inline]
     pub(crate) fn from_id(id: CursorId, proj: &'a Project) -> Option<Self> {
-        let cursor = proj.contexts.text.cursors.get(id.inner)?;
+        let cursor = proj.state().text_ctx().cursors.get(id.inner)?;
 
-        let file = proj.tree.file(cursor.file_id());
+        let file = proj.tree().file(cursor.file_id());
 
         let FileContents::Text(contents) = file.metadata() else {
             unreachable!("cursors can only be created on TextFiles");
@@ -404,8 +405,8 @@ impl<'a> CursorRef<'a> {
         Some(Self {
             id: cursor.id().into(),
             offset: contents.resolve_cursor(cursor.data())?,
-            contexts: &proj.contexts,
             file,
+            state: proj.state(),
         })
     }
 }
@@ -421,9 +422,10 @@ impl<'a> CursorMut<'a> {
     #[inline]
     pub fn file_mut(&mut self) -> Option<TextFileMut<'_>> {
         let file_id = self.annotation().file_id();
-        match self.proj.tree.file_mut(file_id) {
+        let (state, tree) = self.proj.state_mut();
+        match tree.file_mut(file_id) {
             PuffFileStateMut::Visible(file) => {
-                Some(TextFileMut::new(file, &mut self.proj.contexts))
+                Some(TextFileMut::new(file, state))
             },
             _ => None,
         }
@@ -432,7 +434,8 @@ impl<'a> CursorMut<'a> {
     /// TODO: docs.
     #[inline]
     pub fn r#move(&mut self, new_offset: ByteOffset) -> CursorMove {
-        let file_state = self.proj.tree.file(self.annotation().file_id());
+        let file_id = self.annotation().file_id();
+        let file_state = self.proj.tree_mut().file(file_id);
 
         let FileContents::Text(contents) = file_state.metadata() else {
             unreachable!("cursors can only be created on TextFiles");
@@ -456,22 +459,20 @@ impl<'a> CursorMut<'a> {
     }
 
     #[inline]
-    fn annotation_mut(&mut self) -> AnnotationMut<'_, Cursor> {
+    fn annotation(&self) -> AnnotationRef<'_, Cursor> {
         self.proj
-            .contexts
-            .text
+            .text_ctx()
             .cursors
-            .get_mut(self.id.inner)
+            .get(self.id.inner)
             .expect("CursorId is valid")
     }
 
     #[inline]
-    fn annotation(&self) -> AnnotationRef<'_, Cursor> {
+    fn annotation_mut(&mut self) -> AnnotationMut<'_, Cursor> {
         self.proj
-            .contexts
-            .text
+            .text_ctx_mut()
             .cursors
-            .get(self.id.inner)
+            .get_mut(self.id.inner)
             .expect("CursorId is valid")
     }
 }
@@ -490,7 +491,7 @@ impl<'a> SelectionRef<'a> {
     pub fn file(&self) -> Option<TextFile<'a>> {
         match self.file {
             PuffFileState::Visible(file) => {
-                Some(TextFile::new(file, self.contexts))
+                Some(TextFile::new(file, self.state))
             },
             _ => None,
         }
@@ -516,9 +517,9 @@ impl<'a> SelectionRef<'a> {
 
     #[inline]
     pub(crate) fn from_id(id: SelectionId, proj: &'a Project) -> Option<Self> {
-        let selection = proj.contexts.text.selections.get(id.inner)?;
+        let selection = proj.state().text_ctx().selections.get(id.inner)?;
 
-        let file = proj.tree.file(selection.file_id());
+        let file = proj.tree().file(selection.file_id());
 
         let FileContents::Text(contents) = file.metadata() else {
             unreachable!("selections can only be created on TextFiles");
@@ -527,7 +528,7 @@ impl<'a> SelectionRef<'a> {
         Some(Self {
             id: selection.id().into(),
             offset_range: contents.resolve_selection(selection.data())?,
-            contexts: &proj.contexts,
+            state: proj.state(),
             file,
         })
     }
@@ -544,9 +545,10 @@ impl<'a> SelectionMut<'a> {
     #[inline]
     pub fn file_mut(&mut self) -> Option<TextFileMut<'_>> {
         let file_id = self.annotation().file_id();
-        match self.proj.tree.file_mut(file_id) {
+        let (state, tree) = self.proj.state_mut();
+        match tree.file_mut(file_id) {
             PuffFileStateMut::Visible(file) => {
-                Some(TextFileMut::new(file, &mut self.proj.contexts))
+                Some(TextFileMut::new(file, state))
             },
             _ => None,
         }
@@ -555,7 +557,7 @@ impl<'a> SelectionMut<'a> {
     /// TODO: docs.
     #[inline]
     pub fn r#move(&mut self, new_range: Range<ByteOffset>) -> SelectionMove {
-        let file_state = self.proj.tree.file(self.annotation().file_id());
+        let file_state = self.proj.tree().file(self.annotation().file_id());
 
         let FileContents::Text(contents) = file_state.metadata() else {
             unreachable!("selections can only be created on TextFiles");
@@ -582,8 +584,7 @@ impl<'a> SelectionMut<'a> {
     #[inline]
     fn annotation_mut(&mut self) -> AnnotationMut<'_, Selection> {
         self.proj
-            .contexts
-            .text
+            .text_ctx_mut()
             .selections
             .get_mut(self.id.inner)
             .expect("SelectionId is valid")
@@ -592,8 +593,7 @@ impl<'a> SelectionMut<'a> {
     #[inline]
     fn annotation(&self) -> AnnotationRef<'_, Selection> {
         self.proj
-            .contexts
-            .text
+            .text_ctx()
             .selections
             .get(self.id.inner)
             .expect("SelectionId is valid")
@@ -603,24 +603,14 @@ impl<'a> SelectionMut<'a> {
 impl<'a> Cursors<'a> {
     #[inline]
     pub(crate) fn new(project: &'a Project) -> Self {
-        Self { inner: project.contexts.text.cursors.iter(), proj: project }
+        Self { inner: project.text_ctx().cursors.iter(), proj: project }
     }
 }
 
 impl<'a> Selections<'a> {
     #[inline]
     pub(crate) fn new(project: &'a Project) -> Self {
-        Self { inner: project.contexts.text.selections.iter(), proj: project }
-    }
-}
-
-impl TextCtx {
-    #[inline]
-    pub(crate) fn new(local_id: PeerId) -> Self {
-        Self {
-            cursors: Annotations::new(local_id),
-            selections: Annotations::new(local_id),
-        }
+        Self { inner: project.text_ctx().selections.iter(), proj: project }
     }
 }
 
@@ -811,23 +801,23 @@ impl<'a> TextStateMut<'a> {
     #[inline]
     pub(crate) fn new(
         file_state: PuffFileStateMut<'a>,
-        ctxs: &'a mut Contexts,
+        state: StateMut<'a>,
     ) -> Option<Self> {
         match file_state {
             PuffFileStateMut::Visible(file) => {
-                match FileMut::new(file, ctxs) {
+                match FileMut::new(file, state) {
                     FileMut::Text(file) => Some(Self::Visible(file)),
                     _ => None,
                 }
             },
             PuffFileStateMut::Backlogged(file) => {
-                match FileMut::new(file, ctxs) {
+                match FileMut::new(file, state) {
                     FileMut::Text(file) => Some(Self::Backlogged(file)),
                     _ => None,
                 }
             },
             PuffFileStateMut::Deleted(file) => {
-                match FileMut::new(file, ctxs) {
+                match FileMut::new(file, state) {
                     FileMut::Text(file) => Some(Self::Deleted(file)),
                     _ => None,
                 }
@@ -1012,7 +1002,7 @@ impl<'a> Iterator for TextFileCursors<'a> {
                 id: annotation.id().into(),
                 file: PuffFileState::Visible(self.file.inner),
                 offset,
-                contexts: self.file.ctxs,
+                state: self.file.state,
             })
         } else {
             self.next()
@@ -1051,7 +1041,7 @@ impl<'a> Iterator for TextFileSelections<'a> {
                 id: annotation.id().into(),
                 file: PuffFileState::Visible(self.file.inner),
                 offset_range,
-                contexts: self.file.ctxs,
+                state: self.file.state,
             })
         } else {
             self.next()

@@ -1,5 +1,5 @@
 use core::cmp::Ordering;
-use core::ops::{Deref, DerefMut, RangeInclusive};
+use core::ops::RangeInclusive;
 use std::collections::hash_map;
 
 use collab_types::annotation::{
@@ -35,27 +35,17 @@ pub(crate) trait Backlog {
     fn new(op: <Self::Annotation as Annotation>::Op) -> Self;
 }
 
-#[derive(cauchy::Clone)]
-pub(crate) struct Annotations<T: Annotation> {
-    local_id: PeerId,
-    next_seq: Counter<u64>,
-    state: AnnotationsState<T>,
-}
-
-pub(crate) struct AnnotationRef<'a, T: Annotation> {
-    data: &'a AnnotationData<T>,
-    id: AnnotationId,
-}
-
-pub(crate) struct AnnotationMut<'a, T: Annotation> {
-    annotations: &'a mut Annotations<T>,
-    id: AnnotationId,
-}
-
-#[derive(cauchy::Clone)]
+#[derive(cauchy::Clone, cauchy::Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) struct AnnotationsState<T: Annotation> {
+pub(crate) struct Annotations<T: Annotation> {
+    /// TODO: docs.
     alive: FxHashMap<AnnotationId, AnnotationData<T>>,
+
+    /// TODO: docs.
+    #[cfg_attr(feature = "serde", serde(skip_serializing, default))]
+    next_seq: Counter<u64>,
+
+    /// TODO: docs.
     #[cfg_attr(
         feature = "serde",
         serde(bound(
@@ -64,9 +54,11 @@ pub(crate) struct AnnotationsState<T: Annotation> {
         ))
     )]
     backlog: FxHashMap<AnnotationId, T::Backlog>,
+
     /// Creations that have been backlogged due to the local project tree not
     /// yet having received the creation of the file they're in.
     backlogged_creations: FxHashMap<GlobalFileId, AnnotationCreation<T>>,
+
     /// Map from annotation owner to the ranges of sequences of annotations
     /// that have been deleted. The ranges are disjoint and ordered in
     /// ascending order.
@@ -77,6 +69,16 @@ pub(crate) struct AnnotationsState<T: Annotation> {
     /// Conversely, if the 3rd annotation was the only one removed, the ranges
     /// would be `[2..=2]`.
     deleted: NoHashMap<PeerId, Vec<RangeInclusive<u64>>>,
+}
+
+pub(crate) struct AnnotationRef<'a, T: Annotation> {
+    data: &'a AnnotationData<T>,
+    id: AnnotationId,
+}
+
+pub(crate) struct AnnotationMut<'a, T: Annotation> {
+    annotations: &'a mut Annotations<T>,
+    id: AnnotationId,
 }
 
 #[derive(Clone)]
@@ -94,13 +96,14 @@ impl<T: Annotation> Annotations<T> {
     #[inline]
     pub(crate) fn create(
         &mut self,
+        local_id: PeerId,
         in_file: PuffFile<'_, impl Sized>,
         data: T,
     ) -> (AnnotationMut<'_, T>, AnnotationCreation<T>)
     where
         T: Clone,
     {
-        let annotation_id = self.next_id();
+        let annotation_id = self.next_id(local_id);
 
         let annotation_data = AnnotationData {
             inner: data.clone(),
@@ -243,25 +246,6 @@ impl<T: Annotation> Annotations<T> {
     }
 
     #[inline]
-    pub(crate) fn local_id(&self) -> PeerId {
-        self.local_id
-    }
-
-    #[inline]
-    pub(crate) fn new(local_id: PeerId) -> Self {
-        Self {
-            local_id,
-            next_seq: Counter::new(0),
-            state: AnnotationsState {
-                alive: FxHashMap::default(),
-                backlog: FxHashMap::default(),
-                backlogged_creations: FxHashMap::default(),
-                deleted: NoHashMap::default(),
-            },
-        }
-    }
-
-    #[inline]
     fn delete(&mut self, id: AnnotationId) -> Option<AnnotationData<T>> {
         debug_assert!(!self.is_deleted(id));
         self.backlog.remove(&id);
@@ -318,9 +302,9 @@ impl<T: Annotation> Annotations<T> {
     }
 
     #[inline]
-    fn next_id(&mut self) -> AnnotationId {
+    fn next_id(&mut self, local_id: PeerId) -> AnnotationId {
         AnnotationId {
-            created_by: self.local_id,
+            created_by: local_id,
             sequence_num: self.next_seq.post_increment(),
         }
     }
@@ -394,22 +378,6 @@ impl<'a, T: Annotation> AnnotationMut<'a, T> {
     #[inline]
     fn data_mut_inner(&mut self) -> &mut AnnotationData<T> {
         self.annotations.alive.get_mut(&self.id).expect("ID is valid")
-    }
-}
-
-impl<T: Annotation> Deref for Annotations<T> {
-    type Target = AnnotationsState<T>;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl<T: Annotation> DerefMut for Annotations<T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.state
     }
 }
 

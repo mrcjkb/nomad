@@ -1,25 +1,14 @@
-use collab_types::{PeerId, puff};
+use collab_types::puff;
 use puff::node::{Deleted, Visible};
 
 use crate::abs_path::{AbsPathBuf, NodeName};
-use crate::fs::{
-    self,
-    Directory,
-    FileContents,
-    Node,
-    NodeMut,
-    PuffFile,
-    PuffFileMut,
-    PuffNodeMut,
-};
-use crate::project::{Backlogs, Contexts};
+use crate::project::{State, StateMut};
+use crate::{fs, text};
 
 /// TODO: docs.
 pub struct SyncActions<'a> {
     inner: fs::PuffSyncActions<'a>,
-    backlog: &'a mut Backlogs,
-    ctxs: &'a mut Contexts,
-    peer_id: PeerId,
+    state: StateMut<'a>,
 }
 
 /// TODO: docs.
@@ -49,49 +38,49 @@ pub enum SyncAction<'a> {
 /// TODO: docs.
 pub struct Create<'a> {
     inner: fs::PuffCreate<'a>,
-    ctxs: &'a Contexts,
+    state: State<'a>,
 }
 
 /// TODO: docs.
 pub struct CreateAndResolve<'a> {
     inner: fs::PuffCreateAndResolve<'a>,
-    ctxs: &'a mut Contexts,
+    state: StateMut<'a>,
 }
 
 /// TODO: docs.
 pub struct Delete<'a> {
     inner: fs::PuffDelete<'a>,
-    ctxs: &'a Contexts,
+    state: State<'a>,
 }
 
 /// TODO: docs.
 pub struct Move<'a> {
     inner: fs::PuffMove<'a>,
-    ctxs: &'a Contexts,
+    state: State<'a>,
 }
 
 /// TODO: docs.
 pub struct MoveAndResolve<'a> {
     inner: fs::PuffMoveAndResolve<'a>,
-    ctxs: &'a mut Contexts,
+    state: StateMut<'a>,
 }
 
 /// TODO: docs.
 pub struct Rename<'a> {
     inner: fs::PuffRename<'a>,
-    ctxs: &'a Contexts,
+    state: State<'a>,
 }
 
 /// TODO: docs.
 pub struct RenameAndResolve<'a> {
     inner: fs::PuffRenameAndResolve<'a>,
-    ctxs: &'a mut Contexts,
+    state: StateMut<'a>,
 }
 
 /// TODO: docs.
 pub struct ResolveConflict<'a> {
     inner: fs::PuffResolveConflict<'a>,
-    ctxs: &'a mut Contexts,
+    state: StateMut<'a>,
 }
 
 impl<'a> SyncActions<'a> {
@@ -101,59 +90,54 @@ impl<'a> SyncActions<'a> {
     pub fn next(&mut self) -> Option<SyncAction<'_>> {
         self.inner.next().map(|action| match action {
             fs::PuffSyncAction::Create(mut inner) => {
-                if let PuffNodeMut::File(mut file_mut) = inner.node_mut() {
-                    integrate_backlogged_edits(
-                        &mut file_mut,
-                        self.backlog,
-                        self.ctxs,
-                        self.peer_id,
-                    );
+                if let fs::PuffNodeMut::File(mut file_mut) = inner.node_mut() {
+                    integrate_backlogged_edits(&mut file_mut, &mut self.state);
                     integrate_backlogged_annotations(
                         file_mut.as_file(),
-                        self.ctxs,
+                        self.state.text_ctx_mut(),
                     );
                 }
-                SyncAction::Create(Create { inner, ctxs: self.ctxs })
+                SyncAction::Create(fs::Create {
+                    inner,
+                    state: self.state.as_ref(),
+                })
             },
             fs::PuffSyncAction::CreateAndResolve(mut inner) => {
-                if let PuffNodeMut::File(mut file_mut) =
+                if let fs::PuffNodeMut::File(mut file_mut) =
                     inner.create().node_mut()
                 {
-                    integrate_backlogged_edits(
-                        &mut file_mut,
-                        self.backlog,
-                        self.ctxs,
-                        self.peer_id,
-                    );
+                    integrate_backlogged_edits(&mut file_mut, &mut self.state);
                     integrate_backlogged_annotations(
                         file_mut.as_file(),
-                        self.ctxs,
+                        self.state.text_ctx_mut(),
                     );
                 }
                 SyncAction::CreateAndResolve(CreateAndResolve {
                     inner,
-                    ctxs: self.ctxs,
+                    state: self.state.reborrow(),
                 })
             },
-            fs::PuffSyncAction::Delete(inner) => {
-                SyncAction::Delete(Delete { inner, ctxs: self.ctxs })
-            },
+            fs::PuffSyncAction::Delete(inner) => SyncAction::Delete(Delete {
+                inner,
+                state: self.state.as_ref(),
+            }),
             fs::PuffSyncAction::Move(inner) => {
-                SyncAction::Move(Move { inner, ctxs: self.ctxs })
+                SyncAction::Move(Move { inner, state: self.state.as_ref() })
             },
             fs::PuffSyncAction::MoveAndResolve(inner) => {
                 SyncAction::MoveAndResolve(MoveAndResolve {
                     inner,
-                    ctxs: self.ctxs,
+                    state: self.state.reborrow(),
                 })
             },
-            fs::PuffSyncAction::Rename(inner) => {
-                SyncAction::Rename(Rename { inner, ctxs: self.ctxs })
-            },
+            fs::PuffSyncAction::Rename(inner) => SyncAction::Rename(Rename {
+                inner,
+                state: self.state.as_ref(),
+            }),
             fs::PuffSyncAction::RenameAndResolve(inner) => {
                 SyncAction::RenameAndResolve(RenameAndResolve {
                     inner,
-                    ctxs: self.ctxs,
+                    state: self.state.reborrow(),
                 })
             },
         })
@@ -161,33 +145,29 @@ impl<'a> SyncActions<'a> {
 
     #[inline]
     pub(crate) fn new(
-        peer_id: PeerId,
         inner: fs::PuffSyncActions<'a>,
-        backlog: &'a mut Backlogs,
-        ctxs: &'a mut Contexts,
+        state: StateMut<'a>,
     ) -> Self {
-        Self { inner, backlog, ctxs, peer_id }
+        Self { inner, state }
     }
 }
 
 fn integrate_backlogged_edits(
-    file: &mut PuffFileMut<'_, Visible>,
-    backlog: &mut Backlogs,
-    ctxs: &mut Contexts,
-    peer_id: PeerId,
+    file: &mut fs::PuffFileMut<'_, Visible>,
+    state: &mut StateMut<'_>,
 ) {
     let global_id = file.global_id();
 
     match file.metadata_mut() {
-        FileContents::Binary(contents) => {
-            if let Some(edit) = backlog.binary.take(global_id) {
-                contents.integrate_edit(edit, &mut ctxs.binary);
+        fs::FileContents::Binary(contents) => {
+            if let Some(edit) = state.binary_backlog_mut().take(global_id) {
+                contents.integrate_edit(edit, state.binary_ctx_mut());
             }
         },
-        FileContents::Symlink(_) => {},
-        FileContents::Text(contents) => {
-            contents.decode(peer_id);
-            for edit in backlog.text.take(global_id) {
+        fs::FileContents::Symlink(_) => {},
+        fs::FileContents::Text(contents) => {
+            contents.decode(state.local_id());
+            for edit in state.text_backlog_mut().take(global_id) {
                 contents.integrate_edit(edit);
             }
         },
@@ -195,20 +175,20 @@ fn integrate_backlogged_edits(
 }
 
 fn integrate_backlogged_annotations(
-    file: PuffFile<'_, Visible>,
-    ctxs: &mut Contexts,
+    file: fs::PuffFile<'_, Visible>,
+    ctx: &mut text::TextCtx,
 ) {
     let local_id = file.local_id();
     let global_id = file.global_id();
-    ctxs.text.cursors.integrate_file_creation(local_id, global_id);
-    ctxs.text.selections.integrate_file_creation(local_id, global_id);
+    ctx.cursors.integrate_file_creation(local_id, global_id);
+    ctx.selections.integrate_file_creation(local_id, global_id);
 }
 
 impl<'a> Create<'a> {
     /// TODO: docs.
     #[inline]
-    pub fn node(&self) -> Node<'_> {
-        Node::new(self.inner.node(), self.ctxs)
+    pub fn node(&self) -> fs::Node<'_> {
+        fs::Node::new(self.inner.node(), self.state)
     }
 }
 
@@ -216,27 +196,27 @@ impl<'a> CreateAndResolve<'a> {
     /// TODO: docs.
     #[inline]
     pub fn create(&mut self) -> Create<'_> {
-        Create { inner: self.inner.create(), ctxs: self.ctxs }
+        Create { inner: self.inner.create(), state: self.state.as_ref() }
     }
 
     /// TODO: docs.
     #[inline]
     pub fn into_resolve(self) -> ResolveConflict<'a> {
-        ResolveConflict { inner: self.inner.into_resolve(), ctxs: self.ctxs }
+        ResolveConflict { inner: self.inner.into_resolve(), state: self.state }
     }
 }
 
 impl<'a> Delete<'a> {
     /// TODO: docs.
     #[inline]
-    pub fn node(&self) -> Node<'_, Deleted> {
-        Node::new(self.inner.node(), self.ctxs)
+    pub fn node(&self) -> fs::Node<'_, Deleted> {
+        fs::Node::new(self.inner.node(), self.state)
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn old_parent(&self) -> Directory<'_> {
-        Directory::new(self.inner.old_parent(), self.ctxs)
+    pub fn old_parent(&self) -> fs::Directory<'_> {
+        fs::Directory::new(self.inner.old_parent(), self.state)
     }
 
     /// TODO: docs.
@@ -255,14 +235,14 @@ impl<'a> Move<'a> {
 
     /// TODO: docs.
     #[inline]
-    pub fn node(&self) -> Node<'_> {
-        Node::new(self.inner.node(), self.ctxs)
+    pub fn node(&self) -> fs::Node<'_> {
+        fs::Node::new(self.inner.node(), self.state)
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn old_parent(&self) -> Directory<'_> {
-        Directory::new(self.inner.old_parent(), self.ctxs)
+    pub fn old_parent(&self) -> fs::Directory<'_> {
+        fs::Directory::new(self.inner.old_parent(), self.state)
     }
 
     /// TODO: docs.
@@ -276,13 +256,13 @@ impl<'a> MoveAndResolve<'a> {
     /// TODO: docs.
     #[inline]
     pub fn r#move(&mut self) -> Move<'_> {
-        Move { inner: self.inner.r#move(), ctxs: self.ctxs }
+        Move { inner: self.inner.r#move(), state: self.state.as_ref() }
     }
 
     /// TODO: docs.
     #[inline]
     pub fn into_resolve(self) -> ResolveConflict<'a> {
-        ResolveConflict { inner: self.inner.into_resolve(), ctxs: self.ctxs }
+        ResolveConflict { inner: self.inner.into_resolve(), state: self.state }
     }
 }
 
@@ -295,8 +275,8 @@ impl<'a> Rename<'a> {
 
     /// TODO: docs.
     #[inline]
-    pub fn node(&self) -> Node<'_> {
-        Node::new(self.inner.node(), self.ctxs)
+    pub fn node(&self) -> fs::Node<'_> {
+        fs::Node::new(self.inner.node(), self.state)
     }
 
     /// TODO: docs.
@@ -313,8 +293,8 @@ impl<'a> Rename<'a> {
 
     /// TODO: docs.
     #[inline]
-    pub fn parent(&self) -> Directory<'_> {
-        Directory::new(self.inner.parent(), self.ctxs)
+    pub fn parent(&self) -> fs::Directory<'_> {
+        fs::Directory::new(self.inner.parent(), self.state)
     }
 }
 
@@ -322,13 +302,13 @@ impl<'a> RenameAndResolve<'a> {
     /// TODO: docs.
     #[inline]
     pub fn rename(&mut self) -> Rename<'_> {
-        Rename { inner: self.inner.rename(), ctxs: self.ctxs }
+        Rename { inner: self.inner.rename(), state: self.state.as_ref() }
     }
 
     /// TODO: docs.
     #[inline]
     pub fn into_resolve(self) -> ResolveConflict<'a> {
-        ResolveConflict { inner: self.inner.into_resolve(), ctxs: self.ctxs }
+        ResolveConflict { inner: self.inner.into_resolve(), state: self.state }
     }
 }
 
@@ -338,30 +318,33 @@ impl<'a> ResolveConflict<'a> {
     pub fn assume_resolved(self) -> Result<(), Self> {
         self.inner
             .assume_resolved()
-            .map_err(|inner| Self { inner, ctxs: self.ctxs })
+            .map_err(|inner| Self { inner, state: self.state })
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn conflicting_node(&self) -> Node<'_> {
-        Node::new(self.inner.conflicting_node(), self.ctxs)
+    pub fn conflicting_node(&self) -> fs::Node<'_> {
+        fs::Node::new(self.inner.conflicting_node(), self.state.as_ref())
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn conflicting_node_mut(&mut self) -> NodeMut<'_, Visible> {
-        NodeMut::new(self.inner.conflicting_node_mut(), self.ctxs)
+    pub fn conflicting_node_mut(&mut self) -> fs::NodeMut<'_, Visible> {
+        fs::NodeMut::new(
+            self.inner.conflicting_node_mut(),
+            self.state.reborrow(),
+        )
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn existing_node(&self) -> Node<'_> {
-        Node::new(self.inner.existing_node(), self.ctxs)
+    pub fn existing_node(&self) -> fs::Node<'_> {
+        fs::Node::new(self.inner.existing_node(), self.state.as_ref())
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn existing_node_mut(&mut self) -> NodeMut<'_, Visible> {
-        NodeMut::new(self.inner.existing_node_mut(), self.ctxs)
+    pub fn existing_node_mut(&mut self) -> fs::NodeMut<'_, Visible> {
+        fs::NodeMut::new(self.inner.existing_node_mut(), self.state.reborrow())
     }
 }

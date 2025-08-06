@@ -13,7 +13,7 @@ use crate::fs::{
     PuffNode,
     PuffNodeMut,
 };
-use crate::project::Contexts;
+use crate::project::{State, StateMut};
 
 /// TODO: docs.
 pub enum Node<'a, S = Visible> {
@@ -44,12 +44,12 @@ impl<'a, S> Node<'a, S> {
     }
 
     #[inline]
-    pub(crate) fn new(node: PuffNode<'a, S>, ctxs: &'a Contexts) -> Self {
+    pub(crate) fn new(node: PuffNode<'a, S>, state: State<'a>) -> Self {
         match node {
             PuffNode::Directory(directory) => {
-                Self::Directory(Directory::new(directory, ctxs))
+                Self::Directory(Directory::new(directory, state))
             },
-            PuffNode::File(file) => Self::File(File::new(file, ctxs)),
+            PuffNode::File(file) => Self::File(File::new(file, state)),
         }
     }
 }
@@ -76,15 +76,12 @@ impl<'a, S: IsVisible> Node<'a, S> {
 
 impl<'a, S> NodeMut<'a, S> {
     #[inline]
-    pub(crate) fn new(
-        node: PuffNodeMut<'a, S>,
-        ctxs: &'a mut Contexts,
-    ) -> Self {
+    pub(crate) fn new(node: PuffNodeMut<'a, S>, state: StateMut<'a>) -> Self {
         match node {
             PuffNodeMut::Directory(directory) => {
-                Self::Directory(DirectoryMut::new(directory, ctxs))
+                Self::Directory(DirectoryMut::new(directory, state))
             },
-            PuffNodeMut::File(file) => Self::File(FileMut::new(file, ctxs)),
+            PuffNodeMut::File(file) => Self::File(FileMut::new(file, state)),
         }
     }
 }

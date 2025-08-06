@@ -8,18 +8,18 @@ use puff::node::{IsVisible, Visible};
 
 use crate::abs_path::AbsPathBuf;
 use crate::fs::{FileContents, PuffFile, PuffFileMut};
-use crate::project::Contexts;
+use crate::project::{State, StateMut};
 
 /// TODO: docs.
 pub struct SymlinkFile<'a, S = Visible> {
     inner: PuffFile<'a, S>,
-    ctxs: &'a Contexts,
+    state: State<'a>,
 }
 
 /// TODO: docs.
 pub struct SymlinkFileMut<'a, S = Visible> {
     inner: PuffFileMut<'a, S>,
-    ctxs: &'a mut Contexts,
+    state: StateMut<'a>,
 }
 
 /// TODO: docs.
@@ -48,8 +48,8 @@ impl<'a, Ctx> SymlinkFile<'a, Ctx> {
     }
 
     #[inline]
-    pub(crate) fn ctxs(&self) -> &'a Contexts {
-        self.ctxs
+    pub(crate) fn state(&self) -> State<'a> {
+        self.state
     }
 
     #[inline]
@@ -59,9 +59,9 @@ impl<'a, Ctx> SymlinkFile<'a, Ctx> {
 
     #[track_caller]
     #[inline]
-    pub(crate) fn new(inner: PuffFile<'a, Ctx>, ctxs: &'a Contexts) -> Self {
+    pub(crate) fn new(inner: PuffFile<'a, Ctx>, state: State<'a>) -> Self {
         debug_assert!(inner.metadata().is_symlink());
-        Self { inner, ctxs }
+        Self { inner, state }
     }
 }
 
@@ -77,7 +77,7 @@ impl<'a, S> SymlinkFileMut<'a, S> {
     /// TODO: docs.
     #[inline]
     pub fn as_file(&self) -> SymlinkFile<'_, S> {
-        SymlinkFile { inner: self.inner.as_file(), ctxs: self.ctxs }
+        SymlinkFile { inner: self.inner.as_file(), state: self.state.as_ref() }
     }
 
     #[inline]
@@ -92,12 +92,9 @@ impl<'a, S> SymlinkFileMut<'a, S> {
 
     #[track_caller]
     #[inline]
-    pub(crate) fn new(
-        inner: PuffFileMut<'a, S>,
-        ctxs: &'a mut Contexts,
-    ) -> Self {
+    pub(crate) fn new(inner: PuffFileMut<'a, S>, state: StateMut<'a>) -> Self {
         debug_assert!(inner.metadata().is_symlink());
-        Self { inner, ctxs }
+        Self { inner, state }
     }
 }
 
