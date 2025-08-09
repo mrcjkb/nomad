@@ -1,0 +1,19 @@
+[package]
+name = "auth-types"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["serde"]
+mock = []
+serde = ["smol_str/serde", "dep:serde"]
+
+[dependencies]
+smol_str = { workspace = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
+
+[lints]
+workspace = true

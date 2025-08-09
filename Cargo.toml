@@ -34,6 +34,7 @@ tracing = "0.1"
 
 # Internal dependencies.
 auth = { path = "./crates/auth" }
+auth-types = { path = "./crates/auth-types" }
 clipboard = { path = "./crates/clipboard" }
 collab = { path = "./crates/collab" }
 collab-project = { path = "./crates/collab-project" }

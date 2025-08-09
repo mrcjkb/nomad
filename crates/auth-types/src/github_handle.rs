@@ -9,7 +9,9 @@ use smol_str::SmolStr;
 const GITHUB_HANDLE_MAX_CHARS: u8 = 39;
 
 /// TODO: docs.
-#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct GitHubHandle {
     inner: SmolStr,
 }

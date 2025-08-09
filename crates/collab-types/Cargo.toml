@@ -8,7 +8,9 @@ publish.workspace = true
 
 [features]
 default = ["serde"]
+nomad = ["auth-types/serde", "dep:ulid"]
 serde = [
+  "auth-types/serde",
   "bytes/serde",
   "cola/serde",
   "crop/serde",
@@ -19,6 +21,7 @@ serde = [
 ]
 
 [dependencies]
+auth-types = { workspace = true }
 bytes = "1"
 cauchy = { workspace = true }
 cola = "0.5"
@@ -27,9 +30,11 @@ derive_more = { workspace = true }
 fxhash = { workspace = true }
 nohash = { workspace = true }
 puff = { git = "ssh://git@github.com/nomad/puff.git" }
-serde = { workspace = true, optional = true, features = ["derive", "rc"] }
 smallvec = { workspace = true }
 smol_str = { workspace = true }
+
+serde = { workspace = true, optional = true, features = ["derive", "rc"] }
+ulid = { version = "1", optional = true, features = ["serde"] }
 
 [lints]
 workspace = true

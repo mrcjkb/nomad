@@ -2,13 +2,16 @@
 //! Collab machinery running on the client and the [Collab
 //! server](https://github.com/nomad/collab-server).
 
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
 pub mod annotation;
 pub mod binary;
 mod counter;
 pub mod fs;
-mod github_handle;
 pub mod lamport;
 mod message;
+#[cfg(feature = "nomad")]
+pub mod nomad;
 mod peer;
 mod peer_id;
 mod project_request;
@@ -16,8 +19,9 @@ mod project_response;
 mod protocol;
 pub mod text;
 
+#[doc(inline)]
+pub use auth_types::GitHubHandle;
 pub use counter::Counter;
-pub use github_handle::GitHubHandle;
 pub use message::Message;
 pub use peer::Peer;
 pub use peer_id::PeerId;
