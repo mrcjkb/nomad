@@ -44,7 +44,6 @@ fn cannot_start_session_if_project_root_is_fs_root() {
 }
 
 #[test]
-#[ignore = "not yet implemented in pando"]
 fn cannot_start_session_if_root_overlaps_existing_project() {
     let fs = mock::fs! {
         "a": {

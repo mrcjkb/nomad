@@ -9,7 +9,6 @@ use futures_lite::future::{self, FutureExt};
 use mock::{EditorExt, Mock};
 
 #[test]
-#[ignore = "not yet implemented in pando"]
 fn replicate_simple_project() {
     let fs1 = mock::fs! {
         "foo": {
@@ -28,19 +27,19 @@ fn replicate_simple_project() {
         .with_default_dir_for_remote_projects(path!("/remote"))
         .with_server(&server);
 
-    let (started_tx, started_rx) = flume::bounded(1);
+    let (session_id_tx, session_id_rx) = flume::bounded(1);
 
     let run_peer1 = peer1.run_all(async move |ctx| {
         let collab = Collab::from(&Auth::logged_in("peer1"));
         let agent_id = ctx.new_agent_id();
         ctx.create_and_focus(path!("/foo/mars.txt"), agent_id).await.unwrap();
         collab.start().call((), ctx).await.unwrap();
-        started_tx.send(MockSessionId(1)).unwrap();
+        session_id_tx.send(MockSessionId(1)).unwrap();
     });
 
     let run_peer2 = peer2.run(async move |ctx| {
         let collab = Collab::from(&Auth::logged_in("peer2"));
-        let session_id = started_rx.recv_async().await.unwrap();
+        let session_id = session_id_rx.recv_async().await.unwrap();
         collab.join().call(Parse(session_id), ctx).await.unwrap();
         let fs2 = ctx.fs();
         assert_eq!(
