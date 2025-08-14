@@ -40,7 +40,7 @@ pub(crate) struct BinaryContents {
     set_at: BinaryEditTimestamp,
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub(crate) struct BinaryCtx {
@@ -48,7 +48,7 @@ pub(crate) struct BinaryCtx {
 }
 
 /// TODO: docs.
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub(crate) struct BinaryEditBacklog {

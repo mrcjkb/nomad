@@ -35,14 +35,17 @@ pub(crate) trait Backlog {
     fn new(op: <Self::Annotation as Annotation>::Op) -> Self;
 }
 
-#[derive(cauchy::Clone, cauchy::Default)]
+#[derive(cauchy::Debug, cauchy::Clone, cauchy::Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct Annotations<T: Annotation> {
     /// TODO: docs.
     alive: FxHashMap<AnnotationId, AnnotationData<T>>,
 
     /// TODO: docs.
-    #[cfg_attr(feature = "serde", serde(skip_serializing, default))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(deserialize_with = "ignore_and_zero")
+    )]
     next_seq: Counter<u64>,
 
     /// TODO: docs.
@@ -81,7 +84,7 @@ pub(crate) struct AnnotationMut<'a, T: Annotation> {
     id: AnnotationId,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct AnnotationData<T> {
     inner: T,
@@ -388,4 +391,14 @@ impl<'a, T: Annotation> Iterator for AnnotationsIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         self.iters.next().map(|(id, data)| AnnotationRef { data, id: *id })
     }
+}
+
+#[cfg(feature = "serde")]
+fn ignore_and_zero<'de, D>(de: D) -> Result<Counter<u64>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let _ = Counter::<u64>::deserialize(de)?;
+    Ok(Counter::new(0))
 }

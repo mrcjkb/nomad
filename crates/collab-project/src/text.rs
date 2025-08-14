@@ -138,7 +138,7 @@ pub struct TextFileSelections<'a, S = Visible> {
     file: TextFile<'a, S>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct TextCtx {
     pub(crate) cursors: Annotations<Cursor>,
@@ -155,7 +155,7 @@ pub(crate) struct TextContents {
 }
 
 /// TODO: docs.
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub(crate) struct TextEditBacklog {

@@ -49,14 +49,14 @@ pub(crate) struct StateMut<'proj> {
     peer_id: PeerId,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct Backlogs {
     binary: binary::BinaryEditBacklog,
     text: text::TextEditBacklog,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct Contexts {
     binary: binary::BinaryCtx,
