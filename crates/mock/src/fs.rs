@@ -605,8 +605,11 @@ impl fs::Fs for MockFs {
         &self,
         path: P,
     ) -> Result<Self::Directory, Self::CreateDirectoriesError> {
-        let mut existing_path = path.as_ref();
+        let path = path.as_ref();
 
+        let mut existing_path = path;
+
+        // Get the deepest existing directory in the given path.
         let mut dir = loop {
             let Ok(maybe_node) = self.node_at_path(existing_path).await;
 
@@ -628,10 +631,8 @@ impl fs::Fs for MockFs {
             }
         };
 
-        let Some(mut missing_components) = path
-            .as_ref()
-            .strip_prefix(existing_path)
-            .map(|path| path.components())
+        let Some(mut missing_components) =
+            path.strip_prefix(existing_path).map(|path| path.components())
         else {
             return Ok(dir);
         };
