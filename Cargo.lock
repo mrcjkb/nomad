@@ -445,15 +445,15 @@ dependencies = [
 
 [[package]]
 name = "cargo-util-schemas"
-version = "0.2.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e63d2780ac94487eb9f1fea7b0d56300abc9eb488800854ca217f102f5caccca"
+checksum = "7dc1a6f7b5651af85774ae5a34b4e8be397d9cf4bc063b7e6dbd99a841837830"
 dependencies = [
  "semver",
  "serde",
  "serde-untagged",
  "serde-value",
- "thiserror 1.0.69",
+ "thiserror 2.0.14",
  "toml",
  "unicode-xid",
  "url",
@@ -461,9 +461,9 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f7835cfc6135093070e95eb2b53e5d9b5c403dc3a6be6040ee026270aa82502"
+checksum = "5cfca2aaa699835ba88faf58a06342a314a950d2b9686165e038286c30316868"
 dependencies = [
  "camino",
  "cargo-platform",
@@ -833,7 +833,7 @@ dependencies = [
 [[package]]
 name = "crop"
 version = "0.4.3"
-source = "git+ssh://git@github.com/nomad/crop.git#3981961b8975c0331e037a020791c550a767cddc"
+source = "git+ssh://git@github.com/nomad/crop.git#7098ac0688cffe3b53fcfdc23509fc26fc3de5af"
 dependencies = [
  "serde",
  "str_indices",
@@ -1716,9 +1716,9 @@ dependencies = [
 
 [[package]]
 name = "mlua"
-version = "0.10.5"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1f5f8fbebc7db5f671671134b9321c4b9aa9adeafccfd9a8c020ae45c6a35d0"
+checksum = "ab2fea92b2adabd51808311b101551d6e3f8602b65e9fae51f7ad5b3d500f4cd"
 dependencies = [
  "bstr",
  "either",
@@ -1732,9 +1732,9 @@ dependencies = [
 
 [[package]]
 name = "mlua-sys"
-version = "0.6.8"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "380c1f7e2099cafcf40e51d3a9f20a346977587aa4d012eae1f043149a728a93"
+checksum = "3d4dc9cfc5a7698899802e97480617d9726f7da78c910db989d4d0fd4991d900"
 dependencies = [
  "cc",
  "cfg-if",
@@ -1743,9 +1743,9 @@ dependencies = [
 
 [[package]]
 name = "mlua_derive"
-version = "0.10.1"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "870d71c172fcf491c6b5fb4c04160619a2ee3e5a42a1402269c66bcbf1dd4deb"
+checksum = "465bddde514c4eb3b50b543250e97c1d4b284fa3ef7dc0ba2992c77545dbceb2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1951,7 +1951,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi"
 version = "0.6.0"
-source = "git+https://github.com/noib3/nvim-oxi#5ee2096e70021c9b2801e179bf287f6d26c3df54"
+source = "git+https://github.com/noib3/nvim-oxi#8e66ecb5c1062cc52c040d0610b77025f7c48590"
 dependencies = [
  "cargo_metadata",
  "mlua",
@@ -1966,7 +1966,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-api"
 version = "0.6.0"
-source = "git+https://github.com/noib3/nvim-oxi#5ee2096e70021c9b2801e179bf287f6d26c3df54"
+source = "git+https://github.com/noib3/nvim-oxi#8e66ecb5c1062cc52c040d0610b77025f7c48590"
 dependencies = [
  "nvim-oxi-luajit",
  "nvim-oxi-macros",
@@ -1979,7 +1979,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-libuv"
 version = "0.6.0"
-source = "git+https://github.com/noib3/nvim-oxi#5ee2096e70021c9b2801e179bf287f6d26c3df54"
+source = "git+https://github.com/noib3/nvim-oxi#8e66ecb5c1062cc52c040d0610b77025f7c48590"
 dependencies = [
  "nvim-oxi-luajit",
  "thiserror 2.0.14",
@@ -1988,7 +1988,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-luajit"
 version = "0.6.0"
-source = "git+https://github.com/noib3/nvim-oxi#5ee2096e70021c9b2801e179bf287f6d26c3df54"
+source = "git+https://github.com/noib3/nvim-oxi#8e66ecb5c1062cc52c040d0610b77025f7c48590"
 dependencies = [
  "thiserror 2.0.14",
 ]
@@ -1996,7 +1996,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-macros"
 version = "0.6.0"
-source = "git+https://github.com/noib3/nvim-oxi#5ee2096e70021c9b2801e179bf287f6d26c3df54"
+source = "git+https://github.com/noib3/nvim-oxi#8e66ecb5c1062cc52c040d0610b77025f7c48590"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2006,7 +2006,7 @@ dependencies = [
 [[package]]
 name = "nvim-oxi-types"
 version = "0.6.0"
-source = "git+https://github.com/noib3/nvim-oxi#5ee2096e70021c9b2801e179bf287f6d26c3df54"
+source = "git+https://github.com/noib3/nvim-oxi#8e66ecb5c1062cc52c040d0610b77025f7c48590"
 dependencies = [
  "libc",
  "nvim-oxi-luajit",
