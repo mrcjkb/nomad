@@ -289,7 +289,7 @@ impl<T: fmt::Debug + ?Sized, Access: SharedAccess> fmt::Debug
     for Shared<T, Access>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.with(|field| f.debug_tuple("Shared").field(&field).finish())
+        self.with(|field| fmt::Debug::fmt(field, f))
     }
 }
 
