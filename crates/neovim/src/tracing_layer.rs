@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 
 use compact_str::CompactString;
 use ed::executor::{Executor, LocalSpawner, Task};
@@ -20,6 +20,7 @@ pub struct TracingLayer<S> {
     >,
 }
 
+/// A [`Write`]r that writes messages to the Neovim message area.
 #[derive(Clone)]
 struct MessageAreaWriter {
     /// The buffer where the messages are written.
@@ -28,6 +29,11 @@ struct MessageAreaWriter {
     /// The sender used to send messages to the main thread when `Self` is
     /// flushed.
     message_tx: flume::Sender<CompactString>,
+}
+
+/// A [`Write`]r-wrapper that flushes the inner writer when it's dropped.
+struct FlushOnDrop<W: io::Write> {
+    inner: W,
 }
 
 impl<S> TracingLayer<S> {
@@ -43,15 +49,22 @@ impl<S> TracingLayer<S> {
 
 impl MessageAreaWriter {
     fn new(nvim: &mut Neovim) -> Self {
-        let (message_tx, message_rx) = flume::unbounded();
+        let (message_tx, message_rx) = flume::unbounded::<CompactString>();
 
-        // Note: we do this because print! can only be called from the main
-        // thread.
+        // We do this because print! can only be called from the main thread.
         nvim.executor()
             .local_spawner()
             .spawn(async move {
                 while let Ok(message) = message_rx.recv_async().await {
-                    nvim_oxi::print!("{message}");
+                    nvim_oxi::print!(
+                        "{}",
+                        // Each call to print! is already displayed on a new
+                        // line, so strip any trailing newlines.
+                        message
+                            .strip_suffix("\r\n")
+                            .or_else(|| message.strip_suffix('\n'))
+                            .unwrap_or(&message)
+                    );
                 }
             })
             .detach();
@@ -61,10 +74,12 @@ impl MessageAreaWriter {
 }
 
 impl fmt::MakeWriter<'_> for MessageAreaWriter {
-    type Writer = Self;
+    type Writer = FlushOnDrop<Self>;
 
     fn make_writer(&self) -> Self::Writer {
-        self.clone()
+        // Tracing's layer constructs a new writer for each event, so we wrap
+        // the inner writer with one that flushes it when it's dropped.
+        FlushOnDrop { inner: self.clone() }
     }
 }
 
@@ -78,8 +93,26 @@ impl io::Write for MessageAreaWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         let message = self.buffer.take();
-        self.message_tx.send(message).expect("the task is still running");
+        if !message.is_empty() {
+            self.message_tx.send(message).expect("the task is still running");
+        }
         Ok(())
+    }
+}
+
+impl<W: io::Write> io::Write for FlushOnDrop<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.inner.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+impl<W: io::Write> Drop for FlushOnDrop<W> {
+    fn drop(&mut self) {
+        let _ = self.flush();
     }
 }
 
