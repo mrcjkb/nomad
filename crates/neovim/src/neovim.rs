@@ -82,8 +82,8 @@ impl Neovim {
     /// Returns a new instance of the [`TracingLayer`](crate::TracingLayer).
     #[cfg(feature = "tracing")]
     #[inline]
-    pub fn tracing_layer(&mut self) -> crate::TracingLayer {
-        todo!();
+    pub fn tracing_layer<S>(&mut self) -> crate::TracingLayer<S> {
+        crate::TracingLayer::new(self)
     }
 
     /// Should only be called by the `#[neovim::plugin]` macro.
