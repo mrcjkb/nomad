@@ -274,6 +274,17 @@ where
     #[inline]
     fn handle_panic(
         &self,
+        panic_info: PanicInfo,
+        ctx: &mut Context<Ed, Borrowed<'_>>,
+    ) {
+        Plugin::handle_panic(self, panic_info, ctx);
+    }
+}
+
+impl<Ed: Editor> Plugin<Ed> for ResumeUnwinding {
+    #[inline]
+    fn handle_panic(
+        &self,
         info: PanicInfo,
         _: &mut Context<Ed, Borrowed<'_>>,
     ) {
@@ -294,16 +305,5 @@ impl<Ed: Editor> Module<Ed> for ResumeUnwinding {
         _: &mut Context<Ed, Borrowed<'_>>,
     ) {
         unreachable!()
-    }
-}
-
-impl<Ed: Editor> Plugin<Ed> for ResumeUnwinding {
-    #[inline]
-    fn handle_panic(
-        &self,
-        info: PanicInfo,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
-    ) {
-        PanicHandler::handle_panic(self, info, ctx);
     }
 }
