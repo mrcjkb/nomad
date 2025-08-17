@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 use std::process;
 use std::sync::{Arc, OnceLock};
 
@@ -69,13 +69,13 @@ struct CheckRequest {
     result_tx: flume::Sender<Result<bool, GitIgnoreFilterError>>,
 }
 
-enum TaskMessage {
+enum Message {
     /// Sent by the stdout task when a new line is read. The `bool` indicates
     /// whether the path (which is not included in the message) is ignored.
-    IgnoreOk(bool),
+    FromStdout(bool),
 
     /// Send by the stderr task when an error occurs.
-    IgnoreError(GitIgnoreFilterError),
+    FromStderr(GitIgnoreFilterError),
 }
 
 impl GitIgnore {
@@ -98,7 +98,7 @@ impl GitIgnore {
 
         let exit_status = Arc::new(OnceLock::new());
         let (request_tx, request_rx) = flume::unbounded();
-        let (task_message_tx, task_message_rx) = flume::unbounded();
+        let (message_tx, message_rx) = flume::unbounded();
 
         bg_spawner
             .spawn({
@@ -108,7 +108,7 @@ impl GitIgnore {
                         child,
                         stdin,
                         request_rx,
-                        task_message_rx,
+                        message_rx,
                         exit_status,
                     )
                     .await;
@@ -118,15 +118,15 @@ impl GitIgnore {
 
         bg_spawner
             .spawn({
-                let task_message_tx = task_message_tx.clone();
-                async move { Self::read_from_stdout(stdout, task_message_tx) }
+                let message_tx = message_tx.clone();
+                async move { Self::read_from_stdout(stdout, message_tx) }
             })
             .detach();
 
         bg_spawner
             .spawn({
-                let task_message_tx = task_message_tx.clone();
-                async move { Self::read_from_stderr(stderr, task_message_tx) }
+                let message_tx = message_tx.clone();
+                async move { Self::read_from_stderr(stderr, message_tx) }
             })
             .detach();
 
@@ -151,11 +151,11 @@ impl GitIgnore {
         mut child: process::Child,
         mut stdin: process::ChildStdin,
         request_rx: flume::Receiver<CheckRequest>,
-        task_message_rx: flume::Receiver<TaskMessage>,
+        message_rx: flume::Receiver<Message>,
         exit_status: Arc<OnceLock<io::Result<process::ExitStatus>>>,
     ) {
         let mut request_stream = request_rx.into_stream();
-        let mut task_message_stream = task_message_rx.into_stream();
+        let mut message_stream = message_rx.into_stream();
         let mut result_tx_queue = VecDeque::new();
 
         loop {
@@ -177,7 +177,7 @@ impl GitIgnore {
                         },
                     }
                 },
-                task_message = task_message_stream.select_next_some() => {
+                message = message_stream.select_next_some() => {
                     // We can always pop from the front of the queue because
                     // 'git check-ignore' outputs paths in the same order they
                     // were sent to stdin.
@@ -185,9 +185,9 @@ impl GitIgnore {
                         .pop_back()
                         .expect("the queue should not be empty");
 
-                    let result = match task_message {
-                        TaskMessage::IgnoreOk(is_ignored) => Ok(is_ignored),
-                        TaskMessage::IgnoreError(err) => Err(err),
+                    let result = match message {
+                        Message::FromStdout(is_ignored) => Ok(is_ignored),
+                        Message::FromStderr(err) => Err(err),
                     };
 
                     // The receiver might've been dropped, and that's ok.
@@ -215,18 +215,62 @@ impl GitIgnore {
     /// until it hits EOF or an error occurs.
     fn read_from_stdout(
         _stdout: process::ChildStdout,
-        _task_message_tx: flume::Sender<TaskMessage>,
+        _message_tx: flume::Sender<Message>,
     ) {
+        /// See https://git-scm.com/docs/git-check-ignore#_output for more
+        /// infos on what each variant represents.
+        enum State {}
+
         todo!();
     }
 
     /// Continuosly reads from the `stderr` of the `git check-ignore` process
     /// until it hits EOF or an error occurs.
     fn read_from_stderr(
-        _stderr: process::ChildStderr,
-        _task_message_tx: flume::Sender<TaskMessage>,
+        stderr: process::ChildStderr,
+        message_tx: flume::Sender<Message>,
     ) {
-        todo!();
+        let mut reader = io::BufReader::new(stderr);
+        let mut line = String::new();
+
+        loop {
+            line.clear();
+
+            match reader.read_line(&mut line) {
+                Ok(0) | Err(_) => return,
+                Ok(_non_zero) => (),
+            }
+
+            if let Some(err) = GitIgnoreFilterError::parse_stderr_line(&line) {
+                message_tx
+                    .send(Message::FromStderr(err))
+                    .expect("event loop is still running");
+            }
+        }
+    }
+}
+
+impl GitIgnoreFilterError {
+    fn parse_path_does_not_exist(line: &str) -> Option<Self> {
+        line.strip_prefix("fatal: Invalid path '")
+            .and_then(|rest| rest.strip_suffix("': No such file or directory"))
+            .and_then(|path| path.parse::<AbsPathBuf>().ok())
+            .map(Self::PathDoesNotExist)
+    }
+
+    fn parse_path_outside_repo(line: &str) -> Option<Self> {
+        let (left, right) = line.split_once("' is outside repository at '")?;
+        let (_, path) = left.split_once(": '")?;
+        let repo_path = right.strip_suffix('\'')?;
+        Some(Self::PathOutsideRepo {
+            path: path.parse().ok()?,
+            repo_path: repo_path.parse().ok()?,
+        })
+    }
+
+    fn parse_stderr_line(line: &str) -> Option<Self> {
+        Self::parse_path_does_not_exist(line)
+            .or_else(|| Self::parse_path_outside_repo(line))
     }
 }
 
