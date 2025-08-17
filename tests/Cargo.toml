@@ -16,6 +16,7 @@ auth = ["__any", "dep:auth"]
 collab = ["__any", "dep:auth", "dep:collab"]
 mock = ["__any", "__editor"]
 neovim = ["__any", "__editor", "dep:neovim", "auth?/neovim", "collab?/neovim"]
+thread-pool = ["__any", "dep:tempdir", "dep:thread-pool"]
 walkdir = ["__any", "dep:tempdir", "dep:walkdir"]
 
 # Sentinel features.
@@ -39,16 +40,10 @@ rand = "0.9"
 rand_chacha = "0.9"
 tracing-subscriber = { workspace = true }
 
-# Auth-related dependencies.
 auth = { workspace = true, optional = true, features = ["mock"] }
-
-# Collab-related dependencies.
 collab = { workspace = true, optional = true, features = ["mock"] }
-
-# Neovim-related dependencies.
 neovim = { workspace = true, optional = true, features = ["test"] }
-
-# Walkdir-related dependencies.
+thread-pool = { workspace = true, optional = true }
 tempdir = { workspace = true, optional = true }
 walkdir = { workspace = true, optional = true, features = ["gitignore"] }
 

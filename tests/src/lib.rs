@@ -15,6 +15,8 @@ mod collab;
 mod mock;
 #[cfg(feature = "neovim")]
 mod neovim;
+#[cfg(all(test, feature = "thread-pool"))]
+mod thread_pool;
 #[cfg(all(test, feature = "walkdir"))]
 mod walkdir;
 
