@@ -44,8 +44,8 @@ tracing-subscriber = { workspace = true }
 auth = { workspace = true, optional = true, features = ["mock"] }
 collab = { workspace = true, optional = true, features = ["mock"] }
 neovim = { workspace = true, optional = true, features = ["test"] }
-thread-pool = { workspace = true, optional = true }
 tempdir = { workspace = true, optional = true }
+thread-pool = { workspace = true, optional = true }
 walkdir = { workspace = true, optional = true, features = ["gitignore"] }
 
 [build-dependencies]

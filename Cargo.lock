@@ -3378,7 +3378,6 @@ version = "0.1.0-dev"
 dependencies = [
  "abs-path",
  "cauchy",
- "compact_str",
  "derive_more",
  "ed",
  "either",
