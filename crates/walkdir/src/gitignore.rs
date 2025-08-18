@@ -354,7 +354,7 @@ impl StdoutParser {
 
             match self.state {
                 StdoutReadState::Source => {
-                    self.is_ignored = nul_idx == 0;
+                    self.is_ignored = nul_idx > 0;
                     self.state = StdoutReadState::Linenum;
                 },
                 StdoutReadState::Linenum => {
@@ -396,6 +396,51 @@ mod tests {
     use abs_path::path;
 
     use super::*;
+
+    #[test]
+    fn parse_stdout_1() {
+        let stdout = b"source\042\0pattern\0pathname\0";
+        let mut parser = StdoutParser::default();
+        let (is_ignored, rest) = parser.feed(stdout).unwrap();
+        assert!(is_ignored);
+        assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn parse_stdout_2() {
+        let stdout = b"\0\0\0pathname\0";
+        let mut parser = StdoutParser::default();
+        let (is_ignored, rest) = parser.feed(stdout).unwrap();
+        assert!(!is_ignored);
+        assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn parse_stdout_3() {
+        let mut parser = StdoutParser::default();
+        assert!(parser.feed(b"source\0").is_none());
+        assert!(parser.feed(b"42\0").is_none());
+        assert!(parser.feed(b"pattern\0").is_none());
+        let (is_ignored, rest) = parser.feed(b"pathname\0").unwrap();
+        assert!(is_ignored);
+        assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn parse_stdout_4() {
+        let mut parser = StdoutParser::default();
+        let first = b"source\042\0pattern\0pathname\0";
+        let second = b"\0\0\0pathname\0";
+        let stdout = [&first[..], second].concat();
+
+        let (is_ignored, rest) = parser.feed(&stdout).unwrap();
+        assert!(is_ignored);
+        assert_eq!(rest, second);
+
+        let (is_ignored, rest) = parser.feed(rest).unwrap();
+        assert!(!is_ignored);
+        assert!(rest.is_empty());
+    }
 
     #[test]
     fn parse_stderr_1() {
