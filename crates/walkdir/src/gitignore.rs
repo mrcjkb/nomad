@@ -234,7 +234,12 @@ impl GitIgnore {
                 Message::FromStderr(err) => Err(err),
 
                 Message::TerminateProcess => {
+                    // NOTE: sending SIGKILL only marks the child as defunct,
+                    // but we need to reap it with 'wait()' to avoid a zombie
+                    // process.
+                    drop(stdin);
                     let _ = child.kill();
+                    let _ = child.wait();
                     return;
                 },
             };
