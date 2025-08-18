@@ -1,3 +1,4 @@
+use core::mem;
 use std::collections::VecDeque;
 use std::io::{self, BufRead, Read, Write};
 use std::process;
@@ -67,6 +68,23 @@ pub enum GitIgnoreFilterError {
 struct CheckRequest {
     path: AbsPathBuf,
     result_tx: flume::Sender<Result<bool, GitIgnoreFilterError>>,
+}
+
+#[derive(Debug, Default)]
+struct StdoutParser {
+    is_ignored: bool,
+    state: StdoutReadState,
+}
+
+/// See https://git-scm.com/docs/git-check-ignore#_output for more infos on
+/// what each variant represents.
+#[derive(Debug, Default)]
+enum StdoutReadState {
+    #[default]
+    Source,
+    Linenum,
+    Pattern,
+    Pathname,
 }
 
 enum Message {
@@ -253,18 +271,8 @@ impl GitIgnore {
         mut stdout: process::ChildStdout,
         message_tx: flume::Sender<Message>,
     ) {
-        /// See https://git-scm.com/docs/git-check-ignore#_output for more
-        /// infos on what each variant represents.
-        enum ReadingState {
-            Source,
-            Linenum,
-            Pattern,
-            Pathname,
-        }
-
-        let mut state = ReadingState::Source;
         let mut buf = Vec::new();
-        let mut is_ignored = false;
+        let mut parser = StdoutParser::default();
 
         loop {
             buf.clear();
@@ -276,24 +284,11 @@ impl GitIgnore {
 
             let mut buf = &buf[..];
 
-            while let Some(split_idx) = buf.iter().position(|&b| b == 0) {
-                buf = &buf[split_idx + 1..];
-
-                match state {
-                    ReadingState::Source => {
-                        is_ignored = split_idx == 0;
-                        state = ReadingState::Linenum;
-                    },
-                    ReadingState::Linenum => state = ReadingState::Pattern,
-                    ReadingState::Pattern => state = ReadingState::Pathname,
-                    ReadingState::Pathname => {
-                        state = ReadingState::Source;
-                        message_tx
-                            .send(Message::FromStdout(is_ignored))
-                            .expect("event loop is still running");
-                        is_ignored = false;
-                    },
-                }
+            while let Some((is_ignored, new_buf)) = parser.feed(buf) {
+                buf = new_buf;
+                message_tx
+                    .send(Message::FromStdout(is_ignored))
+                    .expect("event loop is still running");
             }
         }
     }
@@ -346,6 +341,37 @@ impl GitIgnoreFilterError {
         let line = line.trim_end();
         Self::parse_path_does_not_exist(line)
             .or_else(|| Self::parse_path_outside_repo(line))
+    }
+}
+
+impl StdoutParser {
+    fn feed<'buf>(
+        &mut self,
+        mut bytes: &'buf [u8],
+    ) -> Option<(bool, &'buf [u8])> {
+        while let Some(nul_idx) = bytes.iter().position(|&b| b == 0) {
+            bytes = &bytes[nul_idx + 1..];
+
+            match self.state {
+                StdoutReadState::Source => {
+                    self.is_ignored = nul_idx == 0;
+                    self.state = StdoutReadState::Linenum;
+                },
+                StdoutReadState::Linenum => {
+                    self.state = StdoutReadState::Pattern;
+                },
+                StdoutReadState::Pattern => {
+                    self.state = StdoutReadState::Pathname;
+                },
+                StdoutReadState::Pathname => {
+                    self.state = StdoutReadState::Source;
+                    let is_ignored = mem::take(&mut self.is_ignored);
+                    return Some((is_ignored, bytes));
+                },
+            }
+        }
+
+        None
     }
 }
 
