@@ -271,10 +271,10 @@ impl GitIgnore {
 
         drop(stdin);
 
-        match exit_status.set(child.wait()) {
-            Ok(()) => (),
-            Err(_) => unreachable!("exit status only set once"),
-        }
+        assert!(
+            exit_status.set(child.wait()).is_ok(),
+            "exit status only set once"
+        );
 
         let result_txs = result_tx_queue.into_iter().chain(
             message_rx.into_iter().filter_map(|msg| {
@@ -286,10 +286,12 @@ impl GitIgnore {
             }),
         );
 
+        let maybe_status =
+            exit_status.get().expect("just set it").as_ref().ok().copied();
+
         for result_tx in result_txs {
-            let _ = result_tx.send(Err(GitIgnoreFilterError::ProcessExited(
-                exit_status.get().expect("just set it").as_ref().ok().copied(),
-            )));
+            let _ = result_tx
+                .send(Err(GitIgnoreFilterError::ProcessExited(maybe_status)));
         }
     }
 
