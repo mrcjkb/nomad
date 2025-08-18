@@ -85,6 +85,37 @@ fn errors_if_path_doesnt_exist() {
     assert!(path.starts_with(error_path));
 }
 
+#[test]
+#[cfg_attr(not(git_in_PATH), ignore = "git is not in $PATH")]
+#[cfg_attr(windows, ignore = "'kill' is not available on Windows")]
+fn exit_status_is_returned_if_process_is_killed() {
+    let repo = GitRepository::init(mock::fs! {});
+    let gitignore_pid = repo.gitignore.process_id().unwrap();
+
+    // Kill the process.
+    Command::new("kill")
+        .arg("-TERM")
+        .arg(gitignore_pid.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .expect("failed to kill gitignore process");
+
+    let err = repo.is_ignored(repo.path()).unwrap_err();
+    let GitIgnoreFilterError::ProcessExited(maybe_exit_status) = err else {
+        panic!("expected ProcessExited error, got: {err:?}");
+    };
+
+    // Calling `is_ignored` continues returning the same exit status.
+    assert_eq!(
+        repo.is_ignored(repo.path()).unwrap_err(),
+        GitIgnoreFilterError::ProcessExited(maybe_exit_status)
+    );
+
+    // Getting the PID will now fail and return the exit status instead.
+    assert_eq!(repo.gitignore.process_id().unwrap_err(), maybe_exit_status);
+}
+
 struct GitRepository {
     dir: TempDir,
     gitignore: GitIgnore,

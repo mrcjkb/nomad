@@ -21,6 +21,9 @@ pub struct GitIgnore {
 
     /// The exit status of the `git check-ignore` process, if it has exited.
     exit_status: Arc<OnceLock<io::Result<process::ExitStatus>>>,
+
+    /// The ID of the `git check-ignore` process.
+    process_id: u32,
 }
 
 /// The type of error that can occur when creating the [`GitIgnore`] filter.
@@ -147,6 +150,8 @@ impl GitIgnore {
             .spawn()
             .map_err(GitIgnoreCreateError::CommandFailed)?;
 
+        let process_id = child.id();
+
         let stdin = child.stdin.take().expect("stdin handle present");
         let stdout = child.stdout.take().expect("stdout handle present");
         let stderr = child.stderr.take().expect("stderr handle present");
@@ -185,7 +190,16 @@ impl GitIgnore {
             })
             .detach();
 
-        Ok(Self { request_tx, exit_status })
+        Ok(Self { request_tx, exit_status, process_id })
+    }
+
+    /// Returns the ID of the `git check-ignore` process, or an error if the
+    /// process has exited (together with its exit status if we could get it).
+    pub fn process_id(&self) -> Result<u32, Option<process::ExitStatus>> {
+        self.exit_status
+            .get()
+            .map(|status| status.as_ref().ok().cloned())
+            .map_or_else(|| Ok(self.process_id), Err)
     }
 
     fn command() -> process::Command {
