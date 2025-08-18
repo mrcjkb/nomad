@@ -151,6 +151,15 @@ fn process_terminates_when_all_gitignore_instances_are_dropped() {
 }
 
 #[test]
+#[cfg_attr(git_in_PATH, ignore = "git is in $PATH")]
+fn creating_gitignore_fails_if_git_is_not_in_path() {
+    let tempdir = future::block_on(OsFs::default().tempdir()).unwrap();
+    let mut spawner = ThreadPool::default();
+    let err = GitIgnore::new(tempdir.path(), &mut spawner).unwrap_err();
+    assert_eq!(err, GitIgnoreCreateError::GitNotInPath);
+}
+
+#[test]
 #[cfg_attr(not(git_in_PATH), ignore = "git is not in $PATH")]
 fn creating_gitignore_fails_if_path_doesnt_exist() {
     let mut spawner = ThreadPool::default();

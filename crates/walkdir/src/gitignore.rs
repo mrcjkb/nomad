@@ -32,8 +32,12 @@ pub struct GitIgnore {
 #[derive(Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq)]
 pub enum GitIgnoreCreateError {
     /// Running the `git check-ignore` command failed.
-    #[display("Running {cmd:?} failed: {_0}", cmd = GitIgnore::command())]
+    #[display("running {cmd:?} failed: {_0}", cmd = GitIgnore::command())]
     CommandFailed(#[partial_eq(skip)] io::Error),
+
+    /// The `git` executable is not in the user's `$PATH`.
+    #[display("the 'git' executable is not in $PATH")]
+    GitNotInPath,
 
     /// The path given to [`GitIgnore::new`] doesn't exist.
     #[display("the path does not exist")]
@@ -157,7 +161,19 @@ impl GitIgnore {
             .stdout(process::Stdio::piped())
             .stderr(process::Stdio::piped())
             .spawn()
-            .map_err(GitIgnoreCreateError::CommandFailed)?;
+            .map_err(|io_err| match io_err.kind() {
+                // The command not being found and the path not existing both
+                // result in the same error (at least on macOS), so check if
+                // the path exists to distinguish between the two.
+                io::ErrorKind::NotFound => {
+                    if std::fs::metadata(repo_path).is_ok() {
+                        GitIgnoreCreateError::GitNotInPath
+                    } else {
+                        GitIgnoreCreateError::InvalidPath
+                    }
+                },
+                _ => GitIgnoreCreateError::CommandFailed(io_err),
+            })?;
 
         let process_id = child.id();
 
