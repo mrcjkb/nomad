@@ -28,7 +28,7 @@ pub struct GitIgnore {
     process_id: u32,
 }
 
-/// The type of error that can occur when creating the [`GitIgnore`] filter.
+/// The type of error that can occur when creating a new [`GitIgnore`].
 #[derive(Debug, derive_more::Display, cauchy::Error, PartialEq)]
 pub enum CreateError {
     /// Shelling out to `git` failed.
@@ -48,8 +48,8 @@ pub enum CreateError {
     PathNotInGitRepository,
 }
 
-/// The type of error returned when shelling out to `git` while creating a
-/// [`GitIgnore`] fails.
+/// The type of error that can occur when shelling out to `git` while creating
+/// a new [`GitIgnore`].
 #[derive(derive_more::Display, cauchy::Error)]
 #[display(
     "running {cmd:?} failed: {inner}",
@@ -171,7 +171,7 @@ impl GitIgnore {
         repo_path: &AbsPath,
         bg_spawner: &mut impl BackgroundSpawner,
     ) -> Result<Self, CreateError> {
-        let is_in_git_repo = Self::is_in_repo_command()
+        let is_in_repo = Self::is_in_repo_command()
             .current_dir(repo_path)
             .stdout(process::Stdio::null())
             .stderr(process::Stdio::null())
@@ -194,7 +194,7 @@ impl GitIgnore {
             })?
             .success();
 
-        if !is_in_git_repo {
+        if !is_in_repo {
             return Err(CreateError::PathNotInGitRepository);
         }
 
