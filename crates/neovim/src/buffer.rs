@@ -984,7 +984,7 @@ impl<'a> Buffer for NeovimBuffer<'a> {
                     replacements: smallvec_inline![replacement],
                 };
 
-                fun.with_mut(|fun| fun(&buf, &edit));
+                fun.with_mut(|fun| fun(buf, &edit));
             },
         );
 

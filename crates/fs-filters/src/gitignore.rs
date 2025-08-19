@@ -167,6 +167,7 @@ impl GitIgnore {
     }
 
     /// Creates a new `GitIgnore` filter.
+    #[allow(clippy::too_many_lines)]
     pub fn new(
         repo_path: &AbsPath,
         bg_spawner: &mut impl BackgroundSpawner,
@@ -372,7 +373,7 @@ impl GitIgnore {
 
         loop {
             let mut buf = match reader.fill_buf() {
-                Ok(buf) if buf.is_empty() => break,
+                Ok([]) => break,
                 Ok(buf) => buf,
                 Err(_err) => break,
             };
@@ -521,7 +522,7 @@ mod tests {
 
     #[test]
     fn parse_stdout_1() {
-        let stdout = b"source\042\0pattern\0pathname\0";
+        let stdout = b"source\x0042\0pattern\0pathname\0";
         let mut parser = StdoutParser::default();
         let (is_ignored, rest) = parser.feed(stdout).unwrap();
         assert!(is_ignored);
@@ -551,7 +552,7 @@ mod tests {
     #[test]
     fn parse_stdout_4() {
         let mut parser = StdoutParser::default();
-        let first = b"source\042\0pattern\0pathname\0";
+        let first = b"source\x0042\0pattern\0pathname\0";
         let second = b"\0\0\0pathname\0";
         let stdout = [&first[..], second].concat();
 

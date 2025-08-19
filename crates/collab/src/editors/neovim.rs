@@ -279,7 +279,7 @@ impl CollabEditor for Neovim {
     ) -> Result<Self::ProjectFilter, Self::ProjectFilterError> {
         let create_res = ctx.with_editor(|nvim| {
             let spawner = nvim.executor().background_spawner();
-            gitignore::GitIgnore::new(&project_root.path(), spawner)
+            gitignore::GitIgnore::new(project_root.path(), spawner)
         });
 
         match create_res {

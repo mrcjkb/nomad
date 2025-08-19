@@ -320,7 +320,7 @@ impl Event for UneditableEndOfLine {
                 };
 
                 for callback in callbacks {
-                    callback((&buffer, old_value, new_value, set_by));
+                    callback((buffer, old_value, new_value, set_by));
                 }
 
                 false
