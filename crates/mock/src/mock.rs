@@ -200,12 +200,6 @@ where
             .map(|id| self.buffer_mut(id))
     }
 
-    fn buffer_ids(
-        &mut self,
-    ) -> impl Iterator<Item = BufferId> + use<Fs, BgSpawner> {
-        self.buffers.keys().copied().collect::<Vec<_>>().into_iter()
-    }
-
     async fn create_buffer(
         file_path: &AbsPath,
         agent_id: AgentId,
@@ -216,6 +210,19 @@ where
 
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
         self.current_buffer.map(|id| self.buffer_mut(id))
+    }
+
+    fn for_each_buffer<Fun>(&mut self, mut fun: Fun)
+    where
+        Fun: FnMut(Self::Buffer<'_>),
+    {
+        for inner in self.buffers.values_mut() {
+            fun(Buffer {
+                inner,
+                callbacks: &self.callbacks,
+                current_buffer: &mut self.current_buffer,
+            })
+        }
     }
 
     fn cursor(

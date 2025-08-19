@@ -70,10 +70,11 @@ impl<Ed: BaseEditor> Editor for AuthMock<Ed> {
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {
         self.inner.buffer_at_path(path)
     }
-    fn buffer_ids(
-        &mut self,
-    ) -> impl Iterator<Item = Self::BufferId> + use<Ed> {
-        self.inner.buffer_ids()
+    fn for_each_buffer<Fun>(&mut self, fun: Fun)
+    where
+        Fun: FnMut(Self::Buffer<'_>),
+    {
+        self.inner.for_each_buffer(fun);
     }
     async fn create_buffer(
         file_path: &AbsPath,

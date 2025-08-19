@@ -144,14 +144,11 @@ impl Editor for Neovim {
 
     #[inline]
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {
-        self.buffer_ids()
-            .flat_map(|buf_id| self.buffer_inner(buf_id))
-            .find(|buf| &*buf.path() == path)
-    }
-
-    #[inline]
-    fn buffer_ids(&mut self) -> impl Iterator<Item = BufferId> + use<> {
-        oxi::api::list_bufs().filter(|buf| buf.is_loaded()).map(BufferId::new)
+        oxi::api::list_bufs().find_map(|buf| {
+            let id = BufferId::new(buf);
+            let buffer = self.buffer_inner(id)?;
+            (&*buffer.path() == path).then_some(buffer)
+        })
     }
 
     #[inline]
@@ -162,6 +159,18 @@ impl Editor for Neovim {
     #[inline]
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
         self.buffer(BufferId::of_focused())
+    }
+
+    #[inline]
+    fn for_each_buffer<Fun>(&mut self, mut fun: Fun)
+    where
+        Fun: FnMut(Self::Buffer<'_>),
+    {
+        for buf_id in oxi::api::list_bufs().map(BufferId::new) {
+            if let Some(buffer) = self.buffer_inner(buf_id) {
+                fun(buffer);
+            }
+        }
     }
 
     #[inline]

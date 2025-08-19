@@ -42,13 +42,6 @@ pub trait Buffer {
         Fun: FnMut(<Self::Editor as Editor>::Cursor<'_>);
 
     /// TODO: docs.
-    fn num_cursors(&mut self) -> u32 {
-        let mut num_cursors = 0;
-        self.for_each_cursor(|_| num_cursors += 1);
-        num_cursors
-    }
-
-    /// TODO: docs.
     fn on_edited<Fun>(
         &self,
         fun: Fun,

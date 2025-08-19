@@ -95,11 +95,6 @@ pub trait Editor: 'static + Sized {
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>>;
 
     /// TODO: docs.
-    fn buffer_ids(
-        &mut self,
-    ) -> impl Iterator<Item = Self::BufferId> + use<Self>;
-
-    /// TODO: docs.
     fn create_buffer(
         file_path: &AbsPath,
         agent_id: AgentId,
@@ -108,6 +103,11 @@ pub trait Editor: 'static + Sized {
 
     /// TODO: docs.
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>>;
+
+    /// TODO: docs.
+    fn for_each_buffer<Fun>(&mut self, fun: Fun)
+    where
+        Fun: FnMut(Self::Buffer<'_>);
 
     /// TODO: docs.
     fn cursor(&mut self, id: Self::CursorId) -> Option<Self::Cursor<'_>>;
@@ -163,16 +163,6 @@ pub trait Editor: 'static + Sized {
     ) -> impl MaybeResult<T, Error = Self::DeserializeError>
     where
         T: Deserialize<'de>;
-
-    /// TODO: docs.
-    #[inline]
-    fn for_each_buffer<Fun>(&mut self, mut fun: Fun)
-    where
-        Fun: FnMut(Self::Buffer<'_>),
-    {
-        self.buffer_ids()
-            .for_each(|id| fun(self.buffer(id).expect("buffer exists")))
-    }
 
     /// TODO: docs.
     #[allow(unused_variables)]
