@@ -1,28 +1,22 @@
+//! This crate contains the integration tests for all the crates in the
+//! workspace.
+
 #![allow(missing_docs)]
 #![allow(clippy::unwrap_used)]
+#![cfg_attr(not(test), allow(dead_code, unused_imports))]
 
-//! This crate contains all of the workspace's tests.
-//!
-//! # Neovim
-//!
-//! Because the Neovim tests have to be compiled into a dynamic library before
-//! they can be run, all the code paths touched by them have to always be
-//! present, even when not in `cfg(test)`.
+mod ed;
+mod utils;
 
-#[cfg(all(test, feature = "collab"))]
+#[cfg(feature = "collab")]
 mod collab;
-#[cfg(all(test, feature = "gitignore"))]
+#[cfg(feature = "gitignore")]
 mod gitignore;
-#[cfg(all(test, feature = "mock"))]
+#[cfg(feature = "mock")]
 mod mock;
 #[cfg(feature = "neovim")]
 mod neovim;
-#[cfg(all(test, feature = "thread-pool"))]
+#[cfg(feature = "thread-pool")]
 mod thread_pool;
-#[cfg(all(test, feature = "walkdir"))]
+#[cfg(feature = "walkdir")]
 mod walkdir;
-
-#[cfg(any(all(test, feature = "__editor"), feature = "neovim"))]
-mod ed;
-#[cfg(any(all(test, feature = "__any"), feature = "neovim"))]
-mod utils;
