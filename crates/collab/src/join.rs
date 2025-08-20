@@ -18,6 +18,7 @@ use editor::Context;
 use editor::action::AsyncAction;
 use editor::command::{self, ToCompletionFn};
 use editor::shared::{MultiThreaded, Shared};
+use either::Either;
 use fs::{Directory, File, Fs, Symlink};
 use futures_util::{AsyncReadExt, SinkExt, StreamExt, future, stream};
 use fxhash::FxHashMap;
@@ -107,8 +108,9 @@ impl<Ed: CollabEditor> Join<Ed> {
         let project_filter = Ed::project_filter(&project_root, ctx)
             .map_err(JoinError::ProjectFilter)?;
 
-        let event_stream =
-            stream_builder.push_filter(project_filter).build(ctx);
+        let event_stream = stream_builder
+            .push_filter(Either::Left(project_filter))
+            .build(ctx);
 
         let project_handle = project_guard.activate(NewProjectArgs {
             agent_id: event_stream.agent_id(),
@@ -134,7 +136,7 @@ impl<Ed: CollabEditor> Join<Ed> {
 
         ctx.spawn_local(async move |ctx| {
             if let Err(err) = session.run(ctx).await {
-                ctx.emit_err(err);
+                Ed::on_session_error(err, ctx);
             }
         })
         .detach();

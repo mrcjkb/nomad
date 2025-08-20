@@ -35,8 +35,8 @@ use crate::session::Session;
 use crate::{SessionId, root_markers};
 
 /// TODO: docs.
-pub type ProjectFilter<B> =
-    Either<<B as CollabEditor>::ProjectFilter, AllButOne<<B as Editor>::Fs>>;
+pub type ProjectFilter<Ed> =
+    Either<<Ed as CollabEditor>::ProjectFilter, AllButOne<<Ed as Editor>::Fs>>;
 
 type Markers = root_markers::GitDirectory;
 
@@ -127,7 +127,7 @@ impl<Ed: CollabEditor> Start<Ed> {
 
         ctx.spawn_local(async move |ctx| {
             if let Err(err) = session.run(ctx).await {
-                ctx.emit_err(err);
+                Ed::on_session_error(err, ctx);
             }
         })
         .detach();
@@ -207,10 +207,7 @@ async fn read_project<Ed: CollabEditor>(
     root_path: &AbsPath,
     local_id: PeerId,
     ctx: &mut Context<Ed>,
-) -> Result<
-    (Project, EventStream<Ed, ProjectFilter<Ed>>, IdMaps<Ed>),
-    ReadProjectError<Ed>,
-> {
+) -> Result<(Project, EventStream<Ed>, IdMaps<Ed>), ReadProjectError<Ed>> {
     let fs = ctx.fs();
 
     let root_node = fs

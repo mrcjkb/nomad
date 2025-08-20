@@ -16,7 +16,7 @@ use neovim::notify::ContextExt;
 use neovim::{Neovim, mlua, oxi};
 
 use crate::editors::{ActionForSelectedSession, CollabEditor};
-use crate::{config, join, leave, start, yank};
+use crate::{config, join, leave, session, start, yank};
 
 pub type SessionId = ulid::Ulid;
 
@@ -302,6 +302,13 @@ impl CollabEditor for Neovim {
     }
 
     fn on_leave_error(error: leave::LeaveError, ctx: &mut Context<Self>) {
+        ctx.notify_error(error);
+    }
+
+    fn on_session_error(
+        error: session::SessionError<Self>,
+        ctx: &mut Context<Self>,
+    ) {
         ctx.notify_error(error);
     }
 

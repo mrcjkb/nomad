@@ -2,9 +2,8 @@ use std::io;
 
 use collab_server::client as collab_client;
 use collab_types::Message;
-use editor::{Context, notify};
+use editor::Context;
 use flume::Receiver;
-use fs::filter::Filter;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select_biased};
 
 use crate::editors::{CollabEditor, MessageRx, MessageTx};
@@ -12,9 +11,9 @@ use crate::event_stream::{EventError, EventStream};
 use crate::leave::StopRequest;
 use crate::project::{ProjectHandle, SynchronizeError};
 
-pub(crate) struct Session<Ed: CollabEditor, F: Filter<Ed::Fs>> {
+pub(crate) struct Session<Ed: CollabEditor> {
     /// TODO: docs..
-    pub(crate) event_stream: EventStream<Ed, F>,
+    pub(crate) event_stream: EventStream<Ed>,
 
     /// TODO: docs..
     pub(crate) message_rx: MessageRx<Ed>,
@@ -31,8 +30,8 @@ pub(crate) struct Session<Ed: CollabEditor, F: Filter<Ed::Fs>> {
 
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error, cauchy::From)]
 #[display("{_0}")]
-pub(crate) enum SessionError<Ed: CollabEditor, F: Filter<Ed::Fs>> {
-    EventRx(#[from] EventError<Ed::Fs, F>),
+pub enum SessionError<Ed: CollabEditor> {
+    EventRx(#[from] EventError<Ed>),
     MessageRx(#[from] collab_client::ReceiveError),
     #[display("the server kicked this peer out of the session")]
     MessageRxExhausted,
@@ -40,11 +39,11 @@ pub(crate) enum SessionError<Ed: CollabEditor, F: Filter<Ed::Fs>> {
     Synchronize(#[from] SynchronizeError<Ed>),
 }
 
-impl<Ed: CollabEditor, F: Filter<Ed::Fs>> Session<Ed, F> {
+impl<Ed: CollabEditor> Session<Ed> {
     pub(crate) async fn run(
         self,
         ctx: &mut Context<Ed>,
-    ) -> Result<(), SessionError<Ed, F>> {
+    ) -> Result<(), SessionError<Ed>> {
         let Self {
             mut event_stream,
             message_rx,
@@ -86,13 +85,5 @@ impl<Ed: CollabEditor, F: Filter<Ed::Fs>> Session<Ed, F> {
                 },
             }
         }
-    }
-}
-
-impl<Ed: CollabEditor, F: Filter<Ed::Fs>> notify::Error
-    for SessionError<Ed, F>
-{
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        todo!();
     }
 }

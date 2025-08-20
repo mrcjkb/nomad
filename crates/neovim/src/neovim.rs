@@ -28,12 +28,6 @@ pub struct Neovim {
     reinstate_panic_hook: bool,
 }
 
-/// TODO: docs.
-#[derive(Debug)]
-pub struct CreateBufferError {
-    inner: fs::ReadFileToStringError<real_fs::RealFs>,
-}
-
 impl Neovim {
     /// Same as [`oxi::api::create_buf`], but keeps track of the [`AgentId`]
     /// that created the buffer.
@@ -130,7 +124,7 @@ impl Editor for Neovim {
     type SelectionId = BufferId;
 
     type BufferSaveError = oxi::api::Error;
-    type CreateBufferError = CreateBufferError;
+    type CreateBufferError = fs::ReadFileToStringError<real_fs::RealFs>;
     type SerializeError = serde::NeovimSerializeError;
     type DeserializeError = serde::NeovimDeserializeError;
 
@@ -187,7 +181,7 @@ impl Editor for Neovim {
                 fs::ReadFileError::NoNodeAtPath(_),
             )) => String::default(),
 
-            Err(other) => return Err(CreateBufferError { inner: other }),
+            Err(other) => return Err(other),
         };
 
         this.with_mut(|this| {
@@ -321,14 +315,5 @@ impl Editor for Neovim {
     ) {
         err.set_config_path(config_path.clone());
         self.emit_err(namespace, err);
-    }
-}
-
-impl editor::notify::Error for CreateBufferError {
-    fn to_message(&self) -> (editor::notify::Level, editor::notify::Message) {
-        (
-            editor::notify::Level::Error,
-            editor::notify::Message::from_display(&self.inner),
-        )
     }
 }

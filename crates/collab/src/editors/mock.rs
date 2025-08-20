@@ -9,10 +9,10 @@ use abs_path::{AbsPath, AbsPathBuf};
 pub use collab_server::test::TestSessionId as MockSessionId;
 use collab_types::Peer;
 use duplex_stream::{DuplexStream, duplex};
-use editor::{ByteOffset, Context, Editor, EditorAdapter, notify};
+use editor::{ByteOffset, Context, Editor, EditorAdapter};
 
 use crate::editors::{ActionForSelectedSession, CollabEditor};
-use crate::{config, join, leave, start, yank};
+use crate::{config, join, leave, session, start, yank};
 
 #[allow(clippy::type_complexity)]
 pub struct CollabMock<Ed: Editor, F = ()> {
@@ -55,7 +55,8 @@ pub struct AnyError {
     inner: Box<dyn Error>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, cauchy::Error)]
+#[display("no default directory for remote projects configured")]
 pub struct NoDefaultDirForRemoteProjectsError;
 
 impl<Ed: Editor> CollabMock<Ed, ()> {
@@ -302,6 +303,13 @@ where
         unimplemented!()
     }
 
+    fn on_session_error(
+        _: session::SessionError<Self>,
+        _: &mut Context<Self>,
+    ) {
+        unimplemented!()
+    }
+
     fn on_start_error(_: start::StartError<Self>, _: &mut Context<Self>) {
         unimplemented!()
     }
@@ -431,22 +439,5 @@ impl<E: Error + 'static> From<E> for AnyError {
 impl PartialEq for AnyError {
     fn eq(&self, other: &Self) -> bool {
         self.inner.to_string() == other.inner.to_string()
-    }
-}
-
-impl notify::Error for AnyError {
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        self.inner.to_message()
-    }
-}
-
-impl notify::Error for NoDefaultDirForRemoteProjectsError {
-    fn to_message(&self) -> (notify::Level, notify::Message) {
-        (
-            notify::Level::Error,
-            notify::Message::from_str(
-                "no default directory for remote projects configured",
-            ),
-        )
     }
 }

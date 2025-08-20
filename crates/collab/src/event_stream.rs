@@ -1,5 +1,6 @@
 use abs_path::AbsPathBuf;
 use editor::{AgentId, Buffer, Context, Cursor, Selection, Shared};
+use either::Either;
 use fs::filter::Filter;
 use fs::{Directory, File, Fs};
 use futures_util::future::FusedFuture;
@@ -10,14 +11,12 @@ use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
 use crate::editors::CollabEditor;
 use crate::event::{self, Event};
 use crate::list_ext::List;
+use crate::start::{AllButOne, ProjectFilter};
 
 type FxIndexMap<K, V> = indexmap::IndexMap<K, V, FxBuildHasher>;
 
 /// TODO: docs.
-pub(crate) struct EventStream<
-    Ed: CollabEditor,
-    F = <Ed as CollabEditor>::ProjectFilter,
-> {
+pub(crate) struct EventStream<Ed: CollabEditor> {
     /// The [`AgentId`] of the `Session` that owns `Self`.
     agent_id: AgentId,
     /// Map from a file's node ID to the ID of the corresponding buffer.
@@ -30,9 +29,9 @@ pub(crate) struct EventStream<
     dir_streams: DirectoryStreams<Ed::Fs>,
     /// Streams for file events.
     file_streams: FileStreams<Ed::Fs>,
-    /// A filter used to check if [`fs::FsNode`]s created under the project root
-    /// should be part of the project.
-    project_filter: F,
+    /// A filter used to check if [`fs::FsNode`]s created under the project
+    /// root should be part of the project.
+    project_filter: ProjectFilter<Ed>,
     /// The ID of the project root.
     root_id: <Ed::Fs as Fs>::NodeId,
     /// The path to the project root.
@@ -66,12 +65,12 @@ pub(crate) struct Done<F> {
 /// The type of error that can occur when [`EventStream::next`] fails.
 #[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
 #[display("{_0}")]
-pub(crate) enum EventError<Fs: fs::Fs, F: Filter<Fs>> {
+pub enum EventError<Ed: CollabEditor> {
     /// The project filter returned an error.
-    Filter(F::Error),
+    Filter(<Ed::ProjectFilter as Filter<Ed::Fs>>::Error),
 
     /// We couldn't get the node at the given path.
-    NodeAtPath(Fs::NodeAtPathError),
+    NodeAtPath(<Ed::Fs as Fs>::NodeAtPathError),
 }
 
 struct BufferStreams<Ed: CollabEditor> {
@@ -141,7 +140,7 @@ struct SelectionStreams<Ed: CollabEditor> {
     new_selections_handle: Ed::EventHandle,
 }
 
-impl<Ed: CollabEditor, F: Filter<Ed::Fs>> EventStream<Ed, F> {
+impl<Ed: CollabEditor> EventStream<Ed> {
     pub(crate) fn agent_id(&self) -> AgentId {
         self.agent_id
     }
@@ -149,7 +148,7 @@ impl<Ed: CollabEditor, F: Filter<Ed::Fs>> EventStream<Ed, F> {
     pub(crate) async fn next(
         &mut self,
         ctx: &mut Context<Ed>,
-    ) -> Result<Event<Ed>, EventError<Ed::Fs, F>> {
+    ) -> Result<Event<Ed>, EventError<Ed>> {
         loop {
             let mut dir_streams = self.dir_streams.inner.as_stream(0);
             let mut file_streams = self.file_streams.inner.as_stream(0);
@@ -210,7 +209,7 @@ impl<Ed: CollabEditor, F: Filter<Ed::Fs>> EventStream<Ed, F> {
         &mut self,
         event: event::BufferEvent<Ed>,
         ctx: &mut Context<Ed>,
-    ) -> Result<Option<event::BufferEvent<Ed>>, EventError<Ed::Fs, F>> {
+    ) -> Result<Option<event::BufferEvent<Ed>>, EventError<Ed>> {
         match &event {
             event::BufferEvent::Created(buffer_id, _) => {
                 let Some(buffer_path) = ctx.with_borrowed(|ctx| {
@@ -293,8 +292,7 @@ impl<Ed: CollabEditor, F: Filter<Ed::Fs>> EventStream<Ed, F> {
         &mut self,
         event: fs::DirectoryEvent<Ed::Fs>,
         ctx: &mut Context<Ed>,
-    ) -> Result<Option<fs::DirectoryEvent<Ed::Fs>>, EventError<Ed::Fs, F>>
-    {
+    ) -> Result<Option<fs::DirectoryEvent<Ed::Fs>>, EventError<Ed>> {
         Ok(match event {
             fs::DirectoryEvent::Creation(ref creation) => {
                 let Some(node) = ctx
@@ -420,7 +418,7 @@ impl<Ed: CollabEditor, F: Filter<Ed::Fs>> EventStream<Ed, F> {
     async fn should_watch_node(
         &self,
         node: &fs::Node<Ed::Fs>,
-    ) -> Result<bool, EventError<Ed::Fs, F>> {
+    ) -> Result<bool, EventError<Ed>> {
         debug_assert!(node.path().starts_with(&self.root_path));
 
         let Some(parent_path) = node.path().parent() else { return Ok(false) };
@@ -428,7 +426,9 @@ impl<Ed: CollabEditor, F: Filter<Ed::Fs>> EventStream<Ed, F> {
         self.project_filter
             .should_filter(parent_path, &node.meta())
             .await
-            .map_err(EventError::Filter)
+            .map_err(|err| match err {
+                Either::Left(err) => EventError::Filter(err),
+            })
     }
 
     fn watch_node(&mut self, node: &fs::Node<Ed::Fs>, ctx: &mut Context<Ed>) {
@@ -482,10 +482,14 @@ impl<Fs: fs::Fs> EventStreamBuilder<Fs, NeedsProjectFilter> {
     }
 }
 
-impl<Fs: fs::Fs, F: Filter<Fs>> EventStreamBuilder<Fs, Done<F>> {
-    pub(crate) fn build<Ed>(self, ctx: &mut Context<Ed>) -> EventStream<Ed, F>
+impl<Fs, Fi> EventStreamBuilder<Fs, Done<Either<Fi, AllButOne<Fs>>>>
+where
+    Fs: fs::Fs,
+    Fi: Filter<Fs>,
+{
+    pub(crate) fn build<Ed>(self, ctx: &mut Context<Ed>) -> EventStream<Ed>
     where
-        Ed: CollabEditor<Fs = Fs>,
+        Ed: CollabEditor<Fs = Fs, ProjectFilter = Fi>,
     {
         EventStream {
             agent_id: ctx.new_agent_id(),

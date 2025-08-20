@@ -13,7 +13,7 @@ use collab_types::Peer;
 use editor::{ByteOffset, Context, Editor};
 use futures_util::{AsyncRead, AsyncWrite};
 
-use crate::{config, join, leave, start, yank};
+use crate::{config, join, leave, session, start, yank};
 
 /// An [`Editor`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
@@ -133,6 +133,13 @@ pub trait CollabEditor: Editor {
 
     /// Called when the [`Leave`](leave::Leave) action returns an error.
     fn on_leave_error(error: leave::LeaveError, ctx: &mut Context<Self>);
+
+    /// Called when [`run`](session::Session::run)nig a session returns
+    /// an error.
+    fn on_session_error(
+        error: session::SessionError<Self>,
+        ctx: &mut Context<Self>,
+    );
 
     /// Called when the [`Start`](start::Start) action returns an error.
     fn on_start_error(error: start::StartError<Self>, ctx: &mut Context<Self>);

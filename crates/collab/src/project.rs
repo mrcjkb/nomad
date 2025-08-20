@@ -111,8 +111,10 @@ pub(crate) struct IdMaps<Ed: Editor> {
     pub(crate) selection2selection: FxHashMap<Ed::SelectionId, SelectionId>,
 }
 
-#[derive(cauchy::Debug)]
-pub(crate) enum SynchronizeError<Ed: CollabEditor> {
+/// TODO: docs.
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
+pub enum SynchronizeError<Ed: CollabEditor> {
     /// TODO: docs.
     ContentsAtPath(ContentsAtPathError<Ed::Fs>),
 }
@@ -1709,9 +1711,15 @@ trait FsExt: fs::Fs {
 
 impl<Fs: fs::Fs> FsExt for Fs {}
 
-pub(crate) enum ContentsAtPathError<Fs: fs::Fs> {
+/// TODO: docs.
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
+pub enum ContentsAtPathError<Fs: fs::Fs> {
+    /// TODO: docs.
     NodeAtPath(Fs::NodeAtPathError),
+    /// TODO: docs.
     ReadFile(<Fs::File as fs::File>::ReadError),
+    /// TODO: docs.
     ReadSymlink(<Fs::Symlink as fs::Symlink>::ReadError),
 }
 
