@@ -7,7 +7,10 @@ use std::process::Command;
 fn main() {
     setup_git();
 
-    if env::var("CARGO_FEATURE_NEOVIM").is_ok() {
+    if env::var("CARGO_FEATURE_NEOVIM").is_ok()
+        // Avoid building the Neovim tests if we're running coverage.
+        && env::var("CARGO_CFG_COVERAGE").is_err()
+    {
         setup_neovim();
     }
 }
