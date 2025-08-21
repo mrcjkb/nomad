@@ -1,5 +1,6 @@
-use editor::AgentId;
+use editor::{AccessMut, AgentId, Editor};
 
+use crate::Neovim;
 use crate::buffer::{BufferId, NeovimBuffer};
 use crate::events::{
     AutocmdId,
@@ -10,7 +11,7 @@ use crate::events::{
     EventsBorrow,
 };
 use crate::mode::ModeStr;
-use crate::oxi::api;
+use crate::oxi::{self, api};
 
 #[derive(Clone, Copy)]
 pub(crate) struct ModeChanged;
@@ -34,20 +35,34 @@ impl Event for ModeChanged {
     }
 
     #[inline]
-    fn register(&self, events: EventsBorrow) -> Self::RegisterOutput {
-        let augroup_id = events.augroup_id;
+    fn register(&self, _: EventsBorrow) -> AutocmdId {
+        todo!();
+    }
 
-        let bufs_state = events.borrow.buffers_state.clone();
-        let events = events.handle;
+    #[inline]
+    fn register2(
+        &self,
+        events: &mut Events,
+        mut nvim: impl AccessMut<Neovim> + 'static,
+    ) -> AutocmdId {
+        let callback = move |args: api::types::AutocmdCallbackArgs| {
+            nvim.with_mut(|nvim| {
+                let buffer_id = BufferId::new(args.buffer.clone());
 
-        let opts = api::opts::CreateAutocmdOpts::builder()
-            .group(augroup_id)
-            .callback(move |args: api::types::AutocmdCallbackArgs| {
-                let buffer_id = BufferId::new(args.buffer);
+                let Some(callbacks) = nvim
+                    .events2
+                    .on_mode_changed
+                    .as_ref()
+                    .map(|cbs| cbs.cloned())
+                else {
+                    return true;
+                };
 
-                let Some(callbacks) = events.with(|ev| {
-                    ev.on_mode_changed.as_ref().map(Callbacks::cloned)
-                }) else {
+                let Some(buffer) = nvim.buffer(buffer_id) else {
+                    tracing::error!(
+                        buffer_name = ?args.buffer.get_name().ok(),
+                        "ModeChanged triggered for an invalid buffer",
+                    );
                     return true;
                 };
 
@@ -57,7 +72,6 @@ impl Event for ModeChanged {
                          \"{{old_mode}}:{{new_mode}}\"",
                     );
 
-                let buffer = Events::buffer(buffer_id, &events, &bufs_state);
                 let old_mode = ModeStr::new(old_mode);
                 let new_mode = ModeStr::new(new_mode);
 
@@ -67,10 +81,16 @@ impl Event for ModeChanged {
 
                 false
             })
-            .build();
+        };
 
-        api::create_autocmd(["ModeChanged"], &opts)
-            .expect("couldn't create autocmd on ModeChanged")
+        api::create_autocmd(
+            ["ModeChanged"],
+            &api::opts::CreateAutocmdOpts::builder()
+                .group(events.augroup_id)
+                .callback(oxi::Function::from_fn_mut(callback))
+                .build(),
+        )
+        .expect("couldn't create autocmd on ModeChanged")
     }
 
     #[inline]
