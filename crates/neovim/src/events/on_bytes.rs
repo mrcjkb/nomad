@@ -4,7 +4,7 @@ use smallvec::smallvec_inline;
 
 use crate::Neovim;
 use crate::buffer::{BufferId, NeovimBuffer};
-use crate::events::{Callbacks, Event, EventKind, Events, EventsBorrow};
+use crate::events::{Callbacks, Event, EventKind, Events};
 use crate::oxi::{self, api};
 
 #[derive(Clone, Copy)]
@@ -31,14 +31,9 @@ impl Event for OnBytes {
     }
 
     #[inline]
-    fn register(&self, _: EventsBorrow) {
-        todo!();
-    }
-
-    #[inline]
-    fn register2(
+    fn register(
         &self,
-        _: &mut Events,
+        _: &Events,
         mut nvim: impl AccessMut<Neovim> + 'static,
     ) {
         let buffer_id = self.0;
@@ -50,21 +45,21 @@ impl Event for OnBytes {
                     .on_buffer_edited
                     .get(&buffer_id)
                     .map(|cbs| cbs.cloned())
-                    else {
-                        return true;
-                    };
+                else {
+                    return true;
+                };
 
-                    let edited_by = nvim
-                        .events2
-                        .agent_ids
-                        .edited_buffer
-                        .remove(&buffer_id)
-                        .unwrap_or(AgentId::UNKNOWN) ;
+                let edited_by = nvim
+                    .events2
+                    .agent_ids
+                    .edited_buffer
+                    .remove(&buffer_id)
+                    .unwrap_or(AgentId::UNKNOWN) ;
 
                 let Some(buffer) = nvim.buffer(buffer_id) else {
                     tracing::error!(
                         buffer_name = ?api::Buffer::from(buffer_id).get_name().ok(),
-                        "BufEnter triggered for an invalid buffer",
+                        "OnBytes triggered for an invalid buffer",
                     );
                     return true;
                 };

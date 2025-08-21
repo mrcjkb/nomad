@@ -1,5 +1,4 @@
 use core::cell::RefCell;
-use core::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use editor::{AccessMut, AgentId, Shared};
@@ -8,7 +7,7 @@ use slotmap::SlotMap;
 use smallvec::{SmallVec, smallvec_inline};
 
 use crate::Neovim;
-use crate::buffer::{BufferId, BuffersState, NeovimBuffer};
+use crate::buffer::BufferId;
 use crate::events::{self, AugroupId, CallbacksContainer, Event};
 use crate::option::{SetUneditableEolAgentIds, UneditableEndOfLine};
 use crate::oxi::api;
@@ -20,11 +19,6 @@ pub struct EventHandle {
     inner: SmallVec<[(slotmap::DefaultKey, EventKind); 1]>,
 }
 
-pub(crate) struct EventsBorrow<'a> {
-    pub(crate) borrow: &'a mut Events,
-    pub(crate) handle: Shared<Events>,
-}
-
 /// TODO: docs.
 pub(crate) struct Events {
     /// TODO: docs.
@@ -32,9 +26,6 @@ pub(crate) struct Events {
 
     /// The ID of the group that `Self` will register autocommands in.
     pub(crate) augroup_id: AugroupId,
-
-    /// TODO: docs.
-    pub(crate) buffers_state: BuffersState,
 
     /// TODO: docs.
     pub(crate) on_uneditable_eol_set: Option<Callbacks<UneditableEndOfLine>>,
@@ -142,13 +133,6 @@ impl EventHandle {
     }
 }
 
-impl<'a> EventsBorrow<'a> {
-    #[inline]
-    pub(crate) fn reborrow(&mut self) -> EventsBorrow<'_> {
-        EventsBorrow { borrow: self.borrow, handle: self.handle.clone() }
-    }
-}
-
 impl Events {
     /// Returns whether there's at least one callback registered for the
     /// given event.
@@ -167,10 +151,7 @@ impl Events {
                 return callbacks.insert(fun);
             }
 
-            let output = event.register(EventsBorrow {
-                borrow: this,
-                handle: events.clone(),
-            });
+            let output = todo!();
 
             let mut callbacks = Callbacks::new(output);
 
@@ -190,14 +171,14 @@ impl Events {
         &mut self,
         event: T,
         callback: impl FnMut(T::Args<'_>) + 'static,
-        nvim: impl AccessMut<Neovim> + 'static,
+        nvim: impl AccessMut<Neovim> + Clone + 'static,
     ) -> EventHandle {
         let callback_key = if let Some(callbacks) =
             event.container(self).get_mut(event.key())
         {
             callbacks.insert(callback)
         } else {
-            let register_output = event.register2(self, nvim);
+            let register_output = event.register(self, nvim);
             let mut callbacks = Callbacks::new(register_output);
             let callback_key = callbacks.insert(callback);
             event.container(self).insert(event.key(), callbacks);
@@ -207,10 +188,7 @@ impl Events {
         EventHandle { inner: smallvec_inline![(callback_key, event.kind())] }
     }
 
-    pub(crate) fn new(
-        augroup_name: &str,
-        buffers_state: BuffersState,
-    ) -> Self {
+    pub(crate) fn new(augroup_name: &str) -> Self {
         let augroup_id = api::create_augroup(
             augroup_name,
             &api::opts::CreateAugroupOpts::builder().clear(true).build(),
@@ -220,7 +198,6 @@ impl Events {
         Self {
             augroup_id,
             agent_ids: Default::default(),
-            buffers_state,
             on_buffer_created: Default::default(),
             on_buffer_edited: Default::default(),
             on_buffer_focused: Default::default(),
@@ -231,16 +208,6 @@ impl Events {
             on_mode_changed: Default::default(),
             on_uneditable_eol_set: Default::default(),
         }
-    }
-
-    #[track_caller]
-    pub(crate) fn buffer<'a>(
-        buffer_id: BufferId,
-        events: &'a Shared<Events>,
-        bufs_state: &'a BuffersState,
-    ) -> NeovimBuffer<'a> {
-        NeovimBuffer::new(buffer_id, events, bufs_state)
-            .expect("couldn't get buffer")
     }
 
     /// TODO: docs.
@@ -318,21 +285,5 @@ impl<T: Event> Callbacks<T> {
     #[inline]
     fn remove(&mut self, callback_key: slotmap::DefaultKey) {
         self.inner.remove(callback_key);
-    }
-}
-
-impl Deref for EventsBorrow<'_> {
-    type Target = Events;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        self.borrow
-    }
-}
-
-impl DerefMut for EventsBorrow<'_> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.borrow
     }
 }

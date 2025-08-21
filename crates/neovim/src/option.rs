@@ -1,18 +1,11 @@
-use core::marker::PhantomData;
 use core::mem;
 use core::ops::Deref;
 
-use editor::{AgentId, Buffer, Shared};
+use editor::{AccessMut, AgentId, Buffer, Editor};
 
+use crate::Neovim;
 use crate::buffer::{BufferId, NeovimBuffer};
-use crate::events::{
-    AutocmdId,
-    Callbacks,
-    Event,
-    EventKind,
-    Events,
-    EventsBorrow,
-};
+use crate::events::{self, AutocmdId, Callbacks, Event, EventKind, Events};
 use crate::oxi::{self, api};
 
 /// TODO: docs.
@@ -48,15 +41,6 @@ pub(crate) trait NeovimOption: 'static + Sized {
     }
 }
 
-/// TODO: docs.
-pub(crate) trait WatchedOption: NeovimOption {
-    fn callbacks(
-        events: &mut Events,
-    ) -> &mut Option<Callbacks<OptionSet<Self>>>;
-
-    fn event_kind() -> EventKind;
-}
-
 /// The "binary" option.
 pub(crate) struct Binary;
 
@@ -68,9 +52,6 @@ pub(crate) struct FixEndOfLine;
 
 /// TODO: docs.
 pub(crate) struct UneditableEndOfLine;
-
-/// TODO: docs.
-pub(crate) struct OptionSet<T>(PhantomData<T>);
 
 /// The [`Opts`](NeovimOption::Opts) for all buffer-local options.
 pub(crate) struct BufferLocalOpts(api::opts::OptionOpts);
@@ -86,50 +67,10 @@ impl UneditableEndOfLine {
     }
 }
 
-impl<T: NeovimOption> OptionSet<T> {
+impl BufferLocalOpts {
     #[inline]
-    fn register_inner<F>(events: EventsBorrow, on_option_set: F) -> AutocmdId
-    where
-        F: Fn(
-                Option<NeovimBuffer>,
-                &T::Value,
-                &T::Value,
-                &Shared<Events>,
-            ) -> bool
-            + 'static,
-    {
-        let augroup_id = events.augroup_id;
-        let bufs_state = events.borrow.buffers_state.clone();
-        let events = events.handle;
-
-        let opts = api::opts::CreateAutocmdOpts::builder()
-            .group(augroup_id)
-            .patterns([T::LONG_NAME])
-            .callback(move |_: api::types::AutocmdCallbackArgs| {
-                let is_local = api::get_vvar::<oxi::String>("option_type")
-                    .expect("couldn't get option_type")
-                    == "local";
-
-                let buffer = is_local.then(|| {
-                    Events::buffer(
-                        BufferId::of_focused(),
-                        &events,
-                        &bufs_state,
-                    )
-                });
-
-                let old_value = api::get_vvar::<T::Value>("option_old")
-                    .expect("couldn't get option_old");
-
-                let new_value = api::get_vvar::<T::Value>("option_new")
-                    .expect("couldn't get option_new");
-
-                on_option_set(buffer, &old_value, &new_value, &events)
-            })
-            .build();
-
-        api::create_autocmd(["OptionSet"], &opts)
-            .expect("couldn't create autocmd on OptionSet")
+    fn new(buffer_id: BufferId) -> Self {
+        Self(api::opts::OptionOpts::builder().buffer(buffer_id.into()).build())
     }
 }
 
@@ -192,49 +133,6 @@ impl Deref for BufferLocalOpts {
     }
 }
 
-impl<T: WatchedOption> Event for OptionSet<T> {
-    /// A tuple of `(buffer, old_value, new_value)`, where `buffer` is only
-    /// present for buffer-local options.
-    type Args<'a> = (Option<&'a NeovimBuffer<'a>>, &'a T::Value, &'a T::Value);
-    type Container<'ev> = &'ev mut Option<Callbacks<Self>>;
-    type RegisterOutput = AutocmdId;
-
-    #[inline]
-    fn container<'ev>(&self, events: &'ev mut Events) -> Self::Container<'ev> {
-        T::callbacks(events)
-    }
-
-    #[inline]
-    fn key(&self) {}
-
-    #[inline]
-    fn kind(&self) -> EventKind {
-        T::event_kind()
-    }
-
-    #[inline]
-    fn register(&self, events: EventsBorrow) -> Self::RegisterOutput {
-        Self::register_inner(events, |buffer, old_value, new_value, events| {
-            let Some(callbacks) = events.with_mut(|ev| {
-                T::callbacks(ev).as_ref().map(Callbacks::cloned)
-            }) else {
-                return true;
-            };
-
-            for callback in callbacks {
-                callback((buffer.as_ref(), old_value, new_value));
-            }
-
-            false
-        })
-    }
-
-    #[inline]
-    fn unregister(autocmd_id: Self::RegisterOutput) {
-        let _ = api::del_autocmd(autocmd_id);
-    }
-}
-
 #[derive(Default)]
 pub(crate) struct SetUneditableEolAgentIds {
     set_eol: AgentId,
@@ -270,98 +168,109 @@ impl Event for UneditableEndOfLine {
 
     #[allow(clippy::too_many_lines)]
     #[inline]
-    fn register(&self, mut events: EventsBorrow) -> Self::RegisterOutput {
+    fn register(
+        &self,
+        events: &Events,
+        nvim: impl AccessMut<Neovim> + Clone + 'static,
+    ) -> Self::RegisterOutput {
         enum Option {
             Binary,
             Eol,
             FixEol,
         }
 
-        let on_option_set =
-            |buffer: &NeovimBuffer,
-             old_option_value: bool,
-             new_option_value: bool,
-             option: Option,
-             events: &Shared<Events>| {
-                let opts = buffer.into();
+        let on_option_set = |old_option_value: bool,
+                             new_option_value: bool,
+                             option: Option,
+                             nvim: &mut Neovim| {
+            let buffer_id = BufferId::of_focused();
 
-                let value = |option_value: bool| match option {
-                    Option::Binary => UneditableEndOfLine::get_inner(
-                        || EndOfLine.get(&opts),
-                        || FixEndOfLine.get(&opts),
-                        || option_value,
-                    ),
-                    Option::Eol => UneditableEndOfLine::get_inner(
-                        || option_value,
-                        || FixEndOfLine.get(&opts),
-                        || Binary.get(&opts),
-                    ),
-                    Option::FixEol => UneditableEndOfLine::get_inner(
-                        || EndOfLine.get(&opts),
-                        || option_value,
-                        || Binary.get(&opts),
-                    ),
-                };
+            let opts = BufferLocalOpts::new(buffer_id);
 
-                let old_value = value(old_option_value);
-                let new_value = value(new_option_value);
-
-                let Some((callbacks, set_by)) = events.with_mut(|events| {
-                    let callbacks = events.on_uneditable_eol_set.as_ref()?;
-                    let ids = &mut events.agent_ids.set_uneditable_eol;
-                    let set_by = match option {
-                        Option::Eol => mem::take(&mut ids.set_eol),
-                        Option::FixEol => mem::take(&mut ids.set_fix_eol),
-                        Option::Binary => AgentId::UNKNOWN,
-                    };
-                    Some((callbacks.cloned(), set_by))
-                }) else {
-                    return true;
-                };
-
-                for callback in callbacks {
-                    callback((buffer, old_value, new_value, set_by));
-                }
-
-                false
+            let value = |option_value: bool| match option {
+                Option::Binary => UneditableEndOfLine::get_inner(
+                    || EndOfLine.get(&opts),
+                    || FixEndOfLine.get(&opts),
+                    || option_value,
+                ),
+                Option::Eol => UneditableEndOfLine::get_inner(
+                    || option_value,
+                    || FixEndOfLine.get(&opts),
+                    || Binary.get(&opts),
+                ),
+                Option::FixEol => UneditableEndOfLine::get_inner(
+                    || EndOfLine.get(&opts),
+                    || option_value,
+                    || Binary.get(&opts),
+                ),
             };
 
-        let eol_autocmd_id = OptionSet::<EndOfLine>::register_inner(
-            events.reborrow(),
-            move |maybe_buffer, &old_eol, &new_eol, events| {
-                on_option_set(
-                    &maybe_buffer.expect("'eol' is buffer-local"),
-                    old_eol,
-                    new_eol,
-                    Option::Eol,
-                    events,
-                )
+            let old_value = value(old_option_value);
+            let new_value = value(new_option_value);
+
+            let Some(callbacks) = nvim
+                .events2
+                .on_uneditable_eol_set
+                .as_ref()
+                .map(|cbs| cbs.cloned())
+            else {
+                return true;
+            };
+
+            let ids = &mut nvim.events2.agent_ids.set_uneditable_eol;
+
+            let set_by = match option {
+                Option::Eol => mem::take(&mut ids.set_eol),
+                Option::FixEol => mem::take(&mut ids.set_fix_eol),
+                Option::Binary => AgentId::UNKNOWN,
+            };
+
+            let Some(buffer) = nvim.buffer(buffer_id) else {
+                let buffer = api::Buffer::from(buffer_id);
+                tracing::error!(
+                    buffer_name = ?buffer.get_name().ok(),
+                    "UneditableEndOfLine triggered for an invalid buffer",
+                );
+                return true;
+            };
+
+            for callback in callbacks {
+                callback((&buffer, old_value, new_value, set_by));
+            }
+
+            false
+        };
+
+        let eol_autocmd_id = events::OptionSet::<EndOfLine>::register_inner(
+            events,
+            nvim.clone(),
+            move |is_buffer_local, &old_eol, &new_eol, nvim| {
+                debug_assert!(is_buffer_local);
+                on_option_set(old_eol, new_eol, Option::Eol, nvim)
             },
         );
 
-        let fixeol_autocmd_id = OptionSet::<FixEndOfLine>::register_inner(
-            events.reborrow(),
-            move |maybe_buffer, &old_fix_eol, &new_fix_eol, events| {
-                on_option_set(
-                    &maybe_buffer.expect("'fixeol' is buffer-local"),
-                    old_fix_eol,
-                    new_fix_eol,
-                    Option::FixEol,
-                    events,
-                )
-            },
-        );
+        let fixeol_autocmd_id =
+            events::OptionSet::<FixEndOfLine>::register_inner(
+                events,
+                nvim.clone(),
+                move |is_buffer_local, &old_fix_eol, &new_fix_eol, nvim| {
+                    debug_assert!(is_buffer_local);
+                    on_option_set(
+                        old_fix_eol,
+                        new_fix_eol,
+                        Option::FixEol,
+                        nvim,
+                    )
+                },
+            );
 
-        let binary_autocmd_id = OptionSet::<Binary>::register_inner(
-            events.reborrow(),
-            move |maybe_buffer, &old_binary, &new_binary, events| {
-                on_option_set(
-                    &maybe_buffer.expect("'binary' is buffer-local"),
-                    old_binary,
-                    new_binary,
-                    Option::Binary,
-                    events,
-                )
+        let binary_autocmd_id = events::OptionSet::<Binary>::register_inner(
+            events,
+            nvim.clone(),
+            move |is_buffer_local, &old_binary, &new_binary, nvim| {
+                debug_assert!(is_buffer_local);
+                on_option_set(old_binary, new_binary, Option::Binary, nvim)
             },
         );
 

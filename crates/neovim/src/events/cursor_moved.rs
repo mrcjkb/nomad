@@ -4,14 +4,7 @@ use nohash::IntMap as NoHashMap;
 use crate::Neovim;
 use crate::buffer::BufferId;
 use crate::cursor::NeovimCursor;
-use crate::events::{
-    AutocmdId,
-    Callbacks,
-    Event,
-    EventKind,
-    Events,
-    EventsBorrow,
-};
+use crate::events::{AutocmdId, Callbacks, Event, EventKind, Events};
 use crate::oxi::{self, api};
 
 #[derive(Clone, Copy)]
@@ -38,14 +31,9 @@ impl Event for CursorMoved {
     }
 
     #[inline]
-    fn register(&self, _: EventsBorrow) -> AutocmdId {
-        todo!();
-    }
-
-    #[inline]
-    fn register2(
+    fn register(
         &self,
-        events: &mut Events,
+        events: &Events,
         mut nvim: impl AccessMut<Neovim> + 'static,
     ) -> AutocmdId {
         let callback = move |args: api::types::AutocmdCallbackArgs| {

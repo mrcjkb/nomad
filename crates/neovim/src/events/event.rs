@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use editor::AccessMut;
 
 use crate::Neovim;
-use crate::events::{Callbacks, EventKind, Events, EventsBorrow};
+use crate::events::{Callbacks, EventKind, Events};
 
 /// TODO: docs.
 pub(crate) trait Event: Sized {
@@ -28,13 +28,10 @@ pub(crate) trait Event: Sized {
     fn kind(&self) -> EventKind;
 
     /// TODO: docs.
-    fn register(&self, events: EventsBorrow) -> Self::RegisterOutput;
-
-    /// TODO: docs.
-    fn register2(
+    fn register(
         &self,
-        _events: &mut Events,
-        _nvim: impl AccessMut<Neovim> + 'static,
+        _events: &Events,
+        _nvim: impl AccessMut<Neovim> + Clone + 'static,
     ) -> Self::RegisterOutput {
         todo!();
     }
