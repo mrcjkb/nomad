@@ -232,6 +232,11 @@ impl<Ed: EditorAdapter> Editor for Ed {
     }
 
     #[inline]
+    fn remove_event(&mut self, event_handle: Self::EventHandle) {
+        self.deref_mut().remove_event(event_handle);
+    }
+
+    #[inline]
     fn selection(
         &mut self,
         id: Self::SelectionId,

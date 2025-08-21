@@ -133,6 +133,9 @@ pub trait Editor: 'static + Sized {
     fn reinstate_panic_hook(&self) -> bool;
 
     /// TODO: docs.
+    fn remove_event(&mut self, event_handle: Self::EventHandle);
+
+    /// TODO: docs.
     fn selection(
         &mut self,
         id: Self::SelectionId,

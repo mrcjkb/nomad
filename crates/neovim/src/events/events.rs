@@ -175,7 +175,7 @@ impl Events {
     }
 
     /// TODO: docs.
-    pub(crate) fn cleanup_event_handle(&mut self, event_handle: EventHandle) {
+    pub(crate) fn remove_event(&mut self, event_handle: EventHandle) {
         use EventKind::*;
 
         for (cb_key, event_kind) in event_handle.inner.into_iter() {

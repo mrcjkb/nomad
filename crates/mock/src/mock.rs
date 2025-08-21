@@ -305,6 +305,13 @@ impl Editor for Mock {
         true
     }
 
+    fn remove_event(&mut self, event_handle: Self::EventHandle) {
+        event_handle
+            .callbacks
+            .inner
+            .with_mut(|map| map.remove(event_handle.key));
+    }
+
     fn selection(
         &mut self,
         selection_id: Self::SelectionId,
@@ -337,11 +344,5 @@ impl Editor for Mock {
 impl<Fs: Default> Default for Mock<Fs> {
     fn default() -> Self {
         Self::new(Fs::default())
-    }
-}
-
-impl Drop for EventHandle {
-    fn drop(&mut self) {
-        self.callbacks.inner.with_mut(|map| map.remove(self.key));
     }
 }

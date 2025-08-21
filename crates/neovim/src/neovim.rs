@@ -332,6 +332,11 @@ impl Editor for Neovim {
     }
 
     #[inline]
+    fn remove_event(&mut self, event_handle: Self::EventHandle) {
+        self.events.remove_event(event_handle);
+    }
+
+    #[inline]
     fn emit_deserialize_error_in_config<P: Plugin<Self>>(
         &mut self,
         config_path: &Namespace,
