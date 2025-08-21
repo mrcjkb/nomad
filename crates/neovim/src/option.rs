@@ -149,7 +149,7 @@ impl SetUneditableEolAgentIds {
 }
 
 impl Event for UneditableEndOfLine {
-    type Args<'a> = (&'a NeovimBuffer<'a>, bool, bool, AgentId);
+    type Args<'a> = (NeovimBuffer<'a>, bool, bool, AgentId);
     type Container<'ev> = &'ev mut Option<Callbacks<Self>>;
     type RegisterOutput = (AutocmdId, AutocmdId, AutocmdId);
 
@@ -225,7 +225,7 @@ impl Event for UneditableEndOfLine {
                 Option::Binary => AgentId::UNKNOWN,
             };
 
-            let Some(buffer) = nvim.buffer(buffer_id) else {
+            let Some(mut buffer) = nvim.buffer(buffer_id) else {
                 let buffer = api::Buffer::from(buffer_id);
                 tracing::error!(
                     buffer_name = ?buffer.get_name().ok(),
@@ -235,7 +235,7 @@ impl Event for UneditableEndOfLine {
             };
 
             for callback in callbacks {
-                callback((&buffer, old_value, new_value, set_by));
+                callback((buffer.reborrow(), old_value, new_value, set_by));
             }
 
             false

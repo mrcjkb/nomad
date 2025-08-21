@@ -1,10 +1,10 @@
 //! TODO: docs.
 
 use core::cmp::Ordering;
-use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
-use core::ops::Range;
+use core::ops::{self, Range};
+use core::{fmt, mem};
 use std::borrow::Cow;
 
 use abs_path::AbsPath;
@@ -21,20 +21,23 @@ use editor::{
 };
 use smallvec::{SmallVec, smallvec_inline};
 
-use crate::Neovim;
 use crate::convert::Convert;
 use crate::cursor::NeovimCursor;
-use crate::decoration_provider::{self, DecorationProvider};
-use crate::events::{self, EventHandle, Events};
+use crate::events::{self, EventHandle};
 use crate::option::{BufferLocalOpts, NeovimOption, UneditableEndOfLine};
 use crate::oxi::{self, BufHandle, String as NvimString, api, mlua};
+use crate::{Neovim, decoration_provider};
 
 /// TODO: docs.
 pub struct NeovimBuffer<'a> {
-    path: Cow<'a, AbsPath>,
+    /// The buffer's ID.
     id: BufferId,
-    pub(crate) events: &'a mut Events,
-    state: &'a BuffersState,
+
+    /// The buffer's path.
+    path: Cow<'a, AbsPath>,
+
+    /// An exclusive reference to the Neovim instance.
+    nvim: &'a mut Neovim,
 }
 
 /// TODO: docs.
@@ -75,11 +78,16 @@ pub struct GraphemeOffsets<'a> {
     point: Point,
 }
 
+#[derive(Default)]
 pub(crate) struct BuffersState {
-    decoration_provider: DecorationProvider,
-    on_bytes_replacement_extend_deletion_end_by_one: Shared<bool>,
-    on_bytes_replacement_insertion_starts_at_next_line: Shared<bool>,
-    skip_next_uneditable_eol: Shared<bool>,
+    /// TODO: docs.
+    on_bytes_replacement_extend_deletion_end_by_one: bool,
+
+    /// TODO: docs.
+    on_bytes_replacement_insertion_starts_at_next_line: bool,
+
+    /// TODO: docs.
+    skip_next_uneditable_eol: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -128,7 +136,7 @@ impl<'a> NeovimBuffer<'a> {
         let start = self.point_of_byte(byte_range.start);
         let end = self.point_of_byte(byte_range.end);
         HighlightRangeHandle {
-            inner: self.state.decoration_provider.highlight_range(
+            inner: self.decoration_provider.highlight_range(
                 self.id(),
                 start..end,
                 highlight_group_name,
@@ -276,11 +284,7 @@ impl<'a> NeovimBuffer<'a> {
     }
 
     #[inline]
-    pub(crate) fn new(
-        id: BufferId,
-        events: &'a mut Events,
-        state: &'a BuffersState,
-    ) -> Option<Self> {
+    pub(crate) fn new(id: BufferId, nvim: &'a mut Neovim) -> Option<Self> {
         let buffer = api::Buffer::from(id);
 
         if !buffer.is_valid() {
@@ -292,7 +296,7 @@ impl<'a> NeovimBuffer<'a> {
             Err(_) => return None,
         };
 
-        Some(Self { path, id, events, state })
+        Some(Self { id, path, nvim })
     }
 
     /// Converts the given [`ByteOffset`] to the corresponding [`Point`] in the
@@ -441,7 +445,9 @@ impl<'a> NeovimBuffer<'a> {
         let insert_after_uneditable_eol = should_clamp_start;
 
         if should_unset_uneditable_eol {
-            if !self.events.contains(&events::OnBytes(self.id())) {
+            let buffer_id = self.id;
+
+            if !self.events.contains(&events::OnBytes(buffer_id)) {
                 return;
             }
 
@@ -458,20 +464,19 @@ impl<'a> NeovimBuffer<'a> {
                 !delete_range.is_empty() || !insert_text.is_empty();
 
             if is_on_bytes_triggered {
-                self.state.skip_next_uneditable_eol.set(true);
+                self.buffers_state.skip_next_uneditable_eol = true;
 
                 // Extend the end of the deleted range by one byte to account
                 // for having deleted the trailing newline.
-                self.state
-                    .on_bytes_replacement_extend_deletion_end_by_one
-                    .set(true);
+                self.buffers_state
+                    .on_bytes_replacement_extend_deletion_end_by_one = true;
 
                 if insert_after_uneditable_eol {
                     // Make the inserted text start at the next line to ignore
                     // the newline that we're about to re-add.
-                    self.state
-                        .on_bytes_replacement_insertion_starts_at_next_line
-                        .set(true);
+                    self.buffers_state
+                        .on_bytes_replacement_insertion_starts_at_next_line =
+                        true;
                 }
             } else {
                 // OnBytes is not triggered, so set the AgentId that removed
@@ -507,7 +512,7 @@ impl<'a> NeovimBuffer<'a> {
     /// the corresponding [`Replacement`].
     #[inline]
     pub(crate) fn replacement_of_on_bytes(
-        &self,
+        &mut self,
         args: api::opts::OnBytesArgs,
     ) -> Replacement {
         let (
@@ -527,13 +532,17 @@ impl<'a> NeovimBuffer<'a> {
 
         debug_assert_eq!(buf, self.inner());
 
-        let should_extend_end =
-            self.state.on_bytes_replacement_extend_deletion_end_by_one.take();
+        let should_extend_end = mem::take(
+            &mut self
+                .buffers_state
+                .on_bytes_replacement_extend_deletion_end_by_one,
+        );
 
-        let should_start_at_next_line = self
-            .state
-            .on_bytes_replacement_insertion_starts_at_next_line
-            .take();
+        let should_start_at_next_line = mem::take(
+            &mut self
+                .buffers_state
+                .on_bytes_replacement_insertion_starts_at_next_line,
+        );
 
         let should_extend_start =
             should_extend_end && should_start_at_next_line;
@@ -631,10 +640,9 @@ impl<'a> NeovimBuffer<'a> {
     #[inline]
     pub(crate) fn reborrow(&mut self) -> NeovimBuffer<'_> {
         NeovimBuffer {
-            path: Cow::Borrowed(&*self.path),
             id: self.id,
-            events: self.events,
-            state: self.state,
+            path: Cow::Borrowed(&*self.path),
+            nvim: self.nvim,
         }
     }
 
@@ -809,20 +817,6 @@ impl HighlightRangeHandle {
     }
 }
 
-impl BuffersState {
-    #[inline]
-    pub(crate) fn new(decoration_provider: DecorationProvider) -> Self {
-        Self {
-            decoration_provider,
-            on_bytes_replacement_extend_deletion_end_by_one: Default::default(
-            ),
-            on_bytes_replacement_insertion_starts_at_next_line:
-                Default::default(),
-            skip_next_uneditable_eol: Default::default(),
-        }
-    }
-}
-
 impl Point {
     #[inline]
     pub(crate) fn new(line_idx: usize, byte_offset: usize) -> Self {
@@ -852,16 +846,18 @@ impl<'a> Buffer for NeovimBuffer<'a> {
     where
         R: IntoIterator<Item = Replacement>,
     {
+        let buffer_id = self.id;
+
         for replacement in replacements {
             if replacement.is_no_op() {
                 continue;
             }
 
-            if self.events.contains(&events::OnBytes(self.id())) {
+            if self.events.contains(&events::OnBytes(buffer_id)) {
                 self.events
                     .agent_ids
                     .edited_buffer
-                    .insert(self.id(), agent_id);
+                    .insert(buffer_id, agent_id);
             }
 
             let range = replacement.removed_range();
@@ -914,10 +910,11 @@ impl<'a> Buffer for NeovimBuffer<'a> {
         Fun: FnMut(&NeovimBuffer, &Edit) + 'static,
     {
         let fun = Shared::<Fun>::new(fun);
+        let buffer_id = self.id;
 
         let fun2 = fun.clone();
         let on_bytes_handle = self.events.insert(
-            events::OnBytes(self.id()),
+            events::OnBytes(buffer_id),
             move |(this, edit)| {
                 fun2.with_mut(|fun| fun(&this, edit));
 
@@ -960,16 +957,16 @@ impl<'a> Buffer for NeovimBuffer<'a> {
         // Setting/unsetting the uneditable eol behaves as if
         // deleting/inserting a trailing newline, so we need to react to it.
 
-        let buffer_id = self.id();
-
         let uneditable_eol_set_handle = self.events.insert(
             UneditableEndOfLine,
-            move |(buf, was_set, is_set, set_by)| {
+            move |(mut buf, was_set, is_set, set_by)| {
                 // Ignore event if setting didn't change, if it changed for a
                 // different buffer or if we were told to skip this event.
                 if was_set == is_set
                     || buf.id() != buffer_id
-                    || buf.state.skip_next_uneditable_eol.take()
+                    || mem::take(
+                        &mut buf.buffers_state.skip_next_uneditable_eol,
+                    )
                 {
                     return;
                 }
@@ -998,7 +995,7 @@ impl<'a> Buffer for NeovimBuffer<'a> {
                     replacements: smallvec_inline![replacement],
                 };
 
-                fun.with_mut(|fun| fun(buf, &edit));
+                fun.with_mut(|fun| fun(&buf, &edit));
             },
             nvim,
         );
@@ -1015,8 +1012,9 @@ impl<'a> Buffer for NeovimBuffer<'a> {
     where
         Fun: FnMut(BufferId, AgentId) + 'static,
     {
+        let buffer_id = self.id;
         self.events.insert(
-            events::BufUnload(self.id()),
+            events::BufUnload(buffer_id),
             move |(this, removed_by)| fun(this.id(), removed_by),
             nvim,
         )
@@ -1031,8 +1029,9 @@ impl<'a> Buffer for NeovimBuffer<'a> {
     where
         Fun: FnMut(&NeovimBuffer, AgentId) + 'static,
     {
+        let buffer_id = self.id;
         self.events.insert(
-            events::BufWritePost(self.id()),
+            events::BufWritePost(buffer_id),
             move |(this, saved_by)| fun(&this, saved_by),
             nvim,
         )
@@ -1050,6 +1049,22 @@ impl<'a> Buffer for NeovimBuffer<'a> {
     ) -> Result<(), <Self::Editor as editor::Editor>::BufferSaveError> {
         // TODO: save agent ID.
         self.inner().call(|()| api::command("write"))
+    }
+}
+
+impl ops::Deref for NeovimBuffer<'_> {
+    type Target = Neovim;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.nvim
+    }
+}
+
+impl ops::DerefMut for NeovimBuffer<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.nvim
     }
 }
 

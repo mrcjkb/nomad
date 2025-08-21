@@ -23,10 +23,22 @@ use crate::{api, executor, notify, oxi, serde, value};
 
 /// TODO: docs.
 pub struct Neovim {
+    /// TODO: docs.
     pub(crate) buffers_state: BuffersState,
-    emitter: notify::NeovimEmitter,
+
+    /// TODO: docs.
+    pub(crate) decoration_provider: DecorationProvider,
+
+    /// TODO: docs.
     pub(crate) events: Events,
+
+    /// TODO: docs.
+    emitter: notify::NeovimEmitter,
+
+    /// TODO: docs.
     executor: executor::NeovimExecutor,
+
+    /// TODO: docs.
     reinstate_panic_hook: bool,
 }
 
@@ -92,9 +104,9 @@ impl Neovim {
 
     #[inline]
     fn new_inner(augroup_name: &str, reinstate_panic_hook: bool) -> Self {
-        let decoration_provider = DecorationProvider::new(augroup_name);
         Self {
-            buffers_state: BuffersState::new(decoration_provider),
+            buffers_state: BuffersState::default(),
+            decoration_provider: DecorationProvider::new(augroup_name),
             events: Events::new(augroup_name),
             emitter: Default::default(),
             executor: Default::default(),
@@ -123,7 +135,7 @@ impl Editor for Neovim {
 
     #[inline]
     fn buffer(&mut self, buf_id: Self::BufferId) -> Option<Self::Buffer<'_>> {
-        NeovimBuffer::new(buf_id, &mut self.events, &self.buffers_state)
+        NeovimBuffer::new(buf_id, self)
     }
 
     #[inline]
