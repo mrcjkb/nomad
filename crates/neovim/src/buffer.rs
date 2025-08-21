@@ -9,7 +9,16 @@ use std::borrow::Cow;
 
 use abs_path::{AbsPath, AbsPathBuf};
 use compact_str::CompactString;
-use editor::{AgentId, Buffer, ByteOffset, Chunks, Edit, Replacement, Shared};
+use editor::{
+    AccessMut,
+    AgentId,
+    Buffer,
+    ByteOffset,
+    Chunks,
+    Edit,
+    Replacement,
+    Shared,
+};
 use smallvec::{SmallVec, smallvec_inline};
 
 use crate::Neovim;
@@ -894,7 +903,11 @@ impl<'a> Buffer for NeovimBuffer<'a> {
     }
 
     #[inline]
-    fn on_edited<Fun>(&self, fun: Fun) -> EventHandle
+    fn on_edited<Fun>(
+        &self,
+        fun: Fun,
+        _: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> EventHandle
     where
         Fun: FnMut(&NeovimBuffer, &Edit) + 'static,
     {
@@ -992,7 +1005,11 @@ impl<'a> Buffer for NeovimBuffer<'a> {
     }
 
     #[inline]
-    fn on_removed<Fun>(&self, mut fun: Fun) -> EventHandle
+    fn on_removed<Fun>(
+        &self,
+        mut fun: Fun,
+        _: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> EventHandle
     where
         Fun: FnMut(BufferId, AgentId) + 'static,
     {
@@ -1004,7 +1021,11 @@ impl<'a> Buffer for NeovimBuffer<'a> {
     }
 
     #[inline]
-    fn on_saved<Fun>(&self, mut fun: Fun) -> EventHandle
+    fn on_saved<Fun>(
+        &self,
+        mut fun: Fun,
+        _: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> EventHandle
     where
         Fun: FnMut(&NeovimBuffer, AgentId) + 'static,
     {

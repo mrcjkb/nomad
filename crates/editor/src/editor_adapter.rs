@@ -1,24 +1,88 @@
+use core::mem;
 use core::ops::{Deref, DerefMut};
 
 use abs_path::AbsPath;
 
 use crate::notify::MaybeResult;
-use crate::{AccessMut, AgentId, Editor};
+use crate::{AccessMut, AgentId, Buffer, Cursor, Editor, Selection};
 
 /// TODO: docs.
 pub trait EditorAdapter: 'static + Sized + DerefMut<Target: Editor> {}
 
+/// TODO: docs.
+#[repr(transparent)]
+pub struct BufferAdapter<'a, Ed: EditorAdapter> {
+    inner: <<Ed as Deref>::Target as Editor>::Buffer<'a>,
+}
+
+/// TODO: docs.
+#[repr(transparent)]
+pub struct CursorAdapter<'a, Ed: EditorAdapter> {
+    inner: <<Ed as Deref>::Target as Editor>::Cursor<'a>,
+}
+
+/// TODO: docs.
+#[repr(transparent)]
+pub struct SelectionAdapter<'a, Ed: EditorAdapter> {
+    inner: <<Ed as Deref>::Target as Editor>::Selection<'a>,
+}
+
+impl<'a, Ed: EditorAdapter> BufferAdapter<'a, Ed> {
+    #[inline]
+    fn from_ref<'b>(
+        inner: &'b <<Ed as Deref>::Target as Editor>::Buffer<'a>,
+    ) -> &'b Self {
+        // SAFETY: `Self` is repr(transparent).
+        unsafe { mem::transmute(inner) }
+    }
+
+    #[inline]
+    fn new(buffer: <<Ed as Deref>::Target as Editor>::Buffer<'a>) -> Self {
+        Self { inner: buffer }
+    }
+}
+
+impl<'a, Ed: EditorAdapter> CursorAdapter<'a, Ed> {
+    #[inline]
+    fn from_ref<'b>(
+        inner: &'b <<Ed as Deref>::Target as Editor>::Cursor<'a>,
+    ) -> &'b Self {
+        // SAFETY: `Self` is repr(transparent).
+        unsafe { mem::transmute(inner) }
+    }
+
+    #[inline]
+    fn new(inner: <<Ed as Deref>::Target as Editor>::Cursor<'a>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, Ed: EditorAdapter> SelectionAdapter<'a, Ed> {
+    #[inline]
+    fn from_ref<'b>(
+        inner: &'b <<Ed as Deref>::Target as Editor>::Selection<'a>,
+    ) -> &'b Self {
+        // SAFETY: `Self` is repr(transparent).
+        unsafe { mem::transmute(inner) }
+    }
+
+    #[inline]
+    fn new(inner: <<Ed as Deref>::Target as Editor>::Selection<'a>) -> Self {
+        Self { inner }
+    }
+}
+
 impl<Ed: EditorAdapter> Editor for Ed {
     type Api = <<Self as Deref>::Target as Editor>::Api;
-    type Buffer<'a> = <<Self as Deref>::Target as Editor>::Buffer<'a>;
+    type Buffer<'a> = BufferAdapter<'a, Self>;
     type BufferId = <<Self as Deref>::Target as Editor>::BufferId;
-    type Cursor<'a> = <<Self as Deref>::Target as Editor>::Cursor<'a>;
+    type Cursor<'a> = CursorAdapter<'a, Self>;
     type CursorId = <<Self as Deref>::Target as Editor>::CursorId;
     type Fs = <<Self as Deref>::Target as Editor>::Fs;
     type Emitter<'a> = <<Self as Deref>::Target as Editor>::Emitter<'a>;
     type Executor = <<Self as Deref>::Target as Editor>::Executor;
     type EventHandle = <<Self as Deref>::Target as Editor>::EventHandle;
-    type Selection<'a> = <<Self as Deref>::Target as Editor>::Selection<'a>;
+    type Selection<'a> = SelectionAdapter<'a, Self>;
     type SelectionId = <<Self as Deref>::Target as Editor>::SelectionId;
     type BufferSaveError =
         <<Self as Deref>::Target as Editor>::BufferSaveError;
@@ -30,12 +94,12 @@ impl<Ed: EditorAdapter> Editor for Ed {
 
     #[inline]
     fn buffer(&mut self, id: Self::BufferId) -> Option<Self::Buffer<'_>> {
-        self.deref_mut().buffer(id)
+        self.deref_mut().buffer(id).map(BufferAdapter::new)
     }
 
     #[inline]
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {
-        self.deref_mut().buffer_at_path(path)
+        self.deref_mut().buffer_at_path(path).map(BufferAdapter::new)
     }
 
     #[inline]
@@ -54,20 +118,22 @@ impl<Ed: EditorAdapter> Editor for Ed {
 
     #[inline]
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
-        self.deref_mut().current_buffer()
+        self.deref_mut().current_buffer().map(BufferAdapter::new)
     }
 
     #[inline]
-    fn for_each_buffer<Fun>(&mut self, fun: Fun)
+    fn for_each_buffer<Fun>(&mut self, mut fun: Fun)
     where
         Fun: FnMut(Self::Buffer<'_>),
     {
-        self.deref_mut().for_each_buffer(fun)
+        self.deref_mut().for_each_buffer(|buffer| {
+            fun(BufferAdapter::new(buffer));
+        });
     }
 
     #[inline]
     fn cursor(&mut self, id: Self::CursorId) -> Option<Self::Cursor<'_>> {
-        self.deref_mut().cursor(id)
+        self.deref_mut().cursor(id).map(CursorAdapter::new)
     }
 
     #[inline]
@@ -88,32 +154,38 @@ impl<Ed: EditorAdapter> Editor for Ed {
     #[inline]
     fn on_buffer_created<Fun>(
         &mut self,
-        fun: Fun,
+        mut fun: Fun,
         access: impl AccessMut<Self> + Clone + 'static,
     ) -> Self::EventHandle
     where
         Fun: FnMut(&Self::Buffer<'_>, AgentId) + 'static,
     {
         self.deref_mut().on_buffer_created(
-            fun,
+            move |inner, agent_id| {
+                fun(BufferAdapter::from_ref(inner), agent_id);
+            },
             access.map_mut(Deref::deref, DerefMut::deref_mut),
         )
     }
 
     #[inline]
-    fn on_cursor_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    fn on_cursor_created<Fun>(&mut self, mut fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&Self::Cursor<'_>, AgentId) + 'static,
     {
-        self.deref_mut().on_cursor_created(fun)
+        self.deref_mut().on_cursor_created(move |inner, agent_id| {
+            fun(CursorAdapter::from_ref(inner), agent_id);
+        })
     }
 
     #[inline]
-    fn on_selection_created<Fun>(&mut self, fun: Fun) -> Self::EventHandle
+    fn on_selection_created<Fun>(&mut self, mut fun: Fun) -> Self::EventHandle
     where
         Fun: FnMut(&Self::Selection<'_>, AgentId) + 'static,
     {
-        self.deref_mut().on_selection_created(fun)
+        self.deref_mut().on_selection_created(move |inner, agent_id| {
+            fun(SelectionAdapter::from_ref(inner), agent_id);
+        })
     }
 
     #[inline]
@@ -126,7 +198,7 @@ impl<Ed: EditorAdapter> Editor for Ed {
         &mut self,
         id: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
-        self.deref_mut().selection(id)
+        self.deref_mut().selection(id).map(SelectionAdapter::new)
     }
 
     #[inline]
@@ -149,5 +221,211 @@ impl<Ed: EditorAdapter> Editor for Ed {
         T: serde::Deserialize<'de>,
     {
         self.deref_mut().deserialize(value)
+    }
+}
+
+impl<'a, Ed: EditorAdapter> Buffer for BufferAdapter<'a, Ed> {
+    type Editor = Ed;
+
+    #[inline]
+    fn byte_len(&self) -> crate::ByteOffset {
+        self.inner.byte_len()
+    }
+
+    #[inline]
+    fn edit<R>(&mut self, replacements: R, agent_id: AgentId)
+    where
+        R: IntoIterator<Item = crate::Replacement>,
+    {
+        self.inner.edit(replacements, agent_id);
+    }
+
+    #[inline]
+    fn get_text(
+        &self,
+        byte_range: std::ops::Range<crate::ByteOffset>,
+    ) -> impl crate::Chunks {
+        self.inner.get_text(byte_range)
+    }
+
+    #[inline]
+    fn id(&self) -> <Self::Editor as Editor>::BufferId {
+        self.inner.id()
+    }
+
+    #[inline]
+    fn focus(&mut self, agent_id: AgentId) {
+        self.inner.focus(agent_id);
+    }
+
+    #[inline]
+    fn for_each_cursor<Fun>(&mut self, mut fun: Fun)
+    where
+        Fun: FnMut(<Self::Editor as Editor>::Cursor<'_>),
+    {
+        self.inner.for_each_cursor(move |inner| {
+            fun(CursorAdapter::new(inner));
+        });
+    }
+
+    #[inline]
+    fn on_edited<Fun>(
+        &self,
+        mut fun: Fun,
+        editor: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> <Self::Editor as Editor>::EventHandle
+    where
+        Fun: FnMut(&<Self::Editor as Editor>::Buffer<'_>, &crate::Edit)
+            + 'static,
+    {
+        self.inner.on_edited(
+            move |inner, edit| {
+                fun(BufferAdapter::from_ref(inner), edit);
+            },
+            editor.map_mut(Deref::deref, DerefMut::deref_mut),
+        )
+    }
+
+    #[inline]
+    fn on_removed<Fun>(
+        &self,
+        mut fun: Fun,
+        editor: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> <Self::Editor as Editor>::EventHandle
+    where
+        Fun: FnMut(<Self::Editor as Editor>::BufferId, AgentId) + 'static,
+    {
+        self.inner.on_removed(
+            move |buffer_id, agent_id| {
+                fun(buffer_id, agent_id);
+            },
+            editor.map_mut(Deref::deref, DerefMut::deref_mut),
+        )
+    }
+
+    #[inline]
+    fn on_saved<Fun>(
+        &self,
+        mut fun: Fun,
+        editor: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> <Self::Editor as Editor>::EventHandle
+    where
+        Fun: FnMut(&<Self::Editor as Editor>::Buffer<'_>, AgentId) + 'static,
+    {
+        self.inner.on_saved(
+            move |inner, agent_id| {
+                fun(BufferAdapter::from_ref(inner), agent_id);
+            },
+            editor.map_mut(Deref::deref, DerefMut::deref_mut),
+        )
+    }
+
+    #[inline]
+    fn path(&self) -> std::borrow::Cow<'_, AbsPath> {
+        self.inner.path()
+    }
+
+    #[inline]
+    fn save(
+        &mut self,
+        agent_id: AgentId,
+    ) -> Result<(), <Self::Editor as Editor>::BufferSaveError> {
+        self.inner.save(agent_id)
+    }
+}
+
+impl<'a, Ed: EditorAdapter> Cursor for CursorAdapter<'a, Ed> {
+    type Editor = Ed;
+
+    #[inline]
+    fn buffer_id(&self) -> <Self::Editor as Editor>::BufferId {
+        self.inner.buffer_id()
+    }
+
+    #[inline]
+    fn byte_offset(&self) -> crate::ByteOffset {
+        self.inner.byte_offset()
+    }
+
+    #[inline]
+    fn id(&self) -> <Self::Editor as Editor>::CursorId {
+        self.inner.id()
+    }
+
+    #[inline]
+    fn r#move(&mut self, offset: crate::ByteOffset, agent_id: AgentId) {
+        self.inner.r#move(offset, agent_id);
+    }
+
+    #[inline]
+    fn on_moved<Fun>(
+        &self,
+        mut fun: Fun,
+    ) -> <Self::Editor as Editor>::EventHandle
+    where
+        Fun: FnMut(&<Self::Editor as Editor>::Cursor<'_>, AgentId) + 'static,
+    {
+        self.inner.on_moved(move |inner, agent_id| {
+            fun(CursorAdapter::from_ref(inner), agent_id);
+        })
+    }
+
+    #[inline]
+    fn on_removed<Fun>(
+        &self,
+        mut fun: Fun,
+    ) -> <Self::Editor as Editor>::EventHandle
+    where
+        Fun: FnMut(<Self::Editor as Editor>::CursorId, AgentId) + 'static,
+    {
+        self.inner.on_removed(move |cursor_id, agent_id| {
+            fun(cursor_id, agent_id);
+        })
+    }
+}
+
+impl<'a, Ed: EditorAdapter> Selection for SelectionAdapter<'a, Ed> {
+    type Editor = Ed;
+
+    #[inline]
+    fn buffer_id(&self) -> <Self::Editor as Editor>::BufferId {
+        self.inner.buffer_id()
+    }
+
+    #[inline]
+    fn byte_range(&self) -> std::ops::Range<crate::ByteOffset> {
+        self.inner.byte_range()
+    }
+
+    #[inline]
+    fn id(&self) -> <Self::Editor as Editor>::SelectionId {
+        self.inner.id()
+    }
+
+    #[inline]
+    fn on_moved<Fun>(
+        &self,
+        mut fun: Fun,
+    ) -> <Self::Editor as Editor>::EventHandle
+    where
+        Fun:
+            FnMut(&<Self::Editor as Editor>::Selection<'_>, AgentId) + 'static,
+    {
+        self.inner.on_moved(move |inner, agent_id| {
+            fun(SelectionAdapter::from_ref(inner), agent_id);
+        })
+    }
+
+    #[inline]
+    fn on_removed<Fun>(
+        &self,
+        mut fun: Fun,
+    ) -> <Self::Editor as Editor>::EventHandle
+    where
+        Fun: FnMut(<Self::Editor as Editor>::SelectionId, AgentId) + 'static,
+    {
+        self.inner.on_removed(move |selection_id, agent_id| {
+            fun(selection_id, agent_id);
+        })
     }
 }

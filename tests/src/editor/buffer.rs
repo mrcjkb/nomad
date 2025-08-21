@@ -131,11 +131,14 @@ pub(crate) trait EditExt {
 
         let (tx, rx) = flume::unbounded();
 
+        let editor = ctx.editor();
+
         ctx.with_borrowed(|ctx| {
             mem::forget(ctx.buffer(buf_id).unwrap().on_edited(
                 move |_buf, edit| {
                     let _ = tx.send(edit.clone());
                 },
+                editor,
             ));
         });
 

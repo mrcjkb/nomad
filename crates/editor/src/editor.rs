@@ -28,25 +28,13 @@ pub trait Editor: 'static + Sized {
     type Api: Api;
 
     /// TODO: docs.
-    type Buffer<'a>: Buffer<
-        Editor: Editor<
-            BufferId = Self::BufferId,
-            EventHandle = Self::EventHandle,
-            BufferSaveError = Self::BufferSaveError,
-        >,
-    >;
+    type Buffer<'a>: Buffer<Editor = Self>;
 
     /// TODO: docs.
     type BufferId: Clone + Debug + Eq + Hash;
 
     /// TODO: docs.
-    type Cursor<'a>: Cursor<
-        Editor: Editor<
-            BufferId = Self::BufferId,
-            CursorId = Self::CursorId,
-            EventHandle = Self::EventHandle,
-        >,
-    >;
+    type Cursor<'a>: Cursor<Editor = Self>;
 
     /// TODO: docs.
     type CursorId: Clone + Debug + Eq + Hash;
@@ -64,13 +52,7 @@ pub trait Editor: 'static + Sized {
     type EventHandle;
 
     /// TODO: docs.
-    type Selection<'a>: Selection<
-        Editor: Editor<
-            BufferId = Self::BufferId,
-            SelectionId = Self::SelectionId,
-            EventHandle = Self::EventHandle,
-        >,
-    >;
+    type Selection<'a>: Selection<Editor = Self>;
 
     /// TODO: docs.
     type SelectionId: Clone + Debug + Eq + Hash;
@@ -124,7 +106,7 @@ pub trait Editor: 'static + Sized {
     fn on_buffer_created<Fun>(
         &mut self,
         fun: Fun,
-        access: impl AccessMut<Self> + Clone + 'static,
+        this: impl AccessMut<Self> + Clone + 'static,
     ) -> Self::EventHandle
     where
         Fun: FnMut(&Self::Buffer<'_>, AgentId) + 'static;

@@ -280,6 +280,7 @@ async fn read_project<Ed: CollabEditor>(
     let mut id_maps = IdMaps::default();
 
     // Start watching the opened buffers that are part of the project.
+    let ed = ctx.editor();
     ctx.for_each_buffer(|buffer| {
         let buffer_path = buffer.path();
 
@@ -293,7 +294,7 @@ async fn read_project<Ed: CollabEditor>(
         };
 
         if let Some(node_id) = node_id_maps.file2node.get(&file_id) {
-            event_stream.watch_buffer(&buffer, node_id.clone());
+            event_stream.watch_buffer(&buffer, node_id.clone(), ed.clone());
             id_maps.buffer2file.insert(buffer.id(), file_id);
             id_maps.file2buffer.insert(file_id, buffer.id());
         }

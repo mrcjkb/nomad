@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use abs_path::{AbsPath, AbsPathBuf};
 use editor::{
     self,
+    AccessMut,
     AgentId,
     Buffer as _,
     ByteOffset,
@@ -306,7 +307,11 @@ impl<'a> editor::Buffer for Buffer<'a> {
         }
     }
 
-    fn on_edited<Fun>(&self, fun: Fun) -> mock::EventHandle
+    fn on_edited<Fun>(
+        &self,
+        fun: Fun,
+        _: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> mock::EventHandle
     where
         Fun: FnMut(&Buffer<'_>, &Edit) + 'static,
     {
@@ -315,7 +320,11 @@ impl<'a> editor::Buffer for Buffer<'a> {
         self.callbacks.insert(cb_kind)
     }
 
-    fn on_removed<Fun>(&self, fun: Fun) -> mock::EventHandle
+    fn on_removed<Fun>(
+        &self,
+        fun: Fun,
+        _: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> mock::EventHandle
     where
         Fun: FnMut(BufferId, AgentId) + 'static,
     {
@@ -324,7 +333,11 @@ impl<'a> editor::Buffer for Buffer<'a> {
         self.callbacks.insert(cb_kind)
     }
 
-    fn on_saved<Fun>(&self, fun: Fun) -> mock::EventHandle
+    fn on_saved<Fun>(
+        &self,
+        fun: Fun,
+        _: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> mock::EventHandle
     where
         Fun: FnMut(&Buffer<'_>, AgentId) + 'static,
     {

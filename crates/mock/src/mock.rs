@@ -2,6 +2,7 @@ use abs_path::AbsPath;
 use editor::notify::MaybeResult;
 use editor::{AccessMut, AgentId, ApiValue, Edit, Editor, Shared};
 use executor::BackgroundSpawner;
+use fs::Fs;
 use fxhash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use slotmap::{DefaultKey, SlotMap};
@@ -156,25 +157,21 @@ impl Callbacks {
     }
 }
 
-impl<Fs, BgSpawner> Editor for Mock<Fs, BgSpawner>
-where
-    Fs: fs::Fs,
-    BgSpawner: BackgroundSpawner,
-{
+impl Editor for Mock {
     type Api = Api;
     type Buffer<'a> = Buffer<'a>;
     type BufferId = BufferId;
     type Cursor<'a> = Cursor<'a>;
     type CursorId = CursorId;
     type EventHandle = EventHandle;
-    type Executor = Executor<BgSpawner>;
-    type Fs = Fs;
+    type Executor = Executor<Spawner>;
+    type Fs = MockFs;
     type Emitter<'this> = &'this mut Emitter;
     type Selection<'a> = Selection<'a>;
     type SelectionId = SelectionId;
 
     type BufferSaveError = ();
-    type CreateBufferError = CreateBufferError<Fs>;
+    type CreateBufferError = CreateBufferError<MockFs>;
     type SerializeError = SerializeError;
     type DeserializeError = DeserializeError;
 

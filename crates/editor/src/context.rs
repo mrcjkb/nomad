@@ -84,17 +84,18 @@ impl<Ed: Editor, Bs: BorrowState> Context<Ed, Bs> {
 
     /// TODO: docs.
     #[inline]
+    pub fn editor(&self) -> impl AccessMut<Ed> + Clone + 'static {
+        self.borrow.state_handle().map_mut(Deref::deref, DerefMut::deref_mut)
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn on_buffer_created<Fun>(&mut self, fun: Fun) -> Ed::EventHandle
     where
         Fun: FnMut(&Ed::Buffer<'_>, AgentId) + 'static,
     {
-        let state_handle = self.borrow.state_handle();
-        self.with_editor(move |ed| {
-            ed.on_buffer_created(
-                fun,
-                state_handle.map_mut(Deref::deref, DerefMut::deref_mut),
-            )
-        })
+        let editor = self.editor();
+        self.with_editor(move |ed| ed.on_buffer_created(fun, editor))
     }
 
     /// TODO: docs.

@@ -6,7 +6,7 @@ use abs_path::AbsPath;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 
-use crate::{AgentId, ByteOffset, Editor};
+use crate::{AccessMut, AgentId, ByteOffset, Editor};
 
 /// TODO: docs.
 pub trait Buffer {
@@ -45,6 +45,7 @@ pub trait Buffer {
     fn on_edited<Fun>(
         &self,
         fun: Fun,
+        editor: impl AccessMut<Self::Editor> + Clone + 'static,
     ) -> <Self::Editor as Editor>::EventHandle
     where
         Fun: FnMut(&<Self::Editor as Editor>::Buffer<'_>, &Edit) + 'static;
@@ -53,12 +54,17 @@ pub trait Buffer {
     fn on_removed<Fun>(
         &self,
         fun: Fun,
+        editor: impl AccessMut<Self::Editor> + Clone + 'static,
     ) -> <Self::Editor as Editor>::EventHandle
     where
         Fun: FnMut(<Self::Editor as Editor>::BufferId, AgentId) + 'static;
 
     /// TODO: docs.
-    fn on_saved<Fun>(&self, fun: Fun) -> <Self::Editor as Editor>::EventHandle
+    fn on_saved<Fun>(
+        &self,
+        fun: Fun,
+        editor: impl AccessMut<Self::Editor> + Clone + 'static,
+    ) -> <Self::Editor as Editor>::EventHandle
     where
         Fun: FnMut(&<Self::Editor as Editor>::Buffer<'_>, AgentId) + 'static;
 

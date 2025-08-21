@@ -1,5 +1,5 @@
 use abs_path::AbsPathBuf;
-use editor::{AgentId, Buffer, Context, Cursor, Selection, Shared};
+use editor::{AccessMut, AgentId, Buffer, Context, Cursor, Selection, Shared};
 use either::Either;
 use fs::filter::Filter;
 use fs::{Directory, File, Fs};
@@ -192,17 +192,26 @@ impl<Ed: CollabEditor> EventStream<Ed> {
         &mut self,
         buffer: &Ed::Buffer<'_>,
         file_id: <Ed::Fs as fs::Fs>::NodeId,
+        editor: impl AccessMut<Ed> + Clone + 'static,
     ) {
-        self.buffer_streams.insert(buffer, self.agent_id);
+        self.buffer_streams.insert(buffer, self.agent_id, editor);
         self.buf_id_of_file_id.insert(file_id, buffer.id());
     }
 
-    pub(crate) fn watch_cursor(&mut self, cursor: &Ed::Cursor<'_>) {
-        self.cursor_streams.insert(cursor);
+    pub(crate) fn watch_cursor(
+        &mut self,
+        cursor: &Ed::Cursor<'_>,
+        editor: impl AccessMut<Ed> + Clone + 'static,
+    ) {
+        self.cursor_streams.insert(cursor, editor);
     }
 
-    pub(crate) fn watch_selection(&mut self, selection: &Ed::Selection<'_>) {
-        self.selection_streams.insert(selection);
+    pub(crate) fn watch_selection(
+        &mut self,
+        selection: &Ed::Selection<'_>,
+        editor: impl AccessMut<Ed> + Clone + 'static,
+    ) {
+        self.selection_streams.insert(selection, editor);
     }
 
     async fn handle_buffer_event(
@@ -239,8 +248,9 @@ impl<Ed: CollabEditor> EventStream<Ed> {
                 let fs::Node::File(file) = node else { return Ok(None) };
 
                 let is_watched = ctx.with_borrowed(|ctx| {
+                    let editor = ctx.editor();
                     if let Some(buffer) = ctx.buffer(buffer_id.clone()) {
-                        self.watch_buffer(&buffer, file.id());
+                        self.watch_buffer(&buffer, file.id(), editor);
                         true
                     } else {
                         false
@@ -270,9 +280,10 @@ impl<Ed: CollabEditor> EventStream<Ed> {
         match &event.kind {
             event::CursorEventKind::Created(buffer_id, _) => {
                 if self.buffer_streams.is_watched(buffer_id) {
+                    let editor = ctx.editor();
                     ctx.with_borrowed(|ctx| {
                         let cursor = ctx.cursor(event.cursor_id.clone())?;
-                        self.watch_cursor(&cursor);
+                        self.watch_cursor(&cursor, editor);
                         Some(event)
                     })
                 } else {
@@ -392,10 +403,11 @@ impl<Ed: CollabEditor> EventStream<Ed> {
         match &event.kind {
             event::SelectionEventKind::Created(buffer_id, _) => {
                 if self.buffer_streams.is_watched(buffer_id) {
+                    let editor = ctx.editor();
                     ctx.with_borrowed(|ctx| {
                         let selection =
                             ctx.selection(event.selection_id.clone())?;
-                        self.watch_selection(&selection);
+                        self.watch_selection(&selection, editor);
                         Some(event)
                     })
                 } else {
@@ -436,9 +448,10 @@ impl<Ed: CollabEditor> EventStream<Ed> {
             fs::Node::Directory(dir) => self.dir_streams.insert(dir),
             fs::Node::File(file) => {
                 self.file_streams.insert(file);
+                let editor = ctx.editor();
                 ctx.with_borrowed(|ctx| {
                     if let Some(buffer) = ctx.buffer_at_path(file.path()) {
-                        self.watch_buffer(&buffer, file.id());
+                        self.watch_buffer(&buffer, file.id(), editor);
                     }
                 });
             },
@@ -508,9 +521,14 @@ where
 
 impl<Ed: CollabEditor> BufferStreams<Ed> {
     /// Starts receiving [`event::BufferEvent`]s on the given buffer.
-    fn insert(&mut self, buffer: &Ed::Buffer<'_>, agent_id: AgentId) {
-        let edits_handle = buffer.on_edited({
-            let event_tx = self.event_tx.clone();
+    fn insert(
+        &mut self,
+        buffer: &Ed::Buffer<'_>,
+        agent_id: AgentId,
+        editor: impl AccessMut<Ed> + Clone + 'static,
+    ) {
+        let event_tx = self.event_tx.clone();
+        let edits_handle = buffer.on_edited(
             move |buf, edit| {
                 if edit.made_by != agent_id {
                     return;
@@ -519,26 +537,29 @@ impl<Ed: CollabEditor> BufferStreams<Ed> {
                     buf.id(),
                     edit.replacements.clone(),
                 ));
-            }
-        });
+            },
+            editor.clone(),
+        );
 
-        let removed_handle = buffer.on_removed({
-            let event_tx = self.event_tx.clone();
+        let event_tx = self.event_tx.clone();
+        let removed_handle = buffer.on_removed(
             move |buf_id, _removed_by| {
                 let _ = event_tx.send(event::BufferEvent::Removed(buf_id));
-            }
-        });
+            },
+            editor.clone(),
+        );
 
-        let saved_handle = buffer.on_saved({
-            let event_tx = self.event_tx.clone();
-            let saved_buffers = self.saved_buffers.clone();
+        let event_tx = self.event_tx.clone();
+        let saved_buffers = self.saved_buffers.clone();
+        let saved_handle = buffer.on_saved(
             move |buf, saved_by| {
                 saved_buffers.with_mut(|buffers| buffers.insert(buf.id()));
                 if saved_by != agent_id {
                     let _ = event_tx.send(event::BufferEvent::Saved(buf.id()));
                 }
-            }
-        });
+            },
+            editor,
+        );
 
         let buffer_handles = [edits_handle, removed_handle, saved_handle];
 
@@ -592,7 +613,11 @@ impl<Ed: CollabEditor> BufferStreams<Ed> {
 
 impl<Ed: CollabEditor> CursorStreams<Ed> {
     /// Starts receiving [`event::CursorEvent`]s on the given cursor.
-    fn insert(&mut self, cursor: &Ed::Cursor<'_>) {
+    fn insert(
+        &mut self,
+        cursor: &Ed::Cursor<'_>,
+        _editor: impl AccessMut<Ed> + Clone + 'static,
+    ) {
         let moved_handle = cursor.on_moved({
             let event_tx = self.event_tx.clone();
             move |cursor, _moved_by| {
@@ -683,7 +708,11 @@ impl<Fs: fs::Fs> FileStreams<Fs> {
 
 impl<Ed: CollabEditor> SelectionStreams<Ed> {
     /// Starts receiving [`event::SelectionEvent`]s on the given selection.
-    fn insert(&mut self, selection: &Ed::Selection<'_>) {
+    fn insert(
+        &mut self,
+        selection: &Ed::Selection<'_>,
+        _editor: impl AccessMut<Ed> + Clone + 'static,
+    ) {
         let moved_handle = selection.on_moved({
             let event_tx = self.event_tx.clone();
             move |selection, _moved_by| {
