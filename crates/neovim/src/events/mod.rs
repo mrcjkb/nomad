@@ -9,6 +9,7 @@ mod events;
 mod mode_changed;
 mod on_bytes;
 mod option_set;
+mod set_uneditable_eol;
 
 pub(crate) use buf_enter::BufEnter;
 pub(crate) use buf_leave::BufLeave;
@@ -21,6 +22,7 @@ pub(crate) use events::{Callbacks, EventHandle, EventKind, Events};
 pub(crate) use mode_changed::ModeChanged;
 pub(crate) use on_bytes::OnBytes;
 pub(crate) use option_set::OptionSet;
+pub(crate) use set_uneditable_eol::SetUneditableEndOfLine;
 
 pub(crate) type AugroupId = u32;
 pub(crate) type AutocmdId = u32;

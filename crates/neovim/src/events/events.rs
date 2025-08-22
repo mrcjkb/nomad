@@ -9,7 +9,6 @@ use smallvec::{SmallVec, smallvec_inline};
 use crate::Neovim;
 use crate::buffer::BufferId;
 use crate::events::{self, AugroupId, CallbacksContainer, Event};
-use crate::option::{SetUneditableEolAgentIds, UneditableEndOfLine};
 use crate::oxi::api;
 
 /// TODO: docs.
@@ -29,7 +28,8 @@ pub(crate) struct Events {
     pub(crate) augroup_id: AugroupId,
 
     /// TODO: docs.
-    pub(crate) on_uneditable_eol_set: Option<Callbacks<UneditableEndOfLine>>,
+    pub(crate) on_uneditable_eol_set:
+        Option<Callbacks<events::SetUneditableEndOfLine>>,
 
     /// The callback registered to the [`BufReadPost`] event, or `None` if no
     /// callback have been registered to that event.
@@ -91,7 +91,8 @@ pub(crate) struct AgentIds {
     pub(crate) saved_buffer: NoHashMap<BufferId, AgentId>,
 
     /// TODO: docs.
-    pub(crate) set_uneditable_eol: SetUneditableEolAgentIds,
+    pub(crate) set_uneditable_eol:
+        events::set_uneditable_eol::SetUneditableEolAgentIds,
 }
 
 /// Groups the callbacks registered for a specific event type.
@@ -115,7 +116,7 @@ pub(crate) enum EventKind {
     CursorMoved(events::CursorMoved),
     ModeChanged(events::ModeChanged),
     OnBytes(events::OnBytes),
-    UneditableEolSet(UneditableEndOfLine),
+    UneditableEolSet(events::SetUneditableEndOfLine),
 }
 
 impl EventHandle {

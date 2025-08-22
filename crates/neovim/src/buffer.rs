@@ -23,10 +23,9 @@ use smallvec::{SmallVec, smallvec_inline};
 
 use crate::convert::Convert;
 use crate::cursor::NeovimCursor;
-use crate::events::{self, EventHandle};
 use crate::option::{BufferLocalOpts, NeovimOption, UneditableEndOfLine};
 use crate::oxi::{self, BufHandle, String as NvimString, api, mlua};
-use crate::{Neovim, decoration_provider};
+use crate::{Neovim, decoration_provider, events};
 
 /// TODO: docs.
 pub struct NeovimBuffer<'a> {
@@ -899,7 +898,7 @@ impl<'a> Buffer for NeovimBuffer<'a> {
         &mut self,
         fun: Fun,
         nvim: impl AccessMut<Self::Editor> + Clone + 'static,
-    ) -> EventHandle
+    ) -> events::EventHandle
     where
         Fun: FnMut(&NeovimBuffer, &Edit) + 'static,
     {
@@ -952,7 +951,7 @@ impl<'a> Buffer for NeovimBuffer<'a> {
         // deleting/inserting a trailing newline, so we need to react to it.
 
         let uneditable_eol_set_handle = self.events.insert(
-            UneditableEndOfLine,
+            events::SetUneditableEndOfLine,
             move |(mut buf, was_set, is_set, set_by)| {
                 // Ignore event if setting didn't change, if it changed for a
                 // different buffer or if we were told to skip this event.
@@ -1002,7 +1001,7 @@ impl<'a> Buffer for NeovimBuffer<'a> {
         &mut self,
         mut fun: Fun,
         nvim: impl AccessMut<Self::Editor> + Clone + 'static,
-    ) -> EventHandle
+    ) -> events::EventHandle
     where
         Fun: FnMut(BufferId, AgentId) + 'static,
     {
@@ -1019,7 +1018,7 @@ impl<'a> Buffer for NeovimBuffer<'a> {
         &mut self,
         mut fun: Fun,
         nvim: impl AccessMut<Self::Editor> + Clone + 'static,
-    ) -> EventHandle
+    ) -> events::EventHandle
     where
         Fun: FnMut(&NeovimBuffer, AgentId) + 'static,
     {
