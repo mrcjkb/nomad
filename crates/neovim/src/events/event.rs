@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use core::hash::{BuildHasher, Hash};
 use std::collections::HashMap;
 
@@ -16,7 +17,7 @@ pub(crate) trait Event: Sized {
     type Container<'ev>: CallbacksContainer<Self>;
 
     /// The output of [`register()`](Event::register)ing the event.
-    type RegisterOutput;
+    type RegisterOutput: Debug;
 
     /// TODO: docs.
     fn container<'ev>(&self, event: &'ev mut Events) -> Self::Container<'ev>;

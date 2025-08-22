@@ -133,7 +133,7 @@ impl Deref for BufferLocalOpts {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(crate) struct SetUneditableEolAgentIds {
     set_eol: AgentId,
     set_fix_eol: AgentId,

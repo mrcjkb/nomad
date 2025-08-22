@@ -20,6 +20,7 @@ pub struct EventHandle {
 }
 
 /// TODO: docs.
+#[derive(Debug)]
 pub(crate) struct Events {
     /// TODO: docs.
     pub(crate) agent_ids: AgentIds,
@@ -69,7 +70,7 @@ pub(crate) struct Events {
 }
 
 /// TODO: docs.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(crate) struct AgentIds {
     /// TODO: docs.
     pub(crate) created_buffer: NoHashMap<BufferId, AgentId>,
@@ -94,9 +95,11 @@ pub(crate) struct AgentIds {
 }
 
 /// Groups the callbacks registered for a specific event type.
+#[derive(cauchy::Debug)]
 pub(crate) struct Callbacks<Ev: Event> {
     /// A map from callback key to the corresponding function.
     #[allow(clippy::type_complexity)]
+    #[debug(skip)]
     inner: SlotMap<slotmap::DefaultKey, Rc<dyn Fn(Ev::Args<'_>) + 'static>>,
 
     /// The value returned by [`register`](Event::register)ing the event.
