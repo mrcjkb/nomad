@@ -15,6 +15,7 @@ use crate::buffer::{
     NeovimBuffer,
     Point,
 };
+use crate::buffer_ext::BufferExt;
 use crate::cursor::NeovimCursor;
 use crate::decoration_provider::DecorationProvider;
 use crate::events::{self, EventHandle, Events};
@@ -53,7 +54,7 @@ impl Neovim {
         handle: &'a HighlightRangeHandle,
     ) -> Option<HighlightRange<'a>> {
         self.buffer(handle.buffer_id())
-            .map(|buffer| HighlightRange::new(buffer, handle))
+            .map(|buffer| HighlightRange::new(buffer.clone(), handle))
     }
 
     /// TODO: docs.
@@ -77,6 +78,7 @@ impl Neovim {
         Self::new_inner(plugin_name, false)
     }
 
+    #[allow(clippy::same_name_method)]
     #[inline]
     pub(crate) fn create_buffer(
         &mut self,
@@ -88,7 +90,7 @@ impl Neovim {
 
         buffer.set_name(file_path).expect("couldn't set name");
 
-        let buffer_id = BufferId::new(buffer);
+        let buffer_id = BufferId::from(buffer);
 
         if self.events.contains(&events::BufReadPost) {
             self.events.agent_ids.created_buffer.insert(buffer_id, agent_id);
@@ -156,7 +158,7 @@ impl Editor for Neovim {
 
     #[inline]
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>> {
-        for buf_id in oxi::api::list_bufs().map(BufferId::new) {
+        for buf_id in oxi::api::list_bufs().map(Into::into) {
             let Some(buffer) = self.buffer(buf_id) else { continue };
             if &*buffer.path() == path {
                 // SAFETY: Rust is dumb.
@@ -178,7 +180,7 @@ impl Editor for Neovim {
 
     #[inline]
     fn current_buffer(&mut self) -> Option<Self::Buffer<'_>> {
-        self.buffer(BufferId::of_focused())
+        self.buffer(BufferId::from(oxi::api::Buffer::current()))
     }
 
     #[inline]
@@ -186,7 +188,7 @@ impl Editor for Neovim {
     where
         Fun: FnMut(Self::Buffer<'_>),
     {
-        for buf_id in oxi::api::list_bufs().map(BufferId::new) {
+        for buf_id in oxi::api::list_bufs().map(Into::into) {
             if let Some(buffer) = self.buffer(buf_id) {
                 fun(buffer);
             }
@@ -242,7 +244,7 @@ impl Editor for Neovim {
     #[inline]
     fn cursor(&mut self, buf_id: Self::CursorId) -> Option<Self::Cursor<'_>> {
         let buffer = self.buffer(buf_id)?;
-        buffer.is_focused().then_some(NeovimCursor::new(buffer))
+        buffer.is_focused().then_some(buffer.into())
     }
 
     #[inline]
@@ -261,7 +263,7 @@ impl Editor for Neovim {
         buf_id: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
         let buffer = self.buffer(buf_id)?;
-        buffer.selection().is_some().then_some(NeovimSelection::new(buffer))
+        buffer.selection().is_some().then_some(buffer.into())
     }
 
     #[inline]
@@ -308,7 +310,7 @@ impl Editor for Neovim {
         self.events.insert(
             events::BufEnter,
             move |(buf, focused_by)| {
-                fun(&mut NeovimCursor::new(buf), focused_by)
+                fun(&mut NeovimCursor::from(buf), focused_by)
             },
             this,
         )
@@ -331,7 +333,7 @@ impl Editor for Neovim {
                     // already displaying a selected range.
                     && !old_mode.has_selected_range()
                 {
-                    fun(&mut NeovimSelection::new(buf), changed_by);
+                    fun(&mut NeovimSelection::from(buf), changed_by);
                 }
             },
             this,

@@ -4,6 +4,7 @@
 
 pub mod api;
 pub mod buffer;
+mod buffer_ext;
 mod convert;
 pub mod cursor;
 mod decoration_provider;

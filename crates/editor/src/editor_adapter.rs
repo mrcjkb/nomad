@@ -276,11 +276,11 @@ impl<'a, Ed: EditorAdapter> Buffer for BufferAdapter<'a, Ed> {
     }
 
     #[inline]
-    fn get_text(
+    fn get_text_range(
         &self,
         byte_range: std::ops::Range<crate::ByteOffset>,
     ) -> impl crate::Chunks {
-        self.inner.get_text(byte_range)
+        self.inner.get_text_range(byte_range)
     }
 
     #[inline]

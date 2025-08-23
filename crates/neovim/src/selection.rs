@@ -1,24 +1,29 @@
 //! TODO: docs.
 
-use core::ops::{self, Range};
+use core::ops::Range;
 
 use editor::{AccessMut, AgentId, Buffer, ByteOffset, Selection, Shared};
+use nvim_oxi::api;
 
 use crate::buffer::{BufferId, NeovimBuffer};
+use crate::buffer_ext::BufferExt;
 use crate::events::EventHandle;
 use crate::{Neovim, events};
 
 /// TODO: docs.
 pub struct NeovimSelection<'a> {
-    buffer: NeovimBuffer<'a>,
+    /// The buffer the selection is in.
+    buffer: api::Buffer,
+
+    /// An exclusive reference to the Neovim instance.
+    pub(crate) nvim: &'a mut Neovim,
 }
 
-impl<'a> NeovimSelection<'a> {
-    /// TODO: docs.
+impl<'a> From<NeovimBuffer<'a>> for NeovimSelection<'a> {
     #[inline]
-    pub(crate) fn new(buffer: NeovimBuffer<'a>) -> Self {
-        debug_assert!(buffer.selection().is_some());
-        Self { buffer }
+    fn from(buffer: NeovimBuffer<'a>) -> Self {
+        debug_assert!(buffer.is_focused());
+        Self { buffer: buffer.clone(), nvim: buffer.nvim }
     }
 }
 
@@ -27,7 +32,7 @@ impl Selection for NeovimSelection<'_> {
 
     #[inline]
     fn buffer_id(&self) -> BufferId {
-        self.buffer.id()
+        self.buffer.clone().into()
     }
 
     #[inline]
@@ -54,7 +59,7 @@ impl Selection for NeovimSelection<'_> {
 
         let buffer_id = self.buffer_id();
 
-        let cursor_moved_handle = self.events.insert(
+        let cursor_moved_handle = self.nvim.events.insert(
             events::CursorMoved(buffer_id),
             {
                 let is_selection_alive = is_selection_alive.clone();
@@ -63,7 +68,10 @@ impl Selection for NeovimSelection<'_> {
                     // Make sure the selection is still alive before calling
                     // the user's function.
                     if is_selection_alive.copied() {
-                        let this = NeovimSelection::new(cursor.into_buffer());
+                        let this = NeovimSelection {
+                            buffer: cursor.buffer(),
+                            nvim: cursor.nvim,
+                        };
                         fun.with_mut(|fun| fun(&this, moved_by));
                     }
                 }
@@ -71,7 +79,7 @@ impl Selection for NeovimSelection<'_> {
             nvim.clone(),
         );
 
-        let mode_changed_handle = self.events.insert(
+        let mode_changed_handle = self.nvim.events.insert(
             events::ModeChanged,
             move |(buf, _old_mode, new_mode, changed_by)| {
                 if buf.id() != buffer_id || !is_selection_alive.copied() {
@@ -79,7 +87,7 @@ impl Selection for NeovimSelection<'_> {
                 }
 
                 if new_mode.has_selected_range() {
-                    let this = NeovimSelection::new(buf);
+                    let this = NeovimSelection::from(buf);
                     fun.with_mut(|fun| fun(&this, changed_by));
                 } else {
                     is_selection_alive.set(false);
@@ -102,7 +110,7 @@ impl Selection for NeovimSelection<'_> {
     {
         let buffer_id = self.buffer_id();
 
-        self.events.insert(
+        self.nvim.events.insert(
             events::ModeChanged,
             move |(buf, old_mode, new_mode, changed_by)| {
                 if buf.id() == buffer_id
@@ -116,21 +124,5 @@ impl Selection for NeovimSelection<'_> {
             },
             nvim,
         )
-    }
-}
-
-impl<'a> ops::Deref for NeovimSelection<'a> {
-    type Target = NeovimBuffer<'a>;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.buffer
-    }
-}
-
-impl<'a> ops::DerefMut for NeovimSelection<'a> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.buffer
     }
 }

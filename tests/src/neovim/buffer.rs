@@ -5,6 +5,7 @@ use futures_util::future::FutureExt;
 use futures_util::select_biased;
 use futures_util::stream::StreamExt;
 use neovim::Neovim;
+use neovim::buffer::BufferExt;
 use neovim::oxi::api::{self, opts};
 use neovim::tests::NeovimExt;
 
@@ -24,7 +25,7 @@ async fn deleting_trailing_newline_is_like_unsetting_eol(
 
     ctx.with_borrowed(|ctx| {
         let mut buf = ctx.buffer(buffer_id).unwrap();
-        assert_eq!(buf.get_text(0..buf.byte_len()), "Hello\n");
+        assert_eq!(buf.get_text(), "Hello\n");
         buf.schedule_edit([Replacement::removal(0..6)], agent_id);
     });
 
@@ -52,7 +53,7 @@ async fn inserting_after_trailing_newline_unsets_eol(
 
     ctx.with_borrowed(|ctx| {
         let mut buf = ctx.buffer(buffer_id).unwrap();
-        assert_eq!(buf.get_text(0..buf.byte_len()), "Hello\n");
+        assert_eq!(buf.get_text(), "Hello\n");
         buf.schedule_edit([Replacement::insertion(6, "World")], agent_id);
     });
 
@@ -80,7 +81,7 @@ async fn inserting_nothing_after_trailing_newline_does_nothing(
 
     ctx.with_borrowed(|ctx| {
         let mut buf = ctx.buffer(buffer_id).unwrap();
-        assert_eq!(buf.get_text(0..buf.byte_len()), "Hello\n");
+        assert_eq!(buf.get_text(), "Hello\n");
         buf.schedule_edit([Replacement::insertion(6, "")], agent_id);
     });
 
@@ -111,7 +112,7 @@ async fn replacement_including_trailing_newline_unsets_eol(
 
     ctx.with_borrowed(|ctx| {
         let mut buf = ctx.buffer(buffer_id).unwrap();
-        assert_eq!(buf.get_text(0..buf.byte_len()), "Hello\n");
+        assert_eq!(buf.get_text(), "Hello\n");
         buf.schedule_edit([Replacement::new(2..6, "y")], agent_id);
     });
 
@@ -207,7 +208,7 @@ async fn deleting_all_in_buf_with_eol_causes_newline_deletion(
 
     ctx.with_borrowed(|ctx| {
         let mut buf = ctx.buffer(buffer_id).unwrap();
-        assert_eq!(buf.get_text(0..buf.byte_len()), "Hello\n");
+        assert_eq!(buf.get_text(), "Hello\n");
         buf.schedule_edit([Replacement::removal(0..5)], agent_id);
     });
 

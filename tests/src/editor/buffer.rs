@@ -20,7 +20,7 @@ pub(crate) async fn fuzz_edits(
     // A string to which we'll apply the same edits we apply to the buffer.
     let mut expected_contents = ctx.with_borrowed(|ctx| {
         let buf = ctx.buffer(buf_id.clone()).unwrap();
-        buf.get_text(0..buf.byte_len()).to_string()
+        buf.get_text().to_string()
     });
 
     fuzz::run_async(async |rng| {
@@ -50,7 +50,7 @@ pub(crate) async fn fuzz_edits(
             // Make sure the buffer's contents are the same as the string.
             ctx.with_borrowed(|ctx| {
                 let buf = ctx.buffer(buf_id.clone()).unwrap();
-                let buf_contents = buf.get_text(0..buf.byte_len());
+                let buf_contents = buf.get_text();
 
                 if buf_contents != &*expected_contents {
                     panic!(

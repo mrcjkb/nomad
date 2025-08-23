@@ -1,8 +1,5 @@
 use core::ops::Deref;
 
-use editor::Buffer;
-
-use crate::buffer::{BufferId, NeovimBuffer};
 use crate::oxi::{self, api};
 
 /// TODO: docs.
@@ -66,8 +63,8 @@ impl UneditableEndOfLine {
 
 impl BufferLocalOpts {
     #[inline]
-    pub(crate) fn new(buffer_id: BufferId) -> Self {
-        Self(api::opts::OptionOpts::builder().buffer(buffer_id.into()).build())
+    pub(crate) fn new(buffer: api::Buffer) -> Self {
+        Self(api::opts::OptionOpts::builder().buffer(buffer).build())
     }
 }
 
@@ -111,13 +108,6 @@ impl NeovimOption for UneditableEndOfLine {
             EndOfLine.set(false, opts);
             FixEndOfLine.set(false, opts);
         }
-    }
-}
-
-impl From<&NeovimBuffer<'_>> for BufferLocalOpts {
-    #[inline]
-    fn from(buf: &NeovimBuffer) -> Self {
-        Self(api::opts::OptionOpts::builder().buffer(buf.id().into()).build())
     }
 }
 

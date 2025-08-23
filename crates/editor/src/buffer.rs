@@ -17,7 +17,13 @@ pub trait Buffer {
     fn byte_len(&self) -> ByteOffset;
 
     /// TODO: docs.
-    fn get_text(&self, byte_range: Range<ByteOffset>) -> impl Chunks;
+    fn get_text_range(&self, byte_range: Range<ByteOffset>) -> impl Chunks;
+
+    /// TODO: docs.
+    #[inline]
+    fn get_text(&self) -> impl Chunks {
+        self.get_text_range(0..self.byte_len())
+    }
 
     /// TODO: docs.
     fn id(&self) -> <Self::Editor as Editor>::BufferId;

@@ -38,7 +38,7 @@ impl Event for BufLeave {
     ) -> AutocmdId {
         let callback = (move |args: api::types::AutocmdCallbackArgs| {
             nvim.with_mut(|nvim| {
-                let buffer_id = BufferId::new(args.buffer.clone());
+                let buffer_id = BufferId::from(args.buffer.clone());
 
                 let Some(callbacks) = nvim
                     .events

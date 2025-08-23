@@ -11,7 +11,7 @@ use editor::{ByteOffset, Context, Editor};
 use executor::Executor;
 use fs::Directory;
 use mlua::{Function, Table};
-use neovim::buffer::{BufferId, HighlightRangeHandle};
+use neovim::buffer::{BufferExt, BufferId, HighlightRangeHandle};
 use neovim::notify::ContextExt;
 use neovim::{Neovim, mlua, oxi};
 
@@ -226,11 +226,12 @@ impl CollabEditor for Neovim {
     ) -> Result<Option<AbsPathBuf>, Self::LspRootError> {
         /// Returns the root directory of the first language server
         /// attached to the given buffer, if any.
-        fn inner(buffer: BufferId) -> Option<String> {
+        fn inner(buffer_id: BufferId) -> Option<String> {
             let lua = mlua::lua();
 
             let opts = lua.create_table().ok()?;
-            opts.raw_set("bufnr", buffer).ok()?;
+            opts.raw_set("bufnr", oxi::api::Buffer::from(buffer_id).handle())
+                .ok()?;
 
             get_lua_value::<Function>(&["vim", "lsp", "get_clients"])?
                 .call::<Table>(opts)

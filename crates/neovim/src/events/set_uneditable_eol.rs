@@ -68,9 +68,9 @@ impl Event for SetUneditableEndOfLine {
                              new_option_value: bool,
                              option: Option,
                              nvim: &mut Neovim| {
-            let buffer_id = BufferId::of_focused();
+            let buffer = api::Buffer::current();
 
-            let opts = BufferLocalOpts::new(buffer_id);
+            let opts = BufferLocalOpts::new(buffer.clone());
 
             let value = |option_value: bool| match option {
                 Option::Binary => UneditableEndOfLine::get_inner(
@@ -109,6 +109,8 @@ impl Event for SetUneditableEndOfLine {
                 Option::FixEol => mem::take(&mut ids.set_fix_eol),
                 Option::Binary => AgentId::UNKNOWN,
             };
+
+            let buffer_id = BufferId::from(buffer.clone());
 
             let Some(mut buffer) = nvim.buffer(buffer_id) else {
                 let buffer = api::Buffer::from(buffer_id);

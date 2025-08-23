@@ -39,7 +39,7 @@ impl Event for CursorMoved {
     ) -> AutocmdId {
         let callback = (move |args: api::types::AutocmdCallbackArgs| {
             nvim.with_mut(|nvim| {
-                let buffer_id = BufferId::new(args.buffer.clone());
+                let buffer_id = BufferId::from(args.buffer.clone());
 
                 let Some(callbacks) = nvim
                     .events
@@ -65,7 +65,7 @@ impl Event for CursorMoved {
                     return true;
                 };
 
-                let mut cursor = NeovimCursor::new(buffer);
+                let mut cursor = NeovimCursor::from(buffer);
 
                 for callback in callbacks {
                     callback((cursor.reborrow(), moved_by));

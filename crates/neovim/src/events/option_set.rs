@@ -100,13 +100,12 @@ impl<T: WatchedOption> Event for OptionSet<T> {
                 };
 
                 let mut maybe_buf = if is_buffer_local {
-                    let buffer_id = BufferId::of_focused();
+                    let buffer = api::Buffer::current();
 
-                    match nvim.buffer(buffer_id) {
+                    match nvim.buffer(BufferId::from(buffer.clone())) {
                         Some(buffer) => Some(buffer),
 
                         None => {
-                            let buffer = api::Buffer::from(buffer_id);
                             tracing::error!(
                                 buffer_name = ?buffer.get_name().ok(),
                                 "OptionSet triggered for an invalid buffer",

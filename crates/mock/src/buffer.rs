@@ -234,7 +234,7 @@ impl<'a> editor::Buffer for Buffer<'a> {
         self.contents.len()
     }
 
-    fn get_text(&self, byte_range: Range<ByteOffset>) -> impl Chunks {
+    fn get_text_range(&self, byte_range: Range<ByteOffset>) -> impl Chunks {
         &self.contents[byte_range]
     }
 
