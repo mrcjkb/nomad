@@ -7,7 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-tempdir = ["dep:tempdir"]
+temp = ["dep:tempfile"]
 
 [dependencies]
 abs-path = { workspace = true }
@@ -16,7 +16,7 @@ fs = { workspace = true }
 futures-util = { workspace = true, features = ["io"] }
 notify = { workspace = true, optional = true }
 
-tempdir = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 
 [lints]
 workspace = true

@@ -14,36 +14,6 @@ pub type Inode = u64;
 #[derive(Debug, Default, Copy, Clone)]
 pub struct RealFs {}
 
-impl RealFs {
-    /// Creates a new temporary directory that will be deleted when the
-    /// [`TempDirectory`] is dropped.
-    #[cfg(feature = "tempdir")]
-    pub async fn tempdir(&self) -> Result<crate::TempDirectory, io::Error> {
-        use fs::Fs;
-
-        let tempdir = tempdir::TempDir::new("")?;
-
-        let tempdir_path =
-            <&AbsPath>::try_from(tempdir.path()).map_err(|err| match err {
-                abs_path::AbsPathFromPathError::NotAbsolute => {
-                    unreachable!("the path is absolute")
-                },
-                abs_path::AbsPathFromPathError::NotUtf8 => io::Error::new(
-                    io::ErrorKind::InvalidFilename,
-                    format!("{:?} is not valid UTF-8", tempdir.path()),
-                ),
-            })?;
-
-        let inner = self
-            .node_at_path(tempdir_path)
-            .await?
-            .expect("just created the directory")
-            .unwrap_directory();
-
-        Ok(crate::TempDirectory { inner, _handle: tempdir })
-    }
-}
-
 impl fs::Fs for RealFs {
     type Directory = Directory;
     type File = File;
