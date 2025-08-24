@@ -13,7 +13,7 @@ use executor::{
 };
 use futures_lite::future::{self, FutureExt};
 
-use crate::context::{ResumeUnwinding, State};
+use crate::context::{self, EventHandle, ResumeUnwinding, State};
 use crate::editor::{AgentId, Editor};
 use crate::module::{Module, Plugin, PluginId};
 use crate::notify::Namespace;
@@ -72,8 +72,16 @@ pub struct BorrowedInner<'a, Ed: Editor> {
 impl<Ed: Editor, Bs: BorrowState> Context<Ed, Bs> {
     /// TODO: docs.
     #[inline]
-    pub fn for_each_buffer(&mut self, fun: impl FnMut(Ed::Buffer<'_>)) {
-        self.with_editor(move |ed| ed.for_each_buffer(fun));
+    pub fn for_each_buffer(
+        &mut self,
+        mut fun: impl FnMut(context::Buffer<'_, Ed>),
+    ) {
+        let state = self.state_handle();
+        self.with_editor(move |ed| {
+            ed.for_each_buffer(|inner| {
+                fun(context::Buffer::new(inner, state.clone()))
+            })
+        });
     }
 
     /// TODO: docs.
@@ -84,38 +92,62 @@ impl<Ed: Editor, Bs: BorrowState> Context<Ed, Bs> {
 
     /// TODO: docs.
     #[inline]
-    pub fn editor(&self) -> impl AccessMut<Ed> + Clone + 'static {
-        self.state_handle().map_mut(Deref::deref, DerefMut::deref_mut)
+    pub fn on_buffer_created(
+        &mut self,
+        mut fun: impl FnMut(context::Buffer<'_, Ed>, AgentId) + 'static,
+    ) -> EventHandle<Ed> {
+        let editor = self.editor();
+        let state = self.state_handle();
+        let handle = self.with_editor(move |ed| {
+            ed.on_buffer_created(
+                move |buffer, agent_id| {
+                    fun(context::Buffer::new(buffer, state.clone()), agent_id)
+                },
+                editor,
+            )
+        });
+        EventHandle::new(handle, self.state_handle())
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn on_buffer_created<Fun>(&mut self, fun: Fun) -> Ed::EventHandle
-    where
-        Fun: FnMut(&mut Ed::Buffer<'_>, AgentId) + 'static,
-    {
+    pub fn on_cursor_created(
+        &mut self,
+        mut fun: impl FnMut(context::Cursor<'_, Ed>, AgentId) + 'static,
+    ) -> EventHandle<Ed> {
         let editor = self.editor();
-        self.with_editor(move |ed| ed.on_buffer_created(fun, editor))
+        let state = self.state_handle();
+        let handle = self.with_editor(move |ed| {
+            ed.on_cursor_created(
+                move |cursor, agent_id| {
+                    fun(context::Cursor::new(cursor, state.clone()), agent_id)
+                },
+                editor,
+            )
+        });
+        EventHandle::new(handle, self.state_handle())
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn on_cursor_created<Fun>(&mut self, fun: Fun) -> Ed::EventHandle
-    where
-        Fun: FnMut(&mut Ed::Cursor<'_>, AgentId) + 'static,
-    {
+    pub fn on_selection_created(
+        &mut self,
+        mut fun: impl FnMut(context::Selection<'_, Ed>, AgentId) + 'static,
+    ) -> EventHandle<Ed> {
         let editor = self.editor();
-        self.with_editor(move |ed| ed.on_cursor_created(fun, editor))
-    }
-
-    /// TODO: docs.
-    #[inline]
-    pub fn on_selection_created<Fun>(&mut self, fun: Fun) -> Ed::EventHandle
-    where
-        Fun: FnMut(&mut Ed::Selection<'_>, AgentId) + 'static,
-    {
-        let editor = self.editor();
-        self.with_editor(move |ed| ed.on_selection_created(fun, editor))
+        let state = self.state_handle();
+        let handle = self.with_editor(move |ed| {
+            ed.on_selection_created(
+                move |selection, agent_id| {
+                    fun(
+                        context::Selection::new(selection, state.clone()),
+                        agent_id,
+                    )
+                },
+                editor,
+            )
+        });
+        EventHandle::new(handle, self.state_handle())
     }
 
     /// TODO: docs.
@@ -165,6 +197,11 @@ impl<Ed: Editor, Bs: BorrowState> Context<Ed, Bs> {
     #[inline]
     pub(crate) fn state_handle(&self) -> Shared<State<Ed>> {
         self.borrow.state_handle()
+    }
+
+    #[inline]
+    fn editor(&self) -> impl AccessMut<Ed> + Clone + 'static {
+        self.state_handle().map_mut(Deref::deref, DerefMut::deref_mut)
     }
 
     #[inline]
@@ -240,8 +277,10 @@ where
     pub fn buffer(
         &mut self,
         buffer_id: Ed::BufferId,
-    ) -> Option<Ed::Buffer<'_>> {
+    ) -> Option<context::Buffer<'_, Ed>> {
+        let state_handle = self.state_handle();
         Ed::buffer(self, buffer_id)
+            .map(|buffer| context::Buffer::new(buffer, state_handle))
     }
 
     /// TODO: docs.
@@ -249,14 +288,18 @@ where
     pub fn buffer_at_path(
         &mut self,
         path: &AbsPath,
-    ) -> Option<Ed::Buffer<'_>> {
+    ) -> Option<context::Buffer<'_, Ed>> {
+        let state_handle = self.state_handle();
         Ed::buffer_at_path(self, path)
+            .map(|buffer| context::Buffer::new(buffer, state_handle))
     }
 
     /// TODO: docs.
     #[inline]
-    pub fn current_buffer(&mut self) -> Option<Ed::Buffer<'_>> {
+    pub fn current_buffer(&mut self) -> Option<context::Buffer<'_, Ed>> {
+        let state_handle = self.state_handle();
         Ed::current_buffer(self)
+            .map(|buffer| context::Buffer::new(buffer, state_handle))
     }
 
     /// TODO: docs.
@@ -264,8 +307,10 @@ where
     pub fn cursor(
         &mut self,
         cursor_id: Ed::CursorId,
-    ) -> Option<Ed::Cursor<'_>> {
+    ) -> Option<context::Cursor<'_, Ed>> {
+        let state_handle = self.state_handle();
         Ed::cursor(self, cursor_id)
+            .map(|cursor| context::Cursor::new(cursor, state_handle))
     }
 
     /// TODO: docs.
@@ -286,8 +331,10 @@ where
     pub fn selection(
         &mut self,
         selection_id: Ed::SelectionId,
-    ) -> Option<Ed::Selection<'_>> {
+    ) -> Option<context::Selection<'_, Ed>> {
+        let state_handle = self.state_handle();
         Ed::selection(self, selection_id)
+            .map(|selection| context::Selection::new(selection, state_handle))
     }
 
     /// TODO: docs.

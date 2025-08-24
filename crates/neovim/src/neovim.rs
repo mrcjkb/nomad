@@ -287,11 +287,11 @@ impl Editor for Neovim {
         this: impl AccessMut<Self> + Clone + 'static,
     ) -> Self::EventHandle
     where
-        Fun: FnMut(&mut Self::Buffer<'_>, AgentId) + 'static,
+        Fun: FnMut(Self::Buffer<'_>, AgentId) + 'static,
     {
         self.events.insert(
             events::BufferCreated,
-            move |(mut buf, created_by)| fun(&mut buf, created_by),
+            move |(buf, created_by)| fun(buf, created_by),
             this,
         )
     }
@@ -303,13 +303,11 @@ impl Editor for Neovim {
         this: impl AccessMut<Self> + Clone + 'static,
     ) -> Self::EventHandle
     where
-        Fun: FnMut(&mut Self::Cursor<'_>, AgentId) + 'static,
+        Fun: FnMut(Self::Cursor<'_>, AgentId) + 'static,
     {
         self.events.insert(
             events::BufEnter,
-            move |(buf, focused_by)| {
-                fun(&mut NeovimCursor::from(buf), focused_by)
-            },
+            move |(buf, focused_by)| fun(NeovimCursor::from(buf), focused_by),
             this,
         )
     }
@@ -321,7 +319,7 @@ impl Editor for Neovim {
         this: impl AccessMut<Self> + Clone + 'static,
     ) -> Self::EventHandle
     where
-        Fun: FnMut(&mut Self::Selection<'_>, AgentId) + 'static,
+        Fun: FnMut(Self::Selection<'_>, AgentId) + 'static,
     {
         self.events.insert(
             events::ModeChanged,
@@ -331,7 +329,7 @@ impl Editor for Neovim {
                     // already displaying a selected range.
                     && !old_mode.has_selected_range()
                 {
-                    fun(&mut NeovimSelection::from(buf), changed_by);
+                    fun(NeovimSelection::from(buf), changed_by);
                 }
             },
             this,

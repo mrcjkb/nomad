@@ -89,18 +89,13 @@ async fn on_buffer_removed_fires_when_named_buffer_is_renamed_to_empty_name(
 
     let num_times_fired = Shared::<u8>::new(0);
 
-    let editor = ctx.editor();
-
     let (buffer_id, _handle) = ctx.with_borrowed(|ctx| {
         let mut buffer = ctx.current_buffer().unwrap();
 
-        let handle = buffer.on_removed(
-            {
-                let num_times_fired = num_times_fired.clone();
-                move |_, _| num_times_fired.with_mut(|n| *n += 1)
-            },
-            editor,
-        );
+        let handle = buffer.on_removed({
+            let num_times_fired = num_times_fired.clone();
+            move |_, _| num_times_fired.with_mut(|n| *n += 1)
+        });
 
         (buffer.id(), handle)
     });

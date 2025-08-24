@@ -129,18 +129,13 @@ pub(crate) trait EditExt {
         buf_id: Ed::BufferId,
         ctx: &mut Context<Ed>,
     ) -> impl FusedStream<Item = Edit> + Unpin + use<Self, Ed> {
-        use editor::Buffer;
-
         let (tx, rx) = flume::unbounded();
-
-        let editor = ctx.editor();
 
         ctx.with_borrowed(|ctx| {
             mem::forget(ctx.buffer(buf_id).unwrap().on_edited(
                 move |_buf, edit| {
                     let _ = tx.send(edit.clone());
                 },
-                editor,
             ));
         });
 

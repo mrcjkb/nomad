@@ -1,14 +1,7 @@
 use core::mem;
 
-use editor::{
-    AccessMut,
-    AgentId,
-    Buffer,
-    ByteOffset,
-    Context,
-    Cursor,
-    Editor,
-};
+use editor::context::Cursor;
+use editor::{AgentId, Buffer, ByteOffset, Context, Cursor as _, Editor};
 use futures_util::FutureExt;
 use futures_util::stream::{FusedStream, StreamExt};
 
@@ -72,16 +65,15 @@ impl<Ed: Editor> CursorEvent<Ed> {
         ctx: &mut Context<Ed>,
     ) -> impl FusedStream<Item = Self> + Unpin + use<Ed> {
         let (tx, rx) = flume::unbounded();
-        let editor = ctx.editor();
 
         ctx.for_each_buffer(|mut buf| {
             buf.for_each_cursor(|mut cursor| {
                 // Subscribe to events on each existing cursor.
-                subscribe(&mut cursor, tx.clone(), editor.clone());
+                subscribe(&mut cursor, tx.clone());
             });
         });
 
-        mem::forget(ctx.on_cursor_created(move |cursor, created_by| {
+        mem::forget(ctx.on_cursor_created(move |mut cursor, created_by| {
             let event = Self::Created(CursorCreation {
                 buffer_id: cursor.buffer_id(),
                 byte_offset: cursor.byte_offset(),
@@ -90,7 +82,7 @@ impl<Ed: Editor> CursorEvent<Ed> {
             let _ = tx.send(event);
 
             // Subscribe to events on the newly created cursor.
-            subscribe(cursor, tx.clone(), editor.clone());
+            subscribe(&mut cursor, tx.clone());
         }));
 
         rx.into_stream()
@@ -98,29 +90,22 @@ impl<Ed: Editor> CursorEvent<Ed> {
 }
 
 fn subscribe<Ed: Editor>(
-    cursor: &mut Ed::Cursor<'_>,
+    cursor: &mut Cursor<'_, Ed>,
     tx: flume::Sender<CursorEvent<Ed>>,
-    editor: impl AccessMut<Ed> + Clone + 'static,
 ) {
     let tx2 = tx.clone();
-    mem::forget(cursor.on_moved(
-        move |cursor, moved_by| {
-            let event = CursorEvent::Moved(CursorMovement {
-                buffer_id: cursor.buffer_id(),
-                byte_offset: cursor.byte_offset(),
-                moved_by,
-            });
-            let _ = tx2.send(event);
-        },
-        editor.clone(),
-    ));
+    mem::forget(cursor.on_moved(move |cursor, moved_by| {
+        let event = CursorEvent::Moved(CursorMovement {
+            buffer_id: cursor.buffer_id(),
+            byte_offset: cursor.byte_offset(),
+            moved_by,
+        });
+        let _ = tx2.send(event);
+    }));
 
     let tx2 = tx.clone();
-    mem::forget(cursor.on_removed(
-        move |_cursor_id, removed_by| {
-            let event = CursorEvent::Removed(removed_by);
-            let _ = tx2.send(event);
-        },
-        editor.clone(),
-    ));
+    mem::forget(cursor.on_removed(move |_cursor_id, removed_by| {
+        let event = CursorEvent::Removed(removed_by);
+        let _ = tx2.send(event);
+    }));
 }

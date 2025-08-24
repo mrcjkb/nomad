@@ -94,6 +94,15 @@ impl<'a> Buffer<'a> {
             .then_some(Selection { buffer: self, selection_id })
     }
 
+    pub(crate) fn reborrow(&mut self) -> Buffer<'_> {
+        Buffer {
+            inner: self.inner,
+            callbacks: self.callbacks,
+            current_buffer: self.current_buffer,
+            fs: self.fs,
+        }
+    }
+
     fn create_cursor(
         &mut self,
         byte_offset: ByteOffset,
@@ -118,19 +127,10 @@ impl<'a> Buffer<'a> {
         };
 
         for callback in on_cursor_created {
-            callback.with_mut(|cb| cb(&mut cursor, agent_id));
+            callback.with_mut(|cb| cb(cursor.reborrow(), agent_id));
         }
 
         cursor
-    }
-
-    fn reborrow(&mut self) -> Buffer<'_> {
-        Buffer {
-            inner: self.inner,
-            callbacks: self.callbacks,
-            current_buffer: self.current_buffer,
-            fs: self.fs,
-        }
     }
 }
 
@@ -139,6 +139,12 @@ impl BufferId {
         let id = *self;
         self.0 += 1;
         id
+    }
+}
+
+impl Cursor<'_> {
+    pub(crate) fn reborrow(&mut self) -> Cursor<'_> {
+        Cursor { buffer: self.buffer.reborrow(), cursor_id: self.cursor_id }
     }
 }
 

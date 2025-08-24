@@ -1,7 +1,7 @@
 use core::mem;
 use core::time::Duration;
 
-use editor::{ByteOffset, Context};
+use editor::{ByteOffset, Context, Cursor};
 use futures_util::stream::{FusedStream, StreamExt};
 use futures_util::{FutureExt, select_biased};
 use neovim::Neovim;
@@ -69,21 +69,15 @@ trait ByteOffsetExt {
         buffer_id: BufferId,
         ctx: &mut Context<Neovim>,
     ) -> impl FusedStream<Item = ByteOffset> + Unpin + use<Self> {
-        use editor::{Buffer, Cursor};
-
         let (tx, rx) = flume::unbounded();
-        let editor = ctx.editor();
 
         ctx.with_borrowed(|ctx| {
             ctx.buffer(buffer_id).unwrap().for_each_cursor(
                 move |mut cursor| {
                     let tx2 = tx.clone();
-                    mem::forget(cursor.on_moved(
-                        move |cursor, _moved_by| {
-                            let _ = tx2.send(cursor.byte_offset());
-                        },
-                        editor.clone(),
-                    ));
+                    mem::forget(cursor.on_moved(move |cursor, _moved_by| {
+                        let _ = tx2.send(cursor.byte_offset());
+                    }));
                 },
             )
         });

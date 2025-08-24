@@ -1,4 +1,4 @@
-use crate::context::{BorrowState, Context, State};
+use crate::context::State;
 use crate::{Editor, Shared};
 
 /// A wrapper around an [`Editor`]'s [`EventHandle`](Editor::EventHandle) that
@@ -10,14 +10,12 @@ pub struct EventHandle<Ed: Editor> {
 }
 
 impl<Ed: Editor> EventHandle<Ed> {
-    /// Creates a new [`EventHandle`] from the given inner
-    /// [`EventHandle`](Editor::EventHandle) and context.
     #[inline]
-    pub fn new(
+    pub(crate) fn new(
         inner: Ed::EventHandle,
-        ctx: &mut Context<Ed, impl BorrowState>,
+        state: Shared<State<Ed>>,
     ) -> Self {
-        Self { inner: Some(inner), state: ctx.state_handle() }
+        Self { inner: Some(inner), state }
     }
 }
 
