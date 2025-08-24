@@ -1,8 +1,8 @@
 //! TODO: docs.
 
 use auth_types::AuthInfos;
-use editor::action::AsyncAction;
 use editor::command::ToCompletionFn;
+use editor::module::AsyncAction;
 use editor::{Context, Editor, Shared};
 
 use crate::credential_store::{self, CredentialStore};

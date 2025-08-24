@@ -1,6 +1,7 @@
 use core::fmt::Display;
 
-use editor::{AccessMut, AgentId, BorrowState, Buffer, Context, Editor};
+use editor::context::BorrowState;
+use editor::{AccessMut, AgentId, Buffer, Context, Editor};
 use futures_util::FutureExt;
 
 pub(crate) trait ContextExt<Ed: Editor> {

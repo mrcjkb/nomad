@@ -6,7 +6,8 @@ use abs_path::AbsPath;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 
-use crate::{AccessMut, AgentId, ByteOffset, Editor};
+use crate::AccessMut;
+use crate::editor::{AgentId, ByteOffset, Editor};
 
 /// TODO: docs.
 pub trait Buffer {

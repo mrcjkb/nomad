@@ -1,8 +1,10 @@
 use smol_str::SmolStr;
 
-use crate::action::Action;
 use crate::command::CommandArgs;
-use crate::{Borrowed, ByteOffset, Context, Editor, notify};
+use crate::context::{Borrowed, Context};
+use crate::editor::{ByteOffset, Editor};
+use crate::module::Action;
+use crate::notify;
 
 /// TODO: docs.
 pub trait Command<Ed: Editor>: 'static {

@@ -1,8 +1,8 @@
 //! TODO: docs.
 
 use auth_types::{AuthInfos, GitHubHandle};
-use editor::action::AsyncAction;
 use editor::command::ToCompletionFn;
+use editor::module::AsyncAction;
 use editor::{Context, Shared};
 
 use crate::credential_store::{self, CredentialStore};

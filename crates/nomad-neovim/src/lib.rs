@@ -3,9 +3,9 @@
 use core::error::Error;
 
 use abs_path::{AbsPathBuf, NodeName, node};
-use editor::module::{ApiCtx, Empty, Module};
-use editor::plugin::{PanicInfo, Plugin};
-use editor::{Borrowed, Context};
+use editor::Context;
+use editor::context::Borrowed;
+use editor::module::{ApiCtx, Empty, Module, PanicInfo, Plugin};
 use either::Either;
 use neovim::Neovim;
 use neovim::notify::ContextExt;

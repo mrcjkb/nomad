@@ -9,11 +9,18 @@ use std::panic;
 
 use fxhash::FxHashMap;
 
-use crate::context::BorrowedInner;
-use crate::module::{Module, ModuleId};
+use crate::context::{Borrowed, BorrowedInner};
+use crate::editor::AgentId;
+use crate::module::{
+    Module,
+    ModuleId,
+    PanicInfo,
+    PanicLocation,
+    Plugin,
+    PluginId,
+};
 use crate::notify::Namespace;
-use crate::plugin::{PanicInfo, PanicLocation, Plugin, PluginId};
-use crate::{AgentId, Borrowed, Context, Editor, Shared};
+use crate::{Context, Editor, Shared};
 
 /// TODO: docs.
 #[doc(hidden)]

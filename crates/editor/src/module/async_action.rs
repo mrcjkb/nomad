@@ -1,5 +1,5 @@
-use crate::action::Action;
-use crate::{Borrowed, Context, Editor};
+use crate::module::Action;
+use crate::{Context, Editor, context};
 
 /// TODO: docs.
 pub trait AsyncAction<Ed: Editor>: 'static {
@@ -31,7 +31,7 @@ where
     fn call(
         &mut self,
         args: Self::Args<'_>,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
+        ctx: &mut Context<Ed, context::Borrowed<'_>>,
     ) {
         let mut this = self.clone();
         ctx.spawn_and_detach(async move |ctx| {

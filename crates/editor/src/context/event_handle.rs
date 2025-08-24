@@ -1,5 +1,5 @@
-use crate::state::State;
-use crate::{BorrowState, Context, Editor, Shared};
+use crate::context::{BorrowState, Context, State};
+use crate::{Editor, Shared};
 
 /// A wrapper around an [`Editor`]'s [`EventHandle`](Editor::EventHandle) that
 /// executes the editor's [`remove_event`](Editor::remove_event) method when

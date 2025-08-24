@@ -2,9 +2,8 @@ use core::any;
 
 use serde::de::DeserializeOwned;
 
-use crate::module::ApiCtx;
-use crate::plugin::PluginId;
-use crate::{Borrowed, Context, Editor};
+use crate::module::{ApiCtx, PluginId};
+use crate::{Context, Editor, context};
 
 /// TODO: docs.
 pub trait Module<Ed: Editor>: 'static + Sized {
@@ -21,12 +20,12 @@ pub trait Module<Ed: Editor>: 'static + Sized {
     fn on_new_config(
         &self,
         new_config: Self::Config,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
+        ctx: &mut Context<Ed, context::Borrowed<'_>>,
     );
 
     /// TODO: docs.
     #[allow(unused_variables)]
-    fn on_init(&self, ctx: &mut Context<Ed, Borrowed<'_>>) {}
+    fn on_init(&self, ctx: &mut Context<Ed, context::Borrowed<'_>>) {}
 
     #[inline]
     #[doc(hidden)]

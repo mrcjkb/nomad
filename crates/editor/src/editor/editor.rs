@@ -6,21 +6,20 @@ use executor::Executor;
 use serde::Serialize;
 use serde::de::Deserialize;
 
-use crate::notify::{self, Emitter, MaybeResult};
-use crate::plugin::Plugin;
-use crate::{
-    AccessMut,
+use crate::editor::{
     AgentId,
     Api,
     ApiValue,
     Buffer,
-    Context,
     Cursor,
     Key,
     MapAccess,
     Selection,
     Value,
 };
+use crate::module::Plugin;
+use crate::notify::{self, Emitter};
+use crate::{AccessMut, Context};
 
 /// TODO: docs.
 pub trait Editor: 'static + Sized {
@@ -145,7 +144,7 @@ pub trait Editor: 'static + Sized {
     fn serialize<T>(
         &mut self,
         value: &T,
-    ) -> impl MaybeResult<ApiValue<Self>, Error = Self::SerializeError>
+    ) -> Result<ApiValue<Self>, Self::SerializeError>
     where
         T: ?Sized + Serialize;
 
@@ -153,7 +152,7 @@ pub trait Editor: 'static + Sized {
     fn deserialize<'de, T>(
         &mut self,
         value: ApiValue<Self>,
-    ) -> impl MaybeResult<T, Error = Self::DeserializeError>
+    ) -> Result<T, Self::DeserializeError>
     where
         T: Deserialize<'de>;
 

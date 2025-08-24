@@ -1,6 +1,7 @@
-use editor::action::Action;
 use editor::command::ToCompletionFn;
-use editor::{Borrowed, Context, Editor};
+use editor::context::Borrowed;
+use editor::module::Action;
+use editor::{Context, Editor};
 
 use crate::VERSION;
 

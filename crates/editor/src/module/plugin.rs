@@ -1,9 +1,8 @@
 use core::any;
 
-use crate::module::{self, Module};
-use crate::plugin::PanicInfo;
-use crate::state::StateHandle;
-use crate::{Borrowed, Context, Editor};
+use crate::Editor;
+use crate::context::{self, Context, StateHandle};
+use crate::module::{self, Module, PanicInfo};
 
 pub(crate) const NO_COMMAND_NAME: &str = "�";
 
@@ -19,7 +18,7 @@ pub trait Plugin<Ed: Editor>: Module<Ed> {
     fn handle_panic(
         &self,
         panic_info: PanicInfo,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
+        ctx: &mut Context<Ed, context::Borrowed<'_>>,
     );
 
     #[doc(hidden)]

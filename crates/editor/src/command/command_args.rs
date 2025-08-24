@@ -6,7 +6,8 @@ use core::str::FromStr;
 
 use smol_str::ToSmolStr;
 
-use crate::{ByteOffset, notify};
+use crate::editor::ByteOffset;
+use crate::notify;
 
 /// TODO: docs.
 #[derive(Copy, Clone)]

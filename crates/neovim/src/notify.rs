@@ -2,8 +2,9 @@
 
 use core::fmt;
 
+use editor::Editor;
+use editor::context::{BorrowState, Context};
 use editor::notify::{Emitter, Message, Notification, NotificationId};
-use editor::{BorrowState, Context, Editor};
 use nvim_oxi::api::types::LogLevel;
 
 use crate::convert::Convert;

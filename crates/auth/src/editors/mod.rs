@@ -6,7 +6,8 @@ mod neovim;
 use core::fmt::Debug;
 
 use auth_types::AuthInfos;
-use editor::{Borrowed, Context, Editor};
+use editor::context::Borrowed;
+use editor::{Context, Editor};
 
 use crate::{login, logout};
 

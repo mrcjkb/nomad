@@ -4,7 +4,7 @@ use core::ops::Range;
 use compact_str::{CompactString, ToCompactString};
 use smallvec::SmallVec;
 
-use crate::ByteOffset;
+use crate::editor::ByteOffset;
 
 /// TODO: docs.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

@@ -1,6 +1,7 @@
 use auth::AuthInfos;
+use editor::context::Borrowed;
 use editor::module::{ApiCtx, Module};
-use editor::{Borrowed, Context, Shared};
+use editor::{Context, Shared};
 
 use crate::config::Config;
 use crate::editors::{CollabEditor, SessionId};

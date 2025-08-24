@@ -4,11 +4,11 @@ use core::convert::Infallible;
 use core::fmt;
 
 use crate::command::{CommandArgs, CommandCompletion};
+use crate::editor::{ByteOffset, Editor};
 use crate::notify::{self, Name};
-use crate::{ByteOffset, Editor};
 
 /// TODO: docs.
-pub type ApiValue<B> = <<B as Editor>::Api as Api>::Value;
+pub type ApiValue<Ed> = <<Ed as Editor>::Api as Api>::Value;
 
 /// TODO: docs.
 pub trait Api: 'static + Sized {

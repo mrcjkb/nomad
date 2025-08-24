@@ -1,10 +1,9 @@
 use crate::command::{Command, CommandBuilder, CommandCompletionsBuilder};
-use crate::module::{Constant, Function, Module};
-use crate::notify::{self, Error, MaybeResult, Name, Namespace};
-use crate::plugin::{self, Plugin, PluginId};
-use crate::state::{StateHandle, StateMut};
+use crate::context::{Borrowed, Context, StateHandle, StateMut};
+use crate::editor::{Api, ApiValue, Editor, Key, MapAccess, Value};
+use crate::module::{self, Constant, Function, Module, Plugin, PluginId};
+use crate::notify::{self, Error, Name, Namespace};
 use crate::util::OrderedMap;
-use crate::{Api, ApiValue, Borrowed, Context, Editor, Key, MapAccess, Value};
 
 /// TODO: docs.
 pub(crate) fn build_api<P, Ed>(plugin: P, mut state: StateMut<Ed>) -> Ed::Api
@@ -35,7 +34,7 @@ where
         P::CONFIG_FN_NAME,
         config_builder.build::<P>(state.handle()),
     );
-    if P::COMMAND_NAME != plugin::NO_COMMAND_NAME
+    if P::COMMAND_NAME != module::NO_COMMAND_NAME
         && !command_builder.is_empty()
     {
         plugin_api.add_command::<_, _, _>(
@@ -100,7 +99,7 @@ impl<Ed: Editor> ApiCtx<'_, Ed> {
     where
         Const: Constant,
     {
-        let value = match self.state.serialize(&value).into_result() {
+        let value = match self.state.serialize(&value) {
             Ok(value) => value,
             Err(err) => {
                 let (_, msg) = err.to_message();
@@ -130,10 +129,7 @@ impl<Ed: Editor> ApiCtx<'_, Ed> {
             let fun = &mut function;
             let namespace = &mut namespace;
             state.with_mut(move |mut state| {
-                let args = match state
-                    .deserialize::<Fun::Args<'_>>(value)
-                    .into_result()
-                {
+                let args = match state.deserialize::<Fun::Args<'_>>(value) {
                     Ok(args) => args,
                     Err(err) => {
                         state.emit_err(namespace, err);
@@ -142,7 +138,7 @@ impl<Ed: Editor> ApiCtx<'_, Ed> {
                 };
                 let ret = state
                     .with_ctx(namespace, plugin_id, |ctx| fun.call(args, ctx));
-                match state.serialize(&ret).into_result() {
+                match state.serialize(&ret) {
                     Ok(ret) => Some(ret),
                     Err(err) => {
                         state.emit_err(namespace, err);
@@ -278,11 +274,9 @@ impl<Ed: Editor> ConfigBuilder<Ed> {
     fn new<M: Module<Ed>>(module: &'static M) -> Self {
         Self {
             handler: Box::new(|config, ctx| {
-                ctx.deserialize::<M::Config>(config).into_result().map(
-                    |config| {
-                        module.on_new_config(config, ctx);
-                    },
-                )
+                ctx.deserialize::<M::Config>(config).map(|config| {
+                    module.on_new_config(config, ctx);
+                })
             }),
             module_name: M::NAME,
             is_config_unit: M::Config::is_unit(),

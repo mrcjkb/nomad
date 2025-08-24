@@ -7,12 +7,11 @@ use crate::command::{
     CommandCompletion,
     CompletionFn,
 };
-use crate::module::Module;
+use crate::context::{Borrowed, Context, StateHandle, StateMut};
+use crate::editor::{ByteOffset, Editor};
+use crate::module::{Module, Plugin, PluginId};
 use crate::notify::{self, Name, Namespace};
-use crate::plugin::{Plugin, PluginId};
-use crate::state::{StateHandle, StateMut};
 use crate::util::OrderedMap;
-use crate::{Borrowed, ByteOffset, Context, Editor};
 
 type CommandHandler<B> =
     Box<dyn FnMut(CommandArgs, &mut Context<B, Borrowed<'_>>)>;

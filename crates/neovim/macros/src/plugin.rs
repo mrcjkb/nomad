@@ -15,7 +15,7 @@ pub(crate) fn plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         fn #fun_name() -> ::neovim::oxi::Dictionary {
             let plugin = #fun_body;
             let neovim = ::neovim::Neovim::new_plugin(#augroup_name);
-            ::editor::plugin::Plugin::api(plugin, neovim).into()
+            ::editor::module::Plugin::api(plugin, neovim).into()
         }
     }
     .into()

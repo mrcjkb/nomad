@@ -15,8 +15,8 @@ use collab_project::fs::{
 use collab_server::client as collab_client;
 use collab_types::{Message, Peer, ProjectRequest, puff};
 use editor::Context;
-use editor::action::AsyncAction;
 use editor::command::{self, ToCompletionFn};
+use editor::module::AsyncAction;
 use editor::shared::{MultiThreaded, Shared};
 use either::Either;
 use fs::{Directory, File, Fs, Symlink};

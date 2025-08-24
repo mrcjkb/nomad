@@ -3,7 +3,8 @@
 use core::ops;
 
 use auth_types::AuthInfos;
-use editor::{Borrowed, Context, Editor, EditorAdapter};
+use editor::context::Borrowed;
+use editor::{Context, Editor, EditorAdapter};
 
 use crate::{AuthEditor, login, logout};
 

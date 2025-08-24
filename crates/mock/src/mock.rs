@@ -1,5 +1,4 @@
 use abs_path::AbsPath;
-use editor::notify::MaybeResult;
 use editor::{AccessMut, AgentId, ApiValue, Edit, Editor, Shared};
 use executor::BackgroundSpawner;
 use fs::Fs;
@@ -319,7 +318,7 @@ impl Editor for Mock {
     fn serialize<T>(
         &mut self,
         value: &T,
-    ) -> impl MaybeResult<ApiValue<Self>, Error = Self::SerializeError>
+    ) -> Result<ApiValue<Self>, Self::SerializeError>
     where
         T: ?Sized + Serialize,
     {
@@ -329,7 +328,7 @@ impl Editor for Mock {
     fn deserialize<'de, T>(
         &mut self,
         value: ApiValue<Self>,
-    ) -> impl MaybeResult<T, Error = Self::DeserializeError>
+    ) -> Result<T, Self::DeserializeError>
     where
         T: Deserialize<'de>,
     {

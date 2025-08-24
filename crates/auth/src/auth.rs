@@ -1,6 +1,7 @@
 use auth_types::AuthInfos;
+use editor::context::Borrowed;
 use editor::module::{ApiCtx, Module};
-use editor::{Borrowed, Context, Shared};
+use editor::{Context, Shared};
 
 use crate::AuthEditor;
 use crate::credential_store::CredentialStore;

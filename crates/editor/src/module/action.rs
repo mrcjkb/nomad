@@ -1,4 +1,4 @@
-use crate::{Borrowed, Context, Editor};
+use crate::{Context, Editor, context};
 
 /// TODO: docs.
 pub trait Action<Ed: Editor>: 'static {
@@ -15,6 +15,6 @@ pub trait Action<Ed: Editor>: 'static {
     fn call(
         &mut self,
         args: Self::Args<'_>,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
+        ctx: &mut Context<Ed, context::Borrowed<'_>>,
     ) -> Self::Return;
 }

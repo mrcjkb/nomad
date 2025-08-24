@@ -1,5 +1,6 @@
 use auth_types::AuthInfos;
-use editor::{Borrowed, Context};
+use editor::Context;
+use editor::context::Borrowed;
 use neovim::Neovim;
 use neovim::notify::ContextExt;
 

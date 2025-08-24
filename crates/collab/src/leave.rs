@@ -2,8 +2,8 @@
 
 use std::collections::hash_map::Entry;
 
-use editor::action::AsyncAction;
 use editor::command::ToCompletionFn;
+use editor::module::AsyncAction;
 use editor::{Context, Shared};
 use flume::{Receiver, Sender};
 use fxhash::FxHashMap;

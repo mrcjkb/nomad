@@ -3,8 +3,8 @@ use core::ops::{Deref, DerefMut};
 
 use abs_path::AbsPath;
 
-use crate::notify::MaybeResult;
-use crate::{AccessMut, AgentId, Buffer, Cursor, Editor, Selection};
+use crate::AccessMut;
+use crate::editor::{self, AgentId, Buffer, Cursor, Editor, Selection};
 
 /// TODO: docs.
 pub trait EditorAdapter: 'static + Sized + DerefMut<Target: Editor> {}
@@ -248,7 +248,7 @@ impl<Ed: EditorAdapter> Editor for Ed {
     fn serialize<T>(
         &mut self,
         value: &T,
-    ) -> impl MaybeResult<crate::ApiValue<Self>, Error = Self::SerializeError>
+    ) -> Result<editor::ApiValue<Self>, Self::SerializeError>
     where
         T: ?Sized + serde::Serialize,
     {
@@ -258,8 +258,8 @@ impl<Ed: EditorAdapter> Editor for Ed {
     #[inline]
     fn deserialize<'de, T>(
         &mut self,
-        value: crate::ApiValue<Self>,
-    ) -> impl MaybeResult<T, Error = Self::DeserializeError>
+        value: editor::ApiValue<Self>,
+    ) -> Result<T, Self::DeserializeError>
     where
         T: serde::Deserialize<'de>,
     {
@@ -271,15 +271,15 @@ impl<'a, Ed: EditorAdapter> Buffer for BufferAdapter<'a, Ed> {
     type Editor = Ed;
 
     #[inline]
-    fn byte_len(&self) -> crate::ByteOffset {
+    fn byte_len(&self) -> editor::ByteOffset {
         self.inner.byte_len()
     }
 
     #[inline]
     fn get_text_range(
         &self,
-        byte_range: std::ops::Range<crate::ByteOffset>,
-    ) -> impl crate::Chunks {
+        byte_range: std::ops::Range<editor::ByteOffset>,
+    ) -> impl editor::Chunks {
         self.inner.get_text_range(byte_range)
     }
 
@@ -305,7 +305,7 @@ impl<'a, Ed: EditorAdapter> Buffer for BufferAdapter<'a, Ed> {
         editor: impl AccessMut<Self::Editor> + Clone + 'static,
     ) -> <Self::Editor as Editor>::EventHandle
     where
-        Fun: FnMut(&<Self::Editor as Editor>::Buffer<'_>, &crate::Edit)
+        Fun: FnMut(&<Self::Editor as Editor>::Buffer<'_>, &editor::Edit)
             + 'static,
     {
         self.inner.on_edited(
@@ -362,7 +362,7 @@ impl<'a, Ed: EditorAdapter> Buffer for BufferAdapter<'a, Ed> {
         agent_id: AgentId,
     ) -> impl Future<Output = ()> + 'static
     where
-        R: IntoIterator<Item = crate::Replacement>,
+        R: IntoIterator<Item = editor::Replacement>,
     {
         self.inner.schedule_edit(replacements, agent_id)
     }
@@ -395,7 +395,7 @@ impl<'a, Ed: EditorAdapter> Cursor for CursorAdapter<'a, Ed> {
     }
 
     #[inline]
-    fn byte_offset(&self) -> crate::ByteOffset {
+    fn byte_offset(&self) -> editor::ByteOffset {
         self.inner.byte_offset()
     }
 
@@ -441,7 +441,7 @@ impl<'a, Ed: EditorAdapter> Cursor for CursorAdapter<'a, Ed> {
     #[inline]
     fn schedule_move(
         &mut self,
-        offset: crate::ByteOffset,
+        offset: editor::ByteOffset,
         agent_id: AgentId,
     ) -> impl Future<Output = ()> + 'static {
         self.inner.schedule_move(offset, agent_id)
@@ -457,7 +457,7 @@ impl<'a, Ed: EditorAdapter> Selection for SelectionAdapter<'a, Ed> {
     }
 
     #[inline]
-    fn byte_range(&self) -> std::ops::Range<crate::ByteOffset> {
+    fn byte_range(&self) -> std::ops::Range<editor::ByteOffset> {
         self.inner.byte_range()
     }
 

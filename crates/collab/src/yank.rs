@@ -1,8 +1,8 @@
 //! TODO: docs.
 
 use editor::Context;
-use editor::action::AsyncAction;
 use editor::command::ToCompletionFn;
+use editor::module::AsyncAction;
 
 use crate::collab::Collab;
 use crate::editors::{ActionForSelectedSession, CollabEditor};

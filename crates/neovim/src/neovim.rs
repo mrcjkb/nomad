@@ -3,8 +3,8 @@ use core::mem;
 
 use ::serde::{Deserialize, Serialize};
 use abs_path::AbsPath;
+use editor::module::Plugin;
 use editor::notify::Namespace;
-use editor::plugin::Plugin;
 use editor::{AccessMut, AgentId, Buffer, Editor};
 use fs::Fs;
 

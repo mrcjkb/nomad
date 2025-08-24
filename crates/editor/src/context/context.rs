@@ -13,11 +13,11 @@ use executor::{
 };
 use futures_lite::future::{self, FutureExt};
 
-use crate::module::Module;
+use crate::context::{ResumeUnwinding, State};
+use crate::editor::{AgentId, Editor};
+use crate::module::{Module, Plugin, PluginId};
 use crate::notify::Namespace;
-use crate::plugin::{Plugin, PluginId};
-use crate::state::State;
-use crate::{Access, AccessMut, AgentId, Editor, Shared};
+use crate::{Access, AccessMut, Shared};
 
 /// TODO: docs.
 pub trait BorrowState {
@@ -360,7 +360,7 @@ impl<Ed: Editor> Context<Ed, NotBorrowed> {
     pub(crate) fn from_editor(editor: Ed) -> Self {
         Self::new(NotBorrowedInner {
             namespace: Namespace::default(),
-            plugin_id: <crate::state::ResumeUnwinding as Plugin<Ed>>::id(),
+            plugin_id: <ResumeUnwinding as Plugin<Ed>>::id(),
             state_handle: Shared::new(State::new(editor)),
         })
     }

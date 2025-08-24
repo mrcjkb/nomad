@@ -1,6 +1,7 @@
 use core::ops::Range;
 
-use crate::{AccessMut, AgentId, ByteOffset, Editor};
+use crate::AccessMut;
+use crate::editor::{AgentId, ByteOffset, Editor};
 
 /// TODO: docs.
 pub trait Selection {

@@ -1,8 +1,8 @@
 use serde::de::Deserialize;
 use serde::ser::Serialize;
 
-use crate::action::Action;
-use crate::{Borrowed, Context, Editor};
+use crate::module::Action;
+use crate::{Context, Editor, context};
 
 /// TODO: docs.
 pub trait Function<Ed: Editor>: 'static {
@@ -19,7 +19,7 @@ pub trait Function<Ed: Editor>: 'static {
     fn call(
         &mut self,
         args: Self::Args<'_>,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
+        ctx: &mut Context<Ed, context::Borrowed<'_>>,
     ) -> Self::Return;
 }
 
@@ -39,7 +39,7 @@ where
     fn call(
         &mut self,
         args: A::Args<'_>,
-        ctx: &mut Context<Ed, Borrowed<'_>>,
+        ctx: &mut Context<Ed, context::Borrowed<'_>>,
     ) -> Self::Return {
         A::call(self, args, ctx)
     }
