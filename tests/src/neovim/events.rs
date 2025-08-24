@@ -1,8 +1,8 @@
 use abs_path::path;
-use editor::{Context, Shared};
+use editor::{Buffer, Context, Shared};
 use fs::File;
-use neovim::Neovim;
 use neovim::tests::NeovimExt;
+use neovim::{Neovim, oxi};
 use real_fs::RealFs;
 
 #[neovim::test]
@@ -16,7 +16,7 @@ async fn on_buffer_created_doesnt_fire_for_nameless_buffers(
         move |_, _| num_times_fired.with_mut(|n| *n += 1)
     });
 
-    // The event should fire when creating a named buffer.
+    // The event should fire when creating a file-backed buffer.
     let tempfile = RealFs::default().tempfile().await.unwrap();
     ctx.command(format!("edit {}", tempfile.path()));
     assert_eq!(num_times_fired.take(), 1);
@@ -58,7 +58,25 @@ async fn on_buffer_created_fires_when_nameless_buffer_is_renamed(
     ctx.command("enew");
     assert_eq!(num_times_fired.take(), 0);
 
-    // The event should fire when the buffer is given a name.
+    // The event should fire if the buffer is given a name.
     ctx.command("file foo.txt");
     assert_eq!(num_times_fired.take(), 1);
+}
+
+#[neovim::test]
+async fn on_buffer_created_doesnt_fire_when_named_buffer_is_renamed(
+    ctx: &mut Context<Neovim>,
+) {
+    ctx.command("edit foo.txt");
+
+    let num_times_fired = Shared::<u8>::new(0);
+
+    let _handle = ctx.on_buffer_created({
+        let num_times_fired = num_times_fired.clone();
+        move |_, _| num_times_fired.with_mut(|n| *n += 1)
+    });
+
+    // The event shouldn't fire when a named buffer is renamed.
+    ctx.command("file bar.txt");
+    assert_eq!(num_times_fired.take(), 0);
 }
