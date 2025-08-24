@@ -16,7 +16,8 @@ use neovim::notify::ContextExt;
 use neovim::{Neovim, mlua, oxi};
 
 use crate::editors::{ActionForSelectedSession, CollabEditor};
-use crate::{config, join, leave, session, start, yank};
+use crate::session::{Session, SessionError};
+use crate::{config, join, leave, start, yank};
 
 pub type SessionId = ulid::Ulid;
 
@@ -306,11 +307,47 @@ impl CollabEditor for Neovim {
         ctx.notify_error(error);
     }
 
-    fn on_session_error(
-        error: session::SessionError<Self>,
+    fn on_session_error(error: SessionError<Self>, ctx: &mut Context<Self>) {
+        ctx.notify_error(error);
+    }
+
+    async fn on_session_started(
+        session: &Session<Self>,
         ctx: &mut Context<Self>,
     ) {
-        ctx.notify_error(error);
+        let prompt = format!(
+            "Started a new collaborative editing session at {} with ID {}. \
+             You can share this ID with other peers to let them join the \
+             session. Would you like to copy it to the clipboard?",
+            TildePath {
+                path: &session.project_root(),
+                home_dir: Self::home_dir(ctx).await.ok().as_deref(),
+            },
+            session.id(),
+        );
+
+        let options = ["Yes", "No"];
+
+        let Ok(choice) = oxi::api::call_function::<_, u8>(
+            "confirm",
+            (prompt, options.join("\n")),
+        ) else {
+            return;
+        };
+
+        match choice {
+            0 | 2 => return,
+            1 => {},
+            _ => unreachable!("only provided {} options", options.len()),
+        }
+
+        match Self::copy_session_id(session.id(), ctx).await {
+            Ok(()) => ctx.notify_info(
+                "Session ID copied to clipboard. You can also yank it later \
+                 by executing ':Mad collab yank'",
+            ),
+            Err(err) => ctx.notify_error(err),
+        }
     }
 
     fn on_start_error(

@@ -42,6 +42,11 @@ pub trait ContextExt {
     fn notify_error(&mut self, notification_message: impl fmt::Display) {
         self.notify(notification_message, LogLevel::Error);
     }
+
+    /// Emits a notification at the `INFO` level with the given message.
+    fn notify_info(&mut self, notification_message: impl fmt::Display) {
+        self.notify(notification_message, LogLevel::Info);
+    }
 }
 
 /// TODO: docs.

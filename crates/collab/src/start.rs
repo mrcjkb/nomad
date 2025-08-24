@@ -125,6 +125,8 @@ impl<Ed: CollabEditor> Start<Ed> {
             stop_rx: self.stop_channels.insert(welcome.session_id),
         };
 
+        Ed::on_session_started(&session, ctx).await;
+
         ctx.spawn_local(async move |ctx| {
             if let Err(err) = session.run(ctx).await {
                 Ed::on_session_error(err, ctx);

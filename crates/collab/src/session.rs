@@ -1,17 +1,19 @@
 use std::io;
 
+use abs_path::AbsPathBuf;
 use collab_server::client as collab_client;
 use collab_types::Message;
 use editor::Context;
 use flume::Receiver;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select_biased};
 
+use crate::SessionId;
 use crate::editors::{CollabEditor, MessageRx, MessageTx};
 use crate::event_stream::{EventError, EventStream};
 use crate::leave::StopRequest;
 use crate::project::{ProjectHandle, SynchronizeError};
 
-pub(crate) struct Session<Ed: CollabEditor> {
+pub struct Session<Ed: CollabEditor> {
     /// TODO: docs..
     pub(crate) event_stream: EventStream<Ed>,
 
@@ -40,6 +42,14 @@ pub enum SessionError<Ed: CollabEditor> {
 }
 
 impl<Ed: CollabEditor> Session<Ed> {
+    pub(crate) fn id(&self) -> SessionId<Ed> {
+        self.project_handle.session_id()
+    }
+
+    pub(crate) fn project_root(&self) -> AbsPathBuf {
+        self.project_handle.root()
+    }
+
     pub(crate) async fn run(
         self,
         ctx: &mut Context<Ed>,
