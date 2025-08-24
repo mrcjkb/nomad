@@ -59,19 +59,18 @@ impl Event for BufferCreated {
         .expect("couldn't create autocmd");
 
         let callback = (move |args: api::types::AutocmdCallbackArgs| {
+            // We should only treat buffer renames as creations if the old name
+            // is empty. Renames from non-empty names should be skipped.
+            if args.event == "BufFilePost" && !old_name_was_empty.take() {
+                return false;
+            }
+
             nvim.with_mut(|nvim| {
-                let buffer_id = BufferId::from(args.buffer.clone());
+                let buffer_id = BufferId::from(args.buffer);
 
                 let Some(mut buffer) = nvim.buffer(buffer_id) else {
                     return false;
                 };
-
-                // We should only treat buffer renames as creations if the old
-                // name is empty. Renames from non-empty names should be
-                // skipped.
-                if args.event == "BufFilePost" && !old_name_was_empty.take() {
-                    return false;
-                }
 
                 let events = &mut buffer.nvim.events;
 

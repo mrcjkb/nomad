@@ -30,6 +30,7 @@ impl Event for BufferRemoved {
         EventKind::BufferRemoved(*self)
     }
 
+    #[allow(clippy::too_many_lines)]
     #[inline]
     fn register(
         &self,
@@ -63,24 +64,22 @@ impl Event for BufferRemoved {
         .expect("couldn't create autocmd");
 
         let callback = (move |args: api::types::AutocmdCallbackArgs| {
-            nvim.with_mut(|nvim| {
-                // We should only treat buffer renames as removals if the old
-                // name wasn't empty and the new name is.
-                if args.event == "BufFilePost" {
-                    if old_name_was_empty.take() {
-                        return false;
-                    }
-
-                    let new_name = args
-                        .buffer
-                        .get_name()
-                        .expect("failed to get buffer name");
-
-                    if !new_name.is_empty() {
-                        return false;
-                    }
+            // We should only treat buffer renames as removals if the old name
+            // wasn't empty and the new name is.
+            if args.event == "BufFilePost" {
+                if old_name_was_empty.take() {
+                    return false;
                 }
 
+                let new_name =
+                    args.buffer.get_name().expect("failed to get buffer name");
+
+                if !new_name.is_empty() {
+                    return false;
+                }
+            }
+
+            nvim.with_mut(|nvim| {
                 let events = &mut nvim.events;
 
                 let buffer_id = BufferId::from(args.buffer);
