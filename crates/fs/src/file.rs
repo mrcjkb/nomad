@@ -105,7 +105,7 @@ pub trait File: Send + Sync {
 }
 
 /// TODO: docs.
-#[derive(cauchy::Clone)]
+#[derive(cauchy::Debug, cauchy::Clone)]
 pub enum FileEvent<Fs: crate::Fs> {
     /// TODO: docs.
     IdChange(FileIdChange<Fs>),
@@ -115,7 +115,7 @@ pub enum FileEvent<Fs: crate::Fs> {
 }
 
 /// TODO: docs.
-#[derive(cauchy::Clone)]
+#[derive(cauchy::Debug, cauchy::Clone)]
 pub struct FileModification<Fs: crate::Fs> {
     /// The node ID of the file.
     pub file_id: Fs::NodeId,
@@ -125,7 +125,7 @@ pub struct FileModification<Fs: crate::Fs> {
 }
 
 /// TODO: docs.
-#[derive(cauchy::Clone)]
+#[derive(cauchy::Debug, cauchy::Clone)]
 pub struct FileIdChange<Fs: crate::Fs> {
     /// The file's old node ID.
     pub old_id: Fs::NodeId,

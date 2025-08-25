@@ -8,7 +8,7 @@ use crate::events::{Callbacks, Event, EventKind, Events};
 use crate::oxi::api;
 use crate::utils::CallbackExt;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct OnBytes(pub(crate) BufferId);
 
 impl Event for OnBytes {

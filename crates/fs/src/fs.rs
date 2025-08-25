@@ -25,7 +25,7 @@ pub trait Fs: Clone + Send + Sync + 'static {
     type NodeId: Debug + Clone + Eq + Hash + Send + Sync;
 
     /// TODO: docs.
-    type Timestamp: Clone + Ord;
+    type Timestamp: Debug + Clone + Ord;
 
     /// TODO: docs.
     type CreateDirectoriesError: Error + Send;

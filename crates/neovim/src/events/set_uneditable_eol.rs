@@ -13,7 +13,7 @@ use crate::option::{
 use crate::oxi::api;
 use crate::{Neovim, events};
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct SetUneditableEndOfLine;
 
 #[derive(Clone, Debug, Default)]

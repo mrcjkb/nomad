@@ -7,7 +7,7 @@ use crate::events::{AutocmdId, Callbacks, Event, EventKind, Events};
 use crate::oxi::api;
 use crate::utils::CallbackExt;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct BufWritePost(pub(crate) BufferId);
 
 impl Event for BufWritePost {

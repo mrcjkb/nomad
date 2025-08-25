@@ -105,6 +105,7 @@ pub(crate) struct Callbacks<Ev: Event> {
     register_output: Ev::RegisterOutput,
 }
 
+#[derive(Debug)]
 pub(crate) enum EventKind {
     BufEnter(events::BufEnter),
     BufLeave(events::BufLeave),
