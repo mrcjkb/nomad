@@ -428,6 +428,7 @@ impl<Ed: CollabEditor> EventStream<Ed> {
         self.project_filter
             .should_filter(parent_path, &node.meta())
             .await
+            .map(|should_filter| !should_filter)
             .map_err(|err| match err {
                 Either::Left(err) => EventError::Filter(err),
             })
