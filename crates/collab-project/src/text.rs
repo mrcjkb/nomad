@@ -101,6 +101,7 @@ pub struct SelectionMut<'a> {
 }
 
 /// TODO: docs.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextReplacement {
     /// TODO: docs.
     pub deleted_range: Range<ByteOffset>,
@@ -110,6 +111,7 @@ pub struct TextReplacement {
 }
 
 /// TODO: docs.
+#[derive(Debug)]
 pub struct TextReplacements {
     inner: smallvec::IntoIter<[TextReplacement; 1]>,
 }
@@ -191,6 +193,12 @@ impl<'a, S> TextFile<'a, S> {
     #[inline]
     pub fn contents(&self) -> &'a Rope {
         &self.text_contents().text
+    }
+
+    /// Returns the [`PeerId`] of the peer that created this text file.
+    #[inline]
+    pub fn created_by(&self) -> PeerId {
+        PeerId::new(self.inner.created_by())
     }
 
     /// Returns an iterator over the cursors in this text file.
@@ -276,7 +284,8 @@ impl<'a, S> TextFileMut<'a, S> {
     ) -> TextReplacements {
         debug_assert_eq!(edit.file_id, self.inner.global_id());
         let local_id = self.state.local_id();
-        self.contents_mut().integrate_edit(edit, local_id)
+        let file_creator = self.as_file().created_by();
+        self.contents_mut().integrate_edit(edit, local_id, file_creator)
     }
 
     #[inline]
@@ -308,8 +317,11 @@ impl<'a, S: IsVisible> TextFileMut<'a, S> {
         offset: ByteOffset,
     ) -> (CursorId, CursorCreation) {
         let local_id = self.state.local_id();
+        let creator_id = self.created_by();
         let cursor = Cursor {
-            anchor: self.contents_mut().create_cursor(offset, local_id),
+            anchor: self
+                .contents_mut()
+                .create_cursor(offset, local_id, creator_id),
             sequence_num: Counter::new(0),
         };
         let (annotation, creation) = self.state.text_ctx_mut().cursors.create(
@@ -327,8 +339,12 @@ impl<'a, S: IsVisible> TextFileMut<'a, S> {
         offset_range: Range<ByteOffset>,
     ) -> (SelectionId, SelectionCreation) {
         let local_id = self.state.local_id();
-        let anchor_range =
-            self.contents_mut().create_selection(offset_range, local_id);
+        let creator_id = self.created_by();
+        let anchor_range = self.contents_mut().create_selection(
+            offset_range,
+            local_id,
+            creator_id,
+        );
         let selection = Selection {
             start: anchor_range.start,
             end: anchor_range.end,
@@ -342,6 +358,12 @@ impl<'a, S: IsVisible> TextFileMut<'a, S> {
         (SelectionId { inner: annotation.id() }, creation)
     }
 
+    /// Returns the [`PeerId`] of the peer that created this text file.
+    #[inline]
+    pub fn created_by(&self) -> PeerId {
+        PeerId::new(self.inner.as_file().created_by())
+    }
+
     /// TODO: docs.
     #[track_caller]
     #[inline]
@@ -351,7 +373,8 @@ impl<'a, S: IsVisible> TextFileMut<'a, S> {
     {
         let file_id = self.inner.global_id();
         let local_id = self.state.local_id();
-        self.contents_mut().edit(replacements, file_id, local_id)
+        let creator_id = self.created_by();
+        self.contents_mut().edit(replacements, file_id, local_id, creator_id)
     }
 }
 
@@ -404,10 +427,15 @@ impl<'a> CursorRef<'a> {
         };
 
         let local_id = proj.peer_id();
+        let creator_id = PeerId::new(file.created_by());
 
         Some(Self {
             id: cursor.id().into(),
-            offset: contents.resolve_cursor(cursor.data(), local_id)?,
+            offset: contents.resolve_cursor(
+                cursor.data(),
+                local_id,
+                creator_id,
+            )?,
             file,
             state: proj.state(),
         })
@@ -437,15 +465,17 @@ impl<'a> CursorMut<'a> {
     /// TODO: docs.
     #[inline]
     pub fn r#move(&mut self, new_offset: ByteOffset) -> CursorMove {
-        let file_id = self.annotation().file_id();
         let local_id = self.proj.peer_id();
+        let file_id = self.annotation().file_id();
         let file_state = self.proj.fs_mut().file(file_id);
+        let creator_id = PeerId::new(file_state.created_by());
 
         let FileContents::Text(contents) = file_state.metadata() else {
             unreachable!("cursors can only be created on TextFiles");
         };
 
-        let new_anchor = contents.create_cursor(new_offset, local_id);
+        let new_anchor =
+            contents.create_cursor(new_offset, local_id, creator_id);
 
         self.annotation_mut().update(|cursor| {
             cursor.anchor = new_anchor;
@@ -530,11 +560,15 @@ impl<'a> SelectionRef<'a> {
         };
 
         let local_id = proj.peer_id();
+        let creator_id = PeerId::new(file.created_by());
 
         Some(Self {
             id: selection.id().into(),
-            offset_range: contents
-                .resolve_selection(selection.data(), local_id)?,
+            offset_range: contents.resolve_selection(
+                selection.data(),
+                local_id,
+                creator_id,
+            )?,
             state: proj.state(),
             file,
         })
@@ -564,14 +598,16 @@ impl<'a> SelectionMut<'a> {
     /// TODO: docs.
     #[inline]
     pub fn r#move(&mut self, new_range: Range<ByteOffset>) -> SelectionMove {
+        let local_id = self.proj.peer_id();
         let file_state = self.proj.fs().file(self.annotation().file_id());
+        let creator_id = PeerId::new(file_state.created_by());
 
         let FileContents::Text(contents) = file_state.metadata() else {
             unreachable!("selections can only be created on TextFiles");
         };
 
         let new_anchor_range =
-            contents.create_selection(new_range, self.proj.peer_id());
+            contents.create_selection(new_range, local_id, creator_id);
 
         self.annotation_mut().update(|selection| {
             selection.start = new_anchor_range.start;
@@ -628,10 +664,11 @@ impl TextContents {
         &mut self,
         edit: TextEdit,
         local_id: PeerId,
+        file_creator: PeerId,
     ) -> TextReplacements {
         let mut replacements = SmallVec::new();
 
-        let replica = self.replica.get_mut(local_id);
+        let replica = self.replica.get_mut(local_id, file_creator);
 
         for (insertion, text) in edit.insertions {
             let Some(byte_offset) = replica.integrate_insertion(&insertion)
@@ -694,9 +731,10 @@ impl TextContents {
         &self,
         offset: ByteOffset,
         local_id: PeerId,
+        creator_id: PeerId,
     ) -> cola::Anchor {
         self.replica
-            .get(local_id)
+            .get(local_id, creator_id)
             .create_anchor(offset, cola::AnchorBias::Left)
     }
 
@@ -705,13 +743,14 @@ impl TextContents {
         &self,
         offset_range: Range<ByteOffset>,
         local_id: PeerId,
+        creator_id: PeerId,
     ) -> Range<cola::Anchor> {
         let byte_range = match offset_range.start.cmp(&offset_range.end) {
             Ordering::Less | Ordering::Equal => offset_range,
             Ordering::Greater => offset_range.start..offset_range.end,
         };
 
-        let replica = self.replica.get(local_id);
+        let replica = self.replica.get(local_id, creator_id);
 
         let anchor_start =
             replica.create_anchor(byte_range.start, cola::AnchorBias::Right);
@@ -729,6 +768,7 @@ impl TextContents {
         replacements: R,
         file_id: GlobalFileId,
         local_id: PeerId,
+        creator_id: PeerId,
     ) -> TextEdit
     where
         R: IntoIterator<Item = TextReplacement>,
@@ -736,7 +776,7 @@ impl TextContents {
         let mut deletions = SmallVec::new();
         let mut insertions = SmallVec::new();
 
-        let replica = self.replica.get_mut(local_id);
+        let replica = self.replica.get_mut(local_id, creator_id);
 
         for TextReplacement { deleted_range, inserted_text } in replacements {
             let start = deleted_range.start;
@@ -766,8 +806,9 @@ impl TextContents {
         &self,
         cursor: &Cursor,
         local_id: PeerId,
+        creator_id: PeerId,
     ) -> Option<ByteOffset> {
-        self.replica.get(local_id).resolve_anchor(cursor.anchor)
+        self.replica.get(local_id, creator_id).resolve_anchor(cursor.anchor)
     }
 
     #[inline]
@@ -775,8 +816,9 @@ impl TextContents {
         &self,
         selection: &Selection,
         local_id: PeerId,
+        creator_id: PeerId,
     ) -> Option<Range<ByteOffset>> {
-        let replica = self.replica.get(local_id);
+        let replica = self.replica.get(local_id, creator_id);
         let start = replica.resolve_anchor(selection.start)?;
         let end = replica.resolve_anchor(selection.end)?;
         Some(start..end)
@@ -838,25 +880,35 @@ impl<'a> TextStateMut<'a> {
 
 impl LazyReplica {
     #[inline]
-    fn initialize(&self, local_id: PeerId) {
-        let _ = self.replica.set(Box::new(cola::Replica::new(
-            local_id.into_u64(),
-            self.initial_len,
-        )));
+    fn initialize(&self, local_id: PeerId, created_by: PeerId) {
+        let orig_replica =
+            cola::Replica::new(created_by.into_u64(), self.initial_len);
+
+        let replica = if local_id == created_by {
+            orig_replica
+        } else {
+            orig_replica.fork(local_id.into_u64())
+        };
+
+        let _ = self.replica.set(Box::new(replica));
     }
 
     #[inline]
-    fn get(&self, local_id: PeerId) -> &cola::Replica {
+    fn get(&self, local_id: PeerId, created_by: PeerId) -> &cola::Replica {
         if self.replica.get().is_none() {
-            self.initialize(local_id);
+            self.initialize(local_id, created_by);
         }
         self.replica.get().expect("replica is initialized")
     }
 
     #[inline]
-    fn get_mut(&mut self, local_id: PeerId) -> &mut cola::Replica {
+    fn get_mut(
+        &mut self,
+        local_id: PeerId,
+        created_by: PeerId,
+    ) -> &mut cola::Replica {
         if self.replica.get().is_none() {
-            self.initialize(local_id);
+            self.initialize(local_id, created_by);
         }
         self.replica.get_mut().expect("replica is initialized")
     }
@@ -1034,13 +1086,14 @@ impl<'a> Iterator for TextFileCursors<'a> {
         let annotation = self.inner.next()?;
 
         let local_id = self.file.state.local_id();
+        let creator_id = self.file.created_by();
 
         if annotation.file_id() == self.file.id() {
-            let Some(offset) = self
-                .file
-                .text_contents()
-                .resolve_cursor(annotation.data(), local_id)
-            else {
+            let Some(offset) = self.file.text_contents().resolve_cursor(
+                annotation.data(),
+                local_id,
+                creator_id,
+            ) else {
                 return self.next();
             };
             Some(CursorRef {
@@ -1077,12 +1130,13 @@ impl<'a> Iterator for TextFileSelections<'a> {
         let annotation = self.inner.next()?;
 
         let local_id = self.file.state.local_id();
+        let creator_id = self.file.created_by();
 
         if annotation.file_id() == self.file.id() {
             let Some(offset_range) = self
                 .file
                 .text_contents()
-                .resolve_selection(annotation.data(), local_id)
+                .resolve_selection(annotation.data(), local_id, creator_id)
             else {
                 return self.next();
             };

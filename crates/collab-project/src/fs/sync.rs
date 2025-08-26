@@ -1,4 +1,4 @@
-use collab_types::puff;
+use collab_types::{PeerId, puff};
 use puff::node::{Deleted, Visible};
 
 use crate::abs_path::{AbsPathBuf, NodeName};
@@ -167,8 +167,9 @@ fn integrate_backlogged_edits(
         fs::FileContents::Symlink(_) => {},
         fs::FileContents::Text(contents) => {
             let local_id = state.local_id();
+            let file_creator = PeerId::new(global_id.created_by());
             for edit in state.text_backlog_mut().take(global_id) {
-                contents.integrate_edit(edit, local_id);
+                contents.integrate_edit(edit, local_id, file_creator);
             }
         },
     }

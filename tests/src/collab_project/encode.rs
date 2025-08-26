@@ -33,3 +33,30 @@ fn edit_text_after_roundtrip() {
 
     assert_eq!(file_mut.as_file().contents(), "hello, world");
 }
+
+#[test]
+fn insertion_can_be_integrated_after_roundtrip() {
+    let fs = mock::fs! {
+        "foo.txt": "hello world",
+    };
+
+    let mut peer_1 = Project::from_mock(PeerId::new(1), fs.root());
+
+    let mut peer_2 =
+        Project::decode(&peer_1.encode(), PeerId::new(2)).unwrap();
+
+    let replacement =
+        TextReplacement { deleted_range: 5..5, inserted_text: ",".into() };
+
+    let edit = peer_1
+        .node_at_path_mut(path!("/foo.txt"))
+        .unwrap()
+        .unwrap_file()
+        .unwrap_text()
+        .edit([replacement.clone()]);
+
+    let (_, mut replacements) = peer_2.integrate_text_edit(edit).unwrap();
+
+    assert_eq!(replacements.next().unwrap(), replacement);
+    assert_eq!(replacements.next(), None);
+}
