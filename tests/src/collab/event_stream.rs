@@ -121,7 +121,7 @@ trait EventStreamExt<Ed: CollabEditor> {
 }
 
 impl<Ed: CollabEditor> EventStreamExt<Ed> for EventStream<Ed> {
-    fn event_stream(&mut self) -> &mut EventStream<Ed> {
+    fn event_stream(&mut self) -> &mut Self {
         self
     }
 }

@@ -675,7 +675,7 @@ impl From<&Project> for mock::fs::MockFs {
             Ok(())
         }
 
-        let mut fs = mock::fs::MockFs::default();
+        let mut fs = Self::default();
 
         if let Err(err) = futures_lite::future::block_on(push_directory(
             proj.root(),
@@ -820,7 +820,7 @@ mod serde_impls {
         }
 
         #[inline]
-        fn peer_id(&self) -> PeerId {
+        fn peer_id(self) -> PeerId {
             PeerId::new(self.inner.peer_id())
         }
     }
