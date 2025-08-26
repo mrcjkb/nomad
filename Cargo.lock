@@ -624,9 +624,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.45"
+version = "4.5.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fc0e74a703892159f5ae7d3aac52c8e6c392f5ae5f359c70b5881d60aaac318"
+checksum = "2c5e4fcf9c21d2e544ca1ee9d8552de13019a42aa7dbf32747fa7aaf1df76e57"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -634,9 +634,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.44"
+version = "4.5.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3e7f4214277f3c7aa526a59dd3fbe306a370daee1f8b7b8c987069cd8e888a8"
+checksum = "fecb53a0e6fcfb055f686001bc2e2592fa527efaf38dbe81a6a9563562e57d41"
 dependencies = [
  "anstream",
  "anstyle",
@@ -738,6 +738,7 @@ dependencies = [
  "serde",
  "smallvec",
  "smol_str",
+ "tracing",
 ]
 
 [[package]]
@@ -2305,7 +2306,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "pando"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/pando.git#3e5ca1c9808ce96b7c44a481729c89c92e155ba9"
+source = "git+ssh://git@github.com/nomad/pando.git#fc6ce34cd12c0b503c8b0859340d763bdb7883d7"
 dependencies = [
  "fxhash",
  "serde",
@@ -2453,7 +2454,7 @@ dependencies = [
 [[package]]
 name = "puff"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/puff.git#3b49345700ec438fc179f2687e4763cbd0833921"
+source = "git+ssh://git@github.com/nomad/puff.git#a921e31170a20cc71448ef80055a6e14d8d7d292"
 dependencies = [
  "abs-path",
  "fxhash",
