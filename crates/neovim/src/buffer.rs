@@ -71,10 +71,10 @@ pub(crate) struct BuffersState {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Point {
     /// The index of the line in the buffer.
-    pub(crate) line_idx: usize,
+    pub line_idx: usize,
 
     /// The byte offset in the line.
-    pub(crate) byte_offset: ByteOffset,
+    pub byte_offset: ByteOffset,
 }
 
 impl<'a> NeovimBuffer<'a> {
@@ -206,8 +206,9 @@ impl HighlightRangeHandle {
 }
 
 impl Point {
+    /// Creates a new `Point`.
     #[inline]
-    pub(crate) fn new(line_idx: usize, byte_offset: usize) -> Self {
+    pub fn new(line_idx: usize, byte_offset: usize) -> Self {
         Self { line_idx, byte_offset }
     }
 
@@ -527,7 +528,7 @@ fn replace_text_in_point_range(
     if should_clamp_end {
         let end = &mut delete_range.end;
         end.line_idx -= 1;
-        end.byte_offset = buffer.line_len(end.line_idx);
+        end.byte_offset = buffer.byte_len_of_line(end.line_idx);
     }
 
     let should_clamp_start = delete_range.start > delete_range.end;

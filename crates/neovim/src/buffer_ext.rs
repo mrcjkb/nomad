@@ -23,10 +23,37 @@ pub trait BufferExt {
     #[inline]
     fn byte_len(&self) -> ByteOffset {
         let buffer = self.buffer();
-        let line_count = buffer.line_count().expect("buffer is valid");
-        let offset = buffer.get_offset(line_count).expect("buffer is valid");
+        let line_len = buffer.line_len();
+        let offset = buffer.get_offset(line_len).expect("buffer is valid");
         // Workaround for https://github.com/neovim/neovim/issues/34272.
         if offset == 1 && self.has_uneditable_eol() { 0 } else { offset }
+    }
+
+    /// Returns the byte length of the line at the given index, *without* any
+    /// trailing newline character.
+    ///
+    /// This is equivalent to `self.line(line_idx).len()`, but faster.
+    #[inline]
+    fn byte_len_of_line(&self, line_idx: usize) -> ByteOffset {
+        // TODO: benchmark whether this is actually faster than
+        // `self.line(line_idx).len()`.
+
+        let row = (line_idx + 1) as Integer;
+
+        let col: usize =
+            self.buffer()
+                .call(move |()| {
+                    api::call_function(
+                        "col",
+                        (Array::from_iter([
+                            Object::from(row),
+                            Object::from("$"),
+                        ]),),
+                    )
+                })
+                .expect("could not call col()");
+
+        col - 1
     }
 
     /// Returns the [`ByteOffset`] corresponding to the given line index, or
@@ -107,31 +134,10 @@ pub trait BufferExt {
             .expect("could not call getbufoneline()")
     }
 
-    /// Returns the byte length of the line at the given index, *without* any
-    /// trailing newline character.
-    ///
-    /// This is equivalent to `self.line(line_idx).len()`, but faster.
+    /// Returns the number of lines in the buffer.
     #[inline]
-    fn line_len(&self, line_idx: usize) -> ByteOffset {
-        // TODO: benchmark whether this is actually faster than
-        // `self.line(line_idx).len()`.
-
-        let row = (line_idx + 1) as Integer;
-
-        let col: usize =
-            self.buffer()
-                .call(move |()| {
-                    api::call_function(
-                        "col",
-                        (Array::from_iter([
-                            Object::from(row),
-                            Object::from("$"),
-                        ]),),
-                    )
-                })
-                .expect("could not call col()");
-
-        col - 1
+    fn line_len(&self) -> usize {
+        self.buffer().line_count().expect("buffer is valid")
     }
 
     /// Returns the text in the given point range.
@@ -303,14 +309,17 @@ pub trait BufferExt {
             return Point::zero();
         }
 
-        let num_rows = self.buffer().line_count().expect("buffer is valid");
+        let num_rows = self.buffer().line_len();
 
         let has_uneditable_eol = self.has_uneditable_eol();
 
         let num_lines = num_rows - 1 + has_uneditable_eol as usize;
 
-        let last_line_len =
-            if has_uneditable_eol { 0 } else { self.line_len(num_rows - 1) };
+        let last_line_len = if has_uneditable_eol {
+            0
+        } else {
+            self.byte_len_of_line(num_rows - 1)
+        };
 
         Point::new(num_lines, last_line_len)
     }

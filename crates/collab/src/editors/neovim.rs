@@ -1,5 +1,6 @@
-use core::fmt;
+use core::marker::PhantomData;
 use core::ops::Range;
+use core::{fmt, future};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::{env, io};
@@ -12,7 +13,7 @@ use editor::{ByteOffset, Context, Editor};
 use executor::Executor;
 use fs::Directory;
 use mlua::{Function, Table};
-use neovim::buffer::{BufferExt, BufferId, HighlightRangeHandle};
+use neovim::buffer::{BufferExt, BufferId, HighlightRangeHandle, Point};
 use neovim::notify::ContextExt;
 use neovim::{Neovim, mlua, oxi};
 
@@ -27,8 +28,21 @@ pub struct NeovimPeerSelection {
 }
 
 pub struct PeerTooltip {
-    /// We use a 1-grapheme-wide highlight to represent a remote peer's cursor.
-    cursor_highlight_handle: HighlightRangeHandle,
+    /// The buffer this tooltip is in.
+    buffer: oxi::api::Buffer,
+
+    /// The extmark ID of the highlight representing the remote peer's cursor.
+    cursor_extmark_id: u32,
+
+    /// The ID of the namespace the
+    /// [`cursor_extmark_id`](Self::cursor_extmark_id) belongs to.
+    namespace_id: u32,
+
+    /// The remote peer this tooltip is for.
+    peer: Peer,
+
+    /// Makes sure that the type is `!Send`.
+    _not_send: PhantomData<*mut ()>,
 }
 
 #[derive(Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq)]
@@ -83,6 +97,114 @@ pub struct NeovimLspRootError {
 struct TildePath<'a> {
     path: &'a AbsPath,
     home_dir: Option<&'a AbsPath>,
+}
+
+impl PeerTooltip {
+    /// Creates a new tooltip representing the given remote peer's cursor at
+    /// the given byte offset in the given buffer.
+    fn create(
+        peer: Peer,
+        mut buffer: oxi::api::Buffer,
+        cursor_offset: ByteOffset,
+        namespace_id: u32,
+    ) -> Self {
+        let highlight_range = Self::highlight_range(&buffer, cursor_offset);
+
+        let opts = oxi::api::opts::SetExtmarkOpts::builder()
+            .end_row(highlight_range.end.line_idx)
+            .end_col(highlight_range.end.byte_offset)
+            .hl_group("TermCursor")
+            .build();
+
+        let cursor_extmark_id = buffer
+            .set_extmark(
+                namespace_id,
+                highlight_range.start.line_idx,
+                highlight_range.start.byte_offset,
+                &opts,
+            )
+            .expect("couldn't set extmark");
+
+        Self {
+            buffer,
+            cursor_extmark_id,
+            peer,
+            namespace_id,
+            _not_send: PhantomData,
+        }
+    }
+
+    /// Returns the [`Point`] range to be highlighted to represent the remote
+    /// peer's cursor at the given byte offset.
+    fn highlight_range(
+        buffer: &oxi::api::Buffer,
+        cursor_offset: ByteOffset,
+    ) -> Range<Point> {
+        debug_assert!(cursor_offset <= buffer.byte_len());
+
+        let highlight_start = buffer.point_of_byte(cursor_offset);
+
+        let is_cursor_at_eol = buffer
+            .byte_len_of_line(highlight_start.line_idx)
+            == highlight_start.byte_offset;
+
+        let highlight_end =
+            // If the cursor is at the end of the line, we set the end of the
+            // highlighted range to the start of the next line.
+            //
+            // Apparently this works even if the cursor is on the last line,
+            // and nvim_buf_set_extmark won't complain about it.
+            if is_cursor_at_eol {
+                Point::new(highlight_start.line_idx + 1, 0)
+            }
+            // If the cursor is in the middle of a line, we set the end of the
+            // highlighted range one byte after the start.
+            //
+            // This works because Neovim already handles offset clamping for
+            // us, so even if the grapheme to the immediate right of the cursor
+            // is multi-byte, Neovim will automatically extend the highlight's
+            // end to the end of the grapheme.
+            else {
+                Point::new(
+                    highlight_start.line_idx,
+                    highlight_start.byte_offset + 1,
+                )
+            };
+
+        highlight_start..highlight_end
+    }
+
+    /// Moves the tooltip to the given offset.
+    fn r#move(&mut self, cursor_offset: ByteOffset) {
+        let highlight_range =
+            Self::highlight_range(&self.buffer, cursor_offset);
+
+        let opts = oxi::api::opts::SetExtmarkOpts::builder()
+            .id(self.cursor_extmark_id)
+            .end_row(highlight_range.end.line_idx)
+            .end_col(highlight_range.end.byte_offset)
+            .hl_group("TermCursor")
+            .build();
+
+        let new_extmark_id = self
+            .buffer
+            .set_extmark(
+                self.namespace_id,
+                highlight_range.start.line_idx,
+                highlight_range.start.byte_offset,
+                &opts,
+            )
+            .expect("couldn't set extmark");
+
+        debug_assert_eq!(new_extmark_id, self.cursor_extmark_id);
+    }
+
+    /// Removes the tooltip from the buffer.
+    fn remove(mut self) {
+        self.buffer
+            .del_extmark(self.namespace_id, self.cursor_extmark_id)
+            .expect("couldn't delete extmark");
+    }
 }
 
 impl CollabEditor for Neovim {
@@ -158,26 +280,14 @@ impl CollabEditor for Neovim {
     }
 
     async fn create_peer_tooltip(
-        _remote_peer: Peer,
+        remote_peer: Peer,
         tooltip_offset: ByteOffset,
         buffer_id: Self::BufferId,
         ctx: &mut Context<Self>,
     ) -> Self::PeerTooltip {
-        ctx.with_borrowed(|ctx| {
-            let buffer = ctx.buffer(buffer_id).expect("invalid buffer ID");
-
-            let cursor_start = tooltip_offset;
-
-            let cursor_end = buffer
-                .grapheme_offsets_from(cursor_start)
-                .next()
-                .unwrap_or(cursor_start);
-
-            PeerTooltip {
-                cursor_highlight_handle: buffer
-                    .highlight_range(cursor_start..cursor_end, "TermCursor"),
-            }
-        })
+        let buffer = oxi::api::Buffer::from(buffer_id);
+        let namespace_id = ctx.with_editor(|nvim| nvim.namespace_id());
+        PeerTooltip::create(remote_peer, buffer, tooltip_offset, namespace_id)
     }
 
     async fn default_dir_for_remote_projects(
@@ -271,25 +381,10 @@ impl CollabEditor for Neovim {
     fn move_peer_tooltip<'ctx>(
         tooltip: &mut Self::PeerTooltip,
         tooltip_offset: ByteOffset,
-        ctx: &'ctx mut Context<Self>,
+        _: &'ctx mut Context<Self>,
     ) -> impl Future<Output = ()> + use<'ctx> {
-        ctx.with_editor(|nvim| {
-            let hl_range = nvim
-                .highlight_range(&tooltip.cursor_highlight_handle)
-                .expect("invalid buffer ID");
-
-            let cursor_start = tooltip_offset;
-
-            let cursor_end = hl_range
-                .buffer()
-                .grapheme_offsets_from(cursor_start)
-                .next()
-                .unwrap_or(cursor_start);
-
-            hl_range.r#move(cursor_start..cursor_end);
-        });
-
-        async {}
+        tooltip.r#move(tooltip_offset);
+        future::ready(())
     }
 
     fn on_join_error(error: join::JoinError<Self>, ctx: &mut Context<Self>) {
@@ -406,11 +501,10 @@ impl CollabEditor for Neovim {
     }
 
     async fn remove_peer_tooltip(
-        _tooltip: Self::PeerTooltip,
-        _ctx: &mut Context<Self>,
+        tooltip: Self::PeerTooltip,
+        _: &mut Context<Self>,
     ) {
-        // Dropping the tooltip will automatically remove the highlight, so we
-        // don't have to do anything here.
+        tooltip.remove();
     }
 
     async fn select_session<'pairs>(

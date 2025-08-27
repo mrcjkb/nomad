@@ -57,6 +57,12 @@ impl Neovim {
             .map(|buffer| HighlightRange::new(buffer.clone(), handle))
     }
 
+    /// Returns the namespace ID used by this `Neovim` instance.
+    #[inline]
+    pub fn namespace_id(&self) -> u32 {
+        self.decoration_provider.namespace_id()
+    }
+
     /// TODO: docs.
     #[inline]
     pub fn set_notifier(&mut self, emitter: impl Into<notify::NeovimEmitter>) {

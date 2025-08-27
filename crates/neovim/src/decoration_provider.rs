@@ -118,6 +118,11 @@ impl DecorationProvider {
     }
 
     #[inline]
+    pub(crate) fn namespace_id(&self) -> u32 {
+        self.inner.with(|inner| inner.namespace_id)
+    }
+
+    #[inline]
     pub(crate) fn new(namespace_id: u32) -> Self {
         let this = Self {
             inner: Shared::new(DecorationProviderInner {
