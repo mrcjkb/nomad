@@ -13,7 +13,7 @@ pub mod leave;
 mod list_ext;
 pub mod project;
 mod root_markers;
-mod session;
+pub mod session;
 pub mod start;
 pub mod yank;
 

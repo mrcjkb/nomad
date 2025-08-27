@@ -25,9 +25,9 @@ use crate::config::Config;
 use crate::editors::CollabEditor;
 use crate::event_stream::{EventStream, EventStreamBuilder};
 use crate::leave::StopChannels;
-use crate::project::{IdMaps, NewProjectArgs, Projects};
-use crate::session::Session;
-use crate::{SessionId, root_markers};
+use crate::project::{self, IdMaps};
+use crate::root_markers;
+use crate::session::{RemotePeers, Session, SessionInfos, Sessions};
 
 /// TODO: docs.
 pub type ProjectFilter<Ed> =
@@ -40,7 +40,7 @@ type Markers = root_markers::GitDirectory;
 pub struct Start<Ed: CollabEditor> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
-    projects: Projects<Ed>,
+    sessions: Sessions<Ed>,
     stop_channels: StopChannels<Ed>,
 }
 
@@ -180,7 +180,7 @@ impl<Ed: CollabEditor> Start<Ed> {
     pub(crate) async fn call_inner(
         &self,
         ctx: &mut Context<Ed>,
-    ) -> Result<SessionId<Ed>, StartError<Ed>> {
+    ) -> Result<SessionInfos<Ed>, StartError<Ed>> {
         let auth_infos =
             self.auth_infos.cloned().ok_or(StartError::UserNotLoggedIn)?;
 
@@ -226,26 +226,40 @@ impl<Ed: CollabEditor> Start<Ed> {
                 .await
                 .map_err(StartError::ReadProject)?;
 
-        let project_handle = self.projects.insert(NewProjectArgs {
+        let local_peer =
+            Peer { id: welcome.peer_id, github_handle: github_handle.clone() };
+
+        let remote_peers = RemotePeers::from(welcome.other_peers);
+
+        let project = project::Project {
             agent_id: event_stream.agent_id(),
-            host_id: welcome.host_id,
             id_maps,
-            local_peer: Peer { id: welcome.peer_id, github_handle },
-            remote_peers: welcome.other_peers,
-            project,
-            project_root,
+            inner: project,
+            local_peer: local_peer.clone(),
+            peer_selections: FxHashMap::default(),
+            peer_tooltips: FxHashMap::default(),
+            remote_peers: remote_peers.clone(),
+            root_path: project_root.clone(),
+        };
+
+        let session_infos = SessionInfos {
+            host_id: welcome.host_id,
+            local_peer,
+            remote_peers,
+            project_root_path: project_root,
             session_id: welcome.session_id,
-        });
+        };
 
         let session = Session {
             event_stream,
             message_rx: welcome.rx,
             message_tx: welcome.tx,
-            project_handle,
+            project,
             stop_rx: self.stop_channels.insert(welcome.session_id),
+            _remove_on_drop: self.sessions.insert(session_infos.clone()),
         };
 
-        Ed::on_session_started(&session, ctx).await;
+        Ed::on_session_started(&session_infos, ctx).await;
 
         ctx.spawn_local(async move |ctx| {
             if let Err(err) = session.run(ctx).await {
@@ -254,7 +268,7 @@ impl<Ed: CollabEditor> Start<Ed> {
         })
         .detach();
 
-        Ok(welcome.session_id)
+        Ok(session_infos)
     }
 }
 
@@ -275,7 +289,7 @@ impl<Ed: CollabEditor> From<&Collab<Ed>> for Start<Ed> {
         Self {
             auth_infos: collab.auth_infos.clone(),
             config: collab.config.clone(),
-            projects: collab.projects.clone(),
+            sessions: collab.sessions.clone(),
             stop_channels: collab.stop_channels.clone(),
         }
     }

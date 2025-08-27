@@ -738,7 +738,6 @@ dependencies = [
  "serde",
  "smallvec",
  "smol_str",
- "tracing",
 ]
 
 [[package]]

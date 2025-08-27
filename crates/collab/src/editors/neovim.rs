@@ -17,7 +17,7 @@ use neovim::notify::ContextExt;
 use neovim::{Neovim, mlua, oxi};
 
 use crate::editors::{ActionForSelectedSession, CollabEditor};
-use crate::session::{Session, SessionError};
+use crate::session::{SessionError, SessionInfos};
 use crate::{Collab, config, join, leave, start, yank};
 
 pub type SessionId = ulid::Ulid;
@@ -398,7 +398,7 @@ impl CollabEditor for Neovim {
     }
 
     async fn on_session_started(
-        session: &Session<Self>,
+        infos: &SessionInfos<Self>,
         ctx: &mut Context<Self>,
     ) {
         let prompt = format!(
@@ -406,10 +406,10 @@ impl CollabEditor for Neovim {
              {}.\nYou can share this ID with other peers to let them join \
              the session. Would you like to copy it to the clipboard?",
             TildePath {
-                path: &session.project_root(),
+                path: &infos.project_root_path,
                 home_dir: Self::home_dir(ctx).await.ok().as_deref(),
             },
-            session.id(),
+            infos.session_id,
         );
 
         let options = ["Yes", "No"];
@@ -427,7 +427,7 @@ impl CollabEditor for Neovim {
             _ => unreachable!("only provided {} options", options.len()),
         }
 
-        match Self::copy_session_id(session.id(), ctx).await {
+        match Self::copy_session_id(infos.session_id, ctx).await {
             Ok(()) => ctx.notify_info(format_args!(
                 "Session ID copied to clipboard. You can also yank it later \
                  by executing ':Mad {} {}'",

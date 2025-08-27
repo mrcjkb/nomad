@@ -12,7 +12,7 @@ use duplex_stream::{DuplexStream, duplex};
 use editor::{ByteOffset, Context, Editor, EditorAdapter};
 
 use crate::editors::{ActionForSelectedSession, CollabEditor};
-use crate::session::{Session, SessionError};
+use crate::session::{SessionError, SessionInfos};
 use crate::{config, join, leave, start, yank};
 
 #[allow(clippy::type_complexity)]
@@ -308,7 +308,11 @@ where
         unimplemented!()
     }
 
-    async fn on_session_started(_: &Session<Self>, _: &mut Context<Self>) {}
+    async fn on_session_started(
+        _: &SessionInfos<Self>,
+        _: &mut Context<Self>,
+    ) {
+    }
 
     fn on_start_error(_: start::StartError<Self>, _: &mut Context<Self>) {
         unimplemented!()

@@ -6,13 +6,13 @@ use editor::module::AsyncAction;
 
 use crate::collab::Collab;
 use crate::editors::{ActionForSelectedSession, CollabEditor};
-use crate::project::{NoActiveSessionError, Projects};
+use crate::session::{NoActiveSessionError, Sessions};
 
 /// An `Action` that pastes the [`SessionId`](crate::editors::SessionId) of any
 /// active session to the user's clipboard.
 #[derive(cauchy::Clone)]
 pub struct Yank<Ed: CollabEditor> {
-    projects: Projects<Ed>,
+    sessions: Sessions<Ed>,
 }
 
 impl<Ed: CollabEditor> Yank<Ed> {
@@ -21,7 +21,7 @@ impl<Ed: CollabEditor> Yank<Ed> {
         ctx: &mut Context<Ed>,
     ) -> Result<(), YankError<Ed>> {
         let Some((_, session_id)) = self
-            .projects
+            .sessions
             .select(ActionForSelectedSession::CopySessionId, ctx)
             .await?
         else {
@@ -62,7 +62,7 @@ pub enum YankError<Ed: CollabEditor> {
 
 impl<Ed: CollabEditor> From<&Collab<Ed>> for Yank<Ed> {
     fn from(collab: &Collab<Ed>) -> Self {
-        Self { projects: collab.projects.clone() }
+        Self { sessions: collab.sessions.clone() }
     }
 }
 

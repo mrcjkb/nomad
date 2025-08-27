@@ -1,6 +1,6 @@
 //! TODO: docs.
 
-use core::{fmt, iter};
+use core::iter;
 use std::collections::hash_map;
 use std::sync::Arc;
 
@@ -9,7 +9,7 @@ use collab_project::fs::{File, FileMut, FsOp, Node, NodeMut};
 use collab_project::text::{CursorId, SelectionId, TextReplacement};
 use collab_types::{Message, Peer, PeerId, binary, crop, puff, text};
 use compact_str::format_compact;
-use editor::{AgentId, Buffer, Context, Editor, Shared};
+use editor::{Access, AgentId, Buffer, Context, Editor};
 use fs::{File as _, Fs, Symlink as _};
 use fxhash::FxHashMap;
 use puff::directory::LocalDirectoryId;
@@ -19,7 +19,6 @@ use smallvec::SmallVec;
 
 use crate::CollabEditor;
 use crate::convert::Convert;
-use crate::editors::{ActionForSelectedSession, SessionId};
 use crate::event::{
     BufferEvent,
     CursorEvent,
@@ -28,57 +27,34 @@ use crate::event::{
     SelectionEvent,
     SelectionEventKind,
 };
+use crate::session::RemotePeers;
 
 /// TODO: docs.
-#[derive(cauchy::Clone)]
-pub struct ProjectHandle<Ed: CollabEditor> {
-    inner: Shared<Project<Ed>>,
-    projects: Projects<Ed>,
-}
+pub struct Project<Ed: CollabEditor> {
+    pub(crate) agent_id: AgentId,
 
-/// TODO: docs.
-#[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
-#[display("there's no active collaborative editing session")]
-pub struct NoActiveSessionError;
-
-/// TODO: docs.
-pub(crate) struct Project<Ed: CollabEditor> {
-    agent_id: AgentId,
-    /// The [`PeerId`] of the host of the session.
-    host_id: PeerId,
     /// Contains various mappings between editor IDs and project IDs.
-    id_maps: IdMaps<Ed>,
+    pub(crate) id_maps: IdMaps<Ed>,
+
     /// The inner CRDT holding the entire state of the project.
-    inner: collab_project::Project,
+    pub(crate) inner: collab_project::Project,
+
+    /// TODO: docs.
+    pub(crate) local_peer: Peer,
+
     /// Map from a remote selections's ID to the corresponding selection
     /// displayed in the editor.
-    peer_selections: FxHashMap<SelectionId, Ed::PeerSelection>,
+    pub(crate) peer_selections: FxHashMap<SelectionId, Ed::PeerSelection>,
+
     /// Map from a remote cursor's ID to the corresponding tooltip displayed in
     /// the editor.
-    peer_tooltips: FxHashMap<CursorId, Ed::PeerTooltip>,
-    /// Map from a peer's ID to the corresponding [`Peer`]. Contains both the
-    /// local peer and the remote peers.
-    peers: FxHashMap<PeerId, Peer>,
+    pub(crate) peer_tooltips: FxHashMap<CursorId, Ed::PeerTooltip>,
+
+    /// The remote peers currently in the session.
+    pub(crate) remote_peers: RemotePeers,
+
     /// The path to the root of the project.
-    root_path: AbsPathBuf,
-    /// The ID of the collaborative session this project is part of.
-    session_id: SessionId<Ed>,
-}
-
-#[derive(cauchy::Debug, cauchy::Clone, cauchy::Default)]
-pub(crate) struct Projects<Ed: CollabEditor> {
-    inner: Shared<FxHashMap<SessionId<Ed>, ProjectHandle<Ed>>>,
-}
-
-pub(crate) struct NewProjectArgs<Ed: CollabEditor> {
-    pub(crate) agent_id: AgentId,
-    pub(crate) host_id: PeerId,
-    pub(crate) id_maps: IdMaps<Ed>,
-    pub(crate) local_peer: Peer,
-    pub(crate) remote_peers: collab_types::Peers,
-    pub(crate) project: collab_project::Project,
-    pub(crate) project_root: AbsPathBuf,
-    pub(crate) session_id: SessionId<Ed>,
+    pub(crate) root_path: AbsPathBuf,
 }
 
 #[derive(cauchy::Default)]
@@ -93,12 +69,14 @@ pub struct IdMaps<Ed: Editor> {
     pub(crate) selection2selection: FxHashMap<Ed::SelectionId, SelectionId>,
 }
 
-/// TODO: docs.
-#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
-#[display("{_0}")]
-pub enum SynchronizeError<Ed: CollabEditor> {
-    /// TODO: docs.
-    ContentsAtPath(ContentsAtPathError<Ed::Fs>),
+/// The type of error that can occcur when integrating a [`Message`].
+#[derive(cauchy::Debug)]
+pub enum IntegrateError<Ed: CollabEditor> {
+    /// TODO: docs..
+    BinaryEdit(IntegrateBinaryEditError<Ed::Fs>),
+
+    /// TODO: docs..
+    FsOp(IntegrateFsOpError<Ed::Fs>),
 }
 
 /// The type of error that can occcur when integrating a
@@ -107,12 +85,16 @@ pub enum SynchronizeError<Ed: CollabEditor> {
 pub enum IntegrateBinaryEditError<Fs: fs::Fs> {
     /// The node at the given path was a directory, not a file.
     DirectoryAtPath(AbsPathBuf),
+
     /// It wasn't possible to get the node at the given path.
     NodeAtPath(Fs::NodeAtPathError),
+
     /// There wasn't any node at the given path.
     NoNodeAtPath(AbsPathBuf),
+
     /// The node at the given path was a symlink, not a file.
     SymlinkAtPath(AbsPathBuf),
+
     /// It wasn't possible to write the new contents to the file at the given
     /// path.
     WriteToFile(AbsPathBuf, <Fs::File as fs::File>::WriteError),
@@ -124,18 +106,46 @@ pub enum IntegrateBinaryEditError<Fs: fs::Fs> {
 pub enum IntegrateFsOpError<Fs: fs::Fs> {
     /// It wasn't possible to create a directory.
     CreateDirectory(<Fs::Directory as fs::Directory>::CreateDirectoryError),
+
     /// It wasn't possible to create a file.
     CreateFile(<Fs::Directory as fs::Directory>::CreateFileError),
+
     /// It wasn't possible to create a symlink.
     CreateSymlink(<Fs::Directory as fs::Directory>::CreateSymlinkError),
+
     /// It wasn't possible to delete a node.
     DeleteNode(fs::DeleteNodeError<Fs>),
+
     /// It wasn't possible to get the directory at a particular path.
     GetDir(fs::GetDirError<Fs>),
+
     /// It wasn't possible to move a node to a new location.
     MoveNode(fs::MoveNodeError<Fs>),
+
     /// It wasn't possible to write to a file.
     WriteFile(<Fs::File as fs::File>::WriteError),
+}
+
+/// TODO: docs.
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
+pub enum SynchronizeError<Ed: CollabEditor> {
+    /// TODO: docs.
+    ContentsAtPath(ContentsAtPathError<Ed::Fs>),
+}
+
+/// TODO: docs.
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
+pub enum ContentsAtPathError<Fs: fs::Fs> {
+    /// TODO: docs.
+    NodeAtPath(Fs::NodeAtPathError),
+
+    /// TODO: docs.
+    ReadFile(<Fs::File as fs::File>::ReadError),
+
+    /// TODO: docs.
+    ReadSymlink(<Fs::Symlink as fs::Symlink>::ReadError),
 }
 
 enum FsNodeContents {
@@ -145,34 +155,22 @@ enum FsNodeContents {
     Symlink(String),
 }
 
-impl<Ed: CollabEditor> ProjectHandle<Ed> {
-    /// TODO: docs.
-    pub fn is_host(&self) -> bool {
-        self.with(|proj| proj.is_host())
-    }
-
-    /// TODO: docs.
-    pub fn root(&self) -> AbsPathBuf {
-        self.with(|proj| proj.root_path.clone())
-    }
-
-    /// TODO: docs.
-    pub fn session_id(&self) -> SessionId<Ed> {
-        self.with(|proj| proj.session_id)
-    }
-
+impl<Ed: CollabEditor> Project<Ed> {
     pub(crate) fn handle_request(
         &self,
         request: collab_types::ProjectRequest,
     ) -> collab_types::ProjectResponse {
-        let (peers, encoded_project) = self.with_project(|proj| {
-            let peers = proj.peers.values().cloned().collect();
-            (peers, proj.inner.encode())
+        let peers = self.remote_peers.with(|remote_peers| {
+            remote_peers
+                .values()
+                .cloned()
+                .chain(iter::once(self.local_peer.clone()))
+                .collect()
         });
 
         collab_types::ProjectResponse {
             peers,
-            encoded_project,
+            encoded_project: self.inner.encode(),
             respond_to: request.requested_by.id,
         }
     }
@@ -180,1003 +178,907 @@ impl<Ed: CollabEditor> ProjectHandle<Ed> {
     /// TODO: docs.
     #[allow(clippy::too_many_lines)]
     pub(crate) async fn integrate(
-        &self,
+        &mut self,
         message: Message,
         ctx: &mut Context<Ed>,
     ) {
-        match message {
-            Message::CreatedCursor(cursor_creation) => {
-                self.integrate_cursor_creation(cursor_creation, ctx).await
-            },
-            Message::CreatedDirectory(directory_creation) => {
-                let _ = self.integrate_fs_op(directory_creation, ctx).await;
-            },
-            Message::CreatedFile(file_creation) => {
-                let _ = self.integrate_fs_op(file_creation, ctx).await;
-            },
-            Message::CreatedSelection(selection_creation) => {
-                self.integrate_selection_creation(selection_creation, ctx)
-                    .await
-            },
-            Message::DeletedDirectory(deletion) => {
-                let _ = self.integrate_fs_op(deletion, ctx).await;
-            },
-            Message::DeletedFile(deletion) => {
-                let _ = self.integrate_fs_op(deletion, ctx).await;
-            },
-            Message::EditedBinary(binary_edit) => {
-                let _ = self.integrate_binary_edit(binary_edit, ctx).await;
-            },
-            Message::EditedText(text_edit) => {
-                self.integrate_text_edit(text_edit, ctx).await
-            },
-            Message::MovedCursor(cursor_movement) => {
-                self.integrate_cursor_move(cursor_movement, ctx).await
-            },
-            Message::MovedDirectory(movement) => {
-                let _ = self.integrate_fs_op(movement, ctx).await;
-            },
-            Message::MovedFile(movement) => {
-                let _ = self.integrate_fs_op(movement, ctx).await;
-            },
-            Message::MovedSelection(selection_movement) => {
-                self.integrate_selection_movement(selection_movement, ctx)
-                    .await;
-            },
-            Message::PeerDisconnected(peer_id) => {
-                self.integrate_peer_left(peer_id, ctx).await
-            },
-            Message::PeerJoined(peer) => {
-                self.integrate_peer_joined(peer, ctx).await
-            },
-            Message::PeerLeft(peer_id) => {
-                self.integrate_peer_left(peer_id, ctx).await
-            },
-            Message::ProjectRequest(_) => {
-                panic!(
-                    "ProjectRequest should've been handled by calling \
-                     handle_request() instead of integrate()"
-                );
-            },
-            Message::ProjectResponse(_) => {
-                tracing::error!(
-                    title = %ctx.namespace().dot_separated(),
-                    "received unexpected ProjectResponse message"
-                );
-            },
-            Message::RemovedCursor(cursor_deletion) => {
-                self.integrate_cursor_deletion(cursor_deletion, ctx).await
-            },
-            Message::RemovedSelection(selection_deletion) => {
-                self.integrate_selection_deletion(selection_deletion, ctx)
-                    .await;
-            },
-            Message::RenamedFsNode(rename) => {
-                let _ = self.integrate_fs_op(rename, ctx).await;
-            },
-            Message::SavedTextFile(file_id) => {
-                self.integrate_file_save(file_id, ctx);
-            },
-        }
+        // match message {
+        //     Message::CreatedCursor(cursor_creation) => {
+        //         self.integrate_cursor_creation(cursor_creation, ctx).await
+        //     },
+        //     Message::CreatedDirectory(directory_creation) => {
+        //         let _ = self.integrate_fs_op(directory_creation, ctx).await;
+        //     },
+        //     Message::CreatedFile(file_creation) => {
+        //         let _ = self.integrate_fs_op(file_creation, ctx).await;
+        //     },
+        //     Message::CreatedSelection(selection_creation) => {
+        //         self.integrate_selection_creation(selection_creation, ctx)
+        //             .await
+        //     },
+        //     Message::DeletedDirectory(deletion) => {
+        //         let _ = self.integrate_fs_op(deletion, ctx).await;
+        //     },
+        //     Message::DeletedFile(deletion) => {
+        //         let _ = self.integrate_fs_op(deletion, ctx).await;
+        //     },
+        //     Message::EditedBinary(binary_edit) => {
+        //         let _ = self.integrate_binary_edit(binary_edit, ctx).await;
+        //     },
+        //     Message::EditedText(text_edit) => {
+        //         self.integrate_text_edit(text_edit, ctx).await
+        //     },
+        //     Message::MovedCursor(cursor_movement) => {
+        //         self.integrate_cursor_move(cursor_movement, ctx).await
+        //     },
+        //     Message::MovedDirectory(movement) => {
+        //         let _ = self.integrate_fs_op(movement, ctx).await;
+        //     },
+        //     Message::MovedFile(movement) => {
+        //         let _ = self.integrate_fs_op(movement, ctx).await;
+        //     },
+        //     Message::MovedSelection(selection_movement) => {
+        //         self.integrate_selection_movement(selection_movement, ctx)
+        //             .await;
+        //     },
+        //     Message::PeerDisconnected(peer_id) => {
+        //         self.integrate_peer_left(peer_id, ctx).await
+        //     },
+        //     Message::PeerJoined(peer) => {
+        //         self.integrate_peer_joined(peer, ctx).await
+        //     },
+        //     Message::PeerLeft(peer_id) => {
+        //         self.integrate_peer_left(peer_id, ctx).await
+        //     },
+        //     Message::ProjectRequest(_) => {
+        //         panic!(
+        //             "ProjectRequest should've been handled by calling \
+        //              handle_request() instead of integrate()"
+        //         );
+        //     },
+        //     Message::ProjectResponse(_) => {
+        //         tracing::error!(
+        //             title = %ctx.namespace().dot_separated(),
+        //             "received unexpected ProjectResponse message"
+        //         );
+        //     },
+        //     Message::RemovedCursor(cursor_deletion) => {
+        //         self.integrate_cursor_deletion(cursor_deletion, ctx).await
+        //     },
+        //     Message::RemovedSelection(selection_deletion) => {
+        //         self.integrate_selection_deletion(selection_deletion, ctx)
+        //             .await;
+        //     },
+        //     Message::RenamedFsNode(rename) => {
+        //         let _ = self.integrate_fs_op(rename, ctx).await;
+        //     },
+        //     Message::SavedTextFile(file_id) => {
+        //         self.integrate_file_save(file_id, ctx);
+        //     },
+        // }
+        todo!();
     }
 
     /// TODO: docs.
     pub(crate) async fn synchronize(
-        &self,
+        &mut self,
         event: Event<Ed>,
         ctx: &mut Context<Ed>,
     ) -> Result<Option<Message>, SynchronizeError<Ed>> {
-        match event {
-            Event::Directory(fs::DirectoryEvent::Creation(creation)) => {
-                self.synchronize_node_creation(creation, ctx).await
-            },
-            Event::File(fs::FileEvent::Modification(modification)) => {
-                self.synchronize_file_modification(modification, ctx).await
-            },
-            other => Ok(self.with_project(|proj| proj.synchronize(other))),
-        }
+        todo!();
+        // match event {
+        //     Event::Directory(fs::DirectoryEvent::Creation(creation)) => {
+        //         self.synchronize_node_creation(creation, ctx).await
+        //     },
+        //     Event::File(fs::FileEvent::Modification(modification)) => {
+        //         self.synchronize_file_modification(modification, ctx).await
+        //     },
+        //     Event::Buffer(event) => self.synchronize_buffer(event),
+        //     Event::Cursor(event) => Some(self.synchronize_cursor(event)),
+        //     Event::Directory(event) => Some(self.synchronize_directory(event)),
+        //     Event::File(event) => {
+        //         self.synchronize_file(event);
+        //         None
+        //     },
+        //     Event::Selection(event) => Some(self.synchronize_selection(event)),
+        // }
     }
 
-    async fn integrate_binary_edit(
-        &self,
-        edit: binary::BinaryEdit,
-        ctx: &mut Context<Ed>,
-    ) -> Result<(), IntegrateBinaryEditError<Ed::Fs>> {
-        let Some((file_path, new_contents)) = self.with_project(|proj| {
-            let file_mut = proj.inner.integrate_binary_edit(edit)?;
-            let file = file_mut.as_file();
-            let file_path = proj.root_path.clone().concat(file.path());
-            let new_contents = file.contents().to_owned();
-            Some((file_path, new_contents))
-        }) else {
-            return Ok(());
-        };
-
-        let fs = ctx.fs();
-
-        ctx.spawn_background(async move {
-            let Some(node) = fs
-                .node_at_path(&*file_path)
-                .await
-                .map_err(IntegrateBinaryEditError::NodeAtPath)?
-            else {
-                return Err(IntegrateBinaryEditError::NoNodeAtPath(file_path));
-            };
-
-            let mut file = match node {
-                fs::Node::File(file) => file,
-                fs::Node::Directory(_) => {
-                    return Err(IntegrateBinaryEditError::DirectoryAtPath(
-                        file_path,
-                    ));
-                },
-                fs::Node::Symlink(_) => {
-                    return Err(IntegrateBinaryEditError::SymlinkAtPath(
-                        file_path,
-                    ));
-                },
-            };
-
-            file.write(new_contents).await.map_err(|err| {
-                IntegrateBinaryEditError::WriteToFile(file_path, err)
-            })
-        })
-        .await
-    }
-
-    async fn integrate_cursor_creation(
-        &self,
-        creation: text::CursorCreation,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some((peer, offset, buf_id, cur_id)) = self.with_project(|proj| {
-            let cursor = proj.inner.integrate_cursor_creation(creation)?;
-            let cursor_file = cursor.file()?;
-            let cursor_owner = proj.peers.get(&cursor.owner())?;
-            let buf_id = proj.id_maps.file2buffer.get(&cursor_file.id())?;
-            Some((
-                cursor_owner.clone(),
-                cursor.offset(),
-                buf_id.clone(),
-                cursor.id(),
-            ))
-        }) else {
-            return;
-        };
-
-        let peer_tooltip =
-            Ed::create_peer_tooltip(peer, offset, buf_id, ctx).await;
-
-        self.with_project(|proj| {
-            proj.peer_tooltips.insert(cur_id, peer_tooltip);
-        });
-    }
-
-    async fn integrate_cursor_deletion(
-        &self,
-        removal: text::CursorRemoval,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some(tooltip) = self.with_project(|proj| {
-            proj.inner
-                .integrate_cursor_removal(removal)
-                .and_then(|cursor_id| proj.peer_tooltips.remove(&cursor_id))
-        }) else {
-            return;
-        };
-
-        Ed::remove_peer_tooltip(tooltip, ctx).await;
-    }
-
-    async fn integrate_cursor_move(
-        &self,
-        movement: text::CursorMove,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some(move_tooltip) = self.with_project(|proj| {
-            let cursor = proj.inner.integrate_cursor_move(movement)?;
-            let tooltip = proj.peer_tooltips.get_mut(&cursor.id())?;
-            Some(Ed::move_peer_tooltip(tooltip, cursor.offset(), ctx))
-        }) else {
-            return;
-        };
-
-        move_tooltip.await;
-    }
-
-    fn integrate_file_save(
-        &self,
-        global_id: GlobalFileId,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some((buf_id, agent_id)) = self.with_project(|proj| {
-            let file_id = proj.inner.local_file_of_global(global_id)?;
-            let buf_id = proj.id_maps.file2buffer.get(&file_id)?.clone();
-            Some((buf_id, proj.agent_id))
-        }) else {
-            return;
-        };
-
-        ctx.with_borrowed(|ctx| {
-            let mut buffer = ctx.buffer(buf_id).expect("invalid buffer ID");
-            if Ed::should_remote_save_cause_local_save(&buffer) {
-                let _ = buffer.schedule_save(agent_id);
-            }
-        });
-    }
-
-    /// TODO: docs.
-    async fn integrate_fs_op<T: FsOp>(
-        &self,
-        op: T,
-        ctx: &mut Context<Ed>,
-    ) -> Result<SmallVec<[Rename; 2]>, IntegrateFsOpError<Ed::Fs>> {
-        use impl_integrate_fs_op as r#impl;
-
-        let mut actions = SmallVec::new();
-        let mut renames = SmallVec::new();
-
-        self.with_project(|proj| {
-            let mut sync_actions = proj.inner.integrate_fs_op(op);
-
-            while let Some(sync_action) = sync_actions.next() {
-                if let Some(more_renames) = r#impl::push_resolved_actions(
-                    sync_action,
-                    &proj.peers,
-                    &mut actions,
-                ) {
-                    renames.extend(more_renames);
-                }
-            }
-        });
-
-        let fs = ctx.fs();
-
-        ctx.spawn_background(async move {
-            for action in actions {
-                action.apply(&fs).await?;
-            }
-            Ok(())
-        })
-        .await?;
-
-        Ok(renames)
-    }
-
-    async fn integrate_peer_joined(&self, peer: Peer, _ctx: &mut Context<Ed>) {
-        self.with_project(|proj| match proj.peers.entry(peer.id) {
-            hash_map::Entry::Occupied(_) => {
-                panic!("peer ID {:?} already exists", peer.id);
-            },
-            hash_map::Entry::Vacant(entry) => {
-                entry.insert(peer);
-            },
-        });
-    }
-
-    async fn integrate_peer_left(
-        &self,
-        peer_id: PeerId,
-        ctx: &mut Context<Ed>,
-    ) {
-        let (tooltips, _peer) = self.with_project(|proj| {
-            let (cursor_ids, _selection_ids) =
-                proj.inner.integrate_peer_disconnection(peer_id);
-
-            let tooltips = cursor_ids
-                .into_iter()
-                .flat_map(|cursor_id| proj.peer_tooltips.remove(&cursor_id))
-                .collect::<SmallVec<[_; 1]>>();
-
-            let peer = match proj.peers.remove(&peer_id) {
-                Some(peer) => peer,
-                None => panic!("peer ID {peer_id:?} doesn't exist"),
-            };
-
-            (tooltips, peer)
-        });
-
-        for tooltip in tooltips {
-            Ed::remove_peer_tooltip(tooltip, ctx).await;
-        }
-    }
-
-    async fn integrate_selection_creation(
-        &self,
-        creation: text::SelectionCreation,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some((peer, range, buf_id, sel_id)) = self.with_project(|proj| {
-            let selection =
-                proj.inner.integrate_selection_creation(creation)?;
-            let file_id = selection.file()?.id();
-            let buf_id = proj.id_maps.file2buffer.get(&file_id)?;
-            let selection_owner = proj.peers.get(&selection.owner())?;
-            Some((
-                selection_owner.clone(),
-                selection.offset_range(),
-                buf_id.clone(),
-                selection.id(),
-            ))
-        }) else {
-            return;
-        };
-
-        let peer_selection =
-            Ed::create_peer_selection(peer, range, buf_id, ctx).await;
-
-        self.with_project(|proj| {
-            proj.peer_selections.insert(sel_id, peer_selection);
-        });
-    }
-
-    async fn integrate_selection_deletion(
-        &self,
-        deletion: text::SelectionRemoval,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some(selection) = self.with_project(|proj| {
-            proj.inner.integrate_selection_removal(deletion).and_then(
-                |selection_id| proj.peer_selections.remove(&selection_id),
-            )
-        }) else {
-            return;
-        };
-
-        Ed::remove_peer_selection(selection, ctx).await;
-    }
-
-    async fn integrate_selection_movement(
-        &self,
-        movement: text::SelectionMove,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some(move_selection) = self.with_project(|proj| {
-            let selection = proj.inner.integrate_selection_move(movement)?;
-            let peer_selection =
-                proj.peer_selections.get_mut(&selection.id())?;
-            Some(Ed::move_peer_selection(
-                peer_selection,
-                selection.offset_range(),
-                ctx,
-            ))
-        }) else {
-            return;
-        };
-
-        move_selection.await;
-    }
-
-    async fn integrate_text_edit(
-        &self,
-        edit: text::TextEdit,
-        ctx: &mut Context<Ed>,
-    ) {
-        let Some((buf_id_or_file_path, replacements, agent_id)) = self
-            .with_project(|proj| {
-                let (file, replacements) =
-                    proj.inner.integrate_text_edit(edit)?;
-                let file_id = file.as_file().id();
-                let buf_id_or_file_path = proj
-                    .id_maps
-                    .file2buffer
-                    .get(&file_id)
-                    .cloned()
-                    .ok_or_else(|| {
-                        let file = proj.inner.file(file_id).expect("is valid");
-                        proj.root_path.clone().concat(file.path())
-                    });
-                Some((buf_id_or_file_path, replacements, proj.agent_id))
-            })
-        else {
-            return;
-        };
-
-        // If there's already an open buffer for the edited file we can just
-        // apply the replacements to it. If not, we have to first create one.
-        let buffer_id = match buf_id_or_file_path {
-            Ok(buf_id) => buf_id,
-            // Not actually an error, we're abusing Result as an Either.
-            Err(file_path) => {
-                match ctx.create_buffer(&file_path, agent_id).await {
-                    Ok(buf_id) => buf_id,
-                    Err(err) => todo!("handle {err:?}"),
-                }
-            },
-        };
-
-        ctx.with_borrowed(|ctx| {
-            let _ =
-                ctx.buffer(buffer_id).expect("buffer exists").schedule_edit(
-                    replacements.into_iter().map(Convert::convert),
-                    agent_id,
-                );
-        });
-    }
-
-    #[allow(clippy::too_many_lines)]
-    async fn synchronize_file_modification(
-        &self,
-        modification: fs::FileModification<Ed::Fs>,
-        ctx: &mut Context<Ed>,
-    ) -> Result<Option<Message>, SynchronizeError<Ed>> {
-        enum FileContents {
-            Binary(Arc<[u8]>),
-            Text(crop::Rope),
-        }
-
-        enum FileDiff {
-            Binary(Vec<u8>),
-            Text(SmallVec<[TextReplacement; 1]>),
-        }
-
-        // Get the file's contents before the modification.
-        let (file_id, file_path, file_contents) = self.with_project(|proj| {
-            let root_path = proj.root_path.clone();
-
-            match proj.project_node(&modification.file_id) {
-                NodeMut::File(FileMut::Binary(file_mut)) => {
-                    let file = file_mut.as_file();
-                    let content = FileContents::Binary(file.contents().into());
-                    (file.id(), root_path.concat(file.path()), content)
-                },
-                NodeMut::File(FileMut::Text(file_mut)) => {
-                    let file = file_mut.as_file();
-                    let contents = FileContents::Text(file.contents().clone());
-                    (file.id(), root_path.concat(file.path()), contents)
-                },
-                NodeMut::File(FileMut::Symlink(_)) => {
-                    panic!("received a FileModification event on a symlink")
-                },
-                NodeMut::Directory(_) => {
-                    panic!("received a FileModification event on a directory")
-                },
-            }
-        });
-
-        let fs = ctx.fs();
-
-        // Compute a diff with the current file contents in the background.
-        let compute_diff = ctx.spawn_background(async move {
-            let Some(node_contents) = fs.contents_at_path(&file_path).await?
-            else {
-                return Ok(None);
-            };
-
-            Ok(match (file_contents, node_contents) {
-                (FileContents::Binary(lhs), FsNodeContents::Binary(rhs)) => {
-                    (*lhs != *rhs).then_some(FileDiff::Binary(rhs))
-                },
-                (FileContents::Text(lhs), FsNodeContents::Text(rhs)) => {
-                    text_diff(lhs, &rhs).map(FileDiff::Text)
-                },
-                _ => None,
-            })
-        });
-
-        let file_diff = match compute_diff.await {
-            Ok(Some(file_diff)) => file_diff,
-            Ok(None) => return Ok(None),
-            Err(err) => return Err(SynchronizeError::ContentsAtPath(err)),
-        };
-
-        // Apply the diff.
-        Ok(self.with_project(|proj| {
-            let file = proj.inner.file_mut(file_id)?;
-
-            Some(match (file, file_diff) {
-                (FileMut::Binary(mut file), FileDiff::Binary(contents)) => {
-                    Message::EditedBinary(file.replace(contents))
-                },
-                (FileMut::Text(mut file), FileDiff::Text(replacements)) => {
-                    Message::EditedText(file.edit(replacements))
-                },
-                _ => unreachable!(),
-            })
-        }))
-    }
-
-    async fn synchronize_node_creation(
-        &self,
-        creation: fs::NodeCreation<Ed::Fs>,
-        ctx: &mut Context<Ed>,
-    ) -> Result<Option<Message>, SynchronizeError<Ed>> {
-        match ctx.fs().contents_at_path(&creation.node_path).await {
-            Ok(Some(node_contents)) => Ok(Some(self.with_project(|proj| {
-                proj.synchronize_node_creation(
-                    creation.node_id,
-                    &creation.node_path,
-                    node_contents,
-                )
-            }))),
-
-            // The node must've already been deleted or moved.
-            //
-            // FIXME: doing nothing can be problematic if we're about to
-            // receive deletions/moves for the node.
-            Ok(None) => Ok(None),
-
-            Err(err) => Err(SynchronizeError::ContentsAtPath(err)),
-        }
-    }
-
-    /// TODO: docs.
-    fn with<R>(&self, fun: impl FnOnce(&Project<Ed>) -> R) -> R {
-        self.inner.with(fun)
-    }
-
-    /// TODO: docs.
-    fn with_project<R>(&self, fun: impl FnOnce(&mut Project<Ed>) -> R) -> R {
-        self.inner.with_mut(fun)
-    }
-}
-
-impl<Ed: CollabEditor> Project<Ed> {
-    fn synchronize(&mut self, event: Event<Ed>) -> Option<Message> {
-        match event {
-            Event::Buffer(event) => self.synchronize_buffer(event),
-            Event::Cursor(event) => Some(self.synchronize_cursor(event)),
-            Event::Directory(event) => Some(self.synchronize_directory(event)),
-            Event::File(event) => {
-                self.synchronize_file(event);
-                None
-            },
-            Event::Selection(event) => Some(self.synchronize_selection(event)),
-        }
-    }
-
-    /// Returns the [`text::CursorMut`] corresponding to the cursor with the
-    /// given ID.
-    #[track_caller]
-    fn cursor_of_cursor_id(
-        &mut self,
-        cursor_id: &Ed::CursorId,
-    ) -> collab_project::text::CursorMut<'_> {
-        let Some(&project_cursor_id) =
-            self.id_maps.cursor2cursor.get(cursor_id)
-        else {
-            panic!("unknown cursor ID: {cursor_id:?}");
-        };
-
-        let Ok(maybe_cursor) = self.inner.cursor_mut(project_cursor_id) else {
-            panic!("cursor ID {cursor_id:?} maps to a remote peer's cursor")
-        };
-
-        match maybe_cursor {
-            Some(cursor) => cursor,
-            None => {
-                panic!("cursor ID {cursor_id:?} maps to a deleted cursor")
-            },
-        }
-    }
-
-    fn is_host(&self) -> bool {
-        self.inner.peer_id() == self.host_id
-    }
-
-    /// Returns the [`NodeMut`] corresponding to the node with the given
-    /// ID.
-    #[track_caller]
-    fn project_node(
-        &mut self,
-        node_id: &<Ed::Fs as fs::Fs>::NodeId,
-    ) -> NodeMut<'_> {
-        if let Some(&dir_id) = self.id_maps.node2dir.get(node_id) {
-            let Some(dir) = self.inner.directory_mut(dir_id) else {
-                panic!("node ID {node_id:?} maps to a deleted directory")
-            };
-            NodeMut::Directory(dir)
-        } else if let Some(&file_id) = self.id_maps.node2file.get(node_id) {
-            let Some(file) = self.inner.file_mut(file_id) else {
-                panic!("node ID {node_id:?} maps to a deleted file")
-            };
-            NodeMut::File(file)
-        } else {
-            panic!("unknown node ID: {node_id:?}")
-        }
-    }
-
-    /// Returns the [`text::SelectionMut`] corresponding to the selection with
-    /// the given ID.
-    #[track_caller]
-    fn selection_of_selection_id(
-        &mut self,
-        selection_id: &Ed::SelectionId,
-    ) -> collab_project::text::SelectionMut<'_> {
-        let Some(&project_selection_id) =
-            self.id_maps.selection2selection.get(selection_id)
-        else {
-            panic!("unknown selection ID: {selection_id:?}");
-        };
-
-        let Ok(maybe_selection) =
-            self.inner.selection_mut(project_selection_id)
-        else {
-            panic!(
-                "selection ID {selection_id:?} maps to a remote peer's \
-                 selection"
-            )
-        };
-
-        match maybe_selection {
-            Some(selection) => selection,
-            None => {
-                panic!(
-                    "selection ID {selection_id:?} maps to a deleted \
-                     selection"
-                )
-            },
-        }
-    }
-
-    fn synchronize_buffer(
-        &mut self,
-        event: BufferEvent<Ed>,
-    ) -> Option<Message> {
-        match event {
-            BufferEvent::Created(buffer_id, file_path) => {
-                let path_in_proj = file_path
-                    .strip_prefix(&self.root_path)
-                    .expect("the buffer is backed by a file in the project");
-
-                let file_id = match self.inner.node_at_path(path_in_proj)? {
-                    Node::File(file) => file.id(),
-                    Node::Directory(_) => return None,
-                };
-
-                let ids = &mut self.id_maps;
-                ids.buffer2file.insert(buffer_id.clone(), file_id);
-                ids.file2buffer.insert(file_id, buffer_id);
-
-                None
-            },
-            BufferEvent::Edited(buffer_id, replacements) => {
-                let text_edit = self
-                    .text_file_of_buffer(&buffer_id)
-                    .edit(replacements.into_iter().map(Convert::convert));
-
-                Some(Message::EditedText(text_edit))
-            },
-            BufferEvent::Removed(buffer_id) => {
-                let ids = &mut self.id_maps;
-                if let Some(file_id) = ids.buffer2file.remove(&buffer_id) {
-                    ids.file2buffer.remove(&file_id);
-                }
-                None
-            },
-            BufferEvent::Saved(buffer_id) => {
-                let file_id =
-                    self.text_file_of_buffer(&buffer_id).as_file().global_id();
-
-                Some(Message::SavedTextFile(file_id))
-            },
-        }
-    }
-
-    fn synchronize_cursor(&mut self, event: CursorEvent<Ed>) -> Message {
-        match event.kind {
-            CursorEventKind::Created(buffer_id, byte_offset) => {
-                let (cursor_id, creation) = self
-                    .text_file_of_buffer(&buffer_id)
-                    .create_cursor(byte_offset);
-
-                self.id_maps.cursor2cursor.insert(event.cursor_id, cursor_id);
-
-                Message::CreatedCursor(creation)
-            },
-            CursorEventKind::Moved(byte_offset) => {
-                let movement = self
-                    .cursor_of_cursor_id(&event.cursor_id)
-                    .r#move(byte_offset);
-
-                Message::MovedCursor(movement)
-            },
-            CursorEventKind::Removed => {
-                let deletion =
-                    self.cursor_of_cursor_id(&event.cursor_id).delete();
-
-                self.id_maps.cursor2cursor.remove(&event.cursor_id);
-
-                Message::RemovedCursor(deletion)
-            },
-        }
-    }
-
-    fn synchronize_directory(
-        &mut self,
-        event: fs::DirectoryEvent<Ed::Fs>,
-    ) -> Message {
-        match event {
-            fs::DirectoryEvent::Creation(_creation) => {
-                unreachable!("already handled by ProjectHandle::synchronize()")
-            },
-            fs::DirectoryEvent::Deletion(deletion) => {
-                self.synchronize_node_deletion(deletion)
-            },
-            fs::DirectoryEvent::Move(r#move) => {
-                self.synchronize_node_move(r#move)
-            },
-        }
-    }
-
-    fn synchronize_file(&mut self, event: fs::FileEvent<Ed::Fs>) {
-        match event {
-            fs::FileEvent::Modification(_modification) => {
-                unreachable!("already handled by ProjectHandle::synchronize()")
-            },
-            fs::FileEvent::IdChange(id_change) => {
-                self.synchronize_file_id_change(id_change);
-            },
-        }
-    }
-
-    fn synchronize_file_id_change(
-        &mut self,
-        id_change: fs::FileIdChange<Ed::Fs>,
-    ) {
-        match self.id_maps.node2file.remove(&id_change.old_id) {
-            Some(file_id) => {
-                self.id_maps.node2file.insert(id_change.new_id, file_id);
-            },
-            None => {
-                panic!("unknown node ID: {:?}", id_change.old_id);
-            },
-        }
-    }
-
-    fn synchronize_node_creation(
-        &mut self,
-        node_id: <Ed::Fs as fs::Fs>::NodeId,
-        node_path: &AbsPath,
-        node_contents: FsNodeContents,
-    ) -> Message {
-        let mut components = node_path.components();
-
-        let node_name =
-            components.next_back().expect("root can't be created").to_owned();
-
-        let parent_path = components.as_path();
-
-        let parent_path_in_project = parent_path
-            .strip_prefix(&self.root_path)
-            .expect("the new parent has to be in the project");
-
-        let Some(parent) = self.inner.node_at_path_mut(parent_path_in_project)
-        else {
-            panic!(
-                "parent path {parent_path_in_project:?} doesn't exist in the \
-                 project"
-            );
-        };
-
-        let NodeMut::Directory(mut parent) = parent else {
-            panic!("parent is not a directory");
-        };
-
-        let Ok((creation, file_mut)) = (match node_contents {
-            FsNodeContents::Directory => {
-                match parent.create_directory(node_name) {
-                    Ok((creation, dir_mut)) => {
-                        let dir_id = dir_mut.as_directory().id();
-                        self.id_maps.node2dir.insert(node_id, dir_id);
-                        return Message::CreatedDirectory(creation);
-                    },
-                    Err(err) => Err(err),
-                }
-            },
-            FsNodeContents::Text(text_contents) => {
-                parent.create_text_file(node_name, text_contents)
-            },
-            FsNodeContents::Binary(binary_contents) => {
-                parent.create_binary_file(node_name, binary_contents)
-            },
-            FsNodeContents::Symlink(target_path) => {
-                parent.create_symlink(node_name, target_path)
-            },
-        }) else {
-            unreachable!("no duplicate node names");
-        };
-
-        let file_id = file_mut.as_file().id();
-        self.id_maps.node2file.insert(node_id, file_id);
-        Message::CreatedFile(creation)
-    }
-
-    fn synchronize_node_deletion(
-        &mut self,
-        deletion: fs::NodeDeletion<Ed::Fs>,
-    ) -> Message {
-        let node_id = deletion.node_id;
-
-        let deletion = match self.project_node(&node_id) {
-            NodeMut::Directory(dir) => match dir.delete() {
-                Ok(deletion) => Message::DeletedDirectory(deletion),
-                Err(_) => unreachable!("dir is not the project root"),
-            },
-            NodeMut::File(file) => Message::DeletedFile(file.delete()),
-        };
-
-        let ids = &mut self.id_maps;
-        if let Some(file_id) = ids.node2file.remove(&node_id) {
-            if let Some(buffer_id) = ids.file2buffer.remove(&file_id) {
-                ids.buffer2file.remove(&buffer_id);
-            }
-        } else {
-            ids.node2dir.remove(&node_id);
-        }
-
-        deletion
-    }
-
-    fn synchronize_node_move(
-        &mut self,
-        r#move: fs::NodeMove<Ed::Fs>,
-    ) -> Message {
-        let parent_path =
-            r#move.new_path.parent().expect("root can't be moved");
-
-        let parent_path_in_project = parent_path
-            .strip_prefix(&self.root_path)
-            .expect("the new parent has to be in the project");
-
-        let Some(parent) = self.inner.node_at_path_mut(parent_path_in_project)
-        else {
-            panic!(
-                "parent path {parent_path_in_project:?} doesn't exist in the \
-                 project"
-            );
-        };
-
-        let NodeMut::Directory(parent) = parent else {
-            panic!("parent is not a directory");
-        };
-
-        let parent_id = parent.as_directory().id();
-
-        match self.project_node(&r#move.node_id) {
-            NodeMut::Directory(mut dir) => Message::MovedDirectory(
-                dir.r#move(parent_id).expect("invalid move on directory"),
-            ),
-
-            NodeMut::File(mut file) => Message::MovedFile(
-                file.r#move(parent_id).expect("invalid move on file"),
-            ),
-        }
-    }
-
-    fn synchronize_selection(&mut self, event: SelectionEvent<Ed>) -> Message {
-        match event.kind {
-            SelectionEventKind::Created(buffer_id, byte_range) => {
-                let (selection_id, creation) = self
-                    .text_file_of_buffer(&buffer_id)
-                    .create_selection(byte_range);
-
-                self.id_maps
-                    .selection2selection
-                    .insert(event.selection_id, selection_id);
-
-                Message::CreatedSelection(creation)
-            },
-            SelectionEventKind::Moved(byte_range) => {
-                let movement = self
-                    .selection_of_selection_id(&event.selection_id)
-                    .r#move(byte_range);
-
-                Message::MovedSelection(movement)
-            },
-            SelectionEventKind::Removed => {
-                let removal = self
-                    .selection_of_selection_id(&event.selection_id)
-                    .delete();
-
-                self.id_maps.selection2selection.remove(&event.selection_id);
-
-                Message::RemovedSelection(removal)
-            },
-        }
-    }
-
-    /// Returns the [`text::TextFileMut`] corresponding to the buffer with the
-    /// given ID.
-    #[track_caller]
-    fn text_file_of_buffer(
-        &mut self,
-        buffer_id: &Ed::BufferId,
-    ) -> collab_project::text::TextFileMut<'_> {
-        let Some(&file_id) = self.id_maps.buffer2file.get(buffer_id) else {
-            panic!("unknown buffer ID: {buffer_id:?}");
-        };
-
-        let Some(file) = self.inner.file_mut(file_id) else {
-            panic!("buffer ID {buffer_id:?} maps to a deleted file")
-        };
-
-        match file {
-            FileMut::Text(text_file) => text_file,
-            FileMut::Binary(_) => {
-                panic!("buffer ID {buffer_id:?} maps to a binary file")
-            },
-            FileMut::Symlink(_) => {
-                panic!("buffer ID {buffer_id:?} maps to a symlink file")
-            },
-        }
-    }
-}
-
-impl<Ed: CollabEditor> Projects<Ed> {
-    pub(crate) fn get(
-        &self,
-        session_id: SessionId<Ed>,
-    ) -> Option<ProjectHandle<Ed>> {
-        self.inner.with(|map| map.get(&session_id).cloned())
-    }
-
-    pub(crate) fn insert(
-        &self,
-        args: NewProjectArgs<Ed>,
-    ) -> ProjectHandle<Ed> {
-        let peers = args
-            .remote_peers
-            .into_iter()
-            .map(|peer| (peer.id, peer))
-            .chain(iter::once((args.local_peer.id, args.local_peer)))
-            .collect();
-
-        let project = Project {
-            agent_id: args.agent_id,
-            host_id: args.host_id,
-            id_maps: args.id_maps,
-            inner: args.project,
-            peer_selections: FxHashMap::default(),
-            peer_tooltips: FxHashMap::default(),
-            peers,
-            root_path: args.project_root,
-            session_id: args.session_id,
-        };
-
-        let session_id = project.session_id;
-
-        let handle = ProjectHandle {
-            inner: Shared::new(project),
-            projects: self.clone(),
-        };
-
-        self.inner.with_mut(|map| {
-            let prev = map.insert(session_id, handle.clone());
-            assert!(prev.is_none());
-        });
-
-        handle
-    }
-
-    pub(crate) async fn select(
-        &self,
-        action: ActionForSelectedSession,
-        ctx: &mut Context<Ed>,
-    ) -> Result<Option<(AbsPathBuf, SessionId<Ed>)>, NoActiveSessionError>
-    {
-        let active_sessions = self.inner.with(|map| {
-            map.iter()
-                .map(|(session_id, handle)| {
-                    let root = handle.with(|proj| proj.root_path.clone());
-                    (root, *session_id)
-                })
-                .collect::<SmallVec<[_; 1]>>()
-        });
-
-        let session = match &*active_sessions {
-            [] => return Err(NoActiveSessionError),
-            [single] => single,
-            sessions => {
-                match Ed::select_session(sessions, action, ctx).await {
-                    Some(session) => session,
-                    None => return Ok(None),
-                }
-            },
-        };
-
-        Ok(Some(session.clone()))
-    }
+    // async fn integrate_binary_edit(
+    //     &self,
+    //     edit: binary::BinaryEdit,
+    //     ctx: &mut Context<Ed>,
+    // ) -> Result<(), IntegrateBinaryEditError<Ed::Fs>> {
+    //     let Some((file_path, new_contents)) = self.with_project(|proj| {
+    //         let file_mut = proj.inner.integrate_binary_edit(edit)?;
+    //         let file = file_mut.as_file();
+    //         let file_path = proj.root_path.clone().concat(file.path());
+    //         let new_contents = file.contents().to_owned();
+    //         Some((file_path, new_contents))
+    //     }) else {
+    //         return Ok(());
+    //     };
+    //
+    //     let fs = ctx.fs();
+    //
+    //     ctx.spawn_background(async move {
+    //         let Some(node) = fs
+    //             .node_at_path(&*file_path)
+    //             .await
+    //             .map_err(IntegrateBinaryEditError::NodeAtPath)?
+    //         else {
+    //             return Err(IntegrateBinaryEditError::NoNodeAtPath(file_path));
+    //         };
+    //
+    //         let mut file = match node {
+    //             fs::Node::File(file) => file,
+    //             fs::Node::Directory(_) => {
+    //                 return Err(IntegrateBinaryEditError::DirectoryAtPath(
+    //                     file_path,
+    //                 ));
+    //             },
+    //             fs::Node::Symlink(_) => {
+    //                 return Err(IntegrateBinaryEditError::SymlinkAtPath(
+    //                     file_path,
+    //                 ));
+    //             },
+    //         };
+    //
+    //         file.write(new_contents).await.map_err(|err| {
+    //             IntegrateBinaryEditError::WriteToFile(file_path, err)
+    //         })
+    //     })
+    //     .await
+    // }
+    //
+    // async fn integrate_cursor_creation(
+    //     &self,
+    //     creation: text::CursorCreation,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some((peer, offset, buf_id, cur_id)) = self.with_project(|proj| {
+    //         let cursor = proj.inner.integrate_cursor_creation(creation)?;
+    //         let cursor_file = cursor.file()?;
+    //         let cursor_owner = proj.remote_peers.get(&cursor.owner())?;
+    //         let buf_id = proj.id_maps.file2buffer.get(&cursor_file.id())?;
+    //         Some((
+    //             cursor_owner.clone(),
+    //             cursor.offset(),
+    //             buf_id.clone(),
+    //             cursor.id(),
+    //         ))
+    //     }) else {
+    //         return;
+    //     };
+    //
+    //     let peer_tooltip =
+    //         Ed::create_peer_tooltip(peer, offset, buf_id, ctx).await;
+    //
+    //     self.with_project(|proj| {
+    //         proj.peer_tooltips.insert(cur_id, peer_tooltip);
+    //     });
+    // }
+    //
+    // async fn integrate_cursor_deletion(
+    //     &self,
+    //     removal: text::CursorRemoval,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some(tooltip) = self.with_project(|proj| {
+    //         proj.inner
+    //             .integrate_cursor_removal(removal)
+    //             .and_then(|cursor_id| proj.peer_tooltips.remove(&cursor_id))
+    //     }) else {
+    //         return;
+    //     };
+    //
+    //     Ed::remove_peer_tooltip(tooltip, ctx).await;
+    // }
+    //
+    // async fn integrate_cursor_move(
+    //     &self,
+    //     movement: text::CursorMove,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some(move_tooltip) = self.with_project(|proj| {
+    //         let cursor = proj.inner.integrate_cursor_move(movement)?;
+    //         let tooltip = proj.peer_tooltips.get_mut(&cursor.id())?;
+    //         Some(Ed::move_peer_tooltip(tooltip, cursor.offset(), ctx))
+    //     }) else {
+    //         return;
+    //     };
+    //
+    //     move_tooltip.await;
+    // }
+    //
+    // fn integrate_file_save(
+    //     &self,
+    //     global_id: GlobalFileId,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some((buf_id, agent_id)) = self.with_project(|proj| {
+    //         let file_id = proj.inner.local_file_of_global(global_id)?;
+    //         let buf_id = proj.id_maps.file2buffer.get(&file_id)?.clone();
+    //         Some((buf_id, proj.agent_id))
+    //     }) else {
+    //         return;
+    //     };
+    //
+    //     ctx.with_borrowed(|ctx| {
+    //         let mut buffer = ctx.buffer(buf_id).expect("invalid buffer ID");
+    //         if Ed::should_remote_save_cause_local_save(&buffer) {
+    //             let _ = buffer.schedule_save(agent_id);
+    //         }
+    //     });
+    // }
+    //
+    // /// TODO: docs.
+    // async fn integrate_fs_op<T: FsOp>(
+    //     &self,
+    //     op: T,
+    //     ctx: &mut Context<Ed>,
+    // ) -> Result<SmallVec<[Rename; 2]>, IntegrateFsOpError<Ed::Fs>> {
+    //     use impl_integrate_fs_op as r#impl;
+    //
+    //     let mut actions = SmallVec::new();
+    //     let mut renames = SmallVec::new();
+    //
+    //     self.with_project(|proj| {
+    //         let mut sync_actions = proj.inner.integrate_fs_op(op);
+    //
+    //         while let Some(sync_action) = sync_actions.next() {
+    //             if let Some(more_renames) = r#impl::push_resolved_actions(
+    //                 sync_action,
+    //                 &proj.remote_peers,
+    //                 &mut actions,
+    //             ) {
+    //                 renames.extend(more_renames);
+    //             }
+    //         }
+    //     });
+    //
+    //     let fs = ctx.fs();
+    //
+    //     ctx.spawn_background(async move {
+    //         for action in actions {
+    //             action.apply(&fs).await?;
+    //         }
+    //         Ok(())
+    //     })
+    //     .await?;
+    //
+    //     Ok(renames)
+    // }
+    //
+    // async fn integrate_peer_joined(&self, peer: Peer, _ctx: &mut Context<Ed>) {
+    //     self.with_project(|proj| match proj.remote_peers.entry(peer.id) {
+    //         hash_map::Entry::Occupied(_) => {
+    //             panic!("peer ID {:?} already exists", peer.id);
+    //         },
+    //         hash_map::Entry::Vacant(entry) => {
+    //             entry.insert(peer);
+    //         },
+    //     });
+    // }
+    //
+    // async fn integrate_peer_left(
+    //     &self,
+    //     peer_id: PeerId,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let (tooltips, _peer) = self.with_project(|proj| {
+    //         let (cursor_ids, _selection_ids) =
+    //             proj.inner.integrate_peer_disconnection(peer_id);
+    //
+    //         let tooltips = cursor_ids
+    //             .into_iter()
+    //             .flat_map(|cursor_id| proj.peer_tooltips.remove(&cursor_id))
+    //             .collect::<SmallVec<[_; 1]>>();
+    //
+    //         let peer = match proj.remote_peers.remove(&peer_id) {
+    //             Some(peer) => peer,
+    //             None => panic!("peer ID {peer_id:?} doesn't exist"),
+    //         };
+    //
+    //         (tooltips, peer)
+    //     });
+    //
+    //     for tooltip in tooltips {
+    //         Ed::remove_peer_tooltip(tooltip, ctx).await;
+    //     }
+    // }
+    //
+    // async fn integrate_selection_creation(
+    //     &self,
+    //     creation: text::SelectionCreation,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some((peer, range, buf_id, sel_id)) = self.with_project(|proj| {
+    //         let selection =
+    //             proj.inner.integrate_selection_creation(creation)?;
+    //         let file_id = selection.file()?.id();
+    //         let buf_id = proj.id_maps.file2buffer.get(&file_id)?;
+    //         let selection_owner = proj.remote_peers.get(&selection.owner())?;
+    //         Some((
+    //             selection_owner.clone(),
+    //             selection.offset_range(),
+    //             buf_id.clone(),
+    //             selection.id(),
+    //         ))
+    //     }) else {
+    //         return;
+    //     };
+    //
+    //     let peer_selection =
+    //         Ed::create_peer_selection(peer, range, buf_id, ctx).await;
+    //
+    //     self.with_project(|proj| {
+    //         proj.peer_selections.insert(sel_id, peer_selection);
+    //     });
+    // }
+    //
+    // async fn integrate_selection_deletion(
+    //     &self,
+    //     deletion: text::SelectionRemoval,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some(selection) = self.with_project(|proj| {
+    //         proj.inner.integrate_selection_removal(deletion).and_then(
+    //             |selection_id| proj.peer_selections.remove(&selection_id),
+    //         )
+    //     }) else {
+    //         return;
+    //     };
+    //
+    //     Ed::remove_peer_selection(selection, ctx).await;
+    // }
+    //
+    // async fn integrate_selection_movement(
+    //     &self,
+    //     movement: text::SelectionMove,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some(move_selection) = self.with_project(|proj| {
+    //         let selection = proj.inner.integrate_selection_move(movement)?;
+    //         let peer_selection =
+    //             proj.peer_selections.get_mut(&selection.id())?;
+    //         Some(Ed::move_peer_selection(
+    //             peer_selection,
+    //             selection.offset_range(),
+    //             ctx,
+    //         ))
+    //     }) else {
+    //         return;
+    //     };
+    //
+    //     move_selection.await;
+    // }
+    //
+    // async fn integrate_text_edit(
+    //     &self,
+    //     edit: text::TextEdit,
+    //     ctx: &mut Context<Ed>,
+    // ) {
+    //     let Some((buf_id_or_file_path, replacements, agent_id)) = self
+    //         .with_project(|proj| {
+    //             let (file, replacements) =
+    //                 proj.inner.integrate_text_edit(edit)?;
+    //             let file_id = file.as_file().id();
+    //             let buf_id_or_file_path = proj
+    //                 .id_maps
+    //                 .file2buffer
+    //                 .get(&file_id)
+    //                 .cloned()
+    //                 .ok_or_else(|| {
+    //                     let file = proj.inner.file(file_id).expect("is valid");
+    //                     proj.root_path.clone().concat(file.path())
+    //                 });
+    //             Some((buf_id_or_file_path, replacements, proj.agent_id))
+    //         })
+    //     else {
+    //         return;
+    //     };
+    //
+    //     // If there's already an open buffer for the edited file we can just
+    //     // apply the replacements to it. If not, we have to first create one.
+    //     let buffer_id = match buf_id_or_file_path {
+    //         Ok(buf_id) => buf_id,
+    //         // Not actually an error, we're abusing Result as an Either.
+    //         Err(file_path) => {
+    //             match ctx.create_buffer(&file_path, agent_id).await {
+    //                 Ok(buf_id) => buf_id,
+    //                 Err(err) => todo!("handle {err:?}"),
+    //             }
+    //         },
+    //     };
+    //
+    //     ctx.with_borrowed(|ctx| {
+    //         let _ =
+    //             ctx.buffer(buffer_id).expect("buffer exists").schedule_edit(
+    //                 replacements.into_iter().map(Convert::convert),
+    //                 agent_id,
+    //             );
+    //     });
+    // }
+    //
+    // #[allow(clippy::too_many_lines)]
+    // async fn synchronize_file_modification(
+    //     &self,
+    //     modification: fs::FileModification<Ed::Fs>,
+    //     ctx: &mut Context<Ed>,
+    // ) -> Result<Option<Message>, SynchronizeError<Ed>> {
+    //     enum FileContents {
+    //         Binary(Arc<[u8]>),
+    //         Text(crop::Rope),
+    //     }
+    //
+    //     enum FileDiff {
+    //         Binary(Vec<u8>),
+    //         Text(SmallVec<[TextReplacement; 1]>),
+    //     }
+    //
+    //     // Get the file's contents before the modification.
+    //     let (file_id, file_path, file_contents) = self.with_project(|proj| {
+    //         let root_path = proj.root_path.clone();
+    //
+    //         match proj.project_node(&modification.file_id) {
+    //             NodeMut::File(FileMut::Binary(file_mut)) => {
+    //                 let file = file_mut.as_file();
+    //                 let content = FileContents::Binary(file.contents().into());
+    //                 (file.id(), root_path.concat(file.path()), content)
+    //             },
+    //             NodeMut::File(FileMut::Text(file_mut)) => {
+    //                 let file = file_mut.as_file();
+    //                 let contents = FileContents::Text(file.contents().clone());
+    //                 (file.id(), root_path.concat(file.path()), contents)
+    //             },
+    //             NodeMut::File(FileMut::Symlink(_)) => {
+    //                 panic!("received a FileModification event on a symlink")
+    //             },
+    //             NodeMut::Directory(_) => {
+    //                 panic!("received a FileModification event on a directory")
+    //             },
+    //         }
+    //     });
+    //
+    //     let fs = ctx.fs();
+    //
+    //     // Compute a diff with the current file contents in the background.
+    //     let compute_diff = ctx.spawn_background(async move {
+    //         let Some(node_contents) = fs.contents_at_path(&file_path).await?
+    //         else {
+    //             return Ok(None);
+    //         };
+    //
+    //         Ok(match (file_contents, node_contents) {
+    //             (FileContents::Binary(lhs), FsNodeContents::Binary(rhs)) => {
+    //                 (*lhs != *rhs).then_some(FileDiff::Binary(rhs))
+    //             },
+    //             (FileContents::Text(lhs), FsNodeContents::Text(rhs)) => {
+    //                 text_diff(lhs, &rhs).map(FileDiff::Text)
+    //             },
+    //             _ => None,
+    //         })
+    //     });
+    //
+    //     let file_diff = match compute_diff.await {
+    //         Ok(Some(file_diff)) => file_diff,
+    //         Ok(None) => return Ok(None),
+    //         Err(err) => return Err(SynchronizeError::ContentsAtPath(err)),
+    //     };
+    //
+    //     // Apply the diff.
+    //     Ok(self.with_project(|proj| {
+    //         let file = proj.inner.file_mut(file_id)?;
+    //
+    //         Some(match (file, file_diff) {
+    //             (FileMut::Binary(mut file), FileDiff::Binary(contents)) => {
+    //                 Message::EditedBinary(file.replace(contents))
+    //             },
+    //             (FileMut::Text(mut file), FileDiff::Text(replacements)) => {
+    //                 Message::EditedText(file.edit(replacements))
+    //             },
+    //             _ => unreachable!(),
+    //         })
+    //     }))
+    // }
+    //
+    // async fn synchronize_node_creation(
+    //     &self,
+    //     creation: fs::NodeCreation<Ed::Fs>,
+    //     ctx: &mut Context<Ed>,
+    // ) -> Result<Option<Message>, SynchronizeError<Ed>> {
+    //     match ctx.fs().contents_at_path(&creation.node_path).await {
+    //         Ok(Some(node_contents)) => Ok(Some(self.with_project(|proj| {
+    //             proj.synchronize_node_creation(
+    //                 creation.node_id,
+    //                 &creation.node_path,
+    //                 node_contents,
+    //             )
+    //         }))),
+    //
+    //         // The node must've already been deleted or moved.
+    //         //
+    //         // FIXME: doing nothing can be problematic if we're about to
+    //         // receive deletions/moves for the node.
+    //         Ok(None) => Ok(None),
+    //
+    //         Err(err) => Err(SynchronizeError::ContentsAtPath(err)),
+    //     }
+    // }
+    //
+    // /// Returns the [`text::CursorMut`] corresponding to the cursor with the
+    // /// given ID.
+    // #[track_caller]
+    // fn cursor_of_cursor_id(
+    //     &mut self,
+    //     cursor_id: &Ed::CursorId,
+    // ) -> collab_project::text::CursorMut<'_> {
+    //     let Some(&project_cursor_id) =
+    //         self.id_maps.cursor2cursor.get(cursor_id)
+    //     else {
+    //         panic!("unknown cursor ID: {cursor_id:?}");
+    //     };
+    //
+    //     let Ok(maybe_cursor) = self.inner.cursor_mut(project_cursor_id) else {
+    //         panic!("cursor ID {cursor_id:?} maps to a remote peer's cursor")
+    //     };
+    //
+    //     match maybe_cursor {
+    //         Some(cursor) => cursor,
+    //         None => {
+    //             panic!("cursor ID {cursor_id:?} maps to a deleted cursor")
+    //         },
+    //     }
+    // }
+    //
+    // /// Returns the [`NodeMut`] corresponding to the node with the given
+    // /// ID.
+    // #[track_caller]
+    // fn project_node(
+    //     &mut self,
+    //     node_id: &<Ed::Fs as fs::Fs>::NodeId,
+    // ) -> NodeMut<'_> {
+    //     if let Some(&dir_id) = self.id_maps.node2dir.get(node_id) {
+    //         let Some(dir) = self.inner.directory_mut(dir_id) else {
+    //             panic!("node ID {node_id:?} maps to a deleted directory")
+    //         };
+    //         NodeMut::Directory(dir)
+    //     } else if let Some(&file_id) = self.id_maps.node2file.get(node_id) {
+    //         let Some(file) = self.inner.file_mut(file_id) else {
+    //             panic!("node ID {node_id:?} maps to a deleted file")
+    //         };
+    //         NodeMut::File(file)
+    //     } else {
+    //         panic!("unknown node ID: {node_id:?}")
+    //     }
+    // }
+    //
+    // /// Returns the [`text::SelectionMut`] corresponding to the selection with
+    // /// the given ID.
+    // #[track_caller]
+    // fn selection_of_selection_id(
+    //     &mut self,
+    //     selection_id: &Ed::SelectionId,
+    // ) -> collab_project::text::SelectionMut<'_> {
+    //     let Some(&project_selection_id) =
+    //         self.id_maps.selection2selection.get(selection_id)
+    //     else {
+    //         panic!("unknown selection ID: {selection_id:?}");
+    //     };
+    //
+    //     let Ok(maybe_selection) =
+    //         self.inner.selection_mut(project_selection_id)
+    //     else {
+    //         panic!(
+    //             "selection ID {selection_id:?} maps to a remote peer's \
+    //              selection"
+    //         )
+    //     };
+    //
+    //     match maybe_selection {
+    //         Some(selection) => selection,
+    //         None => {
+    //             panic!(
+    //                 "selection ID {selection_id:?} maps to a deleted \
+    //                  selection"
+    //             )
+    //         },
+    //     }
+    // }
+    //
+    // fn synchronize_buffer(
+    //     &mut self,
+    //     event: BufferEvent<Ed>,
+    // ) -> Option<Message> {
+    //     match event {
+    //         BufferEvent::Created(buffer_id, file_path) => {
+    //             let path_in_proj = file_path
+    //                 .strip_prefix(&self.root_path)
+    //                 .expect("the buffer is backed by a file in the project");
+    //
+    //             let file_id = match self.inner.node_at_path(path_in_proj)? {
+    //                 Node::File(file) => file.id(),
+    //                 Node::Directory(_) => return None,
+    //             };
+    //
+    //             let ids = &mut self.id_maps;
+    //             ids.buffer2file.insert(buffer_id.clone(), file_id);
+    //             ids.file2buffer.insert(file_id, buffer_id);
+    //
+    //             None
+    //         },
+    //         BufferEvent::Edited(buffer_id, replacements) => {
+    //             let text_edit = self
+    //                 .text_file_of_buffer(&buffer_id)
+    //                 .edit(replacements.into_iter().map(Convert::convert));
+    //
+    //             Some(Message::EditedText(text_edit))
+    //         },
+    //         BufferEvent::Removed(buffer_id) => {
+    //             let ids = &mut self.id_maps;
+    //             if let Some(file_id) = ids.buffer2file.remove(&buffer_id) {
+    //                 ids.file2buffer.remove(&file_id);
+    //             }
+    //             None
+    //         },
+    //         BufferEvent::Saved(buffer_id) => {
+    //             let file_id =
+    //                 self.text_file_of_buffer(&buffer_id).as_file().global_id();
+    //
+    //             Some(Message::SavedTextFile(file_id))
+    //         },
+    //     }
+    // }
+    //
+    // fn synchronize_cursor(&mut self, event: CursorEvent<Ed>) -> Message {
+    //     match event.kind {
+    //         CursorEventKind::Created(buffer_id, byte_offset) => {
+    //             let (cursor_id, creation) = self
+    //                 .text_file_of_buffer(&buffer_id)
+    //                 .create_cursor(byte_offset);
+    //
+    //             self.id_maps.cursor2cursor.insert(event.cursor_id, cursor_id);
+    //
+    //             Message::CreatedCursor(creation)
+    //         },
+    //         CursorEventKind::Moved(byte_offset) => {
+    //             let movement = self
+    //                 .cursor_of_cursor_id(&event.cursor_id)
+    //                 .r#move(byte_offset);
+    //
+    //             Message::MovedCursor(movement)
+    //         },
+    //         CursorEventKind::Removed => {
+    //             let deletion =
+    //                 self.cursor_of_cursor_id(&event.cursor_id).delete();
+    //
+    //             self.id_maps.cursor2cursor.remove(&event.cursor_id);
+    //
+    //             Message::RemovedCursor(deletion)
+    //         },
+    //     }
+    // }
+    //
+    // fn synchronize_directory(
+    //     &mut self,
+    //     event: fs::DirectoryEvent<Ed::Fs>,
+    // ) -> Message {
+    //     match event {
+    //         fs::DirectoryEvent::Creation(_creation) => {
+    //             unreachable!("already handled by ProjectHandle::synchronize()")
+    //         },
+    //         fs::DirectoryEvent::Deletion(deletion) => {
+    //             self.synchronize_node_deletion(deletion)
+    //         },
+    //         fs::DirectoryEvent::Move(r#move) => {
+    //             self.synchronize_node_move(r#move)
+    //         },
+    //     }
+    // }
+    //
+    // fn synchronize_file(&mut self, event: fs::FileEvent<Ed::Fs>) {
+    //     match event {
+    //         fs::FileEvent::Modification(_modification) => {
+    //             unreachable!("already handled by ProjectHandle::synchronize()")
+    //         },
+    //         fs::FileEvent::IdChange(id_change) => {
+    //             self.synchronize_file_id_change(id_change);
+    //         },
+    //     }
+    // }
+    //
+    // fn synchronize_file_id_change(
+    //     &mut self,
+    //     id_change: fs::FileIdChange<Ed::Fs>,
+    // ) {
+    //     match self.id_maps.node2file.remove(&id_change.old_id) {
+    //         Some(file_id) => {
+    //             self.id_maps.node2file.insert(id_change.new_id, file_id);
+    //         },
+    //         None => {
+    //             panic!("unknown node ID: {:?}", id_change.old_id);
+    //         },
+    //     }
+    // }
+    //
+    // fn synchronize_node_creation(
+    //     &mut self,
+    //     node_id: <Ed::Fs as fs::Fs>::NodeId,
+    //     node_path: &AbsPath,
+    //     node_contents: FsNodeContents,
+    // ) -> Message {
+    //     let mut components = node_path.components();
+    //
+    //     let node_name =
+    //         components.next_back().expect("root can't be created").to_owned();
+    //
+    //     let parent_path = components.as_path();
+    //
+    //     let parent_path_in_project = parent_path
+    //         .strip_prefix(&self.root_path)
+    //         .expect("the new parent has to be in the project");
+    //
+    //     let Some(parent) = self.inner.node_at_path_mut(parent_path_in_project)
+    //     else {
+    //         panic!(
+    //             "parent path {parent_path_in_project:?} doesn't exist in the \
+    //              project"
+    //         );
+    //     };
+    //
+    //     let NodeMut::Directory(mut parent) = parent else {
+    //         panic!("parent is not a directory");
+    //     };
+    //
+    //     let Ok((creation, file_mut)) = (match node_contents {
+    //         FsNodeContents::Directory => {
+    //             match parent.create_directory(node_name) {
+    //                 Ok((creation, dir_mut)) => {
+    //                     let dir_id = dir_mut.as_directory().id();
+    //                     self.id_maps.node2dir.insert(node_id, dir_id);
+    //                     return Message::CreatedDirectory(creation);
+    //                 },
+    //                 Err(err) => Err(err),
+    //             }
+    //         },
+    //         FsNodeContents::Text(text_contents) => {
+    //             parent.create_text_file(node_name, text_contents)
+    //         },
+    //         FsNodeContents::Binary(binary_contents) => {
+    //             parent.create_binary_file(node_name, binary_contents)
+    //         },
+    //         FsNodeContents::Symlink(target_path) => {
+    //             parent.create_symlink(node_name, target_path)
+    //         },
+    //     }) else {
+    //         unreachable!("no duplicate node names");
+    //     };
+    //
+    //     let file_id = file_mut.as_file().id();
+    //     self.id_maps.node2file.insert(node_id, file_id);
+    //     Message::CreatedFile(creation)
+    // }
+    //
+    // fn synchronize_node_deletion(
+    //     &mut self,
+    //     deletion: fs::NodeDeletion<Ed::Fs>,
+    // ) -> Message {
+    //     let node_id = deletion.node_id;
+    //
+    //     let deletion = match self.project_node(&node_id) {
+    //         NodeMut::Directory(dir) => match dir.delete() {
+    //             Ok(deletion) => Message::DeletedDirectory(deletion),
+    //             Err(_) => unreachable!("dir is not the project root"),
+    //         },
+    //         NodeMut::File(file) => Message::DeletedFile(file.delete()),
+    //     };
+    //
+    //     let ids = &mut self.id_maps;
+    //     if let Some(file_id) = ids.node2file.remove(&node_id) {
+    //         if let Some(buffer_id) = ids.file2buffer.remove(&file_id) {
+    //             ids.buffer2file.remove(&buffer_id);
+    //         }
+    //     } else {
+    //         ids.node2dir.remove(&node_id);
+    //     }
+    //
+    //     deletion
+    // }
+    //
+    // fn synchronize_node_move(
+    //     &mut self,
+    //     r#move: fs::NodeMove<Ed::Fs>,
+    // ) -> Message {
+    //     let parent_path =
+    //         r#move.new_path.parent().expect("root can't be moved");
+    //
+    //     let parent_path_in_project = parent_path
+    //         .strip_prefix(&self.root_path)
+    //         .expect("the new parent has to be in the project");
+    //
+    //     let Some(parent) = self.inner.node_at_path_mut(parent_path_in_project)
+    //     else {
+    //         panic!(
+    //             "parent path {parent_path_in_project:?} doesn't exist in the \
+    //              project"
+    //         );
+    //     };
+    //
+    //     let NodeMut::Directory(parent) = parent else {
+    //         panic!("parent is not a directory");
+    //     };
+    //
+    //     let parent_id = parent.as_directory().id();
+    //
+    //     match self.project_node(&r#move.node_id) {
+    //         NodeMut::Directory(mut dir) => Message::MovedDirectory(
+    //             dir.r#move(parent_id).expect("invalid move on directory"),
+    //         ),
+    //
+    //         NodeMut::File(mut file) => Message::MovedFile(
+    //             file.r#move(parent_id).expect("invalid move on file"),
+    //         ),
+    //     }
+    // }
+    //
+    // fn synchronize_selection(&mut self, event: SelectionEvent<Ed>) -> Message {
+    //     match event.kind {
+    //         SelectionEventKind::Created(buffer_id, byte_range) => {
+    //             let (selection_id, creation) = self
+    //                 .text_file_of_buffer(&buffer_id)
+    //                 .create_selection(byte_range);
+    //
+    //             self.id_maps
+    //                 .selection2selection
+    //                 .insert(event.selection_id, selection_id);
+    //
+    //             Message::CreatedSelection(creation)
+    //         },
+    //         SelectionEventKind::Moved(byte_range) => {
+    //             let movement = self
+    //                 .selection_of_selection_id(&event.selection_id)
+    //                 .r#move(byte_range);
+    //
+    //             Message::MovedSelection(movement)
+    //         },
+    //         SelectionEventKind::Removed => {
+    //             let removal = self
+    //                 .selection_of_selection_id(&event.selection_id)
+    //                 .delete();
+    //
+    //             self.id_maps.selection2selection.remove(&event.selection_id);
+    //
+    //             Message::RemovedSelection(removal)
+    //         },
+    //     }
+    // }
+    //
+    // /// Returns the [`text::TextFileMut`] corresponding to the buffer with the
+    // /// given ID.
+    // #[track_caller]
+    // fn text_file_of_buffer(
+    //     &mut self,
+    //     buffer_id: &Ed::BufferId,
+    // ) -> collab_project::text::TextFileMut<'_> {
+    //     let Some(&file_id) = self.id_maps.buffer2file.get(buffer_id) else {
+    //         panic!("unknown buffer ID: {buffer_id:?}");
+    //     };
+    //
+    //     let Some(file) = self.inner.file_mut(file_id) else {
+    //         panic!("buffer ID {buffer_id:?} maps to a deleted file")
+    //     };
+    //
+    //     match file {
+    //         FileMut::Text(text_file) => text_file,
+    //         FileMut::Binary(_) => {
+    //             panic!("buffer ID {buffer_id:?} maps to a binary file")
+    //         },
+    //         FileMut::Symlink(_) => {
+    //             panic!("buffer ID {buffer_id:?} maps to a symlink file")
+    //         },
+    //     }
+    // }
 }
 
 mod impl_integrate_fs_op {
@@ -1566,28 +1468,6 @@ mod impl_integrate_fs_op {
     }
 }
 
-impl<Ed: CollabEditor> fmt::Debug for ProjectHandle<Ed> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ProjectHandle").field(&self.root()).finish()
-    }
-}
-
-impl<Ed: CollabEditor> Drop for ProjectHandle<Ed> {
-    fn drop(&mut self) {
-        // The Projects struct is also storing an instance of this
-        // ProjectHandle, so if the strong count is 2 it effectively means
-        // we're dropping the last used instance.
-        if self.inner.strong_count() == 2 {
-            // Removing the ProjectHandle from the Projects will cause this
-            // Drop impl to be called again, so use a non-panicking method
-            // to access the inner map.
-            let _ = self.projects.inner.try_with_mut(|map| {
-                map.remove(&self.session_id());
-            });
-        }
-    }
-}
-
 trait FsExt: fs::Fs {
     fn contents_at_path(
         &self,
@@ -1628,18 +1508,6 @@ trait FsExt: fs::Fs {
 }
 
 impl<Fs: fs::Fs> FsExt for Fs {}
-
-/// TODO: docs.
-#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
-#[display("{_0}")]
-pub enum ContentsAtPathError<Fs: fs::Fs> {
-    /// TODO: docs.
-    NodeAtPath(Fs::NodeAtPathError),
-    /// TODO: docs.
-    ReadFile(<Fs::File as fs::File>::ReadError),
-    /// TODO: docs.
-    ReadSymlink(<Fs::Symlink as fs::Symlink>::ReadError),
-}
 
 fn text_diff(
     _lhs: crop::Rope,

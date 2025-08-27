@@ -7,7 +7,7 @@ use crate::config::Config;
 use crate::editors::{CollabEditor, SessionId};
 use crate::join::{Join, JoinError};
 use crate::leave::{self, Leave, LeaveError};
-use crate::project::{ProjectHandle, Projects};
+use crate::session::{SessionInfos, Sessions};
 use crate::start::{Start, StartError};
 use crate::yank::{Yank, YankError};
 
@@ -15,7 +15,7 @@ use crate::yank::{Yank, YankError};
 pub struct Collab<Ed: CollabEditor> {
     pub(crate) auth_infos: Shared<Option<AuthInfos>>,
     pub(crate) config: Shared<Config>,
-    pub(crate) projects: Projects<Ed>,
+    pub(crate) sessions: Sessions<Ed>,
     pub(crate) stop_channels: leave::StopChannels<Ed>,
 }
 
@@ -25,7 +25,7 @@ impl<Ed: CollabEditor> Collab<Ed> {
         &self,
         session_id: SessionId<Ed>,
         ctx: &mut Context<Ed>,
-    ) -> Result<(), JoinError<Ed>> {
+    ) -> Result<SessionInfos<Ed>, JoinError<Ed>> {
         Join::from(self).call_inner(session_id, ctx).await
     }
 
@@ -37,19 +37,11 @@ impl<Ed: CollabEditor> Collab<Ed> {
         Leave::from(self).call_inner(ctx).await
     }
 
-    /// Returns a handle to the project with the given session ID, if any.
-    pub fn project(
-        &self,
-        session_id: SessionId<Ed>,
-    ) -> Option<ProjectHandle<Ed>> {
-        self.projects.get(session_id)
-    }
-
     /// Calls the [`Start`] action.
     pub async fn start(
         &self,
         ctx: &mut Context<Ed>,
-    ) -> Result<SessionId<Ed>, StartError<Ed>> {
+    ) -> Result<SessionInfos<Ed>, StartError<Ed>> {
         Start::from(self).call_inner(ctx).await
     }
 
@@ -92,7 +84,7 @@ impl<Ed: CollabEditor> From<&auth::Auth> for Collab<Ed> {
         Self {
             auth_infos: auth.infos().clone(),
             config: Default::default(),
-            projects: Default::default(),
+            sessions: Default::default(),
             stop_channels: Default::default(),
         }
     }

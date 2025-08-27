@@ -10,13 +10,13 @@ use fxhash::FxHashMap;
 
 use crate::collab::Collab;
 use crate::editors::{ActionForSelectedSession, CollabEditor, SessionId};
-use crate::project::{NoActiveSessionError, Projects};
+use crate::session::{NoActiveSessionError, Sessions};
 
 /// TODO: docs.
 #[derive(cauchy::Clone)]
 pub struct Leave<Ed: CollabEditor> {
     channels: StopChannels<Ed>,
-    projects: Projects<Ed>,
+    sessions: Sessions<Ed>,
 }
 
 #[derive(cauchy::Clone, cauchy::Default)]
@@ -34,7 +34,7 @@ impl<Ed: CollabEditor> Leave<Ed> {
         ctx: &mut Context<Ed>,
     ) -> Result<(), LeaveError> {
         let Some(stop_sender) = self
-            .projects
+            .sessions
             .select(ActionForSelectedSession::Leave, ctx)
             .await?
             .and_then(|(_, session_id)| self.channels.take(session_id))
@@ -106,7 +106,7 @@ impl<Ed: CollabEditor> From<&Collab<Ed>> for Leave<Ed> {
     fn from(collab: &Collab<Ed>) -> Self {
         Self {
             channels: collab.stop_channels.clone(),
-            projects: collab.projects.clone(),
+            sessions: collab.sessions.clone(),
         }
     }
 }

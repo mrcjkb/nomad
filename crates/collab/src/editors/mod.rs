@@ -13,7 +13,7 @@ use collab_types::Peer;
 use editor::{ByteOffset, Context, Editor};
 use futures_util::{AsyncRead, AsyncWrite};
 
-use crate::session::Session;
+use crate::session::SessionInfos;
 use crate::{config, join, leave, session, start, yank};
 
 /// An [`Editor`] subtrait defining additional capabilities needed by the
@@ -144,7 +144,7 @@ pub trait CollabEditor: Editor {
     /// Called after the [`Start`](start::Start) action successfully starts a
     /// new session, just before running the session's event loop.
     fn on_session_started(
-        session: &Session<Self>,
+        session_infos: &SessionInfos<Self>,
         ctx: &mut Context<Self>,
     ) -> impl Future<Output = ()>;
 

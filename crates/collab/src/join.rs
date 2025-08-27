@@ -30,15 +30,15 @@ use crate::config::Config;
 use crate::editors::{CollabEditor, SessionId, Welcome};
 use crate::event_stream::EventStreamBuilder;
 use crate::leave::StopChannels;
-use crate::project::{IdMaps, NewProjectArgs, Projects};
-use crate::session::Session;
+use crate::project::{self, IdMaps};
+use crate::session::{RemotePeers, Session, SessionInfos, Sessions};
 
 /// The `Action` used to join an existing collaborative editing session.
 #[derive(cauchy::Clone)]
 pub struct Join<Ed: CollabEditor> {
     auth_infos: Shared<Option<AuthInfos>>,
     config: Shared<Config>,
-    projects: Projects<Ed>,
+    sessions: Sessions<Ed>,
     stop_channels: StopChannels<Ed>,
 }
 
@@ -48,7 +48,7 @@ impl<Ed: CollabEditor> Join<Ed> {
         &self,
         session_id: SessionId<Ed>,
         ctx: &mut Context<Ed>,
-    ) -> Result<(), JoinError<Ed>> {
+    ) -> Result<SessionInfos<Ed>, JoinError<Ed>> {
         let auth_infos =
             self.auth_infos.cloned().ok_or(JoinError::UserNotLoggedIn)?;
 
@@ -102,27 +102,38 @@ impl<Ed: CollabEditor> Join<Ed> {
             .push_filter(Either::Left(project_filter))
             .build(ctx);
 
-        let project_handle = self.projects.insert(NewProjectArgs {
+        let remote_peers = RemotePeers::from(welcome.other_peers);
+
+        let mut project = project::Project {
             agent_id: event_stream.agent_id(),
             id_maps: id_maps.into(),
-            host_id: welcome.host_id,
-            local_peer,
-            project,
-            project_root: project_root.path().to_owned(),
-            remote_peers: welcome.other_peers,
-            session_id: welcome.session_id,
-        });
+            inner: project,
+            local_peer: local_peer.clone(),
+            peer_selections: FxHashMap::default(),
+            peer_tooltips: FxHashMap::default(),
+            remote_peers: remote_peers.clone(),
+            root_path: project_root.path().to_owned(),
+        };
 
         for message in buffered {
-            project_handle.integrate(message, ctx).await;
+            project.integrate(message, ctx).await;
         }
+
+        let session_infos = SessionInfos {
+            host_id: welcome.host_id,
+            local_peer,
+            remote_peers,
+            project_root_path: project_root.path().to_owned(),
+            session_id: welcome.session_id,
+        };
 
         let session = Session {
             event_stream,
             message_rx: welcome.rx,
             message_tx: welcome.tx,
-            project_handle,
+            project,
             stop_rx: self.stop_channels.insert(welcome.session_id),
+            _remove_on_drop: self.sessions.insert(session_infos.clone()),
         };
 
         ctx.spawn_local(async move |ctx| {
@@ -132,7 +143,7 @@ impl<Ed: CollabEditor> Join<Ed> {
         })
         .detach();
 
-        Ok(())
+        Ok(session_infos)
     }
 }
 
@@ -157,7 +168,7 @@ impl<Ed: CollabEditor> From<&Collab<Ed>> for Join<Ed> {
         Self {
             auth_infos: collab.auth_infos.clone(),
             config: collab.config.clone(),
-            projects: collab.projects.clone(),
+            sessions: collab.sessions.clone(),
             stop_channels: collab.stop_channels.clone(),
         }
     }
