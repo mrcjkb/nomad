@@ -26,6 +26,7 @@ pub struct Sessions<Ed: CollabEditor> {
 
 /// TODO: docs.
 #[derive(cauchy::Debug, cauchy::Clone)]
+#[allow(dead_code)]
 pub struct SessionInfos<Ed: CollabEditor> {
     /// The [`PeerId`] of the host of the session.
     pub(crate) host_id: PeerId,
@@ -161,6 +162,43 @@ impl<Ed: CollabEditor> Sessions<Ed> {
 
     fn remove(&self, session_id: SessionId<Ed>) -> bool {
         self.inner.with_mut(|inner| inner.remove(&session_id).is_some())
+    }
+}
+
+impl<Ed: CollabEditor> SessionInfos<Ed> {
+    /// TODO: docs.
+    pub fn id(&self) -> SessionId<Ed> {
+        self.session_id
+    }
+}
+
+impl RemotePeers {
+    pub(crate) fn get(&self, peer_id: PeerId) -> Option<Peer> {
+        self.inner.with(|inner| inner.get(&peer_id).cloned())
+    }
+
+    #[track_caller]
+    pub(crate) fn insert(&self, peer: Peer) {
+        self.inner.with_mut(|inner| match inner.entry(peer.id) {
+            hash_map::Entry::Vacant(vacant) => {
+                vacant.insert(peer);
+            },
+            hash_map::Entry::Occupied(occupied) => {
+                panic!(
+                    "peer with ID {:?} already exists: {:?}",
+                    peer.id,
+                    occupied.get()
+                )
+            },
+        });
+    }
+
+    #[track_caller]
+    pub(crate) fn remove(&self, peer_id: PeerId) -> Peer {
+        self.inner.with_mut(|inner| match inner.remove(&peer_id) {
+            Some(peer) => peer,
+            None => panic!("no peer with ID {:?} exists", peer_id),
+        })
     }
 }
 

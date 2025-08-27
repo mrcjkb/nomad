@@ -401,6 +401,12 @@ impl<'a, S: IsVisible> TextFileMut<'a, S> {
         self.replace(at_offset..at_offset, text)
     }
 
+    /// TODO: docs.
+    #[inline]
+    pub fn path(&self) -> AbsPathBuf {
+        self.inner.path()
+    }
+
     /// A shorthand method which calls [`edit`](Self::edit) with a single
     /// replacement.
     #[inline]
