@@ -9,6 +9,7 @@ use collab_project::text::{CursorId, SelectionId, TextReplacement};
 use collab_types::{Message, Peer, PeerId, binary, crop, puff, text};
 use editor::{Access, AgentId, Buffer, Context, Editor};
 use fs::{File as _, Fs as _, Symlink as _};
+use futures_util::FutureExt;
 use fxhash::FxHashMap;
 use puff::directory::LocalDirectoryId;
 use puff::file::{GlobalFileId, LocalFileId};
@@ -338,9 +339,9 @@ impl<Ed: CollabEditor> Project<Ed> {
     ) {
         let try_block = async {
             let cursor = self.inner.integrate_cursor_creation(creation)?;
-            let cursor_file = cursor.file()?;
             let cursor_owner = self.remote_peers.get(cursor.owner())?;
-            let buffer_id = self.id_maps.file2buffer.get(&cursor_file.id())?;
+            let buffer_id =
+                self.id_maps.file2buffer.get(&cursor.file().id())?;
             let tooltip = Ed::create_peer_tooltip(
                 cursor_owner,
                 cursor.offset(),
@@ -559,12 +560,32 @@ impl<Ed: CollabEditor> Project<Ed> {
         };
 
         ctx.with_borrowed(|ctx| {
-            let _ =
-                ctx.buffer(buffer_id).expect("buffer exists").schedule_edit(
+            ctx.buffer(buffer_id)
+                .expect("buffer exists")
+                .schedule_edit(
                     replacements.into_iter().map(Convert::convert),
                     self.agent_id,
-                );
-        });
+                )
+                .boxed_local()
+        })
+        .await;
+
+        // Update the positions of all the remote peers' tooltips in the
+        // buffer.
+        for cursor in file
+            .as_file()
+            .cursors()
+            .filter(|cur| cur.owner() != self.local_peer.id)
+        {
+            let tooltip = self
+                .peer_tooltips
+                .get_mut(&cursor.id())
+                .expect("there must be a tooltip for each remote cursor");
+
+            println!("Moving tooltip to {:?}", cursor.offset());
+
+            let _ = Ed::move_peer_tooltip(tooltip, cursor.offset(), ctx).await;
+        }
     }
 
     fn map_peers<T, Collector: FromIterator<T>>(
