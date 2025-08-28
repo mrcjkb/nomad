@@ -22,10 +22,10 @@ fn remote_peer_tooltip_is_moved_after_integrating_edit() {
         .unwrap_file()
         .unwrap_text();
 
-    // Create a new cursor after the "o".
-    let (cursor_id, cursor_creation) = foo.create_cursor(5);
+    // Create a new cursor after the space.
+    let (cursor_id, cursor_creation) = foo.create_cursor(6);
 
-    // Insert a comma at the cursor position.
+    // Insert a comma after the "o".
     let insert_comma = foo.insert(5, ",");
 
     let fut = CollabMock::new(Mock::new(fs)).run(async move |ctx| {
@@ -52,21 +52,21 @@ fn remote_peer_tooltip_is_moved_after_integrating_edit() {
 
         let foo_path = path!("/foo.txt");
 
-        // First, let the project know about the buffer or the following events
-        // will be ignored.
+        // First, let the project know about the buffer or integrating the
+        // cursor creation won't cause a tooltip to be created.
         proj.synchronize_buffer(BufferEvent::Created(
             ctx.create_buffer(foo_path, agent_id).await.unwrap(),
             foo_path.to_owned(),
         ));
 
         proj.integrate_cursor_creation(cursor_creation, ctx).await;
-        // The tooltip should be after the "o".
-        assert_eq!(*proj.peer_tooltips.get(&cursor_id).unwrap(), 5);
+        // The tooltip should be after the space.
+        assert_eq!(*proj.peer_tooltips.get(&cursor_id).unwrap(), 6);
 
         proj.integrate_text_edit(insert_comma, ctx).await;
-        // After integrating the insertion, the tooltip should be moved after
-        // the comma.
-        assert_eq!(*proj.peer_tooltips.get(&cursor_id).unwrap(), 6);
+        // After integrating the insertion, the tooltip should stay after
+        // the space.
+        assert_eq!(*proj.peer_tooltips.get(&cursor_id).unwrap(), 7);
     });
 
     future::block_on(fut);

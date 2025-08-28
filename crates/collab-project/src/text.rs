@@ -777,7 +777,7 @@ impl TextContents {
     ) -> cola::Anchor {
         self.replica
             .get(local_id, creator_id)
-            .create_anchor(offset, cola::AnchorBias::Right)
+            .create_anchor(offset, cola::AnchorBias::Left)
     }
 
     #[inline]
