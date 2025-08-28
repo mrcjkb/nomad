@@ -66,7 +66,7 @@ impl Event for OnBytes {
 
                 let Some(mut buffer) = nvim.buffer(buffer_id) else {
                     tracing::error!(
-                        buffer_name = ?buf.get_name().ok(),
+                        buffer_name = %buf.name(),
                         "OnBytes triggered for an invalid buffer",
                     );
                     return true;

@@ -2,7 +2,7 @@ use editor::{AccessMut, AgentId, Editor};
 use nohash::IntMap as NoHashMap;
 
 use crate::Neovim;
-use crate::buffer::{BufferId, NeovimBuffer};
+use crate::buffer::{BufferExt, BufferId, NeovimBuffer};
 use crate::events::{AutocmdId, Callbacks, Event, EventKind, Events};
 use crate::oxi::api;
 use crate::utils::CallbackExt;
@@ -58,7 +58,7 @@ impl Event for BufWritePost {
 
                 let Some(mut buffer) = nvim.buffer(buffer_id) else {
                     tracing::error!(
-                        buffer_name = ?args.buffer.get_name().ok(),
+                        buffer_name = %args.buffer.name(),
                         "BufWritePost triggered for an invalid buffer",
                     );
                     return true;

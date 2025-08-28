@@ -20,6 +20,7 @@ pub trait BufferExt {
     fn buffer(&self) -> api::Buffer;
 
     /// Returns the number of bytes in the buffer.
+    #[track_caller]
     #[inline]
     fn byte_len(&self) -> ByteOffset {
         let buffer = self.buffer();
@@ -33,6 +34,7 @@ pub trait BufferExt {
     /// trailing newline character.
     ///
     /// This is equivalent to `self.line(line_idx).len()`, but faster.
+    #[track_caller]
     #[inline]
     fn byte_len_of_line(&self, line_idx: usize) -> ByteOffset {
         // TODO: benchmark whether this is actually faster than
@@ -64,6 +66,7 @@ pub trait BufferExt {
     ///
     /// Panics if the index is greater than
     /// [`line_len`](BufferExt::line_len)).
+    #[track_caller]
     #[inline]
     fn byte_of_line(&self, line_idx: usize) -> ByteOffset {
         // get_offset() already takes care of only counting the final newline
@@ -73,6 +76,7 @@ pub trait BufferExt {
 
     /// Converts the given [`Point`] into the corresponding [`ByteOffset`] in
     /// the buffer.
+    #[track_caller]
     #[inline]
     fn byte_of_point(&self, point: Point) -> ByteOffset {
         self.buffer()
@@ -82,6 +86,7 @@ pub trait BufferExt {
     }
 
     /// Sets the buffer of the currently focused window to this buffer.
+    #[track_caller]
     #[inline]
     fn focus(&self) {
         api::Window::current()
@@ -120,6 +125,7 @@ pub trait BufferExt {
     ///
     /// Note that if you just want to know the *length* of the line, you should
     /// use [`line_len()`](BufferExt::line_len) instead.
+    #[track_caller]
     #[inline]
     fn line(&self, line_idx: usize) -> NvimString {
         let buffer = self.buffer();
@@ -135,12 +141,14 @@ pub trait BufferExt {
     }
 
     /// Returns the number of lines in the buffer.
+    #[track_caller]
     #[inline]
     fn line_len(&self) -> usize {
         self.buffer().line_count().expect("buffer is valid")
     }
 
     /// Returns the text in the given point range.
+    #[track_caller]
     #[inline]
     fn get_text_in_point_range(
         &self,
@@ -235,8 +243,16 @@ pub trait BufferExt {
         }
     }
 
+    /// Returns the buffer's name.
+    #[track_caller]
+    #[inline]
+    fn name(&self) -> NvimString {
+        self.buffer().get_name().expect("buffer is valid")
+    }
+
     /// Converts the given [`ByteOffset`] into the corresponding [`Point`] in
     /// the buffer.
+    #[track_caller]
     #[inline]
     fn point_of_byte(&self, byte_offset: ByteOffset) -> Point {
         debug_assert!(byte_offset <= self.byte_len());
@@ -355,6 +371,7 @@ pub trait BufferExt {
     /// # Panics
     ///
     /// Panics if either one of those assumptions is not true.
+    #[track_caller]
     #[inline]
     fn selection_by_character(&self) -> Range<ByteOffset> {
         debug_assert!(self.is_focused());
@@ -398,6 +415,7 @@ pub trait BufferExt {
     /// # Panics
     ///
     /// Panics if either one of those assumptions in not true.
+    #[track_caller]
     #[inline]
     fn selection_by_line(&self) -> Range<ByteOffset> {
         debug_assert!(self.is_focused());
@@ -468,6 +486,7 @@ pub struct GraphemeOffsets<'a> {
 impl Iterator for GraphemeOffsets<'_> {
     type Item = ByteOffset;
 
+    #[track_caller]
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // We're at the end of the buffer.

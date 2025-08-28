@@ -1,7 +1,7 @@
 use editor::{AccessMut, AgentId, Editor, Shared};
 
 use crate::Neovim;
-use crate::buffer::{BufferId, NeovimBuffer};
+use crate::buffer::{BufferExt, BufferId, NeovimBuffer};
 use crate::events::{AutocmdId, Callbacks, Event, EventKind, Events};
 use crate::oxi::api;
 use crate::utils::CallbackExt;
@@ -38,12 +38,7 @@ impl Event for BufferCreated {
         let callback = {
             let old_name_was_empty = old_name_was_empty.clone();
             move |args: api::types::AutocmdCallbackArgs| {
-                old_name_was_empty.set(
-                    args.buffer
-                        .get_name()
-                        .expect("failed to get buffer name")
-                        .is_empty(),
-                );
+                old_name_was_empty.set(args.buffer.name().is_empty());
                 false
             }
         }

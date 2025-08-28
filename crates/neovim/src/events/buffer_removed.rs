@@ -2,7 +2,7 @@ use editor::{AccessMut, AgentId, Shared};
 use nohash::IntMap as NoHashMap;
 
 use crate::Neovim;
-use crate::buffer::BufferId;
+use crate::buffer::{BufferExt, BufferId};
 use crate::events::{AutocmdId, Callbacks, Event, EventKind, Events};
 use crate::oxi::api;
 use crate::utils::CallbackExt;
@@ -42,12 +42,7 @@ impl Event for BufferRemoved {
         let callback = {
             let old_name_was_empty = old_name_was_empty.clone();
             move |args: api::types::AutocmdCallbackArgs| {
-                old_name_was_empty.set(
-                    args.buffer
-                        .get_name()
-                        .expect("failed to get buffer name")
-                        .is_empty(),
-                );
+                old_name_was_empty.set(args.buffer.name().is_empty());
                 false
             }
         }
@@ -71,10 +66,7 @@ impl Event for BufferRemoved {
                     return false;
                 }
 
-                let new_name =
-                    args.buffer.get_name().expect("failed to get buffer name");
-
-                if !new_name.is_empty() {
+                if !args.buffer.name().is_empty() {
                     return false;
                 }
             }
