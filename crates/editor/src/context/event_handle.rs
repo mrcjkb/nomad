@@ -21,8 +21,10 @@ impl<Ed: Editor> EventHandle<Ed> {
 
 impl<Ed: Editor> Drop for EventHandle<Ed> {
     fn drop(&mut self) {
-        self.state.with_mut(|state| {
+        if let Err(err) = self.state.try_with_mut(|state| {
             state.remove_event(self.inner.take().expect("only taken on Drop"));
-        });
+        }) {
+            tracing::error!("couldn't drop EventHandle: {err}")
+        }
     }
 }

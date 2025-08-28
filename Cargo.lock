@@ -1069,6 +1069,7 @@ dependencies = [
  "smallvec",
  "smol_str",
  "strsim",
+ "tracing",
 ]
 
 [[package]]
