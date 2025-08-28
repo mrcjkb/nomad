@@ -3,7 +3,7 @@
 use core::convert::Infallible;
 use core::error::Error;
 use core::ops::Range;
-use core::{fmt, ops};
+use core::{fmt, future, ops};
 
 use abs_path::{AbsPath, AbsPathBuf};
 pub use collab_server::test::TestSessionId as MockSessionId;
@@ -194,7 +194,7 @@ where
 {
     type Io = DuplexStream;
     type PeerSelection = ();
-    type PeerTooltip = ();
+    type PeerTooltip = ByteOffset;
     type ProjectFilter = F;
     type ServerParams = MockParams;
 
@@ -243,15 +243,16 @@ where
         _selected_range: Range<ByteOffset>,
         _buffer_id: Self::BufferId,
         _ctx: &mut Context<Self>,
-    ) -> Self::PeerTooltip {
+    ) -> Self::PeerSelection {
     }
 
     async fn create_peer_tooltip(
         _remote_peer: Peer,
-        _tooltip_offset: ByteOffset,
+        tooltip_offset: ByteOffset,
         _buffer_id: Self::BufferId,
         _ctx: &mut Context<Self>,
     ) -> Self::PeerTooltip {
+        tooltip_offset
     }
 
     async fn default_dir_for_remote_projects(
@@ -289,11 +290,12 @@ where
     }
 
     fn move_peer_tooltip<'ctx>(
-        _tooltip: &mut Self::PeerTooltip,
-        _tooltip_offset: ByteOffset,
+        tooltip: &mut Self::PeerTooltip,
+        tooltip_offset: ByteOffset,
         _ctx: &'ctx mut Context<Self>,
     ) -> impl Future<Output = ()> + use<'ctx, Ed, F> {
-        async move {}
+        *tooltip = tooltip_offset;
+        future::ready(())
     }
 
     fn on_join_error(_: join::JoinError<Self>, _: &mut Context<Self>) {

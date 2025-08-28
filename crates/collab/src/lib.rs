@@ -18,7 +18,7 @@ pub mod start;
 pub mod yank;
 
 pub use collab::Collab;
-pub use collab_types::PeerId;
+pub use collab_types::{Peer, PeerId};
 #[cfg(feature = "mock")]
 pub use editors::mock;
 pub use editors::{CollabEditor, SessionId};

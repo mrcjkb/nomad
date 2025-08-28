@@ -91,8 +91,9 @@ pub(crate) struct Session<Ed: CollabEditor> {
     pub(crate) _remove_on_drop: RemoveOnDrop<Ed>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct RemotePeers {
+/// TODO: docs.
+#[derive(Debug, Default, Clone)]
+pub struct RemotePeers {
     /// A map of all the peers currently in the session.
     ///
     /// It also includes the local peer, so it's guaranteed to never be empty.
@@ -260,9 +261,15 @@ impl Access<FxHashMap<PeerId, Peer>> for RemotePeers {
 
 impl From<collab_types::Peers> for RemotePeers {
     fn from(peers: collab_types::Peers) -> Self {
+        peers.into_iter().collect::<Self>()
+    }
+}
+
+impl FromIterator<collab_types::Peer> for RemotePeers {
+    fn from_iter<T: IntoIterator<Item = collab_types::Peer>>(iter: T) -> Self {
         Self {
             inner: Shared::new(
-                peers.into_iter().map(|peer| (peer.id, peer)).collect(),
+                iter.into_iter().map(|peer| (peer.id, peer)).collect(),
             ),
         }
     }

@@ -22,30 +22,31 @@ use crate::session::RemotePeers;
 
 /// TODO: docs.
 pub struct Project<Ed: CollabEditor> {
-    pub(crate) agent_id: AgentId,
+    /// TODO: docs.
+    pub agent_id: AgentId,
 
     /// Contains various mappings between editor IDs and project IDs.
-    pub(crate) id_maps: IdMaps<Ed>,
+    pub id_maps: IdMaps<Ed>,
 
     /// The inner CRDT holding the entire state of the project.
-    pub(crate) inner: collab_project::Project,
+    pub inner: collab_project::Project,
 
     /// TODO: docs.
-    pub(crate) local_peer: Peer,
+    pub local_peer: Peer,
 
     /// Map from a remote selections's ID to the corresponding selection
     /// displayed in the editor.
-    pub(crate) peer_selections: FxHashMap<SelectionId, Ed::PeerSelection>,
+    pub peer_selections: FxHashMap<SelectionId, Ed::PeerSelection>,
 
     /// Map from a remote cursor's ID to the corresponding tooltip displayed in
     /// the editor.
-    pub(crate) peer_tooltips: FxHashMap<CursorId, Ed::PeerTooltip>,
+    pub peer_tooltips: FxHashMap<CursorId, Ed::PeerTooltip>,
 
     /// The remote peers currently in the session.
-    pub(crate) remote_peers: RemotePeers,
+    pub remote_peers: RemotePeers,
 
     /// The path to the root of the project.
-    pub(crate) root_path: AbsPathBuf,
+    pub root_path: AbsPathBuf,
 }
 
 #[derive(cauchy::Default)]
@@ -328,7 +329,9 @@ impl<Ed: CollabEditor> Project<Ed> {
         .await
     }
 
-    async fn integrate_cursor_creation(
+    /// Integrates the creation of a remote cursor by creating a tooltip
+    /// in the corresponding buffer (if it's currently open).
+    pub async fn integrate_cursor_creation(
         &mut self,
         creation: text::CursorCreation,
         ctx: &mut Context<Ed>,
@@ -410,8 +413,6 @@ impl<Ed: CollabEditor> Project<Ed> {
         op: T,
         ctx: &mut Context<Ed>,
     ) -> Result<SmallVec<[Rename; 2]>, IntegrateFsOpError<Ed::Fs>> {
-        use impl_integrate_fs_op as r#impl;
-
         let mut actions = SmallVec::new();
         let mut renames = SmallVec::new();
         let peers = self.map_peers(|peer| (peer.id, peer.clone()));
@@ -419,11 +420,13 @@ impl<Ed: CollabEditor> Project<Ed> {
         let mut sync_actions = self.inner.integrate_fs_op(op);
 
         while let Some(sync_action) = sync_actions.next() {
-            if let Some(more_renames) = r#impl::push_resolved_actions(
-                sync_action,
-                &peers,
-                &mut actions,
-            ) {
+            if let Some(more_renames) =
+                impl_integrate_fs_op::push_resolved_actions(
+                    sync_action,
+                    &peers,
+                    &mut actions,
+                )
+            {
                 renames.extend(more_renames);
             }
         }
@@ -530,7 +533,9 @@ impl<Ed: CollabEditor> Project<Ed> {
         try_block.await;
     }
 
-    async fn integrate_text_edit(
+    /// Integrates a remote text edit by applying it to the corresponding
+    /// buffer, creating the buffer first if necessary.
+    pub async fn integrate_text_edit(
         &mut self,
         edit: text::TextEdit,
         ctx: &mut Context<Ed>,
@@ -634,7 +639,8 @@ impl<Ed: CollabEditor> Project<Ed> {
         }
     }
 
-    fn synchronize_buffer(
+    /// Synchronizes the project's state with the given buffer event.
+    pub fn synchronize_buffer(
         &mut self,
         event: event::BufferEvent<Ed>,
     ) -> Option<Message> {
@@ -652,6 +658,9 @@ impl<Ed: CollabEditor> Project<Ed> {
                 let ids = &mut self.id_maps;
                 ids.buffer2file.insert(buffer_id.clone(), file_id);
                 ids.file2buffer.insert(file_id, buffer_id);
+
+                // TODO: create tooltips and selections for the cursors and
+                // selections of remote peers in the buffer.
 
                 None
             },
