@@ -465,8 +465,14 @@ impl<'a> editor::Buffer for NeovimBuffer<'a> {
         // borrow of Neovim.
         //
         // TODO: save agent ID.
-        utils::schedule(|| {
-            api::command("write").expect("saving buffer failed");
+        let buffer = self.buffer();
+        utils::schedule(move || {
+            buffer
+                .call(|()| {
+                    api::command("silent keepjumps keepalt write")
+                        .expect("couldn't save buffer")
+                })
+                .expect("couldn't run command in buffer");
         })
         .map(|()| Ok(()))
     }
