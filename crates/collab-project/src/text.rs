@@ -215,9 +215,9 @@ impl<'a, S> TextFile<'a, S> {
         self.inner.global_id()
     }
 
-    /// Returns this text file's ID.
+    /// Returns this text file's local ID.
     #[inline]
-    pub fn id(&self) -> LocalFileId {
+    pub fn local_id(&self) -> LocalFileId {
         self.inner.local_id()
     }
 
@@ -271,9 +271,15 @@ impl<'a, S> TextFileMut<'a, S> {
         TextFile { inner: self.inner.as_file(), state: self.state.as_ref() }
     }
 
-    /// Returns this text file's ID.
+    /// Returns this text file's global ID.
     #[inline]
-    pub fn id(&self) -> LocalFileId {
+    pub fn global_id(&self) -> GlobalFileId {
+        self.inner.global_id()
+    }
+
+    /// Returns this text file's local ID.
+    #[inline]
+    pub fn local_id(&self) -> LocalFileId {
         self.inner.local_id()
     }
 
@@ -1130,7 +1136,7 @@ impl<'a, S: IsVisible> Iterator for TextFileCursors<'a, S> {
         let local_id = self.file.state.local_id();
         let creator_id = self.file.created_by();
 
-        if annotation.file_id() == self.file.id() {
+        if annotation.file_id() == self.file.local_id() {
             let Some(offset) = self.file.text_contents().resolve_cursor(
                 annotation.data(),
                 local_id,
@@ -1173,7 +1179,7 @@ impl<'a> Iterator for TextFileSelections<'a> {
         let local_id = self.file.state.local_id();
         let creator_id = self.file.created_by();
 
-        if annotation.file_id() == self.file.id() {
+        if annotation.file_id() == self.file.local_id() {
             let Some(offset_range) = self
                 .file
                 .text_contents()

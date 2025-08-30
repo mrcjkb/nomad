@@ -146,14 +146,15 @@ impl<Ed: CollabEditor> Start<Ed> {
                 return;
             };
 
-            let Some(node_id) = node_id_maps.file2node.get(&file.id()) else {
+            let Some(node_id) = node_id_maps.file2node.get(&file.local_id())
+            else {
                 return;
             };
 
             let buffer_id = buffer.id();
             event_stream.watch_buffer(&mut buffer, node_id.clone());
-            id_maps.buffer2file.insert(buffer_id.clone(), file.id());
-            id_maps.file2buffer.insert(file.id(), buffer_id);
+            id_maps.buffer2file.insert(buffer_id.clone(), file.local_id());
+            id_maps.file2buffer.insert(file.local_id(), buffer_id);
 
             buffer.for_each_cursor(|mut cursor| {
                 let (cursor_id, _) = file.create_cursor(cursor.byte_offset());

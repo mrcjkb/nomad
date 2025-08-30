@@ -341,7 +341,7 @@ impl<Ed: CollabEditor> Project<Ed> {
             let cursor = self.inner.integrate_cursor_creation(creation)?;
             let cursor_owner = self.remote_peers.get(cursor.owner())?;
             let buffer_id =
-                self.id_maps.file2buffer.get(&cursor.file().id())?;
+                self.id_maps.file2buffer.get(&cursor.file().local_id())?;
             let tooltip = Ed::create_peer_tooltip(
                 cursor_owner,
                 cursor.offset(),
@@ -481,7 +481,7 @@ impl<Ed: CollabEditor> Project<Ed> {
         let try_block = async {
             let selection =
                 self.inner.integrate_selection_creation(creation)?;
-            let file_id = selection.file()?.id();
+            let file_id = selection.file()?.local_id();
             let buffer_id = self.id_maps.file2buffer.get(&file_id)?;
             let selection_owner = self.remote_peers.get(selection.owner())?;
             let peer_selection = Ed::create_peer_selection(
@@ -548,7 +548,7 @@ impl<Ed: CollabEditor> Project<Ed> {
 
         // If there's already an open buffer for the edited file we can just
         // apply the replacements to it. If not, we have to first create one.
-        let buffer_id = match self.id_maps.file2buffer.get(&file.id()) {
+        let buffer_id = match self.id_maps.file2buffer.get(&file.local_id()) {
             Some(buffer_id) => buffer_id.clone(),
             None => {
                 let file_path = self.root_path.clone().concat(file.path());
@@ -698,9 +698,7 @@ impl<Ed: CollabEditor> Project<Ed> {
                 None
             },
             event::BufferEvent::Saved(buffer_id) => {
-                let file_id =
-                    self.text_file_of_buffer(&buffer_id).as_file().global_id();
-
+                let file_id = self.text_file_of_buffer(&buffer_id).global_id();
                 Some(Message::SavedTextFile(file_id))
             },
         }
