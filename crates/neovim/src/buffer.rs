@@ -443,9 +443,13 @@ impl<'a> editor::Buffer for NeovimBuffer<'a> {
     #[inline]
     fn schedule_focus(
         &mut self,
-        _agent_id: AgentId,
+        agent_id: AgentId,
     ) -> impl Future<Output = ()> + 'static {
         let buffer = self.inner.clone();
+
+        if self.nvim.events.contains(&events::CursorCreated) {
+            self.nvim.events.agent_ids.created_cursor = agent_id;
+        }
 
         // We schedule this because setting the current window's buffer will
         // immediately trigger a BufEnter event, which would panic due to a

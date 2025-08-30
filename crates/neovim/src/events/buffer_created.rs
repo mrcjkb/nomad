@@ -1,3 +1,5 @@
+use core::mem;
+
 use editor::{AccessMut, AgentId, Editor, Shared};
 
 use crate::Neovim;
@@ -73,11 +75,8 @@ impl Event for BufferCreated {
                     return true;
                 };
 
-                let created_by = events
-                    .agent_ids
-                    .created_buffer
-                    .remove(&buffer_id)
-                    .unwrap_or(AgentId::UNKNOWN);
+                let created_by =
+                    mem::take(&mut events.agent_ids.created_buffer);
 
                 for callback in callbacks.cloned() {
                     callback((buffer.reborrow(), created_by));

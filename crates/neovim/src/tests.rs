@@ -1,6 +1,6 @@
 //! TODO: docs.
 
-use editor::{AccessMut, AgentId, Buffer, Context};
+use editor::{AccessMut, AgentId, Context};
 
 use crate::Neovim;
 use crate::buffer::{BufferExt, BufferId};
@@ -15,27 +15,30 @@ pub trait NeovimExt: AccessMut<Neovim> {
 
     /// TODO: docs..
     fn create_scratch_buffer(&mut self, agent_id: AgentId) -> BufferId {
-        self.with_mut(|nvim| {
+        let file_name = self.with_mut(|nvim| {
             let scratch_buf_count = nvim.scratch_buffer_count;
-            let file_name = format!("scratch-{scratch_buf_count}");
             nvim.scratch_buffer_count += 1;
+            format!("scratch-{scratch_buf_count}")
+        });
 
-            let file_path: abs_path::AbsPathBuf = std::env::temp_dir()
-                .join(file_name)
-                .try_into()
-                .expect("it's valid");
+        let file_path: abs_path::AbsPathBuf = std::env::temp_dir()
+            .join(file_name)
+            .try_into()
+            .expect("it's valid");
 
-            let buffer = nvim.create_buffer(&file_path, agent_id);
+        let buffer_id = Neovim::create_buffer_sync(self, &file_path, agent_id)
+            .expect("couldn't create buffer");
 
-            api::set_option_value(
-                "swapfile",
-                false,
-                &api::opts::OptionOpts::builder().buf(buffer.clone()).build(),
-            )
-            .expect("couldn't turn off 'swapfile'");
+        let buffer = api::Buffer::from(buffer_id);
 
-            buffer.id()
-        })
+        api::set_option_value(
+            "swapfile",
+            false,
+            &api::opts::OptionOpts::builder().buf(buffer).build(),
+        )
+        .expect("couldn't turn off 'swapfile'");
+
+        buffer_id
     }
 
     /// TODO: docs..

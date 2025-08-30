@@ -6,7 +6,6 @@ use abs_path::AbsPath;
 use editor::module::Plugin;
 use editor::notify::Namespace;
 use editor::{AccessMut, AgentId, Buffer, Editor};
-use fs::Fs;
 
 use crate::buffer::{
     BufferId,
@@ -84,29 +83,27 @@ impl Neovim {
         Self::new_inner(plugin_name, false)
     }
 
-    #[allow(clippy::same_name_method)]
     #[inline]
-    pub(crate) fn create_buffer(
-        &mut self,
+    pub(crate) fn create_buffer_sync<This: AccessMut<Self> + ?Sized>(
+        this: &mut This,
         file_path: &AbsPath,
         agent_id: AgentId,
-    ) -> NeovimBuffer<'_> {
-        let mut buffer =
-            oxi::api::create_buf(true, false).expect("couldn't create buffer");
+    ) -> Result<BufferId, oxi::api::Error> {
+        this.with_mut(|this| {
+            if this.events.contains(&events::BufferCreated) {
+                this.events.agent_ids.created_buffer = agent_id;
+            }
+        });
 
-        buffer.set_name(file_path).expect("couldn't set name");
+        let buffer = oxi::api::call_function::<_, oxi::api::Buffer>(
+            "bufadd",
+            (file_path.as_str(),),
+        )?;
 
-        let buffer_id = BufferId::from(buffer);
+        // We expect an integer because 'bufload' returns 0 on success.
+        oxi::api::call_function::<_, u8>("bufload", (buffer.handle(),))?;
 
-        if self.events.contains(&events::BufferCreated) {
-            self.events.agent_ids.created_buffer.insert(buffer_id, agent_id);
-        }
-
-        if self.events.contains(&events::CursorCreated) {
-            self.events.agent_ids.created_cursor.insert(buffer_id, agent_id);
-        }
-
-        self.buffer(buffer_id).expect("just created the buffer")
+        Ok(BufferId::from(buffer.clone()))
     }
 
     #[track_caller]
@@ -153,7 +150,7 @@ impl Editor for Neovim {
     type SelectionId = BufferId;
 
     type BufferSaveError = Infallible;
-    type CreateBufferError = fs::ReadFileToStringError<real_fs::RealFs>;
+    type CreateBufferError = oxi::api::Error;
     type SerializeError = serde::NeovimSerializeError;
     type DeserializeError = serde::NeovimDeserializeError;
 
@@ -207,42 +204,7 @@ impl Editor for Neovim {
         file_path: &AbsPath,
         agent_id: AgentId,
     ) -> Result<Self::BufferId, Self::CreateBufferError> {
-        let contents = match this
-            .with_mut(|this| this.fs())
-            .read_file_to_string(file_path)
-            .await
-        {
-            Ok(contents) => contents,
-
-            Err(fs::ReadFileToStringError::ReadFile(
-                fs::ReadFileError::NoNodeAtPath(_),
-            )) => String::default(),
-
-            Err(other) => return Err(other),
-        };
-
-        this.with_mut(|this| {
-            let mut buffer = this.create_buffer(file_path, agent_id);
-
-            // 'eol' is turned on by default, so avoid inserting the file's
-            // trailing newline or we'll get an extra line.
-            let contents = if contents.ends_with('\n') {
-                &contents[..contents.len() - 1]
-            } else {
-                &contents
-            };
-
-            if !contents.is_empty() {
-                buffer
-                    .set_text(0..0, 0, 0, contents.lines())
-                    .expect("couldn't set buffer text");
-            }
-
-            // TODO: do we have to set the buffer's filetype?
-            // vim.filetype.match(buffer.inner())
-
-            Ok(buffer.id())
-        })
+        Self::create_buffer_sync(&mut this, file_path, agent_id)
     }
 
     #[inline]

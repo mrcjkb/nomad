@@ -72,10 +72,10 @@ pub(crate) struct Events {
 #[derive(Debug, Default)]
 pub(crate) struct AgentIds {
     /// TODO: docs.
-    pub(crate) created_buffer: NoHashMap<BufferId, AgentId>,
+    pub(crate) created_buffer: AgentId,
 
     /// TODO: docs.
-    pub(crate) created_cursor: NoHashMap<BufferId, AgentId>,
+    pub(crate) created_cursor: AgentId,
 
     /// The [`AgentId`] of the agent that last scheduled an edit on a buffer.
     pub(crate) edited_buffer: Shared<AgentId>,
