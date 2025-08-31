@@ -644,6 +644,23 @@ impl<Ed: CollabEditor> Project<Ed> {
             Ed::move_peer_tooltip(tooltip, cursor.offset(), ctx);
         }
 
+        // Update the positions of all the remote peers' selections in the
+        // buffer.
+        for selection in
+            file.selections().filter(|cur| cur.owner() != self.local_peer.id)
+        {
+            let editor_selection = self
+                .peer_selections
+                .get_mut(&selection.id())
+                .expect("there must be a selection for each remote selection");
+
+            Ed::move_peer_selection(
+                editor_selection,
+                selection.offset_range(),
+                ctx,
+            );
+        }
+
         Ok(Some(buffer_id))
     }
 
