@@ -54,7 +54,7 @@ fn remote_peer_tooltip_is_moved_after_integrating_edit() {
         // cursor creation won't cause a tooltip to be created.
         proj.synchronize_buffer_created(
             ctx.create_buffer(foo_path, agent_id).await.unwrap(),
-            foo_path.to_owned(),
+            foo_path,
             ctx,
         );
 
@@ -114,7 +114,7 @@ fn remote_peer_tooltip_is_present_when_opening_buffer() {
         // First, let the project synchronize the buffer creation.
         proj.synchronize_buffer_created(
             ctx.create_buffer(foo_path, agent_id).await.unwrap(),
-            foo_path.to_owned(),
+            foo_path,
             ctx,
         );
 

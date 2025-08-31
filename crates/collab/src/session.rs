@@ -5,7 +5,7 @@ use std::io;
 
 use abs_path::AbsPathBuf;
 use collab_server::client as collab_client;
-use collab_types::{Message, Peer, PeerId};
+use collab_types::{Peer, PeerId};
 use editor::{Access, Context, Shared};
 use flume::Receiver;
 use futures_util::{FutureExt, SinkExt, StreamExt, pin_mut, select_biased};
@@ -15,7 +15,7 @@ use smallvec::SmallVec;
 use crate::editors::{ActionForSelectedSession, MessageRx, MessageTx};
 use crate::event_stream::{EventError, EventStream};
 use crate::leave::StopRequest;
-use crate::project::{Project, SynchronizeError};
+use crate::project::{IntegrateError, Project, SynchronizeError};
 use crate::{CollabEditor, SessionId};
 
 /// TODO: docs.
@@ -50,6 +50,9 @@ pub struct SessionInfos<Ed: CollabEditor> {
 pub enum SessionError<Ed: CollabEditor> {
     /// TODO: docs.
     EventRx(#[from] EventError<Ed>),
+
+    /// TODO: docs.
+    Integrate(#[from] IntegrateError<Ed>),
 
     /// TODO: docs.
     MessageRx(#[from] collab_client::ReceiveError),
@@ -235,14 +238,9 @@ impl<Ed: CollabEditor> Session<Ed> {
                     let message = maybe_message_res
                         .ok_or(SessionError::MessageRxExhausted)??;
 
-                    if let Message::ProjectRequest(request) = message {
-                        let response = project.handle_request(request);
-                        let message = Message::ProjectResponse(response);
+                    for message in project.integrate(message, ctx).await? {
                         message_tx.send(message).await?;
-                        continue;
                     }
-
-                    project.integrate(message, ctx).await;
                 },
                 stop_request = stop_stream.select_next_some() => {
                     stop_request.send_stopped();

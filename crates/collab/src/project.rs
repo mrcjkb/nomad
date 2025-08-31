@@ -63,10 +63,14 @@ pub struct IdMaps<Ed: Editor> {
 }
 
 /// The type of error that can occcur when integrating a [`Message`].
-#[derive(cauchy::Debug)]
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
 pub enum IntegrateError<Ed: CollabEditor> {
     /// TODO: docs..
     BinaryEdit(IntegrateBinaryEditError<Ed::Fs>),
+
+    /// TODO: docs..
+    CreateBuffer(Ed::CreateBufferError),
 
     /// TODO: docs..
     FsOp(IntegrateFsOpError<Ed::Fs>),
@@ -74,28 +78,32 @@ pub enum IntegrateError<Ed: CollabEditor> {
 
 /// The type of error that can occcur when integrating a
 /// [`binary::BinaryEdit`].
-#[derive(cauchy::Debug)]
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
 pub enum IntegrateBinaryEditError<Fs: fs::Fs> {
     /// The node at the given path was a directory, not a file.
+    #[display("the node at {_0} is a directory, not a file")]
     DirectoryAtPath(AbsPathBuf),
 
     /// It wasn't possible to get the node at the given path.
     NodeAtPath(Fs::NodeAtPathError),
 
     /// There wasn't any node at the given path.
+    #[display("no file or directory at {_0}")]
     NoNodeAtPath(AbsPathBuf),
 
     /// The node at the given path was a symlink, not a file.
+    #[display("the node at {_0} is a symlink, not a file")]
     SymlinkAtPath(AbsPathBuf),
 
-    /// It wasn't possible to write the new contents to the file at the given
-    /// path.
-    WriteToFile(AbsPathBuf, <Fs::File as fs::File>::WriteError),
+    /// It wasn't possible to write the new contents of a file.
+    WriteToFile(<Fs::File as fs::File>::WriteError),
 }
 
 /// The type of error that can occcur when integrating a
 /// [`binary::BinaryEdit`].
-#[derive(cauchy::Debug)]
+#[derive(cauchy::Debug, derive_more::Display, cauchy::Error)]
+#[display("{_0}")]
 pub enum IntegrateFsOpError<Fs: fs::Fs> {
     /// It wasn't possible to create a directory.
     CreateDirectory(<Fs::Directory as fs::Directory>::CreateDirectoryError),
@@ -141,6 +149,13 @@ pub enum ContentsAtPathError<Fs: fs::Fs> {
     ReadSymlink(<Fs::Symlink as fs::Symlink>::ReadError),
 }
 
+/// The iterator returned by [`Project::integrate`].
+enum Messages {
+    None,
+    ProjectResponse(Option<collab_types::ProjectResponse>),
+    Renames(smallvec::IntoIter<[Rename; 2]>),
+}
+
 enum FsNodeContents {
     Directory,
     Text(String),
@@ -149,91 +164,134 @@ enum FsNodeContents {
 }
 
 impl<Ed: CollabEditor> Project<Ed> {
-    pub(crate) fn handle_request(
-        &self,
-        request: collab_types::ProjectRequest,
-    ) -> collab_types::ProjectResponse {
-        collab_types::ProjectResponse {
-            peers: self.peers(),
-            encoded_project: self.inner.encode(),
-            respond_to: request.requested_by.id,
-        }
-    }
-
     /// TODO: docs.
     #[allow(clippy::too_many_lines)]
     pub(crate) async fn integrate(
         &mut self,
         message: Message,
         ctx: &mut Context<Ed>,
-    ) {
+    ) -> Result<impl IntoIterator<Item = Message>, IntegrateError<Ed>> {
         match message {
             Message::CreatedCursor(cursor_creation) => {
-                self.integrate_cursor_creation(cursor_creation, ctx)
+                self.integrate_cursor_creation(cursor_creation, ctx);
+                Ok(Messages::None)
             },
-            Message::CreatedDirectory(directory_creation) => {
-                let _ = self.integrate_fs_op(directory_creation, ctx).await;
-            },
-            Message::CreatedFile(file_creation) => {
-                let _ = self.integrate_fs_op(file_creation, ctx).await;
-            },
+
+            Message::CreatedDirectory(directory_creation) => self
+                .integrate_fs_op(directory_creation, ctx)
+                .await
+                .map(Messages::renames)
+                .map_err(IntegrateError::FsOp),
+
+            Message::CreatedFile(file_creation) => self
+                .integrate_fs_op(file_creation, ctx)
+                .await
+                .map(Messages::renames)
+                .map_err(IntegrateError::FsOp),
+
             Message::CreatedSelection(selection_creation) => {
-                self.integrate_selection_creation(selection_creation, ctx)
+                self.integrate_selection_creation(selection_creation, ctx);
+                Ok(Messages::None)
             },
-            Message::DeletedDirectory(deletion) => {
-                let _ = self.integrate_fs_op(deletion, ctx).await;
-            },
-            Message::DeletedFile(deletion) => {
-                let _ = self.integrate_fs_op(deletion, ctx).await;
-            },
+
+            Message::DeletedDirectory(deletion) => self
+                .integrate_fs_op(deletion, ctx)
+                .await
+                .map(Messages::renames)
+                .map_err(IntegrateError::FsOp),
+
+            Message::DeletedFile(deletion) => self
+                .integrate_fs_op(deletion, ctx)
+                .await
+                .map(Messages::renames)
+                .map_err(IntegrateError::FsOp),
+
             Message::EditedBinary(binary_edit) => {
-                let _ = self.integrate_binary_edit(binary_edit, ctx).await;
+                self.integrate_binary_edit(binary_edit, ctx)
+                    .await
+                    .map_err(IntegrateError::BinaryEdit)?;
+                Ok(Messages::None)
             },
+
             Message::EditedText(text_edit) => {
-                self.integrate_text_edit(text_edit, ctx).await
+                self.integrate_text_edit(text_edit, ctx)
+                    .await
+                    .map_err(IntegrateError::CreateBuffer)?;
+                Ok(Messages::None)
             },
+
             Message::MovedCursor(cursor_movement) => {
-                self.integrate_cursor_move(cursor_movement, ctx)
+                self.integrate_cursor_move(cursor_movement, ctx);
+                Ok(Messages::None)
             },
-            Message::MovedDirectory(movement) => {
-                let _ = self.integrate_fs_op(movement, ctx).await;
-            },
-            Message::MovedFile(movement) => {
-                let _ = self.integrate_fs_op(movement, ctx).await;
-            },
+
+            Message::MovedDirectory(movement) => self
+                .integrate_fs_op(movement, ctx)
+                .await
+                .map(Messages::renames)
+                .map_err(IntegrateError::FsOp),
+
+            Message::MovedFile(movement) => self
+                .integrate_fs_op(movement, ctx)
+                .await
+                .map(Messages::renames)
+                .map_err(IntegrateError::FsOp),
+
             Message::MovedSelection(selection_movement) => {
-                self.integrate_selection_movement(selection_movement, ctx)
+                self.integrate_selection_movement(selection_movement, ctx);
+                Ok(Messages::None)
             },
+
             Message::PeerDisconnected(peer_id) => {
-                self.integrate_peer_left(peer_id, ctx)
+                self.integrate_peer_left(peer_id, ctx);
+                Ok(Messages::None)
             },
-            Message::PeerJoined(peer) => self.integrate_peer_joined(peer, ctx),
+
+            Message::PeerJoined(peer) => {
+                self.integrate_peer_joined(peer, ctx);
+                Ok(Messages::None)
+            },
+
             Message::PeerLeft(peer_id) => {
-                self.integrate_peer_left(peer_id, ctx)
+                self.integrate_peer_left(peer_id, ctx);
+                Ok(Messages::None)
             },
-            Message::ProjectRequest(_) => {
-                panic!(
-                    "ProjectRequest should've been handled by calling \
-                     handle_request() instead of integrate()"
-                );
+
+            Message::ProjectRequest(request) => {
+                Ok(Messages::project_response(collab_types::ProjectResponse {
+                    peers: self.peers(),
+                    encoded_project: self.inner.encode(),
+                    respond_to: request.requested_by.id,
+                }))
             },
+
             Message::ProjectResponse(_) => {
                 tracing::error!(
                     title = %ctx.namespace().dot_separated(),
                     "received unexpected ProjectResponse message"
                 );
+                Ok(Messages::None)
             },
+
             Message::RemovedCursor(cursor_deletion) => {
-                self.integrate_cursor_deletion(cursor_deletion, ctx)
+                self.integrate_cursor_deletion(cursor_deletion, ctx);
+                Ok(Messages::None)
             },
+
             Message::RemovedSelection(selection_deletion) => {
-                self.integrate_selection_deletion(selection_deletion, ctx)
+                self.integrate_selection_deletion(selection_deletion, ctx);
+                Ok(Messages::None)
             },
-            Message::RenamedFsNode(rename) => {
-                let _ = self.integrate_fs_op(rename, ctx).await;
-            },
+
+            Message::RenamedFsNode(rename) => self
+                .integrate_fs_op(rename, ctx)
+                .await
+                .map(Messages::renames)
+                .map_err(IntegrateError::FsOp),
+
             Message::SavedTextFile(file_id) => {
                 self.integrate_file_save(file_id, ctx);
+                Ok(Messages::None)
             },
         }
     }
@@ -320,9 +378,9 @@ impl<Ed: CollabEditor> Project<Ed> {
                 },
             };
 
-            file.write(new_contents).await.map_err(|err| {
-                IntegrateBinaryEditError::WriteToFile(file_path, err)
-            })
+            file.write(new_contents)
+                .await
+                .map_err(IntegrateBinaryEditError::WriteToFile)
         })
         .await
     }
@@ -530,10 +588,10 @@ impl<Ed: CollabEditor> Project<Ed> {
         &mut self,
         edit: text::TextEdit,
         ctx: &mut Context<Ed>,
-    ) {
+    ) -> Result<(), Ed::CreateBufferError> {
         let Some((file, replacements)) = self.inner.integrate_text_edit(edit)
         else {
-            return;
+            return Ok(());
         };
 
         // If there's already an open buffer for the edited file we can just
@@ -542,10 +600,7 @@ impl<Ed: CollabEditor> Project<Ed> {
             Some(buffer_id) => buffer_id.clone(),
             None => {
                 let file_path = self.root_path.clone().concat(file.path());
-                match ctx.create_buffer(&file_path, self.agent_id).await {
-                    Ok(buffer_id) => buffer_id,
-                    Err(err) => todo!("handle {err:?}"),
-                }
+                ctx.create_buffer(&file_path, self.agent_id).await?
             },
         };
 
@@ -574,6 +629,8 @@ impl<Ed: CollabEditor> Project<Ed> {
 
             Ed::move_peer_tooltip(tooltip, cursor.offset(), ctx);
         }
+
+        Ok(())
     }
 
     fn map_peers<T, Collector: FromIterator<T>>(
@@ -656,7 +713,7 @@ impl<Ed: CollabEditor> Project<Ed> {
     ) -> Option<Message> {
         match event {
             event::BufferEvent::Created(buffer_id, file_path) => {
-                self.synchronize_buffer_created(buffer_id, file_path, ctx);
+                self.synchronize_buffer_created(buffer_id, &file_path, ctx);
                 None
             },
             event::BufferEvent::Edited(buffer_id, replacements) => {
@@ -685,7 +742,7 @@ impl<Ed: CollabEditor> Project<Ed> {
     pub fn synchronize_buffer_created(
         &mut self,
         buffer_id: Ed::BufferId,
-        file_path: AbsPathBuf,
+        file_path: &AbsPath,
         ctx: &mut Context<Ed>,
     ) {
         let path_in_proj = file_path
@@ -1517,4 +1574,30 @@ fn text_diff(
     _rhs: &str,
 ) -> Option<SmallVec<[TextReplacement; 1]>> {
     todo!();
+}
+
+impl Messages {
+    fn project_response(response: collab_types::ProjectResponse) -> Self {
+        Self::ProjectResponse(Some(response))
+    }
+
+    fn renames(renames: SmallVec<[Rename; 2]>) -> Self {
+        Self::Renames(renames.into_iter())
+    }
+}
+
+impl Iterator for Messages {
+    type Item = Message;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::None => None,
+            Self::ProjectResponse(response) => {
+                response.take().map(Message::ProjectResponse)
+            },
+            Self::Renames(renames) => {
+                renames.next().map(Message::RenamedFsNode)
+            },
+        }
+    }
 }

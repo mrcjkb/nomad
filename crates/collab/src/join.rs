@@ -30,7 +30,7 @@ use crate::config::Config;
 use crate::editors::{CollabEditor, SessionId, Welcome};
 use crate::event_stream::EventStreamBuilder;
 use crate::leave::StopChannels;
-use crate::project::{self, IdMaps};
+use crate::project::{self, IdMaps, IntegrateError};
 use crate::session::{RemotePeers, Session, SessionInfos, Sessions};
 
 /// The `Action` used to join an existing collaborative editing session.
@@ -116,7 +116,10 @@ impl<Ed: CollabEditor> Join<Ed> {
         };
 
         for message in buffered {
-            project.integrate(message, ctx).await;
+            project
+                .integrate(message, ctx)
+                .await
+                .map_err(JoinError::Integrate)?;
         }
 
         let session_infos = SessionInfos {
@@ -378,6 +381,9 @@ pub enum JoinError<Ed: CollabEditor> {
 
     /// TODO: docs.
     Knock(collab_client::KnockError<Ed::ServerParams>),
+
+    /// TODO: docs.
+    Integrate(IntegrateError<Ed>),
 
     /// The project filter couldn't be created.
     ProjectFilter(Ed::ProjectFilterError),

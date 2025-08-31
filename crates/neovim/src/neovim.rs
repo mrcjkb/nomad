@@ -103,7 +103,7 @@ impl Neovim {
         // We expect an integer because 'bufload' returns 0 on success.
         oxi::api::call_function::<_, u8>("bufload", (buffer.handle(),))?;
 
-        Ok(BufferId::from(buffer.clone()))
+        Ok(BufferId::from(buffer))
     }
 
     #[track_caller]
