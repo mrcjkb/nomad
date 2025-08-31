@@ -132,11 +132,25 @@ impl PeerTooltip {
     ) -> Range<Point> {
         debug_assert!(cursor_offset <= buffer.num_bytes());
 
-        let highlight_start = buffer.point_of_byte(cursor_offset);
+        let mut highlight_start = buffer.point_of_byte(cursor_offset);
 
         let is_cursor_at_eol = buffer
             .num_bytes_in_line_after(highlight_start.newline_offset)
             == highlight_start.byte_offset;
+
+        if is_cursor_at_eol {
+            // If the cursor is after the uneditable eol, set the start
+            // position to the end of the previous line.
+            if cursor_offset == buffer.num_bytes()
+                && buffer.has_uneditable_eol()
+            {
+                let highlight_end = highlight_start;
+                highlight_start.newline_offset -= 1;
+                highlight_start.byte_offset = buffer
+                    .num_bytes_in_line_after(highlight_start.newline_offset);
+                return highlight_start..highlight_end;
+            }
+        }
 
         let highlight_end =
             // If the cursor is at the end of the line, we set the end of the
