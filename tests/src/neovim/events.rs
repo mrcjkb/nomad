@@ -1,5 +1,5 @@
 use abs_path::path;
-use editor::{AgentId, Buffer, Context, Cursor, Shared};
+use editor::{AgentId, Buffer, Context, Shared};
 use fs::File;
 use neovim::tests::NeovimExt;
 use neovim::{Neovim, oxi};

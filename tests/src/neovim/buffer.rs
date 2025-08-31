@@ -499,6 +499,19 @@ fn highlight_range_is_removed_when_handle_is_dropped(
     });
 }
 
+#[neovim::test]
+fn num_bytes_in_line_after_trailine_newline(ctx: &mut Context<Neovim>) {
+    let buffer_id = ctx.create_and_focus_scratch_buffer();
+
+    ctx.feedkeys("iHello");
+
+    ctx.with_borrowed(|ctx| {
+        let buf = ctx.buffer(buffer_id).unwrap();
+        assert_eq!(buf.get_text(), "Hello\n");
+        assert_eq!(buf.num_bytes_in_line_after(1), 0);
+    });
+}
+
 mod ed_buffer {
     //! Contains the editor-agnostic buffer tests.
 
