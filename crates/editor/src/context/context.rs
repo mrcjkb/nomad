@@ -72,6 +72,14 @@ pub struct BorrowedInner<'a, Ed: Editor> {
 impl<Ed: Editor, Bs: BorrowState> Context<Ed, Bs> {
     /// TODO: docs.
     #[inline]
+    pub fn buffer_ids(
+        &mut self,
+    ) -> impl Iterator<Item = Ed::BufferId> + use<Ed, Bs> {
+        self.with_editor(|ed| ed.buffer_ids())
+    }
+
+    /// TODO: docs.
+    #[inline]
     pub fn for_each_buffer(
         &mut self,
         mut fun: impl FnMut(context::Buffer<'_, Ed>),

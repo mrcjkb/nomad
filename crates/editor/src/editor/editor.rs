@@ -72,6 +72,16 @@ pub trait Editor: 'static + Sized {
     fn buffer(&mut self, id: Self::BufferId) -> Option<Self::Buffer<'_>>;
 
     /// TODO: docs.
+    #[inline]
+    fn buffer_ids(
+        &mut self,
+    ) -> impl Iterator<Item = Self::BufferId> + use<Self> {
+        let mut ids = Vec::new();
+        self.for_each_buffer(|buf| ids.push(buf.id()));
+        ids.into_iter()
+    }
+
+    /// TODO: docs.
     fn buffer_at_path(&mut self, path: &AbsPath) -> Option<Self::Buffer<'_>>;
 
     /// TODO: docs.
