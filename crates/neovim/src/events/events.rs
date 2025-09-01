@@ -1,7 +1,7 @@
 use core::cell::RefCell;
 use std::rc::Rc;
 
-use editor::{AccessMut, AgentId, Shared};
+use editor::{AccessMut, AgentId};
 use nohash::IntMap as NoHashMap;
 use slotmap::SlotMap;
 use smallvec::{SmallVec, smallvec_inline};
@@ -25,10 +25,6 @@ pub(crate) struct Events {
 
     /// The ID of the group that `Self` will register autocommands in.
     pub(crate) augroup_id: AugroupId,
-
-    /// TODO: docs.
-    pub(crate) on_uneditable_eol_set:
-        Option<Callbacks<events::SetUneditableEndOfLine>>,
 
     /// The callback registered to the [`BufferCreated`] event, or `None` if no
     /// callback has been registered to that event.
@@ -85,9 +81,6 @@ pub(crate) struct AgentIds {
 
     /// TODO: docs.
     pub(crate) saved_buffer: NoHashMap<BufferId, AgentId>,
-
-    /// TODO: docs.
-    pub(crate) set_uneditable_eol: events::SetUneditableEolAgentIds,
 }
 
 /// Groups the callbacks registered for a specific event type.
@@ -112,7 +105,6 @@ pub(crate) enum EventKind {
     BufWritePost(events::BufWritePost),
     CursorMoved(events::CursorMoved),
     ModeChanged(events::ModeChanged),
-    UneditableEolSet(events::SetUneditableEndOfLine),
 }
 
 impl EventHandle {
@@ -164,7 +156,6 @@ impl Events {
             on_buffer_unfocused: Default::default(),
             on_cursor_moved: Default::default(),
             on_mode_changed: Default::default(),
-            on_uneditable_eol_set: Default::default(),
         }
     }
 
@@ -182,7 +173,6 @@ impl Events {
                 BufWritePost(ev) => self.remove_callback(ev, cb_key),
                 CursorMoved(ev) => self.remove_callback(ev, cb_key),
                 ModeChanged(ev) => self.remove_callback(ev, cb_key),
-                UneditableEolSet(ev) => self.remove_callback(ev, cb_key),
             }
         }
     }

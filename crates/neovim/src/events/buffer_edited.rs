@@ -5,7 +5,7 @@ use smallvec::{SmallVec, smallvec_inline};
 use crate::Neovim;
 use crate::buffer::{BufferExt, BufferId, NeovimBuffer, Point};
 use crate::events::{AutocmdId, Callbacks, Event, EventKind, Events};
-use crate::option::UneditableEndOfLine;
+use crate::option::{NeovimOption, UneditableEndOfLine};
 use crate::oxi::api;
 use crate::utils::CallbackExt;
 
@@ -17,7 +17,7 @@ pub(crate) struct BufferEdited(pub(crate) BufferId);
 /// The output of the [`BufferEdited::register`] method.
 #[derive(Debug, Clone)]
 pub(crate) struct BufferEditedRegisterOutput {
-    autocmd_ids: [AutocmdId; 4],
+    autocmd_ids: [AutocmdId; 2],
     buffer_id: BufferId,
     queued_edits: Shared<SmallVec<[Edit; 2]>>,
 }
@@ -165,9 +165,9 @@ impl Event for BufferEdited {
             }
         };
 
-        let autocmd_ids = UneditableEndOfLine::on_set_on(
-            buffer_id,
+        let option_set_autocmd_id = UneditableEndOfLine::on_set(
             events.augroup_id,
+            buffer_id,
             on_fixeol_changed,
         );
 
@@ -184,7 +184,7 @@ impl Event for BufferEdited {
         .map(|maybe_detach| maybe_detach.unwrap_or(true))
         .into_function();
 
-        let autocmd_id = api::create_autocmd(
+        let user_autocmd_id = api::create_autocmd(
             ["User"],
             &api::opts::CreateAutocmdOpts::builder()
                 .group(events.augroup_id)
@@ -196,12 +196,7 @@ impl Event for BufferEdited {
         .expect("couldn't create autocmd");
 
         BufferEditedRegisterOutput {
-            autocmd_ids: [
-                autocmd_ids.0,
-                autocmd_ids.1,
-                autocmd_ids.2,
-                autocmd_id,
-            ],
+            autocmd_ids: [option_set_autocmd_id, user_autocmd_id],
             buffer_id,
             queued_edits,
         }

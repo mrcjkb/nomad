@@ -3,6 +3,7 @@ use core::ops::Deref;
 use crate::buffer::BufferId;
 use crate::events::{AugroupId, AutocmdId};
 use crate::oxi::{self, api};
+use crate::utils::CallbackExt;
 
 /// TODO: docs.
 pub(crate) trait NeovimOption: 'static + Sized {
@@ -28,12 +29,48 @@ pub(crate) trait NeovimOption: 'static + Sized {
     }
 
     /// TODO: docs.
+    #[allow(dead_code)]
     #[track_caller]
     #[inline]
     fn set(&mut self, value: Self::Value, opts: &Self::Opts) {
         if let Err(err) = api::set_option_value(Self::LONG_NAME, value, opts) {
             panic!("couldn't set option {:?}: {err}", Self::LONG_NAME);
         }
+    }
+
+    /// TODO: docs.
+    #[inline]
+    fn on_set(
+        augroup_id: AugroupId,
+        buffer_id: BufferId,
+        mut fun: impl FnMut(api::Buffer, Self::Value, Self::Value) -> bool
+        + 'static,
+    ) -> AutocmdId {
+        let on_option_set = (move |args: api::types::AutocmdCallbackArgs| {
+            fun(args.buffer, Self::old_value(), Self::new_value())
+        })
+        .catch_unwind()
+        .map(|maybe_detach| maybe_detach.unwrap_or(true))
+        .into_function();
+
+        api::create_autocmd(
+            ["OptionSet"],
+            &api::opts::CreateAutocmdOpts::builder()
+                .group(augroup_id)
+                .buffer(buffer_id.into())
+                .patterns([Self::LONG_NAME])
+                .callback(on_option_set)
+                .build(),
+        )
+        .expect("couldn't create autocmd on OptionSet")
+    }
+
+    fn old_value() -> Self::Value {
+        api::get_vvar("option_old").expect("couldn't get option_old")
+    }
+
+    fn new_value() -> Self::Value {
+        api::get_vvar("option_old").expect("couldn't get option_old")
     }
 }
 
@@ -60,15 +97,6 @@ impl UneditableEndOfLine {
         binary: impl FnOnce() -> bool,
     ) -> bool {
         eol() || (fix_eol() && !binary())
-    }
-
-    #[inline]
-    pub(crate) fn on_set_on(
-        _buffer_id: BufferId,
-        _augroup: AugroupId,
-        _fun: impl FnMut(api::Buffer, bool, bool) -> bool + 'static,
-    ) -> (AutocmdId, AutocmdId, AutocmdId) {
-        todo!();
     }
 }
 
@@ -119,6 +147,73 @@ impl NeovimOption for UneditableEndOfLine {
             EndOfLine.set(false, opts);
             FixEndOfLine.set(false, opts);
         }
+    }
+
+    #[inline]
+    fn on_set(
+        augroup_id: AugroupId,
+        buffer_id: BufferId,
+        mut fun: impl FnMut(api::Buffer, Self::Value, Self::Value) -> bool
+        + 'static,
+    ) -> AutocmdId {
+        let on_option_set = (move |args: api::types::AutocmdCallbackArgs| {
+            enum Option {
+                Binary,
+                Eol,
+                FixEol,
+            }
+
+            let option = match &*args.r#match {
+                EndOfLine::LONG_NAME => Option::Eol,
+                FixEndOfLine::LONG_NAME => Option::FixEol,
+                Binary::LONG_NAME => Option::Binary,
+                other => panic!("unexpected option name: {other}"),
+            };
+
+            let opts = BufferLocalOpts::new(args.buffer.clone());
+
+            let option = |option_value: bool| match option {
+                Option::Binary => Self::get_inner(
+                    || EndOfLine.get(&opts),
+                    || FixEndOfLine.get(&opts),
+                    || option_value,
+                ),
+                Option::Eol => Self::get_inner(
+                    || option_value,
+                    || FixEndOfLine.get(&opts),
+                    || Binary.get(&opts),
+                ),
+                Option::FixEol => Self::get_inner(
+                    || EndOfLine.get(&opts),
+                    || option_value,
+                    || Binary.get(&opts),
+                ),
+            };
+
+            fun(
+                args.buffer,
+                option(Self::old_value()),
+                option(Self::new_value()),
+            )
+        })
+        .catch_unwind()
+        .map(|maybe_detach| maybe_detach.unwrap_or(true))
+        .into_function();
+
+        api::create_autocmd(
+            ["OptionSet"],
+            &api::opts::CreateAutocmdOpts::builder()
+                .group(augroup_id)
+                .buffer(buffer_id.into())
+                .patterns([
+                    EndOfLine::LONG_NAME,
+                    FixEndOfLine::LONG_NAME,
+                    Binary::LONG_NAME,
+                ])
+                .callback(on_option_set)
+                .build(),
+        )
+        .expect("couldn't create autocmd on OptionSet")
     }
 }
 
