@@ -12,18 +12,19 @@ use crate::utils::CallbackExt;
 const TRIGGER_AUTOCMD_PATTERN: &str = "BufferEditedEventTrigger";
 
 #[derive(Debug, Clone)]
-pub(crate) struct BufferEdited {
+pub(crate) struct BufferEdited(pub(crate) BufferId);
+
+/// The output of the [`BufferEdited::register`] method.
+#[derive(Debug, Clone)]
+pub(crate) struct BufferEditedRegisterOutput {
+    autocmd_ids: [AutocmdId; 4],
     buffer_id: BufferId,
     queued_replacements: Shared<SmallVec<[Replacement; 2]>>,
 }
 
-impl BufferEdited {
+impl BufferEditedRegisterOutput {
     pub(crate) fn enqueue(&self, replacement: Replacement) {
         self.queued_replacements.with_mut(|vec| vec.push(replacement));
-    }
-
-    pub(crate) fn new(buffer_id: BufferId) -> Self {
-        Self { buffer_id, queued_replacements: Default::default() }
     }
 
     pub(crate) fn trigger(&self) {
@@ -40,7 +41,7 @@ impl BufferEdited {
 impl Event for BufferEdited {
     type Args<'a> = (NeovimBuffer<'a>, &'a Edit);
     type Container<'ev> = &'ev mut NoHashMap<BufferId, Callbacks<Self>>;
-    type RegisterOutput = [AutocmdId; 4];
+    type RegisterOutput = BufferEditedRegisterOutput;
 
     #[inline]
     fn container<'ev>(&self, events: &'ev mut Events) -> Self::Container<'ev> {
@@ -63,52 +64,56 @@ impl Event for BufferEdited {
         events: &Events,
         mut nvim: impl AccessMut<Neovim> + Clone + 'static,
     ) -> Self::RegisterOutput {
-        let buffer_id = self.buffer_id;
-        let queued_replacements = self.queued_replacements.clone();
+        let buffer_id = self.0;
+        let queued_replacements = Shared::<SmallVec<_>>::default();
 
-        let mut on_replacement = move |replacement: Replacement| {
-            nvim.with_mut(|nvim| {
-                let Some(mut buffer) = nvim.buffer(buffer_id) else {
-                    panic!(
-                        "callback triggered for an invalid buffer{}",
-                        api::Buffer::from(buffer_id)
-                            .get_name()
-                            .map(|name| format!(": {name}"))
-                            .unwrap_or_default()
-                    );
-                };
+        let mut on_replacement = {
+            let queued_replacements = queued_replacements.clone();
+            move |replacement: Replacement| {
+                nvim.with_mut(|nvim| {
+                    let Some(mut buffer) = nvim.buffer(buffer_id) else {
+                        panic!(
+                            "callback triggered for an invalid buffer{}",
+                            api::Buffer::from(buffer_id)
+                                .get_name()
+                                .map(|name| format!(": {name}"))
+                                .unwrap_or_default()
+                        );
+                    };
 
-                let events = &mut buffer.nvim.events;
+                    let events = &mut buffer.nvim.events;
 
-                let Some(callbacks) = events
-                    .on_buffer_edited
-                    .get(&buffer_id)
-                    .map(|cbs| cbs.cloned())
-                else {
-                    return true;
-                };
+                    let Some(callbacks) = events
+                        .on_buffer_edited
+                        .get(&buffer_id)
+                        .map(|cbs| cbs.cloned())
+                    else {
+                        return true;
+                    };
 
-                let edit = Edit {
-                    made_by: events.agent_ids.edited_buffer.take(),
-                    replacements: smallvec_inline![replacement],
-                };
+                    let edit = Edit {
+                        made_by: events.agent_ids.edited_buffer.take(),
+                        replacements: smallvec_inline![replacement],
+                    };
 
-                let queued_replacements = queued_replacements.take();
+                    let queued_replacements = queued_replacements.take();
 
-                for callback in callbacks {
-                    callback((buffer.reborrow(), &edit));
-
-                    for replacement in queued_replacements.iter().cloned() {
-                        let edit = Edit {
-                            made_by: AgentId::UNKNOWN,
-                            replacements: smallvec_inline![replacement],
-                        };
+                    for callback in callbacks {
                         callback((buffer.reborrow(), &edit));
-                    }
-                }
 
-                false
-            })
+                        for replacement in queued_replacements.iter().cloned()
+                        {
+                            let edit = Edit {
+                                made_by: AgentId::UNKNOWN,
+                                replacements: smallvec_inline![replacement],
+                            };
+                            callback((buffer.reborrow(), &edit));
+                        }
+                    }
+
+                    false
+                })
+            }
         };
 
         let on_bytes = {
@@ -164,14 +169,15 @@ impl Event for BufferEdited {
             on_fixeol_changed,
         );
 
-        let queued_replacements = self.queued_replacements.clone();
-
-        let on_manual_trigger = (move |_: api::types::AutocmdCallbackArgs| {
-            queued_replacements
-                .with_mut(|vec| (!vec.is_empty()).then(|| vec.remove(0)))
-                .map(|repl| on_replacement(repl))
-                .unwrap_or(false)
-        })
+        let on_manual_trigger = {
+            let queued_replacements = queued_replacements.clone();
+            move |_: api::types::AutocmdCallbackArgs| {
+                queued_replacements
+                    .with_mut(|vec| (!vec.is_empty()).then(|| vec.remove(0)))
+                    .map(|repl| on_replacement(repl))
+                    .unwrap_or(false)
+            }
+        }
         .catch_unwind()
         .map(|maybe_detach| maybe_detach.unwrap_or(true))
         .into_function();
@@ -187,12 +193,21 @@ impl Event for BufferEdited {
         )
         .expect("couldn't create autocmd");
 
-        [autocmd_ids.0, autocmd_ids.1, autocmd_ids.2, autocmd_id]
+        BufferEditedRegisterOutput {
+            autocmd_ids: [
+                autocmd_ids.0,
+                autocmd_ids.1,
+                autocmd_ids.2,
+                autocmd_id,
+            ],
+            buffer_id,
+            queued_replacements,
+        }
     }
 
     #[inline]
-    fn unregister(autocmd_ids: Self::RegisterOutput) {
-        for autocmd_id in autocmd_ids {
+    fn unregister(output: Self::RegisterOutput) {
+        for autocmd_id in output.autocmd_ids {
             let _ = api::del_autocmd(autocmd_id);
         }
     }

@@ -644,7 +644,7 @@ fn replace_text_in_point_range(
 fn apply_replacement(
     buffer: &mut api::Buffer,
     replacement: Replacement,
-    buffer_edited: Option<&events::BufferEdited>,
+    buffer_edited: Option<&events::BufferEditedRegisterOutput>,
 ) {
     debug_assert!(!replacement.is_no_op());
 
@@ -709,11 +709,9 @@ fn apply_replacement(
         return;
     }
 
-    // Enqueue the re-insertion of the newline that this replacement
-    // deletes.
+    // Enqueue the re-insertion of the newline that this replacement deletes.
     if let Some(buffer_edited) = buffer_edited {
-        // We've clamped the end of the deletion range, so it's 1 byte
-        // shorter.
+        // We've clamped the end of the deletion range, so it's 1 byte shorter.
         let deletion_len = deletion_range.len() - 1;
         let len_after_edit =
             buffer.num_bytes() - deletion_len + insert_text.len();
@@ -755,7 +753,7 @@ fn apply_insertion_after_fixeol(
     buffer: &mut api::Buffer,
     insert_point: Point,
     insert_text: &str,
-    buffer_edited: Option<&events::BufferEdited>,
+    buffer_edited: Option<&events::BufferEditedRegisterOutput>,
 ) {
     debug_assert!(buffer.is_point_after_uneditable_eol(insert_point));
     debug_assert!(!insert_text.is_empty());
@@ -780,7 +778,7 @@ fn apply_deletion_ending_after_fixeol(
     buffer: &mut api::Buffer,
     Range { start, end }: Range<Point>,
     deletion_len: ByteOffset,
-    buffer_edited: Option<&events::BufferEdited>,
+    buffer_edited: Option<&events::BufferEditedRegisterOutput>,
 ) {
     debug_assert!(start < end);
     debug_assert!(buffer.is_point_after_uneditable_eol(end));
