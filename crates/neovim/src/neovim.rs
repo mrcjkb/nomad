@@ -212,7 +212,7 @@ impl Editor for Neovim {
     #[inline]
     fn cursor(&mut self, buf_id: Self::CursorId) -> Option<Self::Cursor<'_>> {
         let buffer = self.buffer(buf_id)?;
-        buffer.is_focused().then_some(buffer.into())
+        buffer.is_focused().then(|| buffer.into())
     }
 
     #[inline]
@@ -231,7 +231,7 @@ impl Editor for Neovim {
         buf_id: Self::SelectionId,
     ) -> Option<Self::Selection<'_>> {
         let buffer = self.buffer(buf_id)?;
-        buffer.selection().is_some().then_some(buffer.into())
+        buffer.selection().is_some().then(|| buffer.into())
     }
 
     #[inline]
