@@ -1,6 +1,6 @@
 use core::cell::Cell;
-use core::fmt;
 use core::ops::Range;
+use core::{any, fmt};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::{env, io};
@@ -91,17 +91,86 @@ pub struct NeovimLspRootError {
     root_dir: String,
 }
 
-/// The highlight group used to highlight the extmark representing a remote
-/// peer's cursor.
-struct PeerCursorHighlightGroup {
-    suffix: u8,
-}
+/// The highlight group used to highlight a remote peer's cursor.
+struct PeerCursorHighlightGroup;
+
+/// The highlight group used to highlight a remote peer's selection.
+struct PeerSelectionHighlightGroup;
 
 /// An [`AbsPath`] wrapper whose `Display` impl replaces the path's home
 /// directory with `~`.
 struct TildePath<'a> {
     path: &'a AbsPath,
     home_dir: Option<&'a AbsPath>,
+}
+
+/// A trait implemented by types that represent highlight groups used to
+/// highlight a piece of UI (like a cursor or selection) that belongs to a
+/// remote peer.
+trait RemotePeerHighlightGroup {
+    /// The prefix of each highlight group name.
+    const NAME_PREFIX: &'static str;
+
+    #[track_caller]
+    fn create_all() {
+        debug_assert!(
+            Self::with_group_ids(|ids| ids.iter().all(|id| id.get() == 0)),
+            "{}::create_all() has already been called",
+            any::type_name::<Self>()
+        );
+
+        Self::with_group_ids(|group_ids| {
+            for (group_idx, group_id) in group_ids.iter().enumerate() {
+                group_id.set(Self::create(group_idx.saturating_add(1)));
+            }
+        });
+    }
+
+    #[track_caller]
+    fn new(peer_id: PeerId) -> impl oxi::api::SetExtmarkHlGroup {
+        Self::with_group_ids(|group_ids| {
+            let group_idx = peer_id.into_u64().saturating_sub(1) as usize
+                % group_ids.len();
+
+            let group_id = group_ids[group_idx].get();
+
+            debug_assert!(
+                group_id > 0,
+                "{}::create_all() has not been called",
+                any::type_name::<Self>()
+            );
+
+            i64::from(group_id)
+        })
+    }
+
+    /// Returns the `opts` to pass to [`set_hl`](oxi::api::set_hl) when
+    /// creating the highlight group.
+    fn set_hl_opts() -> oxi::api::opts::SetHighlightOpts;
+
+    #[doc(hidden)]
+    fn create(suffix: usize) -> u32 {
+        let name = Self::name(suffix);
+
+        oxi::api::set_hl(0, name.as_ref(), &Self::set_hl_opts())
+            .expect("couldn't create highlight group");
+
+        oxi::api::get_hl_id_by_name(name.as_ref())
+            .expect("couldn't get highlight group ID")
+    }
+
+    #[doc(hidden)]
+    fn name(suffix: usize) -> impl AsRef<str> {
+        compact_str::format_compact!("{}{}", Self::NAME_PREFIX, suffix)
+    }
+
+    #[doc(hidden)]
+    fn with_group_ids<R>(fun: impl FnOnce(&[Cell<u32>]) -> R) -> R {
+        thread_local! {
+            static GROUP_IDS: Cell<[u32; 16]> = Cell::new([0; _]);
+        }
+        GROUP_IDS.with(|ids| fun(ids.as_array_of_cells().as_slice()))
+    }
 }
 
 impl PeerCursor {
@@ -220,74 +289,6 @@ impl PeerCursor {
     }
 }
 
-impl PeerCursorHighlightGroup {
-    thread_local! {
-        static GROUP_IDS: Cell<[u32; PeerCursorHighlightGroup::MAX_HIGHLIGHT_GROUPS as usize]>
-            = Cell::new([0; _]);
-    }
-
-    /// The number of distinct highlight groups we create to represent remote
-    /// peers' cursors.
-    const MAX_HIGHLIGHT_GROUPS: u8 = 16;
-
-    /// The prefix of each highlight group name.
-    const NAME_PREFIX: &'static str = "NomadCollabPeerCursor";
-
-    fn create(self) -> u32 {
-        let name = self.name();
-
-        oxi::api::set_hl(
-            0,
-            name.as_ref(),
-            &oxi::api::opts::SetHighlightOpts::builder()
-                .link("Cursor")
-                .build(),
-        )
-        .expect("couldn't create highlight group");
-
-        oxi::api::get_hl_id_by_name(name.as_ref())
-            .expect("couldn't get highlight group ID")
-    }
-
-    fn create_all() {
-        debug_assert!(
-            Self::GROUP_IDS.with(|ids| ids
-                .as_array_of_cells()
-                .iter()
-                .all(|id| id.get() == 0)),
-            "highlight groups have already been created"
-        );
-
-        Self::GROUP_IDS.with(|group_ids| {
-            let group_ids = group_ids.as_array_of_cells();
-            for (hl_group, group_id) in Self::iter().zip(group_ids) {
-                group_id.set(hl_group.create());
-            }
-        });
-    }
-
-    fn id(&self) -> u32 {
-        let idx = self.suffix as usize - 1;
-        Self::GROUP_IDS.with(|ids| ids.as_array_of_cells()[idx].get())
-    }
-
-    fn iter() -> impl Iterator<Item = Self> {
-        (0..Self::MAX_HIGHLIGHT_GROUPS).map(|idx| Self { suffix: idx + 1 })
-    }
-
-    fn name(&self) -> impl AsRef<str> {
-        compact_str::format_compact!("{}{}", Self::NAME_PREFIX, self.suffix)
-    }
-
-    fn new(peer_id: PeerId) -> Self {
-        Self {
-            suffix: (peer_id.into_u64()
-                % (Self::MAX_HIGHLIGHT_GROUPS as u64 + 1))
-                as u8,
-        }
-    }
-}
-
 impl CollabEditor for Neovim {
     type Io = async_net::TcpStream;
     type PeerSelection = NeovimPeerSelection;
@@ -348,13 +349,14 @@ impl CollabEditor for Neovim {
     }
 
     fn create_peer_selection(
-        _remote_peer: Peer,
+        remote_peer: Peer,
         selected_range: Range<ByteOffset>,
         buffer_id: Self::BufferId,
         ctx: &mut Context<Self>,
     ) -> Self::PeerSelection {
         ctx.with_borrowed(|ctx| {
             let buffer = ctx.buffer(buffer_id).expect("invalid buffer ID");
+            let _hl_group = PeerSelectionHighlightGroup::new(remote_peer.id);
             let hl_handle = buffer.highlight_range(selected_range, "Visual");
             NeovimPeerSelection { selection_highlight_handle: hl_handle }
         })
@@ -467,6 +469,7 @@ impl CollabEditor for Neovim {
 
     fn on_init(_: &mut Context<Self, Borrowed>) {
         PeerCursorHighlightGroup::create_all();
+        PeerSelectionHighlightGroup::create_all();
     }
 
     fn on_join_error(error: join::JoinError<Self>, ctx: &mut Context<Self>) {
@@ -661,10 +664,19 @@ fn get_lua_value<T: mlua::FromLua>(namespace: &[&str]) -> Option<T> {
     }
 }
 
-impl oxi::api::SetExtmarkHlGroup for PeerCursorHighlightGroup {
-    #[inline]
-    fn into_object(self) -> oxi::Object {
-        self.id().into()
+impl RemotePeerHighlightGroup for PeerCursorHighlightGroup {
+    const NAME_PREFIX: &str = "NomadCollabPeerCursor";
+
+    fn set_hl_opts() -> oxi::api::opts::SetHighlightOpts {
+        oxi::api::opts::SetHighlightOpts::builder().link("Cursor").build()
+    }
+}
+
+impl RemotePeerHighlightGroup for PeerSelectionHighlightGroup {
+    const NAME_PREFIX: &str = "NomadCollabPeerSelection";
+
+    fn set_hl_opts() -> oxi::api::opts::SetHighlightOpts {
+        oxi::api::opts::SetHighlightOpts::builder().link("Visual").build()
     }
 }
 
