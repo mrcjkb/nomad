@@ -809,6 +809,7 @@ impl TextContents {
         anchor_start..anchor_end
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[track_caller]
     #[inline]
     fn edit<R>(

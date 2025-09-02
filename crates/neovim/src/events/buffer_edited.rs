@@ -56,6 +56,7 @@ impl Event for BufferEdited {
         EventKind::BufferEdited(*self)
     }
 
+    #[allow(clippy::too_many_lines)]
     #[inline]
     fn register(
         &self,
@@ -94,7 +95,7 @@ impl Event for BufferEdited {
                     for callback in callbacks {
                         callback((buffer.reborrow(), &edit));
                         for edit in &queued_edits {
-                            callback((buffer.reborrow(), &edit));
+                            callback((buffer.reborrow(), edit));
                         }
                     }
 
@@ -169,6 +170,7 @@ impl Event for BufferEdited {
             on_fixeol_changed,
         );
 
+        #[allow(clippy::redundant_closure)]
         let on_manual_trigger = {
             let queued_edits = queued_edits.clone();
             move |_: api::types::AutocmdCallbackArgs| {

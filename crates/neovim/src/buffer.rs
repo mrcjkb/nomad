@@ -395,6 +395,7 @@ impl BufferExt for NeovimBuffer<'_> {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn apply_replacement(
     buffer: &mut api::Buffer,
     replacement: Replacement,
@@ -459,12 +460,12 @@ fn apply_replacement(
     //
     // For example, if the buffer is "Hello\n", the replacement is delete 4..6
     // and insert "!\n", then we can delete 4..5 and insert "!" instead.
-    if insert_text.ends_with('\n') {
+    if let Some(stripped) = insert_text.strip_suffix('\n') {
         apply_replacement_whose_deletion_ends_before_fixeol(
             buffer,
             deletion_start..clamped_end,
             deletion_len,
-            &insert_text[..insert_text.len() - 1],
+            stripped,
             buffer_edited,
         );
         return;
@@ -490,6 +491,7 @@ fn apply_replacement(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_replacement_whose_deletion_ends_before_fixeol(
     buffer: &mut api::Buffer,
     delete_range: Range<Point>,

@@ -167,7 +167,7 @@ trait RemotePeerHighlightGroup {
     #[doc(hidden)]
     fn with_group_ids<R>(fun: impl FnOnce(&[Cell<u32>]) -> R) -> R {
         thread_local! {
-            static GROUP_IDS: Cell<[u32; 16]> = Cell::new([0; _]);
+            static GROUP_IDS: Cell<[u32; 16]> = const { Cell::new([0; _]) };
         }
         GROUP_IDS.with(|ids| fun(ids.as_array_of_cells().as_slice()))
     }
@@ -447,10 +447,10 @@ impl CollabEditor for Neovim {
             .map_err(|_| NeovimLspRootError { root_dir })
     }
 
-    fn move_peer_selection<'ctx>(
+    fn move_peer_selection(
         selection: &mut Self::PeerSelection,
         selected_range: Range<ByteOffset>,
-        ctx: &'ctx mut Context<Self>,
+        ctx: &mut Context<Self>,
     ) {
         ctx.with_editor(|nvim| {
             nvim.highlight_range(&selection.selection_highlight_handle)
