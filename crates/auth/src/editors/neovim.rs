@@ -4,10 +4,10 @@ use editor::context::Borrowed;
 use neovim::Neovim;
 use neovim::notify::ContextExt;
 
-use crate::{AuthEditor, login, logout};
+use crate::{AuthEditor, github, login, logout};
 
 impl AuthEditor for Neovim {
-    type LoginError = core::convert::Infallible;
+    type LoginError = github::GitHubLoginError;
 
     #[allow(clippy::manual_async_fn)]
     fn credential_builder(
@@ -18,9 +18,9 @@ impl AuthEditor for Neovim {
     }
 
     async fn login(
-        _: &mut Context<Self>,
+        ctx: &mut Context<Self>,
     ) -> Result<AuthInfos, Self::LoginError> {
-        Ok(AuthInfos { github_handle: "noib3".parse().expect("valid") })
+        github::login(ctx).await
     }
 
     fn on_login_error(
