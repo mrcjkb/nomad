@@ -72,6 +72,8 @@ impl<Ed: CollabEditor> Join<Ed> {
             .await
             .map_err(JoinError::Knock)?;
 
+        let local_peer = welcome.peer.clone();
+
         let project_root = match self
             .config
             .with(|c| c.store_remote_projects_under.clone())
@@ -82,8 +84,6 @@ impl<Ed: CollabEditor> Join<Ed> {
                 .map_err(JoinError::DefaultDirForRemoteProjects)?,
         }
         .join(&welcome.project_name);
-
-        let local_peer = Peer { id: welcome.peer_id, handle: todo!() };
 
         let (project, buffered) =
             request_project::<Ed>(local_peer.clone(), &mut welcome)

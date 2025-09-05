@@ -267,7 +267,7 @@ dependencies = [
 [[package]]
 name = "auth-types"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#bedc3f3dfd6f9d05ce3be46ac4c45a8789ceb83e"
+source = "git+ssh://git@github.com/nomad/collab-server.git#0436ede2906af112fa8f9d398faadf5a51bef408"
 dependencies = [
  "base64",
  "cauchy",
@@ -760,7 +760,7 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#bedc3f3dfd6f9d05ce3be46ac4c45a8789ceb83e"
+source = "git+ssh://git@github.com/nomad/collab-server.git#0436ede2906af112fa8f9d398faadf5a51bef408"
 dependencies = [
  "bincode",
  "cauchy",
@@ -778,7 +778,7 @@ dependencies = [
 [[package]]
 name = "collab-types"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#bedc3f3dfd6f9d05ce3be46ac4c45a8789ceb83e"
+source = "git+ssh://git@github.com/nomad/collab-server.git#0436ede2906af112fa8f9d398faadf5a51bef408"
 dependencies = [
  "auth-types",
  "bytes",
@@ -1061,7 +1061,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "duplex-stream"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#bedc3f3dfd6f9d05ce3be46ac4c45a8789ceb83e"
+source = "git+ssh://git@github.com/nomad/collab-server.git#0436ede2906af112fa8f9d398faadf5a51bef408"
 dependencies = [
  "async-compat",
  "futures-util",
@@ -1335,7 +1335,7 @@ dependencies = [
 [[package]]
 name = "generic-server"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#bedc3f3dfd6f9d05ce3be46ac4c45a8789ceb83e"
+source = "git+ssh://git@github.com/nomad/collab-server.git#0436ede2906af112fa8f9d398faadf5a51bef408"
 dependencies = [
  "flume",
  "futures-util",
@@ -2011,7 +2011,7 @@ dependencies = [
 [[package]]
 name = "message-channel"
 version = "0.0.9"
-source = "git+ssh://git@github.com/nomad/collab-server.git#bedc3f3dfd6f9d05ce3be46ac4c45a8789ceb83e"
+source = "git+ssh://git@github.com/nomad/collab-server.git#0436ede2906af112fa8f9d398faadf5a51bef408"
 dependencies = [
  "bincode",
  "cauchy",

@@ -7,7 +7,7 @@ use auth::AuthState;
 use collab_project::fs::{FileMut, NodeMut};
 use collab_project::{Project, ProjectBuilder};
 use collab_server::client as collab_client;
-use collab_types::{Peer, PeerId, puff};
+use collab_types::{PeerId, puff};
 use editor::command::ToCompletionFn;
 use editor::module::AsyncAction;
 use editor::shared::{MultiThreaded, Shared};
@@ -222,12 +222,12 @@ impl<Ed: CollabEditor> Start<Ed> {
             .await
             .map_err(StartError::Knock)?;
 
+        let local_peer = welcome.peer;
+
         let (project, event_stream, id_maps) =
-            Self::read_project(&project_root, welcome.peer_id, ctx)
+            Self::read_project(&project_root, local_peer.id, ctx)
                 .await
                 .map_err(StartError::ReadProject)?;
-
-        let local_peer = Peer { id: welcome.peer_id, handle: todo!() };
 
         let remote_peers = RemotePeers::from(welcome.other_peers);
 
