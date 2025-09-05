@@ -1,18 +1,17 @@
 //! TODO: docs.
 
-use auth_types::AuthInfos;
 use editor::command::ToCompletionFn;
 use editor::module::AsyncAction;
-use editor::{Context, Editor, Shared};
+use editor::{Context, Editor};
 
 use crate::credential_store::{self, CredentialStore};
-use crate::{Auth, AuthEditor};
+use crate::{Auth, AuthEditor, AuthState};
 
 /// TODO: docs.
 #[derive(Clone, Default)]
 pub struct Logout {
     credential_store: CredentialStore,
-    infos: Shared<Option<AuthInfos>>,
+    state: AuthState,
 }
 
 impl Logout {
@@ -20,14 +19,9 @@ impl Logout {
         &self,
         ctx: &mut Context<Ed>,
     ) -> Result<(), LogoutError> {
-        self.infos.with_mut(|maybe_infos| {
-            if maybe_infos.is_some() {
-                *maybe_infos = None;
-                Ok(())
-            } else {
-                Err(LogoutError::NotLoggedIn)
-            }
-        })?;
+        if !self.state.set_logged_out() {
+            return Err(LogoutError::NotLoggedIn);
+        }
 
         // Deleting the credentials blocks, so do it in the background.
         let credential_store = self.credential_store.clone();
@@ -69,7 +63,7 @@ impl From<&Auth> for Logout {
     fn from(auth: &Auth) -> Self {
         Self {
             credential_store: auth.credential_store.clone(),
-            infos: auth.infos().clone(),
+            state: auth.state(),
         }
     }
 }

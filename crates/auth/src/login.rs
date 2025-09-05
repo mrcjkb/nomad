@@ -1,19 +1,20 @@
 //! TODO: docs.
 
-use auth_types::{AuthInfos, GitHubHandle};
+use auth_types::PeerHandle;
 use editor::command::ToCompletionFn;
 use editor::module::AsyncAction;
-use editor::{Context, Shared};
+use editor::{Access, Context, Shared};
 
+use crate::auth_state::AuthInfos;
 use crate::credential_store::{self, CredentialStore};
-use crate::{Auth, AuthEditor, Config};
+use crate::{Auth, AuthEditor, AuthState, Config};
 
 /// TODO: docs.
 #[derive(Clone, Default)]
 pub struct Login {
     config: Shared<Config>,
     credential_store: CredentialStore,
-    infos: Shared<Option<AuthInfos>>,
+    state: AuthState,
 }
 
 impl Login {
@@ -21,17 +22,19 @@ impl Login {
         &self,
         ctx: &mut Context<Ed>,
     ) -> Result<(), LoginError<Ed>> {
-        if let Some(handle) = self.infos.with(|maybe_infos| {
-            maybe_infos.as_ref().map(|infos| infos.github_handle.clone())
+        if let Some(peer_handle) = self.state.with(|maybe_infos| {
+            maybe_infos.as_ref().map(|infos| infos.peer_handle.clone())
         }) {
-            return Err(LoginError::AlreadyLoggedIn(handle));
+            return Err(LoginError::AlreadyLoggedIn(peer_handle));
         }
 
-        let auth_infos = Ed::login(self.config.clone(), ctx)
+        let (access_token, peer_handle) = Ed::login(self.config.clone(), ctx)
             .await
             .map_err(LoginError::Login)?;
 
-        self.infos.set(Some(auth_infos.clone()));
+        let auth_infos = AuthInfos { access_token, peer_handle };
+
+        self.state.set_logged_in(auth_infos.clone());
 
         // Persisting the credentials blocks, so do it in the background.
         let credential_store = self.credential_store.clone();
@@ -60,7 +63,7 @@ impl<Ed: AuthEditor> AsyncAction<Ed> for Login {
 pub enum LoginError<Ed: AuthEditor> {
     /// TODO: docs.
     #[display("Already logged in as {_0}")]
-    AlreadyLoggedIn(GitHubHandle),
+    AlreadyLoggedIn(PeerHandle),
 
     /// TODO: docs.
     #[display("Couldn't get credentials from keyring: {_0}")]
@@ -72,7 +75,7 @@ pub enum LoginError<Ed: AuthEditor> {
 
     /// TODO: docs.
     #[display("Couldn't persist credentials: {_0}")]
-    PersistAuthInfos(keyring::Error),
+    PersistCredentials(keyring::Error),
 }
 
 impl From<&Auth> for Login {
@@ -80,7 +83,7 @@ impl From<&Auth> for Login {
         Self {
             config: auth.config.clone(),
             credential_store: auth.credential_store.clone(),
-            infos: auth.infos().clone(),
+            state: auth.state(),
         }
     }
 }
@@ -94,7 +97,7 @@ impl<Ed: AuthEditor> From<credential_store::Error> for LoginError<Ed> {
         use credential_store::Error::*;
         match err {
             GetCredential(err) => Self::GetCredential(err),
-            Op(err) => Self::PersistAuthInfos(err),
+            Op(err) => Self::PersistCredentials(err),
         }
     }
 }

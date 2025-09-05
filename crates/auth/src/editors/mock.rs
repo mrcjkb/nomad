@@ -2,7 +2,7 @@
 
 use core::ops;
 
-use auth_types::AuthInfos;
+use auth_types::{AccessToken, PeerHandle};
 use editor::context::Borrowed;
 use editor::{Access, Context, Editor, EditorAdapter};
 
@@ -32,7 +32,7 @@ impl<Ed: Editor> AuthEditor for AuthMock<Ed> {
     async fn login(
         _: impl Access<config::Config>,
         _: &mut Context<Self>,
-    ) -> Result<AuthInfos, Self::LoginError> {
+    ) -> Result<(AccessToken, PeerHandle), Self::LoginError> {
         todo!()
     }
 

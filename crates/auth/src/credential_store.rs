@@ -1,8 +1,7 @@
 use std::sync::{Arc, OnceLock};
 
-use auth_types::AuthInfos;
-
 use crate::async_once_lock::AsyncOnceLock;
+use crate::auth_state::AuthInfos;
 
 #[derive(Clone, Default)]
 pub(crate) struct CredentialStore {

@@ -1,6 +1,6 @@
 use abs_path::{AbsPathBuf, path};
 use collab::mock::CollabMock;
-use collab::{Peer, PeerId};
+use collab::{Peer, PeerHandle, PeerId};
 use mock::{EditorExt, Mock};
 
 #[test]
@@ -29,14 +29,14 @@ fn remote_peer_tooltip_is_present_when_opening_buffer() {
             id_maps: Default::default(),
             local_peer: Peer {
                 id: project_2.peer_id(),
-                github_handle: "peer2".parse().unwrap(),
+                handle: PeerHandle::GitHub("peer2".parse().unwrap()),
             },
             inner: project_2,
             peer_selections: Default::default(),
             peer_tooltips: Default::default(),
             remote_peers: [Peer {
                 id: project_1.peer_id(),
-                github_handle: "peer1".parse().unwrap(),
+                handle: PeerHandle::GitHub("peer1".parse().unwrap()),
             }]
             .into_iter()
             .collect(),

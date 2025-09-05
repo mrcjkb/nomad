@@ -3,7 +3,7 @@
 use std::io;
 use std::sync::LazyLock;
 
-use auth_types::{AuthInfos, GitHubAccessToken, OAuthState};
+use auth_types::{GitHubAccessToken, GitHubHandle, OAuthState};
 use editor::{Access, Context, Editor};
 use futures_util::{FutureExt, future, pin_mut};
 use rand::Rng;
@@ -18,7 +18,7 @@ static GITHUB_AUTHORIZE_URL: LazyLock<Url> = LazyLock::new(|| {
 pub(crate) async fn login<Ed: Editor>(
     config: impl Access<Config>,
     ctx: &mut Context<Ed>,
-) -> Result<AuthInfos, GitHubLoginError> {
+) -> Result<(GitHubAccessToken, GitHubHandle), GitHubLoginError> {
     let auth_server_url = config.with(|config| config.server_url.clone());
 
     let oauth_state = OAuthState::from_bytes(ctx.with_rng(Rng::random));
@@ -46,9 +46,9 @@ pub(crate) async fn login<Ed: Editor>(
         }
     };
 
-    login_result
-        .map_err(GitHubLoginError::LoginRequest)
-        .map(|_github_access_token| AuthInfos { github_handle: todo!() })
+    let _access_token = login_result.map_err(GitHubLoginError::LoginRequest);
+
+    todo!()
 }
 
 async fn login_request(

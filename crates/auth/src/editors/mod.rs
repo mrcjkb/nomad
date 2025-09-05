@@ -5,7 +5,7 @@ mod neovim;
 
 use core::fmt::Debug;
 
-use auth_types::AuthInfos;
+use auth_types::{AccessToken, PeerHandle};
 use editor::context::Borrowed;
 use editor::{Access, Context, Editor};
 
@@ -25,7 +25,7 @@ pub trait AuthEditor: Editor {
     fn login(
         config: impl Access<config::Config>,
         ctx: &mut Context<Self>,
-    ) -> impl Future<Output = Result<AuthInfos, Self::LoginError>>;
+    ) -> impl Future<Output = Result<(AccessToken, PeerHandle), Self::LoginError>>;
 
     /// Called when the [`Login`](login::Login) action returns an error.
     fn on_login_error(error: login::LoginError<Self>, ctx: &mut Context<Self>);

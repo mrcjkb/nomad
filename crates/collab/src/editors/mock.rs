@@ -7,7 +7,7 @@ use core::{fmt, ops};
 
 use abs_path::{AbsPath, AbsPathBuf};
 pub use collab_server::test::TestSessionId as MockSessionId;
-use collab_types::Peer;
+use collab_types::{Peer, PeerHandle};
 use duplex_stream::{DuplexStream, duplex};
 use editor::context::Borrowed;
 use editor::{ByteOffset, Context, Editor, EditorAdapter};
@@ -421,18 +421,21 @@ impl collab_server::Config for MockConfig {
 }
 
 impl collab_server::Authenticator for MockAuthenticator {
-    type Infos = auth::AuthInfos;
+    type Infos = collab_types::PeerHandle;
     type Error = Never;
 
-    async fn authenticate(&self, _: &Self::Infos) -> Result<(), Self::Error> {
-        Ok(())
+    async fn authenticate(
+        &self,
+        peer_handle: &Self::Infos,
+    ) -> Result<PeerHandle, Self::Error> {
+        Ok(peer_handle.clone())
     }
 }
 
 impl collab_types::Params for MockParams {
     const MAX_FRAME_LEN: u32 = 64;
 
-    type AuthenticateInfos = auth::AuthInfos;
+    type AuthenticateInfos = collab_types::PeerHandle;
     type AuthenticateError = Never;
     type SessionId = MockSessionId;
 }

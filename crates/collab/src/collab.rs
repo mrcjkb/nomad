@@ -1,4 +1,4 @@
-use auth::AuthInfos;
+use auth::AuthState;
 use editor::context::Borrowed;
 use editor::module::{ApiCtx, Module};
 use editor::{Context, Shared};
@@ -13,7 +13,7 @@ use crate::yank::{Yank, YankError};
 
 /// TODO: docs.
 pub struct Collab<Ed: CollabEditor> {
-    pub(crate) auth_infos: Shared<Option<AuthInfos>>,
+    pub(crate) auth_state: AuthState,
     pub(crate) config: Shared<Config>,
     pub(crate) sessions: Sessions<Ed>,
     pub(crate) stop_channels: leave::StopChannels<Ed>,
@@ -86,7 +86,7 @@ impl<Ed: CollabEditor> Module<Ed> for Collab<Ed> {
 impl<Ed: CollabEditor> From<&auth::Auth> for Collab<Ed> {
     fn from(auth: &auth::Auth) -> Self {
         Self {
-            auth_infos: auth.infos().clone(),
+            auth_state: auth.state(),
             config: Default::default(),
             sessions: Default::default(),
             stop_channels: Default::default(),

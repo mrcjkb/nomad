@@ -1,4 +1,4 @@
-use auth_types::AuthInfos;
+use auth_types::{AccessToken, PeerHandle};
 use editor::context::Borrowed;
 use editor::{Access, Context};
 use neovim::Neovim;
@@ -20,8 +20,12 @@ impl AuthEditor for Neovim {
     async fn login(
         config: impl Access<config::Config>,
         ctx: &mut Context<Self>,
-    ) -> Result<AuthInfos, Self::LoginError> {
-        github::login(config, ctx).await
+    ) -> Result<(AccessToken, PeerHandle), Self::LoginError> {
+        let (access_token, github_handle) = github::login(config, ctx).await?;
+        Ok((
+            AccessToken::GitHub(access_token),
+            PeerHandle::GitHub(github_handle),
+        ))
     }
 
     fn on_login_error(

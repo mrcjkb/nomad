@@ -7,7 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-mock = ["auth-types/mock"]
+mock = []
 neovim = [
   "keyring/apple-native",
   "keyring/secret-service",

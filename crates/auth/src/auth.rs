@@ -1,8 +1,8 @@
-use auth_types::AuthInfos;
 use editor::context::Borrowed;
 use editor::module::{ApiCtx, Module};
 use editor::{Context, Shared};
 
+use crate::auth_state::AuthState;
 use crate::credential_store::CredentialStore;
 use crate::login::{Login, LoginError};
 use crate::logout::{Logout, LogoutError};
@@ -13,16 +13,10 @@ use crate::{AuthEditor, Config};
 pub struct Auth {
     pub(crate) config: Shared<Config>,
     pub(crate) credential_store: CredentialStore,
-    pub(crate) infos: Shared<Option<AuthInfos>>,
+    pub(crate) state: AuthState,
 }
 
 impl Auth {
-    /// Returns a shared handle to the `AuthInfos`, which will be `None` if the
-    /// user hasn't logged in yet.
-    pub fn infos(&self) -> &Shared<Option<AuthInfos>> {
-        &self.infos
-    }
-
     /// Calls the [`Login`] action.
     pub async fn login<Ed: AuthEditor>(
         &self,
@@ -47,10 +41,24 @@ impl Auth {
         Gh: TryInto<auth_types::GitHubHandle>,
         Gh::Error: core::fmt::Debug,
     {
+        let github_handle =
+            github_handle.try_into().expect("invalid GitHub handle");
+
         let this = Self::default();
-        let auth_infos = AuthInfos::dummy(github_handle.try_into().unwrap());
-        this.infos.set(Some(auth_infos));
+
+        this.state.set_logged_in(crate::auth_state::AuthInfos {
+            access_token: auth_types::AccessToken::GitHub(
+                auth_types::GitHubAccessToken::new(github_handle.as_str()),
+            ),
+            peer_handle: auth_types::PeerHandle::GitHub(github_handle),
+        });
+
         this
+    }
+
+    /// Returns a handle to the [`AuthState`].
+    pub fn state(&self) -> AuthState {
+        self.state.clone()
     }
 }
 
@@ -71,7 +79,7 @@ impl<Ed: AuthEditor> Module<Ed> for Auth {
         })
         .detach();
 
-        let auth_infos = self.infos.clone();
+        let auth_state = self.state();
         let store = self.credential_store.clone();
         ctx.spawn_and_detach(async move |ctx| {
             if let Some(infos) = ctx
@@ -82,7 +90,7 @@ impl<Ed: AuthEditor> Module<Ed> for Auth {
                 .ok()
                 .flatten()
             {
-                auth_infos.set(Some(infos));
+                auth_state.set_logged_in(infos);
             }
         });
     }

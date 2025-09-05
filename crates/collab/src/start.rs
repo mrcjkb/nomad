@@ -3,7 +3,7 @@
 use core::convert::Infallible;
 
 use abs_path::{AbsPath, AbsPathBuf};
-use auth::AuthInfos;
+use auth::AuthState;
 use collab_project::fs::{FileMut, NodeMut};
 use collab_project::{Project, ProjectBuilder};
 use collab_server::client as collab_client;
@@ -11,7 +11,7 @@ use collab_types::{Peer, PeerId, puff};
 use editor::command::ToCompletionFn;
 use editor::module::AsyncAction;
 use editor::shared::{MultiThreaded, Shared};
-use editor::{Buffer, Context, Cursor, Editor};
+use editor::{Access, Buffer, Context, Cursor, Editor};
 use either::Either;
 use fs::walk::FsExt;
 use fs::{Directory, File as _, Fs, Metadata, Node, Symlink};
@@ -38,7 +38,7 @@ type Markers = root_markers::GitDirectory;
 /// The `Action` used to start a new collaborative editing session.
 #[derive(cauchy::Clone)]
 pub struct Start<Ed: CollabEditor> {
-    auth_infos: Shared<Option<AuthInfos>>,
+    auth_state: AuthState,
     config: Shared<Config>,
     sessions: Sessions<Ed>,
     stop_channels: StopChannels<Ed>,
@@ -182,8 +182,10 @@ impl<Ed: CollabEditor> Start<Ed> {
         &self,
         ctx: &mut Context<Ed>,
     ) -> Result<SessionInfos<Ed>, StartError<Ed>> {
-        let auth_infos =
-            self.auth_infos.cloned().ok_or(StartError::UserNotLoggedIn)?;
+        let auth_infos = self
+            .auth_state
+            .with(Clone::clone)
+            .ok_or(StartError::UserNotLoggedIn)?;
 
         let buffer_id = ctx.with_borrowed(|ctx| {
             ctx.current_buffer()
@@ -209,8 +211,6 @@ impl<Ed: CollabEditor> Start<Ed> {
             .map_err(StartError::ConnectToServer)?
             .split();
 
-        let github_handle = auth_infos.github_handle.clone();
-
         let knock = collab_client::Knock::<Ed::ServerParams> {
             auth_infos: auth_infos.into(),
             session_intent: collab_client::SessionIntent::StartNew(
@@ -227,8 +227,7 @@ impl<Ed: CollabEditor> Start<Ed> {
                 .await
                 .map_err(StartError::ReadProject)?;
 
-        let local_peer =
-            Peer { id: welcome.peer_id, github_handle: github_handle.clone() };
+        let local_peer = Peer { id: welcome.peer_id, handle: todo!() };
 
         let remote_peers = RemotePeers::from(welcome.other_peers);
 
@@ -288,7 +287,7 @@ impl<Ed: CollabEditor> AsyncAction<Ed> for Start<Ed> {
 impl<Ed: CollabEditor> From<&Collab<Ed>> for Start<Ed> {
     fn from(collab: &Collab<Ed>) -> Self {
         Self {
-            auth_infos: collab.auth_infos.clone(),
+            auth_state: collab.auth_state.clone(),
             config: collab.config.clone(),
             sessions: collab.sessions.clone(),
             stop_channels: collab.stop_channels.clone(),

@@ -1416,7 +1416,7 @@ mod impl_integrate_fs_op {
             ) {
                 let gen_name =
                     |current_name: &NodeName, node_creator: &Peer| {
-                        let suffix = node_creator.github_handle.as_str();
+                        let suffix = node_creator.handle.as_str();
                         format_compact!("{current_name}-{suffix}")
                             .parse::<NodeNameBuf>()
                             .expect("new name is valid")

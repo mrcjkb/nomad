@@ -4,6 +4,7 @@
 
 mod async_once_lock;
 mod auth;
+mod auth_state;
 mod config;
 mod credential_store;
 mod editors;
@@ -13,8 +14,7 @@ pub mod login;
 pub mod logout;
 
 pub use auth::Auth;
-#[doc(inline)]
-pub use auth_types::{AuthError, AuthInfos, GitHubHandle};
+pub use auth_state::{AuthInfos, AuthState};
 pub use config::Config;
 pub use editors::AuthEditor;
 #[cfg(feature = "mock")]
