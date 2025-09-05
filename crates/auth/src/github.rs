@@ -8,23 +8,17 @@ use editor::{Access, Context, Editor};
 use rand::Rng;
 use url::Url;
 
+use crate::Config;
+
 static GITHUB_AUTHORIZE_URL: LazyLock<Url> = LazyLock::new(|| {
     Url::parse("https://github.com/login/oauth/authorize").expect("valid URL")
 });
 
-#[derive(Debug, serde::Deserialize)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct GitHubConfig {
-    /// The URL where the authentication server is running.
-    auth_server_url: Url,
-}
-
 pub(crate) async fn login<Ed: Editor>(
-    config: impl Access<GitHubConfig>,
+    config: impl Access<Config>,
     ctx: &mut Context<Ed>,
 ) -> Result<AuthInfos, GitHubLoginError> {
-    let auth_server_url = config.with(|config| config.auth_server_url.clone());
+    let auth_server_url = config.with(|config| config.server_url.clone());
 
     let oauth_state = OAuthState::from_bytes(ctx.with_rng(Rng::random));
 
@@ -81,13 +75,4 @@ pub enum GitHubLoginError {
     /// The user's web browser couldn't be opened.
     #[display("Couldn't open URL in web browser: {_0}")]
     OpenBrowser(io::Error),
-}
-
-impl Default for GitHubConfig {
-    fn default() -> Self {
-        Self {
-            auth_server_url: Url::parse("https://auth.collab.foo")
-                .expect("valid URL"),
-        }
-    }
 }

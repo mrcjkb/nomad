@@ -21,7 +21,7 @@ impl AuthEditor for Neovim {
         config: impl Access<config::Config>,
         ctx: &mut Context<Self>,
     ) -> Result<AuthInfos, Self::LoginError> {
-        github::login(config.map(|config| &config.github), ctx).await
+        github::login(config, ctx).await
     }
 
     fn on_login_error(
