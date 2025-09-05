@@ -7,9 +7,9 @@ use core::fmt::Debug;
 
 use auth_types::AuthInfos;
 use editor::context::Borrowed;
-use editor::{Context, Editor};
+use editor::{Access, Context, Editor};
 
-use crate::{login, logout};
+use crate::{config, login, logout};
 
 /// TODO: docs.
 pub trait AuthEditor: Editor {
@@ -23,6 +23,7 @@ pub trait AuthEditor: Editor {
 
     /// TODO: docs.
     fn login(
+        config: impl Access<config::Config>,
         ctx: &mut Context<Self>,
     ) -> impl Future<Output = Result<AuthInfos, Self::LoginError>>;
 

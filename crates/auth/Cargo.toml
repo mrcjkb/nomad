@@ -8,7 +8,12 @@ publish.workspace = true
 
 [features]
 mock = ["auth-types/mock"]
-neovim = ["keyring/apple-native", "keyring/secret-service", "dep:neovim"]
+neovim = [
+  "keyring/apple-native",
+  "keyring/secret-service",
+  "dep:neovim",
+  "dep:reqwest",
+]
 
 [dependencies]
 abs-path = { workspace = true }
@@ -19,9 +24,12 @@ editor = { workspace = true }
 event-listener = { workspace = true }
 keyring = { workspace = true }
 rand = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+url = { workspace = true, features = ["serde"] }
 
 neovim = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
 
 [lints]
 workspace = true

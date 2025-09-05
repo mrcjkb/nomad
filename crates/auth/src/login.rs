@@ -6,11 +6,12 @@ use editor::module::AsyncAction;
 use editor::{Context, Shared};
 
 use crate::credential_store::{self, CredentialStore};
-use crate::{Auth, AuthEditor};
+use crate::{Auth, AuthEditor, Config};
 
 /// TODO: docs.
 #[derive(Clone, Default)]
 pub struct Login {
+    config: Shared<Config>,
     credential_store: CredentialStore,
     infos: Shared<Option<AuthInfos>>,
 }
@@ -26,7 +27,9 @@ impl Login {
             return Err(LoginError::AlreadyLoggedIn(handle));
         }
 
-        let auth_infos = Ed::login(ctx).await.map_err(LoginError::Login)?;
+        let auth_infos = Ed::login(self.config.clone(), ctx)
+            .await
+            .map_err(LoginError::Login)?;
 
         self.infos.set(Some(auth_infos.clone()));
 
@@ -75,6 +78,7 @@ pub enum LoginError<Ed: AuthEditor> {
 impl From<&Auth> for Login {
     fn from(auth: &Auth) -> Self {
         Self {
+            config: auth.config.clone(),
             credential_store: auth.credential_store.clone(),
             infos: auth.infos().clone(),
         }

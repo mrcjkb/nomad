@@ -50,6 +50,11 @@ nvim-oxi = { git = "https://github.com/noib3/nvim-oxi" }
 pin-project-lite = "0.2"
 rand = "0.9"
 rand_chacha = "0.9"
+reqwest = { version = "0.12", default-features = false, features = [
+  "charset",
+  "http2",
+  "rustls-tls",
+] }
 send-future = "0.1"
 serde = "1"
 serde_json = "1"
@@ -62,6 +67,7 @@ tempfile = "3"
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = "0.3"
+url = "2.5"
 
 # Internal dependencies.
 auth = { path = "./crates/auth" }

@@ -1,10 +1,10 @@
 use auth_types::AuthInfos;
-use editor::Context;
 use editor::context::Borrowed;
+use editor::{Access, Context};
 use neovim::Neovim;
 use neovim::notify::ContextExt;
 
-use crate::{AuthEditor, github, login, logout};
+use crate::{AuthEditor, config, github, login, logout};
 
 impl AuthEditor for Neovim {
     type LoginError = github::GitHubLoginError;
@@ -18,9 +18,10 @@ impl AuthEditor for Neovim {
     }
 
     async fn login(
+        config: impl Access<config::Config>,
         ctx: &mut Context<Self>,
     ) -> Result<AuthInfos, Self::LoginError> {
-        github::login(ctx).await
+        github::login(config.map(|config| &config.github), ctx).await
     }
 
     fn on_login_error(

@@ -4,9 +4,9 @@ use core::ops;
 
 use auth_types::AuthInfos;
 use editor::context::Borrowed;
-use editor::{Context, Editor, EditorAdapter};
+use editor::{Access, Context, Editor, EditorAdapter};
 
-use crate::{AuthEditor, login, logout};
+use crate::{AuthEditor, config, login, logout};
 
 pub struct AuthMock<Ed> {
     inner: Ed,
@@ -30,6 +30,7 @@ impl<Ed: Editor> AuthEditor for AuthMock<Ed> {
     }
 
     async fn login(
+        _: impl Access<config::Config>,
         _: &mut Context<Self>,
     ) -> Result<AuthInfos, Self::LoginError> {
         todo!()

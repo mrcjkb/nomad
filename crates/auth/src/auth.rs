@@ -3,14 +3,15 @@ use editor::context::Borrowed;
 use editor::module::{ApiCtx, Module};
 use editor::{Context, Shared};
 
-use crate::AuthEditor;
 use crate::credential_store::CredentialStore;
 use crate::login::{Login, LoginError};
 use crate::logout::{Logout, LogoutError};
+use crate::{AuthEditor, Config};
 
 /// TODO: docs.
 #[derive(Default)]
 pub struct Auth {
+    pub(crate) config: Shared<Config>,
     pub(crate) credential_store: CredentialStore,
     pub(crate) infos: Shared<Option<AuthInfos>>,
 }
@@ -46,17 +47,17 @@ impl Auth {
         Gh: TryInto<auth_types::GitHubHandle>,
         Gh::Error: core::fmt::Debug,
     {
-        Self {
-            credential_store: CredentialStore::default(),
-            infos: Shared::new(Some(AuthInfos::dummy(github_handle))),
-        }
+        let this = Self::default();
+        let auth_infos = AuthInfos::dummy(github_handle.try_into().unwrap());
+        this.infos.set(Some(auth_infos));
+        this
     }
 }
 
 impl<Ed: AuthEditor> Module<Ed> for Auth {
     const NAME: &str = "auth";
 
-    type Config = ();
+    type Config = Config;
 
     fn api(&self, ctx: &mut ApiCtx<Ed>) {
         ctx.with_function(Login::from(self)).with_function(Logout::from(self));
