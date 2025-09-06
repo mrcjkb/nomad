@@ -11,4 +11,5 @@ pub use github_client_id::GitHubClientId;
 pub use oauth_state::{OAuthState, OAuthStateFromStrError};
 
 /// The [`GitHubClientId`] assigned to Nomad.
-pub const NOMAD_GITHUB_CLIENT_ID: GitHubClientId = GitHubClientId("foo");
+pub const NOMAD_GITHUB_CLIENT_ID: GitHubClientId =
+    GitHubClientId("Iv23liZkCzK2uYG2jbkh");
