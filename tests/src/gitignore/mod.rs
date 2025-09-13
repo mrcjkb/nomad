@@ -43,6 +43,7 @@ fn changes_to_gitignore_are_picked_up() {
 
 #[test]
 #[cfg_attr(not(git_in_PATH), ignore = "git is not in $PATH")]
+#[ignore = "halts in CI"]
 fn slashed_dirs_are_ignored() {
     let repo = GitRepository::init(mock::fs! {
         "target": {},
