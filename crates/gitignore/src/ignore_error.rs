@@ -2,7 +2,8 @@ use std::process;
 
 use abs_path::AbsPathBuf;
 
-/// The type of error that can occur when using the [`GitIgnore`] filter.
+/// The type of error that can occur when using the
+/// [`GitIgnore`](crate::GitIgnore) filter.
 #[derive(Debug, derive_more::Display, cauchy::Error, PartialEq)]
 pub enum IgnoreError {
     /// The given path does not exist.
@@ -10,7 +11,7 @@ pub enum IgnoreError {
     PathDoesNotExist(AbsPathBuf),
 
     /// The path is outside the repository whose path was given to
-    /// [`GitIgnore::new`].
+    /// [`GitIgnore::new`](crate::GitIgnore::new).
     #[display("the path {path:?} is outside the repository at {repo_path:?}")]
     PathOutsideRepo {
         /// The path that is outside the repository.

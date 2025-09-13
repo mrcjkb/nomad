@@ -1,4 +1,5 @@
-/// The type of error that can occur when creating a new [`GitIgnore`].
+/// The type of error that can occur when creating a new
+/// [`GitIgnore`](crate::GitIgnore).
 #[derive(Debug, derive_more::Display, cauchy::Error, PartialEq)]
 pub enum CreateError {
     /// Shelling out to `git` failed.
@@ -9,11 +10,13 @@ pub enum CreateError {
     #[display("the 'git' executable is not in $PATH")]
     GitNotInPath,
 
-    /// The path given to [`GitIgnore::new`] doesn't exist.
+    /// The path given to [`GitIgnore::new`](crate::GitIgnore::new) doesn't
+    /// exist.
     #[display("the path does not exist")]
     InvalidPath,
 
-    /// The path given to [`GitIgnore::new`] doesn't point to a Git repository.
+    /// The path given to [`GitIgnore::new`](crate::GitIgnore::new) doesn't
+    /// point to a Git repository.
     #[display("the path does not point to a Git repository")]
     PathNotInGitRepository,
 }
