@@ -107,7 +107,7 @@ struct TildePath<'a> {
 /// A trait implemented by types that represent highlight groups used to
 /// highlight a piece of UI (like a cursor or selection) that belongs to a
 /// remote peer.
-trait RemotePeerHighlightGroup {
+trait RemotePeerHighlightGroup: WithGroupIds {
     /// The prefix of each highlight group name.
     const NAME_PREFIX: &'static str;
 
@@ -163,14 +163,10 @@ trait RemotePeerHighlightGroup {
     fn name(suffix: usize) -> impl AsRef<str> {
         compact_str::format_compact!("{}{}", Self::NAME_PREFIX, suffix)
     }
+}
 
-    #[doc(hidden)]
-    fn with_group_ids<R>(fun: impl FnOnce(&[Cell<u32>]) -> R) -> R {
-        thread_local! {
-            static GROUP_IDS: Cell<[u32; 16]> = const { Cell::new([0; _]) };
-        }
-        GROUP_IDS.with(|ids| fun(ids.as_array_of_cells().as_slice()))
-    }
+trait WithGroupIds {
+    fn with_group_ids<R>(fun: impl FnOnce(&[Cell<u32>]) -> R) -> R;
 }
 
 impl PeerCursor {
@@ -661,6 +657,30 @@ fn get_lua_value<T: mlua::FromLua>(namespace: &[&str]) -> Option<T> {
         } else {
             table = table.get::<Table>(*key).ok()?;
         }
+    }
+}
+
+impl PeerCursorHighlightGroup {
+    thread_local! {
+        static GROUP_IDS: Cell<[u32; 16]> = const { Cell::new([0; _]) };
+    }
+}
+
+impl PeerSelectionHighlightGroup {
+    thread_local! {
+        static GROUP_IDS: Cell<[u32; 16]> = const { Cell::new([0; _]) };
+    }
+}
+
+impl WithGroupIds for PeerCursorHighlightGroup {
+    fn with_group_ids<R>(fun: impl FnOnce(&[Cell<u32>]) -> R) -> R {
+        Self::GROUP_IDS.with(|ids| fun(ids.as_array_of_cells().as_slice()))
+    }
+}
+
+impl WithGroupIds for PeerSelectionHighlightGroup {
+    fn with_group_ids<R>(fun: impl FnOnce(&[Cell<u32>]) -> R) -> R {
+        Self::GROUP_IDS.with(|ids| fun(ids.as_array_of_cells().as_slice()))
     }
 }
 
