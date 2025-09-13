@@ -37,6 +37,7 @@
           packages = [
             (rust.toolchain)
             (mkPackage isNightly)
+            pkgs.cargo-nextest
           ];
         };
 

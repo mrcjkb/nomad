@@ -5,6 +5,7 @@
 {
   perSystem =
     {
+      pkgs,
       crane,
       ...
     }:
@@ -23,9 +24,10 @@
       );
 
       ciDevShells.tests = {
-        packages = with crane.lib; [
-          cargo
-          rustc
+        packages = [
+          crane.lib.cargo
+          crane.lib.rustc
+          pkgs.cargo-nextest
         ];
       };
     };
