@@ -15,6 +15,8 @@ pub mod project;
 mod root_markers;
 pub mod session;
 pub mod start;
+#[cfg(feature = "neovim")]
+mod tcp_stream_ext;
 pub mod yank;
 
 pub use collab::Collab;
