@@ -1,5 +1,6 @@
 use core::time::Duration;
 
+use abs_path::NodeNameBuf;
 use editor::notify::{self, Emitter};
 use editor::{Context, Editor};
 use flume::TrySendError;
@@ -12,17 +13,17 @@ use crate::progress::{JoinState, ProgressReporter, StartState};
 const SPINNER_FRAMES: &[&str] = &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
 
 /// How many revolutions per minute the spinner should complete.
-const SPINNER_RPM: u64 = 75;
+const SPINNER_RPM: u8 = 75;
 
-/// How often the spinner should be updated in order to achieve the desired
-/// RPM.
+/// How often the spinner should be updated to achieve the desired RPM.
 const SPINNER_UPDATE_INTERVAL: Duration = Duration::from_millis({
-    (60_000.0 / ((SPINNER_RPM * SPINNER_FRAMES.len() as u64) as f32)).round()
-        as u64
+    (60_000.0 / ((SPINNER_RPM as u16 * SPINNER_FRAMES.len() as u16) as f32))
+        .round() as u64
 });
 
 pub struct NeovimProgressReporter {
     message_tx: flume::Sender<Message>,
+    project_name: Option<NodeNameBuf>,
 }
 
 struct Message {
@@ -74,14 +75,45 @@ impl ProgressReporter<Neovim> for NeovimProgressReporter {
         })
         .detach();
 
-        Self { message_tx }
+        Self { message_tx, project_name: None }
     }
 
     fn report_join_progress(
         &mut self,
-        _state: JoinState<'_>,
+        state: JoinState<'_>,
         _ctx: &mut Context<Neovim>,
     ) {
+        let text = match &state {
+            JoinState::ConnectingToServer { .. }
+            | JoinState::JoiningSession => "Connecting to server".to_owned(),
+
+            JoinState::ReceivingProject { project_name } => {
+                self.project_name = Some((**project_name).to_owned());
+                format!("Receiving files for {project_name}")
+            },
+
+            JoinState::WritingProject { root_path } => {
+                let project_name = self.project_name.as_ref().expect(
+                    "WritingProject must be preceded by ReceivingProject",
+                );
+                format!("Writing {project_name} to {root_path}")
+            },
+
+            JoinState::Done => "Joined session".to_owned(),
+        };
+
+        let message = Message {
+            level: notify::Level::Info,
+            text: text.to_owned(),
+            is_last: matches!(state, JoinState::Done),
+        };
+
+        if let Err(err) = self.message_tx.try_send(message) {
+            match err {
+                TrySendError::Disconnected(_) => unreachable!(),
+                TrySendError::Full(_) => {},
+            }
+        }
     }
 
     fn report_start_progress(
@@ -89,11 +121,13 @@ impl ProgressReporter<Neovim> for NeovimProgressReporter {
         state: StartState<'_>,
         _: &mut Context<Neovim>,
     ) {
-        let text = match state {
+        let text = match &state {
             StartState::ConnectingToServer { .. }
-            | StartState::StartingSession => "Connecting to server",
-            StartState::ReadingProject { .. } => "Reading project",
-            StartState::Done => "Started session",
+            | StartState::StartingSession => "Connecting to server".to_owned(),
+            StartState::ReadingProject { root_path } => {
+                format!("Reading project at {root_path}")
+            },
+            StartState::Done => "Started session".to_owned(),
         };
 
         let message = Message {
@@ -108,5 +142,15 @@ impl ProgressReporter<Neovim> for NeovimProgressReporter {
                 TrySendError::Full(_) => {},
             }
         }
+    }
+}
+
+impl Drop for NeovimProgressReporter {
+    fn drop(&mut self) {
+        let _ = self.message_tx.send(Message {
+            level: notify::Level::Info,
+            text: "".to_owned(),
+            is_last: true,
+        });
     }
 }
