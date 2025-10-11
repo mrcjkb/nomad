@@ -38,8 +38,11 @@ pub trait ProgressReporter<Ed: CollabEditor> {
 /// [`Join`](join::Join) action.
 ///
 /// The variants form a linear sequence, and each variant is guaranteed to be
-/// followed by either another instance of the same variant, or the next
-/// variant in the sequence.
+/// followed by either:
+///
+/// * another instance of the same variant;
+/// * the next variant in the sequence;
+/// * a `Done(Err(..))` if an error occurred;
 pub enum JoinState<'a, Ed: CollabEditor> {
     /// The client is connecting to the server at the given address.
     ConnectingToServer(config::ServerAddress<'a>),

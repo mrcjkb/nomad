@@ -14,7 +14,7 @@ use editor::{ByteOffset, Context, Editor, EditorAdapter};
 
 use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::session::{SessionError, SessionInfos};
-use crate::{config, join, leave, start, yank};
+use crate::{config, leave, yank};
 
 #[allow(clippy::type_complexity)]
 pub struct CollabMock<Ed: Editor, F = ()> {
@@ -300,10 +300,6 @@ where
 
     fn on_init(_: &mut Context<Self, Borrowed>) {}
 
-    fn on_join_error(_: join::JoinError<Self>, _: &mut Context<Self>) {
-        unimplemented!()
-    }
-
     fn on_leave_error(_: leave::LeaveError, _: &mut Context<Self>) {
         unimplemented!()
     }
@@ -316,10 +312,6 @@ where
         _: &SessionInfos<Self>,
         _: &mut Context<Self>,
     ) {
-    }
-
-    fn on_start_error(_: start::StartError<Self>, _: &mut Context<Self>) {
-        unimplemented!()
     }
 
     fn on_yank_error(_: yank::YankError<Self>, _: &mut Context<Self>) {

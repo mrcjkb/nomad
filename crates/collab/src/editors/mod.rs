@@ -17,7 +17,7 @@ use editor::{ByteOffset, Context, Editor};
 use futures_util::{AsyncRead, AsyncWrite};
 
 use crate::session::SessionInfos;
-use crate::{config, join, leave, progress, session, start, yank};
+use crate::{config, leave, progress, session, yank};
 
 /// An [`Editor`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
@@ -139,9 +139,6 @@ pub trait CollabEditor: Editor {
     /// Called when the [`Collab`](crate::Collab) module is initialized.
     fn on_init(ctx: &mut Context<Self, Borrowed>);
 
-    /// Called when the [`Join`](join::Join) action returns an error.
-    fn on_join_error(error: join::JoinError<Self>, ctx: &mut Context<Self>);
-
     /// Called when the [`Leave`](leave::Leave) action returns an error.
     fn on_leave_error(error: leave::LeaveError, ctx: &mut Context<Self>);
 
@@ -157,9 +154,6 @@ pub trait CollabEditor: Editor {
         session_infos: &SessionInfos<Self>,
         ctx: &mut Context<Self>,
     ) -> impl Future<Output = ()>;
-
-    /// Called when the [`Start`](start::Start) action returns an error.
-    fn on_start_error(error: start::StartError<Self>, ctx: &mut Context<Self>);
 
     /// Called when the [`Yank`](yank::Yank) action returns an error.
     fn on_yank_error(error: yank::YankError<Self>, ctx: &mut Context<Self>);

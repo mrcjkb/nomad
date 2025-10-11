@@ -8,8 +8,8 @@ use flume::TrySendError;
 use futures_util::{FutureExt, StreamExt, select_biased};
 use neovim::Neovim;
 
-use crate::config;
 use crate::progress::{JoinState, ProgressReporter, StartState};
+use crate::{config, join, start};
 
 /// Frames for the spinner animation.
 const SPINNER_FRAMES: &[&str] = &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
@@ -25,6 +25,11 @@ const SPINNER_UPDATE_INTERVAL: Duration = Duration::from_millis({
 
 pub struct NeovimProgressReporter {
     message_tx: flume::Sender<Message>,
+    state: ReporterState,
+}
+
+#[derive(Default)]
+struct ReporterState {
     project_name: Option<NodeNameBuf>,
     server_address: Option<config::ServerAddress<'static>>,
 }
@@ -86,48 +91,22 @@ impl ProgressReporter<Neovim> for NeovimProgressReporter {
         })
         .detach();
 
-        Self { message_tx, project_name: None, server_address: None }
+        Self { message_tx, state: Default::default() }
     }
 
     fn report_join_progress(
         &mut self,
-        mut state: JoinState<'_, Neovim>,
+        state: JoinState<'_, Neovim>,
         _: &mut Context<Neovim>,
     ) {
-        let text = loop {
-            match &state {
-                JoinState::ConnectingToServer(server_addr) => {
-                    self.server_address = Some(server_addr.to_owned());
-                    state = JoinState::JoiningSession;
-                },
-
-                JoinState::JoiningSession => {
-                    let server_addr = self.server_address.as_ref().expect(
-                        "StartingSession must be preceded by \
-                         ConnectingToServer",
-                    );
-                    break format!("Connecting to server at {server_addr}");
-                },
-
-                JoinState::ReceivingProject(project_name) => {
-                    self.project_name = Some((**project_name).to_owned());
-                    break format!("Receiving files for {project_name}");
-                },
-
-                JoinState::WritingProject(root_path) => {
-                    let project_name = self.project_name.as_ref().expect(
-                        "WritingProject must be preceded by ReceivingProject",
-                    );
-                    break format!("Writing {project_name} to {root_path}");
-                },
-
-                JoinState::Done(_) => break "Joined session".to_owned(),
-            }
+        let level = match &state {
+            JoinState::Done(Err(_)) => notify::Level::Error,
+            _ => notify::Level::Info,
         };
 
         let message = Message {
-            level: notify::Level::Info,
-            text: text.to_owned(),
+            level,
+            text: join_progress_message(&state, &mut self.state),
             is_last: matches!(state, JoinState::Done(_)),
         };
 
@@ -141,32 +120,25 @@ impl ProgressReporter<Neovim> for NeovimProgressReporter {
 
     fn report_start_progress(
         &mut self,
-        mut state: StartState<'_, Neovim>,
+        state: StartState<'_, Neovim>,
         _: &mut Context<Neovim>,
     ) {
-        let text = loop {
-            match &state {
-                StartState::ConnectingToServer(server_addr) => {
-                    self.server_address = Some(server_addr.to_owned());
-                    state = StartState::StartingSession;
-                },
-                StartState::StartingSession => {
-                    let server_addr = self.server_address.as_ref().expect(
-                        "StartingSession must be preceded by \
-                         ConnectingToServer",
-                    );
-                    break format!("Connecting to server at {server_addr}");
-                },
-                StartState::ReadingProject(root_path) => {
-                    break format!("Reading project at {root_path}");
-                },
-                StartState::Done(_) => break "Started session".to_owned(),
-            }
+        // If the user did not confirm starting a new session, don't show any
+        // message.
+        if let StartState::Done(Err(start::StartError::UserDidNotConfirm)) =
+            &state
+        {
+            return;
+        }
+
+        let level = match &state {
+            StartState::Done(Err(_)) => notify::Level::Error,
+            _ => notify::Level::Info,
         };
 
         let message = Message {
-            level: notify::Level::Info,
-            text: text.to_owned(),
+            level,
+            text: start_progress_message(&state, &mut self.state),
             is_last: matches!(state, StartState::Done(_)),
         };
 
@@ -177,6 +149,82 @@ impl ProgressReporter<Neovim> for NeovimProgressReporter {
             }
         }
     }
+}
+
+fn join_progress_message(
+    join_state: &JoinState<'_, Neovim>,
+    reporter_state: &mut ReporterState,
+) -> String {
+    match &join_state {
+        JoinState::ConnectingToServer(server_addr) => {
+            reporter_state.server_address = Some(server_addr.to_owned());
+            join_progress_message(&JoinState::JoiningSession, reporter_state)
+        },
+
+        JoinState::JoiningSession => {
+            let server_addr = reporter_state.server_address.as_ref().expect(
+                "StartingSession must be preceded by ConnectingToServer",
+            );
+            format!("Connecting to server at {server_addr}")
+        },
+
+        JoinState::ReceivingProject(project_name) => {
+            reporter_state.project_name = Some((**project_name).to_owned());
+            format!("Receiving files for {project_name}")
+        },
+
+        JoinState::WritingProject(root_path) => {
+            let project_name = reporter_state
+                .project_name
+                .as_ref()
+                .expect("WritingProject must be preceded by ReceivingProject");
+            format!("Writing {project_name} to {root_path}")
+        },
+
+        JoinState::Done(Ok(())) => "Joined session".to_owned(),
+
+        JoinState::Done(Err(err)) => match err {
+            join::JoinError::UserNotLoggedIn => user_not_logged_in_message(),
+            other => other.to_string(),
+        },
+    }
+}
+
+fn start_progress_message(
+    state: &StartState<'_, Neovim>,
+    reporter_state: &mut ReporterState,
+) -> String {
+    match state {
+        StartState::ConnectingToServer(server_addr) => {
+            format!("Connecting to server at {server_addr}")
+        },
+
+        StartState::StartingSession => {
+            let server_addr = reporter_state.server_address.as_ref().expect(
+                "StartingSession must be preceded by ConnectingToServer",
+            );
+            format!("Connecting to server at {server_addr}")
+        },
+
+        StartState::ReadingProject(root_path) => {
+            format!("Reading project at {root_path}")
+        },
+
+        StartState::Done(Ok(())) => "Started session".to_owned(),
+
+        StartState::Done(Err(err)) => match err {
+            start::StartError::UserNotLoggedIn => user_not_logged_in_message(),
+            other => other.to_string(),
+        },
+    }
+}
+
+fn user_not_logged_in_message() -> String {
+    format!(
+        "You must be logged in to start collaborating. You can log in by \
+         executing ':Mad {}'",
+        <auth::login::Login as editor::module::AsyncAction::<Neovim>>::NAME
+    )
 }
 
 impl Drop for NeovimProgressReporter {

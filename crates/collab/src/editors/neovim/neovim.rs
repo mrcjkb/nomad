@@ -27,7 +27,7 @@ use crate::editors::neovim::NeovimProgressReporter;
 use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::session::{SessionError, SessionInfos};
 use crate::tcp_stream_ext::TcpStreamExt;
-use crate::{Collab, config, join, leave, start, yank};
+use crate::{Collab, config, leave, yank};
 
 pub type SessionId = ulid::Ulid;
 
@@ -501,18 +501,6 @@ impl CollabEditor for Neovim {
         PeerSelectionHighlightGroup::create_all();
     }
 
-    fn on_join_error(error: join::JoinError<Self>, ctx: &mut Context<Self>) {
-        match error {
-            join::JoinError::UserNotLoggedIn => {
-                ctx.notify_error(
-                    "You must be logged in to join a collaborative editing \
-                     session. You can log in by executing ':Mad login'",
-                );
-            },
-            other => ctx.notify_error(other),
-        }
-    }
-
     fn on_leave_error(error: leave::LeaveError, ctx: &mut Context<Self>) {
         ctx.notify_error(error);
     }
@@ -559,22 +547,6 @@ impl CollabEditor for Neovim {
                 yank::Yank::<Self>::NAME,
             )),
             Err(err) => ctx.notify_error(err),
-        }
-    }
-
-    fn on_start_error(
-        error: start::StartError<Self>,
-        ctx: &mut Context<Self>,
-    ) {
-        match error {
-            start::StartError::UserDidNotConfirm => (),
-            start::StartError::UserNotLoggedIn => {
-                ctx.notify_error(
-                    "You must be logged in to start collaborating. You can \
-                     log in by executing ':Mad login'",
-                );
-            },
-            other => ctx.notify_error(other),
         }
     }
 
