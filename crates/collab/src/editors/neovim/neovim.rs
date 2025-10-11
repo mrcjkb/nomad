@@ -23,6 +23,7 @@ use neovim::notify::ContextExt;
 use neovim::{Neovim, mlua, oxi};
 use nomad_collab_params::ulid;
 
+use crate::editors::neovim::NeovimProgressReporter;
 use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::session::{SessionError, SessionInfos};
 use crate::tcp_stream_ext::TcpStreamExt;
@@ -301,7 +302,7 @@ impl CollabEditor for Neovim {
     type Io = Either<TlsStream<TcpStream>, TcpStream>;
     type PeerSelection = NeovimPeerSelection;
     type PeerTooltip = PeerCursor;
-    type ProgressReporter = ();
+    type ProgressReporter = NeovimProgressReporter;
     type ProjectFilter = Option<gitignore::GitIgnore>;
     type ServerParams = nomad_collab_params::NomadParams;
 
