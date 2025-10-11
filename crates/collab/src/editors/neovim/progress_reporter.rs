@@ -83,8 +83,15 @@ impl ProgressReporter<Neovim> for NeovimProgressReporter {
                         spinner_frame_idx += 1;
                         spinner_frame_idx %= SPINNER_FRAMES.len();
                     },
-                    next_message = messages.select_next_some() => {
-                        message = next_message
+                    next_message = messages.next() => {
+                        match next_message {
+                            Some(next_message) => message = next_message,
+                            // A message with `is_last` set to true should
+                            // always be sent before the sender is dropped. If
+                            // we get here it means the progress reporter was
+                            // dropped due to a panic.
+                            None => break,
+                        }
                     },
                 }
             }
