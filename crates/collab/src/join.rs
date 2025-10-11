@@ -30,6 +30,7 @@ use crate::config::Config;
 use crate::editors::{CollabEditor, SessionId, Welcome};
 use crate::event_stream::EventStreamBuilder;
 use crate::leave::StopChannels;
+use crate::progress::{JoinState, ProgressReporter};
 use crate::project::{self, IdMaps, IntegrateError};
 use crate::session::{RemotePeers, Session, SessionInfos, Sessions};
 
@@ -56,6 +57,13 @@ impl<Ed: CollabEditor> Join<Ed> {
 
         let server_addr = self.config.with(|c| c.server_address.clone());
 
+        let mut progress_reporter = Ed::ProgressReporter::new(ctx);
+
+        progress_reporter.report_join_progress(
+            JoinState::ConnectingToServer { server_addr: &server_addr },
+            ctx,
+        );
+
         let (reader, writer) = Ed::connect_to_server(server_addr, ctx)
             .await
             .map_err(JoinError::ConnectToServer)?
@@ -67,6 +75,8 @@ impl<Ed: CollabEditor> Join<Ed> {
                 session_id,
             ),
         };
+
+        progress_reporter.report_join_progress(JoinState::JoiningSession, ctx);
 
         let mut welcome = collab_client::knock(reader, writer, knock)
             .await
@@ -85,15 +95,29 @@ impl<Ed: CollabEditor> Join<Ed> {
         }
         .join(&welcome.project_name);
 
+        progress_reporter.report_join_progress(
+            JoinState::ReceivingProject {
+                project_name: &welcome.project_name,
+            },
+            ctx,
+        );
+
         let (project, buffered) =
             request_project::<Ed>(local_peer.clone(), &mut welcome)
                 .await
                 .map_err(JoinError::RequestProject)?;
 
+        progress_reporter.report_join_progress(
+            JoinState::WritingProject { root_path: &project_root },
+            ctx,
+        );
+
         let (project_root, stream_builder, id_maps) =
             write_project(&project, project_root, ctx)
                 .await
                 .map_err(JoinError::WriteProject)?;
+
+        progress_reporter.report_join_progress(JoinState::Done, ctx);
 
         let project_filter = Ed::project_filter(&project_root, ctx)
             .map_err(JoinError::ProjectFilter)?;

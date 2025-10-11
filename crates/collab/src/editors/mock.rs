@@ -196,6 +196,7 @@ where
     type Io = DuplexStream;
     type PeerSelection = ();
     type PeerTooltip = ByteOffset;
+    type ProgressReporter = ();
     type ProjectFilter = F;
     type ServerParams = MockParams;
 

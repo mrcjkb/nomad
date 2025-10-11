@@ -25,6 +25,7 @@ use crate::config::Config;
 use crate::editors::CollabEditor;
 use crate::event_stream::{EventStream, EventStreamBuilder};
 use crate::leave::StopChannels;
+use crate::progress::{ProgressReporter, StartState};
 use crate::project::{self, IdMaps};
 use crate::root_markers;
 use crate::session::{RemotePeers, Session, SessionInfos, Sessions};
@@ -206,6 +207,13 @@ impl<Ed: CollabEditor> Start<Ed> {
 
         let server_addr = self.config.with(|c| c.server_address.clone());
 
+        let mut progress_reporter = Ed::ProgressReporter::new(ctx);
+
+        progress_reporter.report_start_progress(
+            StartState::ConnectingToServer { server_addr: &server_addr },
+            ctx,
+        );
+
         let (reader, writer) = Ed::connect_to_server(server_addr, ctx)
             .await
             .map_err(StartError::ConnectToServer)?
@@ -218,16 +226,26 @@ impl<Ed: CollabEditor> Start<Ed> {
             ),
         };
 
+        progress_reporter
+            .report_start_progress(StartState::StartingSession, ctx);
+
         let welcome = collab_client::knock(reader, writer, knock)
             .await
             .map_err(StartError::Knock)?;
 
         let local_peer = welcome.peer;
 
+        progress_reporter.report_start_progress(
+            StartState::ReadingProject { root_path: &project_root },
+            ctx,
+        );
+
         let (project, event_stream, id_maps) =
             Self::read_project(&project_root, local_peer.id, ctx)
                 .await
                 .map_err(StartError::ReadProject)?;
+
+        progress_reporter.report_start_progress(StartState::Done, ctx);
 
         let remote_peers = RemotePeers::from(welcome.other_peers);
 

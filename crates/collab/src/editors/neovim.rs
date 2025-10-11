@@ -301,6 +301,7 @@ impl CollabEditor for Neovim {
     type Io = Either<TlsStream<TcpStream>, TcpStream>;
     type PeerSelection = NeovimPeerSelection;
     type PeerTooltip = PeerCursor;
+    type ProgressReporter = ();
     type ProjectFilter = Option<gitignore::GitIgnore>;
     type ServerParams = nomad_collab_params::NomadParams;
 
