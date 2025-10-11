@@ -42,7 +42,7 @@ pub enum JoinState<'a> {
     /// The client is connecting to the server.
     ConnectingToServer {
         /// The address of the server to which the client is connecting.
-        server_addr: &'a config::ServerAddress,
+        server_addr: config::ServerAddress<'a>,
     },
 
     /// The client has connected to the server, and is now waiting for it to
@@ -78,7 +78,7 @@ pub enum StartState<'a> {
     /// The client is connecting to the server.
     ConnectingToServer {
         /// The address of the server to which the client is connecting.
-        server_addr: &'a config::ServerAddress,
+        server_addr: config::ServerAddress<'a>,
     },
 
     /// The client has connected to the server, and is now waiting for it to

@@ -74,7 +74,7 @@ pub trait CollabEditor: Editor {
 
     /// TODO: docs.
     fn connect_to_server(
-        server_addr: config::ServerAddress,
+        server_addr: config::ServerAddress<'static>,
         ctx: &mut Context<Self>,
     ) -> impl Future<Output = Result<Self::Io, Self::ConnectToServerError>>;
 

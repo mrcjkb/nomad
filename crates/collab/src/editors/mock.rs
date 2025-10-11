@@ -218,7 +218,7 @@ where
     }
 
     async fn connect_to_server(
-        _: config::ServerAddress,
+        _: config::ServerAddress<'static>,
         ctx: &mut Context<Self>,
     ) -> Result<Self::Io, Self::ConnectToServerError> {
         let server_tx = ctx

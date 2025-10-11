@@ -60,7 +60,9 @@ impl<Ed: CollabEditor> Join<Ed> {
         let mut progress_reporter = Ed::ProgressReporter::new(ctx);
 
         progress_reporter.report_join_progress(
-            JoinState::ConnectingToServer { server_addr: &server_addr },
+            JoinState::ConnectingToServer {
+                server_addr: server_addr.borrow(),
+            },
             ctx,
         );
 

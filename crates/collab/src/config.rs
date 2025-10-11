@@ -20,7 +20,7 @@ const DEFAULT_PORT: u16 = 3000;
 pub struct Config {
     /// The address of the server to connect to when starting or joining an
     /// editing session.
-    pub(crate) server_address: ServerAddress,
+    pub(crate) server_address: ServerAddress<'static>,
 
     /// TODO: docs.
     pub(crate) store_remote_projects_under: Option<AbsPathBuf>,
@@ -28,8 +28,8 @@ pub struct Config {
 
 /// TODO: docs.
 #[derive(Clone)]
-pub struct ServerAddress {
-    pub(crate) host: Host,
+pub struct ServerAddress<'dns_name> {
+    pub(crate) host: Host<'dns_name>,
     pub(crate) port: u16,
 }
 
@@ -51,12 +51,38 @@ pub enum ServerAddressParseError {
 }
 
 #[derive(Clone)]
-pub(crate) enum Host {
+pub(crate) enum Host<'dns_name> {
     Ip(net::IpAddr),
-    Domain(DnsName<'static>),
+    Domain(DnsName<'dns_name>),
 }
 
-impl Default for ServerAddress {
+impl<'a> ServerAddress<'a> {
+    pub(crate) fn borrow(&'a self) -> Self {
+        ServerAddress { host: self.host.borrow(), port: self.port }
+    }
+
+    pub(crate) fn to_owned(&self) -> ServerAddress<'static> {
+        ServerAddress { host: self.host.to_owned(), port: self.port }
+    }
+}
+
+impl<'a> Host<'a> {
+    pub(crate) fn borrow(&'a self) -> Self {
+        match self {
+            Self::Ip(ip_addr) => Self::Ip(*ip_addr),
+            Self::Domain(dns_name) => Self::Domain(dns_name.borrow()),
+        }
+    }
+
+    pub(crate) fn to_owned(&self) -> Host<'static> {
+        match self {
+            Self::Ip(ip_addr) => Host::Ip(*ip_addr),
+            Self::Domain(dns_name) => Host::Domain(dns_name.to_owned()),
+        }
+    }
+}
+
+impl Default for ServerAddress<'static> {
     fn default() -> Self {
         let Ok(dns_name) = DnsName::try_from(DEFAULT_DOMAIN) else {
             unreachable!("{DEFAULT_DOMAIN:?} is a valid DNS name")
@@ -65,19 +91,19 @@ impl Default for ServerAddress {
     }
 }
 
-impl fmt::Debug for ServerAddress {
+impl fmt::Debug for ServerAddress<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
 }
 
-impl fmt::Display for ServerAddress {
+impl fmt::Display for ServerAddress<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.host, self.port)
     }
 }
 
-impl str::FromStr for ServerAddress {
+impl str::FromStr for ServerAddress<'static> {
     type Err = ServerAddressParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -102,7 +128,7 @@ impl str::FromStr for ServerAddress {
     }
 }
 
-impl<'de> Deserialize<'de> for ServerAddress {
+impl<'de> Deserialize<'de> for ServerAddress<'static> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -113,7 +139,7 @@ impl<'de> Deserialize<'de> for ServerAddress {
     }
 }
 
-impl ToSocketAddrs for ServerAddress {
+impl ToSocketAddrs for ServerAddress<'_> {
     type Iter =
         Either<iter::Once<net::SocketAddr>, vec::IntoIter<net::SocketAddr>>;
 
@@ -129,7 +155,7 @@ impl ToSocketAddrs for ServerAddress {
     }
 }
 
-impl fmt::Display for Host {
+impl fmt::Display for Host<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Ip(ip) => write!(f, "{ip}"),
@@ -138,8 +164,8 @@ impl fmt::Display for Host {
     }
 }
 
-impl From<Host> for ServerName<'static> {
-    fn from(host: Host) -> Self {
+impl<'dns_name> From<Host<'dns_name>> for ServerName<'dns_name> {
+    fn from(host: Host<'dns_name>) -> Self {
         match host {
             Host::Ip(ip_addr) => Self::IpAddress(ip_addr.into()),
             Host::Domain(dns_name) => Self::DnsName(dns_name),

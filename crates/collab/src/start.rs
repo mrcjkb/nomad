@@ -210,7 +210,9 @@ impl<Ed: CollabEditor> Start<Ed> {
         let mut progress_reporter = Ed::ProgressReporter::new(ctx);
 
         progress_reporter.report_start_progress(
-            StartState::ConnectingToServer { server_addr: &server_addr },
+            StartState::ConnectingToServer {
+                server_addr: server_addr.borrow(),
+            },
             ctx,
         );
 

@@ -341,7 +341,7 @@ impl CollabEditor for Neovim {
     }
 
     async fn connect_to_server(
-        server_addr: config::ServerAddress,
+        server_addr: config::ServerAddress<'static>,
         ctx: &mut Context<Self>,
     ) -> Result<Self::Io, Self::ConnectToServerError> {
         let tcp_stream =
