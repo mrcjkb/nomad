@@ -44,6 +44,31 @@ pub(super) enum ProgressNotificationKind {
 }
 
 impl NvimNotify {
+    pub(crate) fn notify(
+        message_chunks: notify::Chunks,
+        level: notify::Level,
+        namespace: &editor::notify::Namespace,
+    ) {
+        let lua = mlua::lua();
+
+        let notify = notify(&lua);
+
+        let opts = lua
+            .create_table_with_capacity(0, 1)
+            .expect("failed to create options table");
+
+        opts.raw_set("title", namespace.dot_separated().to_string())
+            .expect("failed to set 'title'");
+
+        notify
+            .call::<mlua::Value>((
+                &*message_chunks.concat_text(),
+                level as u8,
+                &opts,
+            ))
+            .expect("failed to call 'notify'");
+    }
+
     #[inline]
     pub(super) fn is_installed() -> bool {
         utils::is_module_available("notify")

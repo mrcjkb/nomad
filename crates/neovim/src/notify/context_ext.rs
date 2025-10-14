@@ -41,7 +41,11 @@ impl<Bs: BorrowState> NotifyContextExt for Context<Neovim, Bs> {
         notification_level: LogLevel,
     ) {
         if notify::NvimNotify::is_installed() {
-            todo!();
+            notify::NvimNotify::notify(
+                notification_message.into(),
+                notification_level,
+                self.namespace(),
+            )
         } else {
             notify::NvimEcho::notify(
                 notification_message.into(),
