@@ -74,10 +74,10 @@ impl NvimEchoProgressReporter {
             async_io::Timer::after(wait_duration).await;
 
             // Also wait to mess with the message area if the user is currently
-            // interacting with it (e.g. they're being show the "Hit-enter"
+            // interacting with it (e.g. they're being show the "Press ENTER"
             // prompt, the "-- more --" prompt, etc).
             while api::get_mode().mode.as_bytes().first() == Some(&b'r') {
-                async_io::Timer::after(Duration::from_millis(200)).await;
+                async_io::Timer::after(Duration::from_millis(100)).await;
             }
 
             Self::clear_message_area();

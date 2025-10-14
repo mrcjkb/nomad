@@ -334,11 +334,21 @@ impl CollabEditor for Neovim {
             return false;
         };
 
-        match choice {
+        let should_start = match choice {
             0 | 2 => false,
             1 => true,
             _ => unreachable!("only provided {} options", options.len()),
-        }
+        };
+
+        // Skip one tick of the event loop. This seems to mitigate a rendering
+        // bug that causes the dreaded "Press ENTER" prompt to appear if some
+        // text is emitted to the message area right after this function
+        // completes. See [this] for an example.
+        //
+        // [this]: https://github.com/user-attachments/assets/7b61ec1d-736d-4fc9-bb5e-14bbec0d1d52
+        neovim::utils::schedule(|| ()).await;
+
+        should_start
     }
 
     async fn connect_to_server(
