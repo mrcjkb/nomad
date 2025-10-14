@@ -308,6 +308,12 @@ impl<Ed: CollabEditor> AsyncAction<Ed> for Start<Ed> {
                 );
                 Ed::on_session_started(&session_infos, ctx).await;
             },
+            Err(StartError::UserDidNotConfirm) => {
+                ProgressReporter::<Ed, Self>::report_cancellation(
+                    progress_reporter,
+                    ctx,
+                );
+            },
             Err(start_error) => {
                 ProgressReporter::<Ed, Self>::report_error(
                     progress_reporter,
