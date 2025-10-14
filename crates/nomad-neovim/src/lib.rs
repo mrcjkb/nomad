@@ -106,8 +106,6 @@ impl Module<Neovim> for Nomad {
     }
 
     fn on_init(&self, ctx: &mut Context<Neovim, Borrowed>) {
-        ctx.set_notifier(neovim::notify::detect());
-
         let subscriber = tracing_subscriber::Registry::default()
             .with(ctx.tracing_layer())
             .with(self.file_appender(ctx).with_filter(LevelFilter::INFO));

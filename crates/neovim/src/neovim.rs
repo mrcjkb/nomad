@@ -34,9 +34,6 @@ pub struct Neovim {
     pub(crate) events: Events,
 
     /// TODO: docs.
-    emitter: notify::NeovimEmitter,
-
-    /// TODO: docs.
     executor: executor::NeovimExecutor,
 
     http_client: HttpClient,
@@ -60,12 +57,6 @@ impl Neovim {
     #[inline]
     pub fn namespace_id(&self) -> u32 {
         self.decoration_provider.namespace_id()
-    }
-
-    /// TODO: docs.
-    #[inline]
-    pub fn set_notifier(&mut self, emitter: impl Into<notify::NeovimEmitter>) {
-        self.emitter = emitter.into();
     }
 
     /// Returns a new instance of the [`TracingLayer`](crate::TracingLayer).
@@ -93,7 +84,6 @@ impl Neovim {
         Self {
             decoration_provider: DecorationProvider::new(namespace_id),
             events: Events::new(augroup_id),
-            emitter: Default::default(),
             http_client: HttpClient::new(
                 ureq::Agent::new_with_defaults(),
                 executor.background_spawner().clone(),
@@ -142,7 +132,7 @@ impl Editor for Neovim {
     type Cursor<'a> = NeovimCursor<'a>;
     type CursorId = BufferId;
     type Fs = real_fs::RealFs;
-    type Emitter<'this> = &'this mut notify::NeovimEmitter;
+    type Emitter<'ex> = notify::NeovimEmitter<'ex>;
     type Executor = executor::NeovimExecutor;
     type EventHandle = EventHandle;
     type HttpClient = HttpClient;
@@ -215,7 +205,7 @@ impl Editor for Neovim {
 
     #[inline]
     fn emitter(&mut self) -> Self::Emitter<'_> {
-        &mut self.emitter
+        notify::NeovimEmitter::new(self.executor().local_spawner())
     }
 
     #[inline]

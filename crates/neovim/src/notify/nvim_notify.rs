@@ -1,14 +1,12 @@
 use core::time::Duration;
 
-use editor::notify::{Notification, NotificationId};
 use executor::LocalSpawner;
 use flume::TrySendError;
 use futures_util::{FutureExt, StreamExt, select_biased};
 use nvim_oxi::mlua;
 
 use crate::executor::NeovimLocalSpawner;
-use crate::notify::{self, VimNotifyProvider};
-use crate::{oxi, utils};
+use crate::{notify, utils};
 
 /// Frames for the spinner animation.
 pub(super) const SPINNER_FRAMES: &[char] =
@@ -206,50 +204,6 @@ impl ProgressNotificationKind {
             Self::Progress | Self::Success => notify::Level::Info,
             Self::Error => notify::Level::Error,
         }
-    }
-}
-
-impl VimNotifyProvider for NvimNotify {
-    #[inline]
-    fn to_message(&mut self, notification: &Notification) -> String {
-        notification.message.as_str().to_owned()
-    }
-
-    #[inline]
-    fn to_opts(&mut self, notification: &Notification) -> oxi::Dictionary {
-        let mut opts = oxi::Dictionary::new();
-        opts.insert(
-            "title",
-            notification.namespace.dot_separated().to_string(),
-        );
-        opts.insert(
-            "replace",
-            notification.updates_prev.map(|id| id.into_u64() as u32),
-        );
-        opts
-    }
-
-    #[inline]
-    fn to_notification_id(&mut self, record: oxi::Object) -> NotificationId {
-        fn inner(record: oxi::Object) -> Option<NotificationId> {
-            let dict = match record.kind() {
-                // SAFETY: the object's kind is a `Dictionary`.
-                oxi::ObjectKind::Dictionary => unsafe {
-                    record.into_dictionary_unchecked()
-                },
-                _ => return None,
-            };
-            let id = dict.get("id")?;
-            let id = match id.kind() {
-                // SAFETY: the object's kind is an `Integer`.
-                oxi::ObjectKind::Integer => unsafe {
-                    id.as_integer_unchecked()
-                },
-                _ => return None,
-            };
-            Some(NotificationId::new(id as u64))
-        }
-        inner(record).unwrap_or_else(|| NotificationId::new(0))
     }
 }
 

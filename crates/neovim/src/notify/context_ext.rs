@@ -3,8 +3,8 @@ use editor::context::{BorrowState, Context};
 use executor::Executor;
 use nvim_oxi::api::types::LogLevel;
 
-use crate::notify::{Chunks, ProgressReporter};
-use crate::{Neovim, notify};
+use crate::Neovim;
+use crate::notify::{self, Chunks, ProgressReporter};
 
 /// An extension trait for `Context<Neovim>` providing methods to emit
 /// notifications via the `vim.notify()` API.

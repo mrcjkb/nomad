@@ -81,6 +81,13 @@ impl From<core::fmt::Arguments<'_>> for Chunks {
     }
 }
 
+impl From<editor::notify::Message> for Chunks {
+    #[inline]
+    fn from(message: editor::notify::Message) -> Self {
+        message.as_str().into()
+    }
+}
+
 impl Deref for Chunks {
     type Target = [Chunk];
 
