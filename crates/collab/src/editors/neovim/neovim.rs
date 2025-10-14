@@ -9,6 +9,7 @@ use std::{env, io};
 use abs_path::{AbsPath, AbsPathBuf, AbsPathFromPathError, node};
 use async_net::TcpStream;
 use collab_types::{Peer, PeerId};
+use compact_str::format_compact;
 use editor::context::Borrowed;
 use editor::module::{Action, Module};
 use editor::{ByteOffset, Context, Editor};
@@ -19,7 +20,7 @@ use futures_rustls::{TlsConnector, rustls};
 use futures_util::future::Either;
 use mlua::{Function, Table};
 use neovim::buffer::{BufferExt, BufferId, HighlightRangeHandle, Point};
-use neovim::notify::NotifyContextExt;
+use neovim::notify::{self, NotifyContextExt};
 use neovim::{Neovim, mlua, oxi};
 use nomad_collab_params::ulid;
 
@@ -558,12 +559,27 @@ impl CollabEditor for Neovim {
         }
 
         match Self::copy_session_id(infos.session_id, ctx).await {
-            Ok(()) => ctx.notify_info(format_args!(
-                "Session ID copied to clipboard. You can also yank it later \
-                 by executing ':Mad {} {}'",
-                Collab::<Self>::NAME,
-                yank::Yank::<Self>::NAME,
-            )),
+            Ok(()) => {
+                let mut chunks = notify::Chunks::default();
+
+                chunks
+                    .push(
+                        "Session ID copied to clipboard. You can also yank \
+                         it later by executing:",
+                    )
+                    .push_newline()
+                    .push_highlighted(":", "Comment")
+                    .push_highlighted(
+                        format_compact!(
+                            "Mad {} {}",
+                            Collab::<Self>::NAME,
+                            yank::Yank::<Self>::NAME
+                        ),
+                        "Title",
+                    );
+
+                ctx.notify_info(chunks);
+            },
             Err(err) => ctx.notify_error(err.to_string()),
         }
     }
