@@ -36,7 +36,7 @@ struct ProgressNotification {
     kind: ProgressNotificationKind,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(super) enum ProgressNotificationKind {
     Progress,
     Success,
@@ -163,7 +163,7 @@ impl NvimNotifyProgressReporter {
 }
 
 impl ProgressNotificationKind {
-    pub(super) fn icon(&self, spinner_frame_idx: usize) -> char {
+    pub(super) fn icon(self, spinner_frame_idx: usize) -> char {
         match self {
             Self::Progress => SPINNER_FRAMES[spinner_frame_idx],
             Self::Success => '✔',
@@ -171,7 +171,7 @@ impl ProgressNotificationKind {
         }
     }
 
-    fn log_level(&self) -> notify::Level {
+    fn log_level(self) -> notify::Level {
         match self {
             Self::Progress | Self::Success => notify::Level::Info,
             Self::Error => notify::Level::Error,

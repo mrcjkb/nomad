@@ -40,13 +40,45 @@ struct Title<'ns> {
     hl_group: Option<&'static str>,
 }
 
+enum EventLoopOutput {
+    Success,
+    Error,
+    Cancelled,
+}
+
 impl NvimEchoProgressReporter {
     /// Creates a new progress reporter.
     pub fn new(ctx: &mut Context<Neovim, impl BorrowState>) -> Self {
         let (notif_tx, notif_rx) = flume::bounded::<ProgressNotification>(4);
 
         ctx.spawn_and_detach(async move |ctx| {
-            Self::event_loop(notif_rx, ctx.namespace()).await;
+            let initial_cmdheight = Self::get_cmdheight();
+
+            let mut current_cmdheight = initial_cmdheight;
+
+            let output = Self::event_loop(
+                notif_rx,
+                ctx.namespace(),
+                &mut current_cmdheight,
+            )
+            .await;
+
+            let wait_duration = Duration::from_millis(match output {
+                EventLoopOutput::Success => 2500,
+                EventLoopOutput::Error => 3500,
+                EventLoopOutput::Cancelled => 0,
+            });
+
+            // Wait a bit before clearing the final message to give the user a
+            // chance to read it.
+            async_io::Timer::after(wait_duration).await;
+
+            Self::clear_message_area();
+
+            // Reset the cmdheight to its initial value.
+            if current_cmdheight != initial_cmdheight {
+                Self::set_cmdheight(initial_cmdheight);
+            }
         });
 
         Self { notification_tx: notif_tx }
@@ -81,17 +113,29 @@ impl NvimEchoProgressReporter {
             .expect("couldn't clear message area");
     }
 
+    fn echo(
+        chunks: &NvimEchoChunks<'_>,
+        notif_kind: ProgressNotificationKind,
+        opts: &mut api::opts::EchoOpts,
+    ) {
+        let add_to_history = notif_kind == ProgressNotificationKind::Error;
+
+        api::echo(chunks.to_iter(), add_to_history, opts)
+            .expect("couldn't echo progress message");
+    }
+
     async fn event_loop(
         notif_rx: flume::Receiver<ProgressNotification>,
         namespace: &editor::notify::Namespace,
-    ) {
+        current_cmdheight: &mut u16,
+    ) -> EventLoopOutput {
+        let Ok(first_notif) = notif_rx.recv_async().await else {
+            return EventLoopOutput::Cancelled;
+        };
+
         let mut spin = async_io::Timer::interval(SPINNER_UPDATE_INTERVAL);
-        let mut notifications = notif_rx.into_stream();
         let mut spinner_frame_idx = 0;
-
-        let opts = api::opts::EchoOpts::default();
-
-        let Some(first_notif) = notifications.next().await else { return };
+        let mut opts = api::opts::EchoOpts::default();
 
         let mut chunks = NvimEchoChunks {
             title: Title {
@@ -102,64 +146,51 @@ impl NvimEchoProgressReporter {
             message_chunks: first_notif.chunks,
         };
 
-        let initial_cmdheight = Self::get_cmdheight();
-        let mut current_cmdheight = initial_cmdheight;
         let mut last_notif_kind = first_notif.kind;
 
         loop {
-            let add_to_history =
-                last_notif_kind == ProgressNotificationKind::Error;
-
-            api::echo(chunks.to_iter(), add_to_history, &opts)
-                .expect("couldn't echo progress message");
-
-            if last_notif_kind != ProgressNotificationKind::Progress {
-                let wait_duration =
-                    Duration::from_millis(match last_notif_kind {
-                        ProgressNotificationKind::Success => 2500,
-                        ProgressNotificationKind::Error => 3500,
-                        ProgressNotificationKind::Progress => unreachable!(),
-                    });
-
-                // Wait a bit before clearing the final message to give the
-                // user a chance to read it.
-                async_io::Timer::after(wait_duration).await;
-
-                Self::clear_message_area();
-
-                break;
+            // We need to increase the cmdheight if its current value is
+            // smaller than what's needed to fully render the message.
+            let min_cmdheight = chunks.num_lines();
+            if *current_cmdheight < min_cmdheight {
+                Self::set_cmdheight(min_cmdheight);
+                *current_cmdheight = min_cmdheight;
             }
 
-            select_biased! {
-                _ = spin.next().fuse() => {
-                    spinner_frame_idx += 1;
-                    spinner_frame_idx %= SPINNER_FRAMES.len();
-                    chunks.title.icon = SPINNER_FRAMES[spinner_frame_idx];
+            Self::echo(&chunks, last_notif_kind, &mut opts);
+
+            match last_notif_kind {
+                ProgressNotificationKind::Success => {
+                    return EventLoopOutput::Success;
                 },
-
-                maybe_notif = notifications.next() => {
-                    let Some(notif) = maybe_notif else { break };
-
-                    chunks.title.icon = notif.kind.icon(spinner_frame_idx);
-                    chunks.title.hl_group = Some(notif.kind.hl_group());
-                    chunks.message_chunks = notif.chunks;
-                    last_notif_kind = notif.kind;
-
-                    // We need to increase the cmdheight if its current value
-                    // is smaller than what's needed to fully render the
-                    // message.
-                    let min_cmdheight = chunks.num_lines();
-                    if current_cmdheight < min_cmdheight {
-                        Self::set_cmdheight(min_cmdheight);
-                        current_cmdheight = min_cmdheight;
-                    }
+                ProgressNotificationKind::Error => {
+                    return EventLoopOutput::Error;
                 },
+                ProgressNotificationKind::Progress => {},
             }
-        }
 
-        // Reset the cmdheight to its initial value.
-        if current_cmdheight != initial_cmdheight {
-            Self::set_cmdheight(initial_cmdheight);
+            'spin: loop {
+                select_biased! {
+                    _ = spin.next().fuse() => {
+                        spinner_frame_idx += 1;
+                        spinner_frame_idx %= SPINNER_FRAMES.len();
+                        chunks.title.icon = SPINNER_FRAMES[spinner_frame_idx];
+                        Self::echo(&chunks, last_notif_kind, &mut opts);
+                        continue 'spin;
+                    },
+
+                    maybe_notif = notif_rx.recv_async() => {
+                        let Ok(notif) = maybe_notif else {
+                            return EventLoopOutput::Cancelled;
+                        };
+                        chunks.title.icon = notif.kind.icon(spinner_frame_idx);
+                        chunks.title.hl_group = Some(notif.kind.hl_group());
+                        chunks.message_chunks = notif.chunks;
+                        last_notif_kind = notif.kind;
+                        break 'spin;
+                    },
+                }
+            }
         }
     }
 
@@ -186,7 +217,7 @@ impl NvimEchoProgressReporter {
 }
 
 impl ProgressNotificationKind {
-    fn hl_group(&self) -> &'static str {
+    fn hl_group(self) -> &'static str {
         match self {
             Self::Progress => "DiagnosticInfo",
             Self::Success => "DiagnosticOk",
