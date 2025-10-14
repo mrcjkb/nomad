@@ -546,13 +546,12 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c3f56c207c76c07652489840ff98687dcf213de178ac0974660d6fefeaf5ec6"
+checksum = "981a6f317983eec002839b90fae7411a85621410ae591a9cab2ecf5cb5744873"
 dependencies = [
  "camino",
  "cargo-platform 0.3.1",
- "cargo-util-schemas",
  "semver",
  "serde",
  "serde_json",
@@ -3442,7 +3441,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3522,7 +3521,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5112,7 +5111,7 @@ version = "0.1.0-dev"
 dependencies = [
  "abs-path",
  "anyhow",
- "cargo_metadata 0.22.0",
+ "cargo_metadata 0.23.0",
  "clap",
  "serde",
  "serde_json",

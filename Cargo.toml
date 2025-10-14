@@ -21,7 +21,7 @@ async-task = "4"
 axum-core = "0.5"
 base64 = "0.22"
 bincode = "2"
-cargo_metadata = "0.22"
+cargo_metadata = "0.23"
 cauchy = { git = "ssh://git@github.com/nomad/cauchy.git" }
 chrono = { version = "0.4", default-features = false }
 clap = "4"
