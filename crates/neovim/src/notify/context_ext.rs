@@ -1,8 +1,8 @@
 use editor::context::{BorrowState, Context};
 use nvim_oxi::api::types::LogLevel;
 
-use crate::Neovim;
 use crate::notify::{Chunks, ProgressReporter};
+use crate::{Neovim, notify};
 
 /// An extension trait for `Context<Neovim>` providing methods to emit
 /// notifications via the `vim.notify()` API.
@@ -37,19 +37,17 @@ impl<Bs: BorrowState> NotifyContextExt for Context<Neovim, Bs> {
     #[inline]
     fn notify(
         &mut self,
-        _notification_message: impl Into<Chunks>,
-        _notification_level: LogLevel,
+        notification_message: impl Into<Chunks>,
+        notification_level: LogLevel,
     ) {
-        todo!();
-        // let namespace = self.namespace().clone();
-        //
-        // self.with_editor(|nvim| {
-        //     nvim.emitter().emit(Notification {
-        //         level: notification_level.convert(),
-        //         message: Message::from_display(notification_message),
-        //         namespace: &namespace,
-        //         updates_prev: None,
-        //     })
-        // });
+        if notify::NvimNotify::is_installed() {
+            todo!();
+        } else {
+            notify::NvimEcho::notify(
+                notification_message.into(),
+                notification_level,
+                self,
+            )
+        }
     }
 }

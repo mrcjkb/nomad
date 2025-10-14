@@ -52,13 +52,81 @@ enum EventLoopOutput {
     Cancelled,
 }
 
+impl NvimEcho {
+    pub(crate) fn notify(
+        message_chunks: notify::Chunks,
+        level: notify::Level,
+        ctx: &mut Context<Neovim, impl BorrowState>,
+    ) {
+        let (icon, hl_group) = match level {
+            notify::Level::Trace => ('🔍', None),
+            notify::Level::Debug => ('🐛', None),
+            notify::Level::Info => ('ℹ', Some("DiagnosticInfo")),
+            notify::Level::Warn => ('⚠', Some("DiagnosticWarn")),
+            notify::Level::Error => ('✘', Some("DiagnosticError")),
+            _ => return,
+        };
+
+        let chunks = NvimEchoChunks {
+            title: Title { icon, hl_group, namespace: ctx.namespace() },
+            message_chunks,
+        };
+
+        let initial_cmdheight = Self::get_cmdheight();
+
+        if chunks.num_lines() > initial_cmdheight {
+            Self::set_cmdheight(chunks.num_lines());
+        }
+
+        api::echo(chunks.to_iter(true), true, &Default::default())
+            .expect("couldn't echo notification message");
+
+        ctx.spawn_and_detach(async move |_| {
+            Self::clear_message_area(Duration::from_millis(match level {
+                notify::Level::Error => 3500,
+                _ => 2500,
+            }))
+            .await;
+
+            Self::set_cmdheight(initial_cmdheight);
+        });
+    }
+
+    /// Clears the message area after the given duration.
+    async fn clear_message_area(wait: Duration) {
+        async_io::Timer::after(wait).await;
+
+        // Also wait to mess with the message area if the user is currently
+        // interacting with it (e.g. they're being show the "Press ENTER"
+        // prompt, the "-- more --" prompt, etc).
+        while api::get_mode().mode.as_bytes().first() == Some(&b'r') {
+            async_io::Timer::after(Duration::from_millis(100)).await;
+        }
+
+        api::echo([("", None::<&str>)], false, &Default::default())
+            .expect("couldn't clear message area");
+    }
+
+    /// Returns the current value of `cmdheight`.
+    fn get_cmdheight() -> u16 {
+        api::get_option_value("cmdheight", &Default::default())
+            .expect("couldn't get 'cmdheight'")
+    }
+
+    /// Sets the `cmdheight` option to the given value.
+    fn set_cmdheight(cmdheight: u16) {
+        api::set_option_value("cmdheight", cmdheight, &Default::default())
+            .expect("couldn't set 'cmdheight'")
+    }
+}
+
 impl NvimEchoProgressReporter {
     /// Creates a new progress reporter.
     pub fn new(ctx: &mut Context<Neovim, impl BorrowState>) -> Self {
         let (notif_tx, notif_rx) = flume::bounded::<ProgressNotification>(4);
 
         ctx.spawn_and_detach(async move |ctx| {
-            let initial_cmdheight = Self::get_cmdheight();
+            let initial_cmdheight = NvimEcho::get_cmdheight();
 
             let mut current_cmdheight = initial_cmdheight;
 
@@ -69,28 +137,18 @@ impl NvimEchoProgressReporter {
             )
             .await;
 
-            let wait_duration = Duration::from_millis(match output {
-                EventLoopOutput::Success => 2500,
-                EventLoopOutput::Error => 3500,
-                EventLoopOutput::Cancelled => 0,
-            });
-
-            // Wait a bit before clearing the final message to give the user a
-            // chance to read it.
-            async_io::Timer::after(wait_duration).await;
-
-            // Also wait to mess with the message area if the user is currently
-            // interacting with it (e.g. they're being show the "Press ENTER"
-            // prompt, the "-- more --" prompt, etc).
-            while api::get_mode().mode.as_bytes().first() == Some(&b'r') {
-                async_io::Timer::after(Duration::from_millis(100)).await;
-            }
-
-            Self::clear_message_area();
+            NvimEcho::clear_message_area(Duration::from_millis(
+                match output {
+                    EventLoopOutput::Success => 2500,
+                    EventLoopOutput::Error => 3500,
+                    EventLoopOutput::Cancelled => 0,
+                },
+            ))
+            .await;
 
             // Reset the cmdheight to its initial value.
             if current_cmdheight != initial_cmdheight {
-                Self::set_cmdheight(initial_cmdheight);
+                NvimEcho::set_cmdheight(initial_cmdheight);
             }
         });
 
@@ -121,11 +179,6 @@ impl NvimEchoProgressReporter {
         });
     }
 
-    fn clear_message_area() {
-        api::echo([("", None::<&str>)], false, &Default::default())
-            .expect("couldn't clear message area");
-    }
-
     fn echo(
         chunks: &NvimEchoChunks<'_>,
         notif_kind: ProgressNotificationKind,
@@ -154,8 +207,13 @@ impl NvimEchoProgressReporter {
         #[cfg(feature = "nightly")]
         let opts = &opts;
 
-        let _message_id = api::echo(chunks.to_iter(), add_to_history, opts)
-            .expect("couldn't echo progress message");
+        // On Nightly the title is set in the opts, so we don't need to include
+        // it in the iterator.
+        let include_title = cfg!(not(feature = "nightly"));
+
+        let _message_id =
+            api::echo(chunks.to_iter(include_title), add_to_history, opts)
+                .expect("couldn't echo progress message");
 
         #[cfg(feature = "nightly")]
         {
@@ -192,7 +250,7 @@ impl NvimEchoProgressReporter {
             // smaller than what's needed to fully render the message.
             let min_cmdheight = chunks.num_lines();
             if *current_cmdheight < min_cmdheight {
-                Self::set_cmdheight(min_cmdheight);
+                NvimEcho::set_cmdheight(min_cmdheight);
                 *current_cmdheight = min_cmdheight;
             }
 
@@ -233,12 +291,6 @@ impl NvimEchoProgressReporter {
         }
     }
 
-    /// Returns the current value of `cmdheight`.
-    fn get_cmdheight() -> u16 {
-        api::get_option_value("cmdheight", &Default::default())
-            .expect("couldn't get 'cmdheight'")
-    }
-
     fn send_notification(&self, notif: ProgressNotification) {
         if let Err(err) = self.notification_tx.try_send(notif) {
             match err {
@@ -246,12 +298,6 @@ impl NvimEchoProgressReporter {
                 TrySendError::Full(_) => {},
             }
         }
-    }
-
-    /// Sets the `cmdheight` option to the given value.
-    fn set_cmdheight(cmdheight: u16) {
-        api::set_option_value("cmdheight", cmdheight, &Default::default())
-            .expect("couldn't set 'cmdheight'")
     }
 }
 
@@ -277,23 +323,22 @@ impl NvimEchoChunks<'_> {
                 .sum::<u16>()
     }
 
-    fn to_iter(&self) -> impl Iterator<Item = (Cow<'_, str>, Option<&str>)> {
-        #[cfg(not(feature = "nightly"))]
-        let title = iter::once((
-            Cow::Owned(self.title.to_string()),
-            self.title.hl_group,
-        ));
+    fn to_iter(
+        &self,
+        include_title: bool,
+    ) -> impl Iterator<Item = (Cow<'_, str>, Option<&str>)> {
+        let title = include_title.then(|| {
+            (Cow::Owned(self.title.to_string()), self.title.hl_group)
+        });
 
-        // On Nightly the title is given to `nvim_echo` via the opts, so we
-        // don't need to include it in the iterator.
-        #[cfg(feature = "nightly")]
-        let title = iter::empty();
-
-        title.chain(iter::once((Cow::Borrowed("\n"), None::<&str>))).chain(
-            self.message_chunks
-                .iter()
-                .map(|chunk| (Cow::Borrowed(chunk.text()), chunk.hl_group())),
-        )
+        title
+            .into_iter()
+            .chain(iter::once((Cow::Borrowed("\n"), None::<&str>)))
+            .chain(
+                self.message_chunks.iter().map(|chunk| {
+                    (Cow::Borrowed(chunk.text()), chunk.hl_group())
+                }),
+            )
     }
 }
 
