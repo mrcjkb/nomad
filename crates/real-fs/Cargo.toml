@@ -12,6 +12,7 @@ temp = ["dep:tempfile"]
 [dependencies]
 abs-path = { workspace = true }
 async-fs = { workspace = true }
+async-lock = { workspace = true }
 fs = { workspace = true }
 futures-util = { workspace = true, features = ["io"] }
 notify = { workspace = true, optional = true }

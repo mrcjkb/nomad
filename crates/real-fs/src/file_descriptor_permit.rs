@@ -1,11 +1,17 @@
+use async_lock::{Semaphore, SemaphoreGuard};
+
+const MAX_PERMITS: usize = 64;
+
+static FD_SEMAPHORE: Semaphore = Semaphore::new(MAX_PERMITS);
+
 /// TODO: docs.
-pub(crate) struct FileDescriptorPermit {}
+pub(crate) struct FileDescriptorPermit {
+    _guard: SemaphoreGuard<'static>,
+}
 
 impl FileDescriptorPermit {
-    const MAX_PERMITS: u8 = 64;
-
     /// TODO: docs.
     pub(crate) async fn acquire() -> Self {
-        todo!();
+        Self { _guard: FD_SEMAPHORE.acquire().await }
     }
 }
