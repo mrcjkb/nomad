@@ -2,6 +2,7 @@
 
 mod directory;
 mod file;
+mod file_descriptor_permit;
 mod io_error_ext;
 mod metadata;
 mod real_fs;

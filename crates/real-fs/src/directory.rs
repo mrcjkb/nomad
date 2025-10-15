@@ -6,6 +6,7 @@ use std::{ffi, io};
 use abs_path::{AbsPath, AbsPathBuf, NodeName};
 use futures_util::stream::{self, FusedStream, Stream};
 
+use crate::file_descriptor_permit::FileDescriptorPermit;
 use crate::{File, IoErrorExt, Metadata, RealFs, Symlink};
 
 /// TODO: docs.
@@ -24,6 +25,7 @@ pin_project_lite::pin_project! {
         #[pin]
         read_dir: async_fs::ReadDir,
         read_dir_is_terminated: bool,
+        _fd_permit: FileDescriptorPermit,
     }
 }
 
@@ -39,6 +41,8 @@ pin_project_lite::pin_project! {
 impl ListMetas {
     #[allow(clippy::disallowed_methods)]
     async fn new(dir_path: &AbsPath) -> io::Result<Self> {
+        let _fd_permit = FileDescriptorPermit::acquire().await;
+
         let read_dir =
             async_fs::read_dir(dir_path).await.with_context(|| {
                 format!("couldn't read directory at {dir_path}")
@@ -49,6 +53,7 @@ impl ListMetas {
             get_metadata: stream::FuturesUnordered::new(),
             read_dir,
             read_dir_is_terminated: false,
+            _fd_permit,
         })
     }
 }

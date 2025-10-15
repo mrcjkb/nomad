@@ -4,6 +4,7 @@ use std::io;
 use abs_path::{AbsPath, AbsPathBuf};
 use futures_util::{AsyncWriteExt, stream};
 
+use crate::file_descriptor_permit::FileDescriptorPermit;
 use crate::{Directory, IoErrorExt, Metadata, RealFs};
 
 /// TODO: docs.
@@ -15,6 +16,7 @@ pub struct File {
 
 struct FileInner {
     inner: async_fs::File,
+    _fd_permit: FileDescriptorPermit,
 }
 
 impl File {
@@ -53,6 +55,8 @@ impl FileInner {
 
     #[allow(clippy::disallowed_methods)]
     async fn new(path: &AbsPath, create_new: bool) -> io::Result<Self> {
+        let _fd_permit = FileDescriptorPermit::acquire().await;
+
         let inner = async_fs::OpenOptions::new()
             .create_new(create_new)
             .read(true)
@@ -66,7 +70,7 @@ impl FileInner {
                 )
             })?;
 
-        Ok(Self { inner })
+        Ok(Self { inner, _fd_permit })
     }
 
     async fn open(path: &AbsPath) -> io::Result<Self> {
