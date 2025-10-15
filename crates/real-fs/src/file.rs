@@ -19,10 +19,17 @@ struct FileInner {
     _fd_permit: FileDescriptorPermit,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum OpenPermissions {
+    CreateNew,
+    Write,
+    Read,
+}
+
 impl File {
     #[inline]
     pub(crate) async fn create(path: AbsPathBuf) -> io::Result<Self> {
-        let inner = FileInner::create(&path).await?;
+        let inner = FileInner::new(&path, OpenPermissions::CreateNew).await?;
         let metadata = inner.metadata().await?;
         Ok(Self { inner: Some(inner), metadata, path })
     }
@@ -35,6 +42,7 @@ impl File {
     #[inline]
     async fn with_inner<R>(
         &mut self,
+        perms: OpenPermissions,
         fun: impl AsyncFnOnce(
             &mut FileInner,
             &mut async_fs::Metadata,
@@ -47,7 +55,8 @@ impl File {
                     break Ok(fun(inner, &mut self.metadata, &self.path).await);
                 },
                 None => {
-                    self.inner = Some(FileInner::open(&self.path).await?);
+                    self.inner =
+                        Some(FileInner::new(&self.path, perms).await?);
                 },
             }
         }
@@ -55,32 +64,25 @@ impl File {
 }
 
 impl FileInner {
-    async fn create(path: &AbsPath) -> io::Result<Self> {
-        Self::new(path, true).await
-    }
-
     #[allow(clippy::disallowed_methods)]
-    async fn new(path: &AbsPath, create_new: bool) -> io::Result<Self> {
+    async fn new(path: &AbsPath, perms: OpenPermissions) -> io::Result<Self> {
         let _fd_permit = FileDescriptorPermit::acquire().await;
 
-        let inner = async_fs::OpenOptions::new()
-            .create_new(create_new)
-            .read(true)
-            .write(true)
+        let inner = async_fs::OpenOptions::from(perms)
             .open(path)
             .await
             .with_context(|| {
                 format!(
                     "couldn't {verb} file at {path}",
-                    verb = if create_new { "create" } else { "open" }
+                    verb = if perms == OpenPermissions::CreateNew {
+                        "create"
+                    } else {
+                        "open"
+                    }
                 )
             })?;
 
         Ok(Self { inner, _fd_permit })
-    }
-
-    async fn open(path: &AbsPath) -> io::Result<Self> {
-        Self::new(path, false).await
     }
 }
 
@@ -141,7 +143,8 @@ impl fs::File for File {
         // borrow, and we don't have that here.
         //
         // TODO: can we read via &self if we don't move the cursor?
-        let mut file = FileInner::open(self.path()).await?;
+        let mut file =
+            FileInner::new(self.path(), OpenPermissions::Read).await?;
         let mut bytes = Vec::with_capacity(self.metadata.len() as usize);
         file.read_to_end(&mut bytes).await.with_context(|| {
             format!("couldn't read file at {}", self.path())
@@ -164,26 +167,29 @@ impl fs::File for File {
         Chunks::IntoIter: Send,
         Chunk: AsRef<[u8]> + Send,
     {
-        self.with_inner(async move |file, meta, path| {
-            let write = async {
-                for chunk in chunks {
-                    file.write_all(chunk.as_ref()).await?;
-                }
-                file.sync_all().await
-            };
+        self.with_inner(
+            OpenPermissions::Write,
+            async move |file, meta, path| {
+                let write = async {
+                    for chunk in chunks {
+                        file.write_all(chunk.as_ref()).await?;
+                    }
+                    file.sync_all().await
+                };
 
-            write.await.with_context(|| {
-                format!("couldn't write to file at {path}")
-            })?;
+                write.await.with_context(|| {
+                    format!("couldn't write to file at {path}")
+                })?;
 
-            let new_meta = file.metadata().await.with_context(|| {
-                format!("couldn't get new metadata for file at {path}")
-            })?;
+                let new_meta = file.metadata().await.with_context(|| {
+                    format!("couldn't get new metadata for file at {path}")
+                })?;
 
-            *meta = new_meta;
+                *meta = new_meta;
 
-            Ok(())
-        })
+                Ok(())
+            },
+        )
         .await?
     }
 }
@@ -199,5 +205,18 @@ impl Deref for FileInner {
 impl DerefMut for FileInner {
     fn deref_mut(&mut self) -> &mut async_fs::File {
         &mut self.inner
+    }
+}
+
+impl From<OpenPermissions> for async_fs::OpenOptions {
+    fn from(permissions: OpenPermissions) -> Self {
+        let mut options = Self::new();
+        options.read(true);
+        match permissions {
+            OpenPermissions::CreateNew => options.create_new(true).write(true),
+            OpenPermissions::Write => options.write(true),
+            OpenPermissions::Read => return options,
+        };
+        options
     }
 }
