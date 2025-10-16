@@ -1,5 +1,4 @@
 use core::cell::{Cell, LazyCell};
-use core::iter;
 
 use collab_types::{Peer, PeerHandle};
 use editor::ByteOffset;
@@ -56,7 +55,7 @@ impl NeovimPeerHandle {
     ) -> Self {
         let hl_group_id = PeerHandleHighlightGroup::group_id(peer.id);
 
-        let (line, col, mut opts_builder) = Self::extmark_params(
+        let (line, mut opts_builder) = Self::extmark_params(
             buffer.clone(),
             cursor_offset,
             &peer.handle,
@@ -64,7 +63,7 @@ impl NeovimPeerHandle {
         );
 
         let extmark_id = buffer
-            .set_extmark(namespace_id, line, col, &opts_builder.build())
+            .set_extmark(namespace_id, line, 0, &opts_builder.build())
             .expect("couldn't create extmark");
 
         Self {
@@ -78,7 +77,7 @@ impl NeovimPeerHandle {
 
     /// Moves the handle to keep it in sync with the new cursor offset.
     pub(super) fn r#move(&mut self, new_cursor_offset: ByteOffset) {
-        let (line, col, mut opts_builder) = Self::extmark_params(
+        let (line, mut opts_builder) = Self::extmark_params(
             self.buffer.clone(),
             new_cursor_offset,
             &self.peer_handle,
@@ -89,7 +88,7 @@ impl NeovimPeerHandle {
 
         let new_extmark_id = self
             .buffer
-            .set_extmark(self.namespace_id, line, col, &opts)
+            .set_extmark(self.namespace_id, line, 0, &opts)
             .expect("couldn't move extmark");
 
         debug_assert_eq!(new_extmark_id, self.extmark_id);
@@ -102,15 +101,15 @@ impl NeovimPeerHandle {
             .expect("couldn't delete extmark");
     }
 
-    /// Returns the line, column, and options to give to
-    /// [`api::Buffer::set_extmark`] to position the peer handle above or below
-    /// the cursor at the given byte offset.
+    /// Returns the line and options to give to [`api::Buffer::set_extmark`] to
+    /// position the peer handle above or below the cursor at the given byte
+    /// offset (the column is always zero).
     fn extmark_params(
         buffer: api::Buffer,
         cursor_offset: ByteOffset,
         peer_handle: &PeerHandle,
         hl_group_id: u32,
-    ) -> (usize, usize, api::opts::SetExtmarkOptsBuilder) {
+    ) -> (usize, api::opts::SetExtmarkOptsBuilder) {
         let cursor_point = buffer.point_of_byte(cursor_offset);
 
         let num_rows = buffer.num_rows();
@@ -135,71 +134,33 @@ impl NeovimPeerHandle {
 
         let use_virt_lines = num_rows == 1;
 
-        let line_len = buffer.num_bytes_in_line_after(line_idx);
-
-        // FIXME: using the cursor's offset as the target column for the handle
-        // could result in the handle being vertically misaligned with the
-        // cursor if either line contains multi-byte characters.
-        //
-        // We could use `nvim_strwidth` to go from byte offset -> visual
-        // column, but I don't think Neovim exposes a function which does
-        // the opposite (visual column -> byte offset).
+        // FIXME: using the cursor's offset as the target column could result
+        // in the handle being vertically misaligned if the cursor line
+        // contains multi-byte characters.
         //
         // FIXME: this also doesn't handle tabs correctly. For those, we'd have
-        // to count the number of preceding tabs in the cursor and target
-        // lines, also taking into account the 'tabstop' option.
+        // to count the number of tabs in the cursor line up to the cursor's
+        // offset and multiply that by the value of the 'tabstop' option.
         let target_col = cursor_point.byte_offset;
-
-        // Clamp the column to the length of the line.
-        let col = target_col.min(line_len);
-
-        let num_padding_spaces = if use_virt_lines {
-            // When setting virt_lines, the padding always has to match the
-            // target column.
-            target_col
-        } else {
-            // If the previous/next line is shorter than target column, we'll
-            // compensate by adding some padding spaces to the virt_text.
-            //
-            // For example, if the buffer is:
-            //
-            // ```
-            // foo
-            // Hello |World!
-            // ```
-            //
-            // Where the '|' represents the remote peer's cursor, then the
-            // extmark will be placed at the end of the first line (line=0,
-            // col=3).
-            //
-            // But the cursor is at column 6 on the second line, so we need to
-            // add 3 spaces of padding to the extmark's virt_text to make the
-            // handle appear to be vertically aligned with the cursor.
-            target_col - col
-        };
-
-        let padding_chunk = if num_padding_spaces > 0 {
-            let spaces = " ".repeat(num_padding_spaces);
-            Some((spaces, NORMAL_HL_GROUP_ID.with(|id| **id)))
-        } else {
-            None
-        };
-
-        let chunks = padding_chunk
-            .into_iter()
-            .chain(iter::once((format!(" {peer_handle} "), hl_group_id)));
 
         let mut opts_builder = api::opts::SetExtmarkOpts::builder();
 
+        let chunk = (format!(" {peer_handle} "), hl_group_id);
+
         if use_virt_lines {
-            opts_builder.virt_lines(iter::once(chunks));
+            // When setting virt_lines, we have to add some padding for the
+            // handle to align with the cursor's column.
+            let padding = " ".repeat(target_col);
+            let normal_group_id = NORMAL_HL_GROUP_ID.with(|id| **id);
+            opts_builder.virt_lines([[(padding, normal_group_id), chunk]]);
         } else {
             opts_builder
-                .virt_text(chunks)
+                .virt_text([chunk])
+                .virt_text_win_col(target_col as u32)
                 .virt_text_pos(api::types::ExtmarkVirtTextPosition::Overlay);
         }
 
-        (line_idx, col, opts_builder)
+        (line_idx, opts_builder)
     }
 }
 
