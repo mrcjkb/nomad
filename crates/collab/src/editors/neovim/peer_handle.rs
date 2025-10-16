@@ -1,5 +1,4 @@
 use core::cell::Cell;
-use core::ops::Range;
 
 use collab_types::{Peer, PeerHandle};
 use editor::ByteOffset;
@@ -41,17 +40,50 @@ impl NeovimPeerHandle {
     /// Creates a new handle for the given remote peer to be displayed above or
     /// below the cursor at the given offset in the given buffer.
     pub(super) fn create(
-        _peer: Peer,
-        _buffer: api::Buffer,
-        _cursor_offset: ByteOffset,
-        _namespace_id: u32,
+        peer: Peer,
+        mut buffer: api::Buffer,
+        cursor_offset: ByteOffset,
+        namespace_id: u32,
     ) -> Self {
-        todo!();
+        let hl_group_id = PeerHandleHighlightGroup::group_id(peer.id);
+
+        let (line, col, mut opts_builder) = Self::extmark_params(
+            buffer.clone(),
+            cursor_offset,
+            &peer.handle,
+            hl_group_id,
+        );
+
+        let extmark_id = buffer
+            .set_extmark(namespace_id, line, col, &opts_builder.build())
+            .expect("couldn't create extmark");
+
+        Self {
+            buffer,
+            extmark_id,
+            hl_group_id,
+            namespace_id,
+            peer_handle: peer.handle,
+        }
     }
 
     /// Moves the handle to keep it in sync with the new cursor offset.
-    pub(super) fn r#move(&mut self, _new_cursor_offset: ByteOffset) {
-        todo!();
+    pub(super) fn r#move(&mut self, new_cursor_offset: ByteOffset) {
+        let (line, col, mut opts_builder) = Self::extmark_params(
+            self.buffer.clone(),
+            new_cursor_offset,
+            &self.peer_handle,
+            self.hl_group_id,
+        );
+
+        let opts = opts_builder.id(self.extmark_id).build();
+
+        let new_extmark_id = self
+            .buffer
+            .set_extmark(self.namespace_id, line, col, &opts)
+            .expect("couldn't move extmark");
+
+        debug_assert_eq!(new_extmark_id, self.extmark_id);
     }
 
     /// Removes the handle from the buffer.
@@ -59,6 +91,18 @@ impl NeovimPeerHandle {
         self.buffer
             .del_extmark(self.namespace_id, self.extmark_id)
             .expect("couldn't delete extmark");
+    }
+
+    /// Returns the line, column, and options to give to
+    /// [`api::Buffer::set_extmark`] to position the peer handle above or below
+    /// the cursor at the given byte offset.
+    fn extmark_params(
+        buffer: api::Buffer,
+        cursor_offset: ByteOffset,
+        _peer_handle: &PeerHandle,
+        _hl_group_id: u32,
+    ) -> (usize, usize, api::opts::SetExtmarkOptsBuilder) {
+        todo!();
     }
 }
 
