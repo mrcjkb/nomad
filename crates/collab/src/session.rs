@@ -7,11 +7,13 @@ use abs_path::{AbsPathBuf, NodeName};
 use collab_server::client as collab_client;
 use collab_types::{Peer, PeerId};
 use editor::{Access, Context, Shared};
-use futures_util::{FutureExt, SinkExt, StreamExt, select_biased};
+use futures_util::sink::{Sink, SinkExt};
+use futures_util::stream::{FusedStream, StreamExt};
+use futures_util::{FutureExt, select_biased};
 use fxhash::FxHashMap;
 use smallvec::SmallVec;
 
-use crate::editors::{ActionForSelectedSession, MessageRx, MessageTx};
+use crate::editors::ActionForSelectedSession;
 use crate::event_stream::{EventError, EventStream};
 use crate::leave::StopRequest;
 use crate::project::{IntegrateError, Project, SynchronizeError};
@@ -69,15 +71,15 @@ pub enum SessionError<Ed: CollabEditor> {
 pub struct NoActiveSessionError;
 
 /// TODO: docs.
-pub(crate) struct Session<Ed: CollabEditor> {
+pub(crate) struct Session<Ed: CollabEditor, Tx, Rx> {
     /// TODO: docs.
     pub(crate) event_stream: EventStream<Ed>,
 
     /// TODO: docs.
-    pub(crate) message_rx: MessageRx<Ed>,
+    pub(crate) message_rx: Rx,
 
     /// TODO: docs.
-    pub(crate) message_tx: MessageTx<Ed>,
+    pub(crate) message_tx: Tx,
 
     /// TODO: docs.
     pub(crate) project: Project<Ed>,
@@ -227,7 +229,14 @@ impl RemotePeers {
     }
 }
 
-impl<Ed: CollabEditor> Session<Ed> {
+impl<Ed, Tx, Rx> Session<Ed, Tx, Rx>
+where
+    Ed: CollabEditor,
+    Tx: Sink<collab_types::Message, Error = io::Error> + Unpin,
+    Rx: FusedStream<
+            Item = Result<collab_types::Message, collab_client::ReceiveError>,
+        > + Unpin,
+{
     pub(crate) async fn run(mut self, ctx: &mut Context<Ed>) {
         match self.run_event_loop(ctx).await {
             Ok(SessionEndReason::MessageReceiverExhausted) => {

@@ -229,12 +229,6 @@ pub type SessionId<Ed> =
     <<Ed as CollabEditor>::ServerParams as collab_server::Params>::SessionId;
 
 /// TODO: docs.
-pub(crate) type MessageRx<Ed> = collab_server::client::Receiver<Reader<Ed>>;
-
-/// TODO: docs.
-pub(crate) type MessageTx<Ed> = collab_server::client::Sender<Writer<Ed>>;
-
-/// TODO: docs.
 pub(crate) type Reader<Ed> =
     futures_util::io::ReadHalf<<Ed as CollabEditor>::Io>;
 
