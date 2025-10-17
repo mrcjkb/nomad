@@ -3,7 +3,7 @@
 use core::iter;
 use std::sync::Arc;
 
-use abs_path::{AbsPath, AbsPathBuf, NodeName};
+use abs_path::{AbsPath, AbsPathBuf};
 use collab_project::fs::{File, FileMut, FsOp, Node, NodeMut};
 use collab_project::text::{CursorId, SelectionId, TextReplacement};
 use collab_types::{Message, Peer, PeerId, binary, crop, puff, text};
@@ -298,7 +298,7 @@ impl<Ed: CollabEditor> Project<Ed> {
 
     /// Returns the project's name.
     #[cfg(feature = "neovim")]
-    pub(crate) fn name(&self) -> &NodeName {
+    pub(crate) fn name(&self) -> &abs_path::NodeName {
         self.root_path()
             .node_name()
             .expect("project can't be rooted at fs root")

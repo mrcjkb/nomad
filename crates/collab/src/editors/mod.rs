@@ -18,7 +18,7 @@ use futures_util::{AsyncRead, AsyncWrite};
 
 use crate::progress::ProgressReporter;
 use crate::project::Project;
-use crate::{config, join, leave, pause, resume, session, start, yank};
+use crate::{config, join, jump, leave, pause, resume, session, start, yank};
 
 /// An [`Editor`] subtrait defining additional capabilities needed by the
 /// actions in this crate.
@@ -140,6 +140,9 @@ pub trait CollabEditor: Editor {
 
     /// Called when the [`Collab`](crate::Collab) module is initialized.
     fn on_init(ctx: &mut Context<Self, Borrowed>);
+
+    /// Called when the [`Jump`](jump::Jump) action returns an error.
+    fn on_jump_error(error: jump::JumpError<Self>, ctx: &mut Context<Self>);
 
     /// Called when the [`Leave`](leave::Leave) action returns an error.
     fn on_leave_error(error: leave::LeaveError, ctx: &mut Context<Self>);

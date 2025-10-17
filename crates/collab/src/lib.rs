@@ -9,6 +9,7 @@ pub mod editors;
 pub mod event;
 mod event_stream;
 pub mod join;
+pub mod jump;
 pub mod leave;
 mod list_ext;
 mod pausable_stream;

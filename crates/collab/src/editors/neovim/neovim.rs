@@ -37,7 +37,7 @@ use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::project::Project;
 use crate::session::{SessionError, SessionInfos};
 use crate::tcp_stream_ext::TcpStreamExt;
-use crate::{Collab, config, leave, pause, resume, yank};
+use crate::{Collab, config, jump, leave, pause, resume, yank};
 
 pub type SessionId = ulid::Ulid;
 
@@ -321,6 +321,10 @@ impl CollabEditor for Neovim {
         PeerHandleHighlightGroup::create_all();
         PeerSelectionHighlightGroup::create_all();
         notifications::on_init(ctx);
+    }
+
+    fn on_jump_error(error: jump::JumpError<Self>, ctx: &mut Context<Self>) {
+        ctx.notify_error(error.to_string());
     }
 
     fn on_leave_error(error: leave::LeaveError, ctx: &mut Context<Self>) {

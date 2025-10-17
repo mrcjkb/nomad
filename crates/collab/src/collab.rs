@@ -1,4 +1,5 @@
 use auth::AuthState;
+use collab_types::PeerHandle;
 use editor::context::Borrowed;
 use editor::module::{ApiCtx, Module};
 use editor::{Context, Shared};
@@ -6,6 +7,7 @@ use editor::{Context, Shared};
 use crate::config::Config;
 use crate::editors::{CollabEditor, SessionId};
 use crate::join::{Join, JoinError};
+use crate::jump::{Jump, JumpError};
 use crate::leave::{self, Leave, LeaveError};
 use crate::pause::{Pause, PauseError};
 use crate::progress::ProgressReporter;
@@ -32,6 +34,15 @@ impl<Ed: CollabEditor> Collab<Ed> {
         let mut reporter =
             <Ed::ProgressReporter as ProgressReporter<_, Join<_>>>::new(ctx);
         Join::from(self).call_inner(session_id, &mut reporter, ctx).await
+    }
+
+    /// Calls the [`Jump`] action.
+    pub async fn jump(
+        &self,
+        peer_handle: PeerHandle,
+        ctx: &mut Context<Ed>,
+    ) -> Result<(), JumpError<Ed>> {
+        Jump::from(self).call_inner(peer_handle, ctx).await
     }
 
     /// Calls the [`Leave`] action.
@@ -84,11 +95,13 @@ impl<Ed: CollabEditor> Module<Ed> for Collab<Ed> {
 
     fn api(&self, ctx: &mut ApiCtx<Ed>) {
         ctx.with_command(Join::from(self))
+            .with_command(Jump::from(self))
             .with_command(Leave::from(self))
             .with_command(Pause::from(self))
             .with_command(Resume::from(self))
             .with_command(Start::from(self))
             .with_command(Yank::from(self))
+            .with_function(Jump::from(self))
             .with_function(Join::from(self))
             .with_function(Leave::from(self))
             .with_function(Resume::from(self))
