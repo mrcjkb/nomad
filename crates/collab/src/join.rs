@@ -32,7 +32,7 @@ use crate::editors::{CollabEditor, SessionId, Welcome};
 use crate::event_stream::EventStreamBuilder;
 use crate::leave::StopChannels;
 use crate::progress::{JoinState, ProgressReporter};
-use crate::project::{self, IdMaps, IntegrateError};
+use crate::project::{self, IdMaps};
 use crate::session::{RemotePeers, Session, SessionInfos, Sessions};
 
 /// The `Action` used to join an existing collaborative editing session.
@@ -125,7 +125,7 @@ impl<Ed: CollabEditor> Join<Ed> {
 
         let remote_peers = RemotePeers::from(welcome.other_peers);
 
-        let mut project = project::Project {
+        let project = project::Project {
             agent_id: event_stream.agent_id(),
             id_maps: id_maps.into(),
             inner: project,
@@ -135,13 +135,6 @@ impl<Ed: CollabEditor> Join<Ed> {
             remote_peers: remote_peers.clone(),
             root_path: project_root.path().to_owned(),
         };
-
-        for message in buffered {
-            project
-                .integrate(message, ctx)
-                .await
-                .map_err(JoinError::Integrate)?;
-        }
 
         let session_infos = SessionInfos {
             host_id: welcome.host_id,
@@ -153,7 +146,7 @@ impl<Ed: CollabEditor> Join<Ed> {
 
         let session = Session {
             event_stream,
-            message_rx: welcome.rx,
+            message_rx: stream::iter(buffered).map(Ok).chain(welcome.rx),
             message_tx: welcome.tx,
             project,
             stop_rx: self.stop_channels.insert(welcome.session_id),
@@ -418,9 +411,6 @@ pub enum JoinError<Ed: CollabEditor> {
 
     /// TODO: docs.
     Knock(collab_client::KnockError<Ed::ServerParams>),
-
-    /// TODO: docs.
-    Integrate(IntegrateError<Ed>),
 
     /// The project filter couldn't be created.
     ProjectFilter(Ed::ProjectFilterError),
