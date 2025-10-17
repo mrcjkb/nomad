@@ -13,6 +13,7 @@ use editor::context::Borrowed;
 use editor::{ByteOffset, Context, Editor, EditorAdapter};
 
 use crate::editors::{ActionForSelectedSession, CollabEditor};
+use crate::project::Project;
 use crate::session::{SessionError, SessionInfos};
 use crate::{config, leave, yank};
 
@@ -302,9 +303,9 @@ where
 
     fn on_leave_error(_: leave::LeaveError, _: &mut Context<Self>) {}
 
-    fn on_peer_left(_: &Peer, _: &AbsPath, _: &mut Context<Self>) {}
+    fn on_peer_left(_: &Peer, _: &Project<Self>, _: &mut Context<Self>) {}
 
-    fn on_peer_joined(_: &Peer, _: &AbsPath, _: &mut Context<Self>) {}
+    fn on_peer_joined(_: &Peer, _: &Project<Self>, _: &mut Context<Self>) {}
 
     fn on_session_ended(_: &SessionInfos<Self>, _: &mut Context<Self>) {}
 

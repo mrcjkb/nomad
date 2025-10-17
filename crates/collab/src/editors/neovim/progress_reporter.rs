@@ -4,6 +4,7 @@ use editor::Context;
 use neovim::Neovim;
 use neovim::notify::{self, NotifyContextExt};
 
+use crate::editors::neovim::notifications;
 use crate::progress::{JoinState, Pipeline, ProgressReporter, StartState};
 use crate::{config, join, start};
 
@@ -100,10 +101,10 @@ impl DisplayablePipeline for join::Join<Neovim> {
                 reporter_state.project_name =
                     Some((**project_name).to_owned());
                 let mut chunks = notify::Chunks::default();
-                chunks
-                    .push("Receiving files for project '")
-                    .push_highlighted(project_name.to_string(), "Directory")
-                    .push("'");
+                chunks.push("Receiving files for project ").push_highlighted(
+                    project_name.to_string(),
+                    notifications::PROJ_NAME_HL_GROUP,
+                );
                 chunks
             },
 
@@ -114,9 +115,12 @@ impl DisplayablePipeline for join::Join<Neovim> {
                     );
                 let mut chunks = notify::Chunks::default();
                 chunks
-                    .push("Writing project '")
-                    .push_highlighted(project_name.to_string(), "Directory")
-                    .push("' to ")
+                    .push("Writing project ")
+                    .push_highlighted(
+                        project_name.to_string(),
+                        notifications::PROJ_NAME_HL_GROUP,
+                    )
+                    .push(" to ")
                     .push_highlighted(root_path.to_compact_string(), "String");
                 chunks
             },

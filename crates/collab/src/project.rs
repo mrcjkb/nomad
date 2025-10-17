@@ -3,7 +3,7 @@
 use core::iter;
 use std::sync::Arc;
 
-use abs_path::{AbsPath, AbsPathBuf};
+use abs_path::{AbsPath, AbsPathBuf, NodeName};
 use collab_project::fs::{File, FileMut, FsOp, Node, NodeMut};
 use collab_project::text::{CursorId, SelectionId, TextReplacement};
 use collab_types::{Message, Peer, PeerId, binary, crop, puff, text};
@@ -296,6 +296,18 @@ impl<Ed: CollabEditor> Project<Ed> {
         }
     }
 
+    /// Returns the project's name.
+    pub(crate) fn name(&self) -> &NodeName {
+        self.root_path()
+            .node_name()
+            .expect("project can't be rooted at fs root")
+    }
+
+    /// Returns the project root's path.
+    pub(crate) fn root_path(&self) -> &AbsPath {
+        &self.root_path
+    }
+
     /// TODO: docs.
     pub(crate) async fn synchronize(
         &mut self,
@@ -500,7 +512,7 @@ impl<Ed: CollabEditor> Project<Ed> {
     }
 
     fn integrate_peer_joined(&self, peer: Peer, ctx: &mut Context<Ed>) {
-        Ed::on_peer_joined(&peer, &self.root_path, ctx);
+        Ed::on_peer_joined(&peer, &self, ctx);
 
         self.remote_peers.insert(peer);
     }
@@ -524,7 +536,7 @@ impl<Ed: CollabEditor> Project<Ed> {
             }
         }
 
-        Ed::on_peer_left(&peer, &self.root_path, ctx);
+        Ed::on_peer_left(&peer, &self, ctx);
     }
 
     fn integrate_selection_creation(

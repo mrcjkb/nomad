@@ -3,7 +3,7 @@
 use std::collections::hash_map;
 use std::io;
 
-use abs_path::AbsPathBuf;
+use abs_path::{AbsPathBuf, NodeName};
 use collab_server::client as collab_client;
 use collab_types::{Peer, PeerId};
 use editor::{Access, Context, Shared};
@@ -184,9 +184,16 @@ impl<Ed: CollabEditor> Sessions<Ed> {
 }
 
 impl<Ed: CollabEditor> SessionInfos<Ed> {
-    /// TODO: docs.
+    /// Returns the session's ID.
     pub fn id(&self) -> SessionId<Ed> {
         self.session_id
+    }
+
+    /// Returns the name of the project tracked by this session.
+    pub fn proj_name(&self) -> &NodeName {
+        self.project_root_path
+            .node_name()
+            .expect("project can't be rooted at fs root")
     }
 }
 

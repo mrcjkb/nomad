@@ -32,8 +32,10 @@ use crate::editors::neovim::{
     PeerHandleHighlightGroup,
     PeerHighlightGroup,
     PeerSelectionHighlightGroup,
+    notifications,
 };
 use crate::editors::{ActionForSelectedSession, CollabEditor};
+use crate::project::Project;
 use crate::session::{SessionError, SessionInfos};
 use crate::tcp_stream_ext::TcpStreamExt;
 use crate::{Collab, config, leave, yank};
@@ -335,17 +337,76 @@ impl CollabEditor for Neovim {
         ctx.notify_error(error.to_string());
     }
 
-    fn on_peer_left(_: &Peer, _: &AbsPath, _: &mut Context<Self>) {}
+    fn on_peer_left(
+        peer: &Peer,
+        proj: &Project<Self>,
+        ctx: &mut Context<Self>,
+    ) {
+        let mut chunks = notify::Chunks::default();
 
-    fn on_peer_joined(_: &Peer, _: &AbsPath, _: &mut Context<Self>) {}
+        chunks
+            .push_highlighted(
+                peer.handle.as_str(),
+                notifications::PEER_HANDLE_HL_GROUP,
+            )
+            .push(" has left ")
+            .push_highlighted(
+                proj.name().as_str(),
+                notifications::PROJ_NAME_HL_GROUP,
+            );
 
-    fn on_session_ended(_: &SessionInfos<Self>, _: &mut Context<Self>) {}
+        ctx.notify_info(chunks);
+    }
+
+    fn on_peer_joined(
+        peer: &Peer,
+        proj: &Project<Self>,
+        ctx: &mut Context<Self>,
+    ) {
+        let mut chunks = notify::Chunks::default();
+
+        chunks
+            .push_highlighted(
+                peer.handle.as_str(),
+                notifications::PEER_HANDLE_HL_GROUP,
+            )
+            .push(" has joined ")
+            .push_highlighted(
+                proj.name().as_str(),
+                notifications::PROJ_NAME_HL_GROUP,
+            );
+
+        ctx.notify_info(chunks);
+    }
+
+    fn on_session_ended(infos: &SessionInfos<Self>, ctx: &mut Context<Self>) {
+        let mut chunks = notify::Chunks::default();
+
+        chunks
+            .push("Session for project ")
+            .push_highlighted(
+                infos.proj_name().as_str(),
+                notifications::PROJ_NAME_HL_GROUP,
+            )
+            .push(" has ended");
+
+        ctx.notify_info(chunks);
+    }
 
     fn on_session_error(error: SessionError<Self>, ctx: &mut Context<Self>) {
         ctx.notify_error(error.to_string());
     }
 
-    fn on_session_left(_: &SessionInfos<Self>, _: &mut Context<Self>) {}
+    fn on_session_left(infos: &SessionInfos<Self>, ctx: &mut Context<Self>) {
+        let mut chunks = notify::Chunks::default();
+
+        chunks.push("Left session for project ").push_highlighted(
+            infos.proj_name().as_str(),
+            notifications::PROJ_NAME_HL_GROUP,
+        );
+
+        ctx.notify_info(chunks);
+    }
 
     async fn on_session_started(
         infos: &SessionInfos<Self>,

@@ -16,6 +16,7 @@ use editor::context::Borrowed;
 use editor::{ByteOffset, Context, Editor};
 use futures_util::{AsyncRead, AsyncWrite};
 
+use crate::project::Project;
 use crate::{config, join, leave, progress, session, start, yank};
 
 /// An [`Editor`] subtrait defining additional capabilities needed by the
@@ -142,13 +143,17 @@ pub trait CollabEditor: Editor {
     /// Called when the [`Leave`](leave::Leave) action returns an error.
     fn on_leave_error(error: leave::LeaveError, ctx: &mut Context<Self>);
 
-    /// Called when a peer leaves the session rooted at the given path.
-    fn on_peer_left(peer: &Peer, root_path: &AbsPath, ctx: &mut Context<Self>);
+    /// Called when a remote peer leaves the session for the given project.
+    fn on_peer_left(
+        peer: &Peer,
+        proj: &Project<Self>,
+        ctx: &mut Context<Self>,
+    );
 
-    /// Called when a peer joins the session rooted at the given path.
+    /// Called when a remote peer joins the session for the given project.
     fn on_peer_joined(
         peer: &Peer,
-        root_path: &AbsPath,
+        proj: &Project<Self>,
         ctx: &mut Context<Self>,
     );
 

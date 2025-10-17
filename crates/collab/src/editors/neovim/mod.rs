@@ -1,6 +1,7 @@
 #![allow(missing_docs)]
 
 mod neovim;
+mod notifications;
 mod peer_cursor;
 mod peer_handle;
 mod peer_highlight_group;
