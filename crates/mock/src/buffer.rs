@@ -104,6 +104,36 @@ impl<'a> Buffer<'a> {
         cursor
     }
 
+    pub fn create_selection(
+        &mut self,
+        offset_range: Range<ByteOffset>,
+        agent_id: AgentId,
+    ) -> Selection<'_> {
+        let id_in_buffer =
+            self.selections.insert(SelectionInner { offset_range });
+
+        let on_selection_created = self.callbacks.with(|callbacks| {
+            callbacks
+                .values()
+                .filter_map(|cb_kind| match cb_kind {
+                    CallbackKind::SelectionCreated(fun) => Some(fun.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        });
+
+        let mut selection = Selection {
+            selection_id: SelectionId { buffer_id: self.id(), id_in_buffer },
+            buffer: self.reborrow(),
+        };
+
+        for callback in on_selection_created {
+            callback.with_mut(|cb| cb(selection.reborrow(), agent_id));
+        }
+
+        selection
+    }
+
     pub(crate) fn into_cursor(
         self,
         cursor_id: CursorId,
@@ -151,6 +181,15 @@ impl Cursor<'_> {
 impl CursorId {
     pub(crate) fn buffer_id(&self) -> BufferId {
         self.buffer_id
+    }
+}
+
+impl Selection<'_> {
+    pub(crate) fn reborrow(&mut self) -> Selection<'_> {
+        Selection {
+            buffer: self.buffer.reborrow(),
+            selection_id: self.selection_id,
+        }
     }
 }
 
