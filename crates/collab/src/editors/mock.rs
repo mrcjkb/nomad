@@ -300,15 +300,13 @@ where
 
     fn on_init(_: &mut Context<Self, Borrowed>) {}
 
-    fn on_leave_error(_: leave::LeaveError, _: &mut Context<Self>) {
-        unimplemented!()
-    }
+    fn on_leave_error(_: leave::LeaveError, _: &mut Context<Self>) {}
 
     fn on_session_ended(_: &SessionInfos<Self>, _: &mut Context<Self>) {}
 
-    fn on_session_error(_: SessionError<Self>, _: &mut Context<Self>) {
-        unimplemented!()
-    }
+    fn on_session_error(_: SessionError<Self>, _: &mut Context<Self>) {}
+
+    fn on_session_left(_: &SessionInfos<Self>, _: &mut Context<Self>) {}
 
     async fn on_session_started(
         _: &SessionInfos<Self>,
@@ -316,9 +314,7 @@ where
     ) {
     }
 
-    fn on_yank_error(_: yank::YankError<Self>, _: &mut Context<Self>) {
-        unimplemented!()
-    }
+    fn on_yank_error(_: yank::YankError<Self>, _: &mut Context<Self>) {}
 
     fn project_filter(
         project_root: &<Self::Fs as fs::Fs>::Directory,

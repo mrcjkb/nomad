@@ -104,6 +104,15 @@ pub(crate) struct RemoveOnDrop<Ed: CollabEditor> {
     session_id: SessionId<Ed>,
 }
 
+/// Represents the reasons a session can end, excluding [errors](SessionError).
+enum SessionEndReason {
+    /// The message receiver was exhausted.
+    MessageReceiverExhausted,
+
+    /// The [`Leave`](crate::leave::Leave) action was invoked.
+    UserLeft,
+}
+
 impl<Ed: CollabEditor> Sessions<Ed> {
     /// Returns the infos for the session with the given ID, if any.
     pub fn get(&self, session_id: SessionId<Ed>) -> Option<SessionInfos<Ed>> {
@@ -214,22 +223,22 @@ impl RemotePeers {
 impl<Ed: CollabEditor> Session<Ed> {
     pub(crate) async fn run(mut self, ctx: &mut Context<Ed>) {
         match self.run_event_loop(ctx).await {
-            Ok(()) => {
-                self.with_infos(|infos| Ed::on_session_ended(infos, ctx))
+            Ok(SessionEndReason::MessageReceiverExhausted) => {
+                self.with_infos(|infos| Ed::on_session_ended(infos, ctx));
+            },
+            Ok(SessionEndReason::UserLeft) => {
+                self.with_infos(|infos| Ed::on_session_left(infos, ctx));
             },
             Err(err) => Ed::on_session_error(err, ctx),
         }
     }
 
-    /// Runs the session's event loop until:
-    ///
-    /// * a [`StopRequest`] is received;
-    /// * the [`Message`] receiver is exhausted;
-    /// * an error occurs.
+    /// Runs the session's event loop until the session ends or an error
+    /// occurs.
     async fn run_event_loop(
         &mut self,
         ctx: &mut Context<Ed>,
-    ) -> Result<(), SessionError<Ed>> {
+    ) -> Result<SessionEndReason, SessionError<Ed>> {
         let Self {
             event_stream,
             message_rx,
@@ -252,7 +261,7 @@ impl<Ed: CollabEditor> Session<Ed> {
                 },
                 maybe_message_res = message_rx.next() => {
                     let Some(message_res) = maybe_message_res else {
-                        return Ok(())
+                        return Ok(SessionEndReason::MessageReceiverExhausted);
                     };
 
                     let message = message_res?;
@@ -263,7 +272,7 @@ impl<Ed: CollabEditor> Session<Ed> {
                 },
                 stop_request = stop_stream.select_next_some() => {
                     stop_request.send_stopped();
-                    return Ok(())
+                    return Ok(SessionEndReason::UserLeft);
                 },
             }
         }

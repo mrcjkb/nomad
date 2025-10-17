@@ -154,6 +154,12 @@ pub trait CollabEditor: Editor {
         ctx: &mut Context<Self>,
     );
 
+    /// Called when the user leaves a session.
+    fn on_session_left(
+        session_infos: &session::SessionInfos<Self>,
+        ctx: &mut Context<Self>,
+    );
+
     /// Called after the [`Start`](start::Start) action successfully starts a
     /// new session, just before running the session's event loop.
     fn on_session_started(

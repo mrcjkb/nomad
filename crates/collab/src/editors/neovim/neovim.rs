@@ -341,6 +341,8 @@ impl CollabEditor for Neovim {
         ctx.notify_error(error.to_string());
     }
 
+    fn on_session_left(_: &SessionInfos<Self>, _: &mut Context<Self>) {}
+
     async fn on_session_started(
         infos: &SessionInfos<Self>,
         ctx: &mut Context<Self>,
