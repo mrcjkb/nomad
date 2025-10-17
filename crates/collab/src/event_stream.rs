@@ -411,7 +411,7 @@ impl<Ed: CollabEditor> EventStream<Ed> {
             event::SelectionEventKind::Created(buffer_id, range) => {
                 // We only care about selections in buffers that are part of
                 // the project.
-                if self.buffer_streams.is_watched(buffer_id) {
+                if !self.buffer_streams.is_watched(buffer_id) {
                     return None;
                 }
 
