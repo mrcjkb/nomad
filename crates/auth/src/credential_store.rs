@@ -39,7 +39,25 @@ impl CredentialStore {
             Ok(jwt) => JsonWebToken::from_str_on_client(&jwt)
                 .map(Some)
                 .map_err(Into::into),
+
             Err(keyring::Error::NoEntry) => Ok(None),
+
+            // TODO: upstream this.
+            #[cfg(any(
+                target_os = "linux",
+                target_os = "freebsd",
+                target_os = "openbsd"
+            ))]
+            Err(keyring::Error::NoStorageAccess(err)) => {
+                if let Some(dbus_secret_service::Error::NoResult) =
+                    err.downcast_ref()
+                {
+                    Ok(None)
+                } else {
+                    Err(keyring::Error::NoStorageAccess(err).into())
+                }
+            },
+
             Err(err) => Err(err.into()),
         }
     }

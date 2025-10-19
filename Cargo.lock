@@ -244,6 +244,7 @@ dependencies = [
  "abs-path",
  "auth-types",
  "cauchy",
+ "dbus-secret-service",
  "derive_more",
  "editor",
  "event-listener",
