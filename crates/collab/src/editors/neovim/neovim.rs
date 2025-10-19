@@ -7,9 +7,8 @@ use std::{env, io};
 use abs_path::{AbsPath, AbsPathBuf, AbsPathFromPathError, node};
 use async_net::TcpStream;
 use collab_types::Peer;
-use compact_str::format_compact;
+use compact_str::{ToCompactString, format_compact};
 use editor::context::Borrowed;
-use editor::module::{Action, Module};
 use editor::{AgentId, Buffer, ByteOffset, Context, Cursor, Editor};
 use executor::Executor;
 use fs::Directory;
@@ -35,18 +34,11 @@ use crate::editors::neovim::{
 };
 use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::project::Project;
-use crate::session::{SessionError, SessionInfos};
+use crate::session::{NoActiveSessionError, SessionError, SessionInfos};
 use crate::tcp_stream_ext::TcpStreamExt;
-use crate::{Collab, config, copy_id, jump, leave, pause, resume};
+use crate::{config, copy_id, jump, leave, pause, resume};
 
 pub type SessionId = ulid::Ulid;
-
-#[derive(Debug, derive_more::Display, cauchy::Error, cauchy::PartialEq)]
-#[display("couldn't copy {} to clipboard: {}", session_id, inner)]
-pub struct NeovimCopySessionIdError {
-    inner: clipboard::ClipboardError,
-    session_id: SessionId,
-}
 
 #[derive(Debug, derive_more::Display, cauchy::Error)]
 pub enum NeovimConnectToServerError {
@@ -103,7 +95,7 @@ impl CollabEditor for Neovim {
     type ServerParams = nomad_collab_params::NomadParams;
 
     type ConnectToServerError = NeovimConnectToServerError;
-    type CopySessionIdError = NeovimCopySessionIdError;
+    type CopySessionIdError = (clipboard::ClipboardError, SessionId);
     type DefaultDirForRemoteProjectsError = NeovimDataDirError;
     type HomeDirError = NeovimHomeDirError;
     type LspRootError = NeovimLspRootError;
@@ -174,10 +166,20 @@ impl CollabEditor for Neovim {
 
     async fn copy_session_id(
         session_id: SessionId,
-        _: &mut Context<Self>,
+        ctx: &mut Context<Self>,
     ) -> Result<(), Self::CopySessionIdError> {
-        clipboard::set(session_id)
-            .map_err(|inner| NeovimCopySessionIdError { inner, session_id })
+        clipboard::set(session_id).map_err(|err| (err, session_id))?;
+
+        let mut chunks = notify::Chunks::default();
+
+        chunks
+            .push("Copied '")
+            .push_highlighted(session_id.to_compact_string(), "Title")
+            .push("' to clipboard");
+
+        ctx.notify_info(chunks);
+
+        Ok(())
     }
 
     fn create_peer_selection(
@@ -342,6 +344,26 @@ impl CollabEditor for Neovim {
     ) {
         cursor.r#move(new_offset);
         handle.r#move(new_offset);
+    }
+
+    fn on_copy_session_id_error(
+        error: copy_id::CopyIdError<Self>,
+        ctx: &mut Context<Self>,
+    ) {
+        match error {
+            copy_id::CopyIdError::CopySessionId((err, session_id)) => {
+                let mut chunks = notify::Chunks::default();
+                chunks
+                    .push("Couldn't copy '")
+                    .push_highlighted(session_id.to_string().as_str(), "Title")
+                    .push(format_compact!("' to clipboard: {err}"));
+                ctx.notify_error(chunks);
+            },
+
+            copy_id::CopyIdError::NoActiveSession => {
+                ctx.notify_error(format_args!("{}", NoActiveSessionError));
+            },
+        }
     }
 
     fn on_init(ctx: &mut Context<Self, Borrowed>) {
@@ -556,37 +578,12 @@ impl CollabEditor for Neovim {
             _ => unreachable!("only provided {} options", options.len()),
         }
 
-        match Self::copy_session_id(infos.session_id, ctx).await {
-            Ok(()) => {
-                let mut chunks = notify::Chunks::default();
-
-                chunks
-                    .push(
-                        "Session ID copied to clipboard. You can also copy \
-                         it later by executing:",
-                    )
-                    .push_newline()
-                    .push_highlighted(":", "Comment")
-                    .push_highlighted(
-                        format_compact!(
-                            "Mad {} {}",
-                            Collab::<Self>::NAME,
-                            copy_id::CopyId::<Self>::NAME
-                        ),
-                        "Title",
-                    );
-
-                ctx.notify_info(chunks);
-            },
-            Err(err) => ctx.notify_error(err.to_string()),
+        if let Err(err) = Self::copy_session_id(infos.session_id, ctx).await {
+            Self::on_copy_session_id_error(
+                copy_id::CopyIdError::CopySessionId(err),
+                ctx,
+            );
         }
-    }
-
-    fn on_copy_session_id_error(
-        error: copy_id::CopyIdError<Self>,
-        ctx: &mut Context<Self>,
-    ) {
-        ctx.notify_error(error.to_string());
     }
 
     fn project_filter(

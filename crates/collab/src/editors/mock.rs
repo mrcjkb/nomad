@@ -15,7 +15,7 @@ use editor::{AgentId, ByteOffset, Context, Editor, EditorAdapter};
 use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::project::Project;
 use crate::session::{SessionError, SessionInfos};
-use crate::{config, jump, leave, pause, resume, copy_id};
+use crate::{config, copy_id, jump, leave, pause, resume};
 
 #[allow(clippy::type_complexity)]
 pub struct CollabMock<Ed: Editor, F = ()> {
@@ -308,6 +308,12 @@ where
         *tooltip = tooltip_offset;
     }
 
+    fn on_copy_session_id_error(
+        _: copy_id::CopyIdError<Self>,
+        _: &mut Context<Self>,
+    ) {
+    }
+
     fn on_init(_: &mut Context<Self, Borrowed>) {}
 
     fn on_jump_error(_: jump::JumpError<Self>, _: &mut Context<Self>) {}
@@ -336,8 +342,6 @@ where
         _: &mut Context<Self>,
     ) {
     }
-
-    fn on_copy_session_id_error(_: copy_id::CopyIdError<Self>, _: &mut Context<Self>) {}
 
     fn project_filter(
         project_root: &<Self::Fs as fs::Fs>::Directory,

@@ -148,6 +148,12 @@ pub trait CollabEditor: Editor {
         ctx: &mut Context<Self>,
     );
 
+    /// Called when the [`CopyId`](copy_id::CopyId) action returns an error.
+    fn on_copy_session_id_error(
+        error: copy_id::CopyIdError<Self>,
+        ctx: &mut Context<Self>,
+    );
+
     /// Called when the [`Collab`](crate::Collab) module is initialized.
     fn on_init(ctx: &mut Context<Self, Borrowed>);
 
@@ -206,12 +212,6 @@ pub trait CollabEditor: Editor {
         session_infos: &SessionInfos<Self>,
         ctx: &mut Context<Self>,
     ) -> impl Future<Output = ()>;
-
-    /// Called when the [`CopyId`](copy_id::CopyId) action returns an error.
-    fn on_copy_session_id_error(
-        error: copy_id::CopyIdError<Self>,
-        ctx: &mut Context<Self>,
-    );
 
     /// TODO: docs.
     fn project_filter(

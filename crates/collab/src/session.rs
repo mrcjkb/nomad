@@ -125,7 +125,7 @@ pub(crate) struct RemoveOnDrop<Ed: CollabEditor> {
 
 /// TODO: docs.
 #[derive(Debug, derive_more::Display, cauchy::Error, PartialEq, Eq)]
-#[display("there's no active collaborative editing session")]
+#[display("There's no active collaborative editing session")]
 pub(crate) struct NoActiveSessionError;
 
 /// Represents the reasons a session can end, excluding [errors](SessionError).
