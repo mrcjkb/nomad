@@ -28,6 +28,11 @@ pub trait NotifyContextExt {
     fn notify_info(&mut self, notification_message: impl Into<Chunks>) {
         self.notify(notification_message, LogLevel::Info);
     }
+
+    /// Emits a notification at the `WARN` level with the given message.
+    fn notify_warn(&mut self, notification_message: impl Into<Chunks>) {
+        self.notify(notification_message, LogLevel::Warn);
+    }
 }
 
 impl<Bs: BorrowState> NotifyContextExt for Context<Neovim, Bs> {

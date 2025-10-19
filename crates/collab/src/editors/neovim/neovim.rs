@@ -429,14 +429,25 @@ impl CollabEditor for Neovim {
             return;
         };
 
+        let Some(file_path) = infos
+            .project_access
+            .with(async move |proj, _ctx| {
+                proj.inner.cursor(cursor_id).map(|cur| cur.file().path())
+            })
+            .await
+            .flatten()
+        else {
+            return;
+        };
+
         // Skip one tick of the event loop. See the comment in
         // `on_session_started` for details.
-        neovim::utils::schedule(|| ()).await;
+        // neovim::utils::schedule(|| ()).await;
 
         let prompt = format!(
             "Joined a new collaborative editing session under \
-             {}.\n{peer_handle} is currently in <file>. Would you like to \
-             jump to their position?",
+             {}.\n{peer_handle} is currently in {file_path}. Would you like \
+             to jump to their position?",
             notifications::path_chunk(&infos.project_root_path, ctx).text(),
         );
 
@@ -455,19 +466,19 @@ impl CollabEditor for Neovim {
             _ => unreachable!("only provided {} options", options.len()),
         }
 
-        // match infos
-        //     .controller()
-        //     .with_proj(async |proj, ctx| {
-        //         jump::Jump::jump_to(proj, cursor_id, ctx).await
-        //     })
-        //     .await
-        // {
-        //     Some(Ok(())) => {},
-        //     Some(Err(err)) => {
-        //         Self::on_jump_error(jump::JumpError::CreateBuffer(err))
-        //     },
-        //     None => ctx.notify_warn("The session has ended"),
-        // }
+        match infos
+            .project_access
+            .with(async move |proj, ctx| {
+                jump::Jump::jump_to(proj, cursor_id, ctx).await
+            })
+            .await
+        {
+            Some(Ok(())) => {},
+            Some(Err(err)) => {
+                Self::on_jump_error(jump::JumpError::CreateBuffer(err), ctx)
+            },
+            None => ctx.notify_warn("The session has ended"),
+        }
     }
 
     fn on_session_left(infos: &SessionInfos<Self>, ctx: &mut Context<Self>) {

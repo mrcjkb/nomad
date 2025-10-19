@@ -300,7 +300,7 @@ impl<Ed: CollabEditor> ProjectAccess<Ed> {
     /// TODO: docs.
     pub(crate) async fn with<R>(
         &self,
-        _fun: impl AsyncFnOnce(&Project<Ed>) -> R + 'static,
+        _fun: impl AsyncFnOnce(&Project<Ed>, &mut Context<Ed>) -> R + 'static,
     ) -> Option<R> {
         todo!();
     }
