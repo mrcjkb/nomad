@@ -354,8 +354,8 @@ impl<Ed: CollabEditor> ProjectAccess<Ed> {
         &self,
     ) -> impl FusedStream<Item = ProjectAccessCallback<Ed>> {
         pin_project_lite::pin_project! {
-            struct CallbackStream<'queue, Ed: CollabEditor> {
-                queue: &'queue Shared<VecDeque<ProjectAccessCallback<Ed>>>,
+            struct CallbackStream<'this, Ed: CollabEditor> {
+                access: &'this ProjectAccess<Ed>,
                 #[pin]
                 listener: event_listener::EventListener,
             }
@@ -369,11 +369,15 @@ impl<Ed: CollabEditor> ProjectAccess<Ed> {
                 ctx: &mut task::Context<'_>,
             ) -> Poll<Option<Self::Item>> {
                 let mut this = self.project();
+                let ProjectAccess { callbacks, event } = this.access;
 
                 loop {
-                    match this.queue.with_mut(|queue| queue.pop_front()) {
+                    match callbacks.with_mut(|queue| queue.pop_front()) {
                         Some(callback) => return Poll::Ready(Some(callback)),
-                        None => ready!(this.listener.as_mut().poll(ctx)),
+                        None => {
+                            ready!(this.listener.as_mut().poll(ctx));
+                            this.listener.as_mut().set(event.listen());
+                        },
                     }
                 }
             }
@@ -385,10 +389,7 @@ impl<Ed: CollabEditor> ProjectAccess<Ed> {
             }
         }
 
-        CallbackStream {
-            queue: &self.callbacks,
-            listener: self.event.listen(),
-        }
+        CallbackStream { access: self, listener: self.event.listen() }
     }
 }
 
