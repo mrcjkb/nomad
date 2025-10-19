@@ -22,7 +22,6 @@ impl<Ed: CollabEditor> Jump<Ed> {
     pub(crate) async fn call_inner(
         &self,
         peer_handle: PeerHandle,
-        _ctx: &mut Context<Ed>,
     ) -> Result<(), JumpError<Ed>> {
         let mut maybe_cursor_id = None;
 
@@ -38,19 +37,17 @@ impl<Ed: CollabEditor> Jump<Ed> {
             return Err(JumpError::UnknownPeer(peer_handle));
         };
 
-        let Some(_cursor_id) = maybe_cursor_id else {
+        let Some(cursor_id) = maybe_cursor_id else {
             return Err(JumpError::PeerCursorNotInProject(peer_handle, sesh));
         };
 
-        todo!();
-
-        // sesh.controller()
-        //     .with_proj(async |proj, ctx| {
-        //         Self::jump_to(proj, cursor_id, ctx).await
-        //     })
-        //     .await
-        //     .ok_or(JumpError::UnknownPeer(peer_handle))?
-        //     .map_err(JumpError::CreateBuffer)
+        sesh.project_access
+            .with(async move |proj, ctx| {
+                Self::jump_to(proj, cursor_id, ctx).await
+            })
+            .await
+            .ok_or(JumpError::UnknownPeer(peer_handle))?
+            .map_err(JumpError::CreateBuffer)
     }
 
     pub(crate) async fn jump_to(
@@ -73,7 +70,7 @@ impl<Ed: CollabEditor> AsyncAction<Ed> for Jump<Ed> {
         ctx: &mut Context<Ed>,
     ) {
         if let Err(err) =
-            self.call_inner(PeerHandle::GitHub(github_handle), ctx).await
+            self.call_inner(PeerHandle::GitHub(github_handle)).await
         {
             Ed::on_jump_error(err, ctx);
         }

@@ -40,9 +40,8 @@ impl<Ed: CollabEditor> Collab<Ed> {
     pub async fn jump(
         &self,
         peer_handle: PeerHandle,
-        ctx: &mut Context<Ed>,
     ) -> Result<(), JumpError<Ed>> {
-        Jump::from(self).call_inner(peer_handle, ctx).await
+        Jump::from(self).call_inner(peer_handle).await
     }
 
     /// Calls the [`Leave`] action.
