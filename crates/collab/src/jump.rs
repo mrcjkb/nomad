@@ -1,5 +1,7 @@
 //! TODO: docs.
 
+use core::cell::OnceCell;
+
 use collab_project::text::CursorId;
 use collab_types::{GitHubHandle, PeerHandle};
 use editor::command::{self, CommandArgs, CommandCompletion, CommandCursor};
@@ -82,8 +84,11 @@ impl<Ed: CollabEditor> Jump<Ed> {
         Ok(())
     }
 
-    fn agent_id(_ctx: &mut Context<Ed>) -> AgentId {
-        todo!();
+    fn agent_id(ctx: &mut Context<Ed>) -> AgentId {
+        thread_local! {
+            static AGENT_ID: OnceCell<AgentId> = const { OnceCell::new() };
+        }
+        AGENT_ID.with(|cell| *cell.get_or_init(|| ctx.new_agent_id()))
     }
 }
 
