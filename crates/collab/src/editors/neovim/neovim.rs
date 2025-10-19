@@ -547,7 +547,7 @@ impl CollabEditor for Neovim {
         // [with]: https://github.com/user-attachments/assets/031d24e9-e030-4611-872c-1b51d3076e23
         neovim::utils::schedule(|| ()).await;
 
-        let session_id = infos.session_id.clone();
+        let session_id = infos.session_id;
 
         let prompt = format!(
             "Started a new collaborative editing session at {} with ID \

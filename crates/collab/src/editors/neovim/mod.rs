@@ -13,7 +13,6 @@ pub use neovim::{
     NeovimDataDirError,
     NeovimHomeDirError,
     NeovimLspRootError,
-    SessionId,
 };
 pub use peer_cursor::NeovimPeerCursor;
 use peer_cursor::PeerCursorHighlightGroup;
