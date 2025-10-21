@@ -16,6 +16,18 @@ pub enum ProgressReporter {
     NvimNotify(notify::NvimNotifyProgressReporter),
 }
 
+pub(super) struct ProgressNotification {
+    pub(super) chunks: notify::Chunks,
+    pub(super) kind: ProgressNotificationKind,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(super) enum ProgressNotificationKind {
+    Progress(Option<notify::Percentage>),
+    Success,
+    Error,
+}
+
 impl ProgressReporter {
     /// Creates a new progress reporter.
     pub fn new(ctx: &mut Context<Neovim, impl BorrowState>) -> Self {
@@ -40,9 +52,13 @@ impl ProgressReporter {
 
     /// TODO: docs.
     pub fn report_error(self, chunks: notify::Chunks) {
+        let notif = ProgressNotification {
+            chunks,
+            kind: ProgressNotificationKind::Error,
+        };
         match self {
-            Self::NvimEcho(inner) => inner.report_error(chunks),
-            Self::NvimNotify(inner) => inner.report_error(chunks),
+            Self::NvimEcho(inner) => inner.send_notification(notif),
+            Self::NvimNotify(inner) => inner.send_notification(notif),
         }
     }
 
@@ -52,19 +68,35 @@ impl ProgressReporter {
         chunks: notify::Chunks,
         percentage: Option<Percentage>,
     ) {
+        let notif = ProgressNotification {
+            chunks,
+            kind: ProgressNotificationKind::Progress(percentage),
+        };
         match self {
-            Self::NvimEcho(inner) => inner.report_progress(chunks, percentage),
-            Self::NvimNotify(inner) => {
-                inner.report_progress(chunks, percentage)
-            },
+            Self::NvimEcho(inner) => inner.send_notification(notif),
+            Self::NvimNotify(inner) => inner.send_notification(notif),
         }
     }
 
     /// TODO: docs.
     pub fn report_success(self, chunks: notify::Chunks) {
+        let notif = ProgressNotification {
+            chunks,
+            kind: ProgressNotificationKind::Success,
+        };
         match self {
-            Self::NvimEcho(inner) => inner.report_success(chunks),
-            Self::NvimNotify(inner) => inner.report_success(chunks),
+            Self::NvimEcho(inner) => inner.send_notification(notif),
+            Self::NvimNotify(inner) => inner.send_notification(notif),
+        }
+    }
+}
+
+impl From<ProgressNotificationKind> for notify::Level {
+    fn from(kind: ProgressNotificationKind) -> Self {
+        use ProgressNotificationKind::*;
+        match kind {
+            Progress(_) | Success => Self::Info,
+            Error => Self::Error,
         }
     }
 }

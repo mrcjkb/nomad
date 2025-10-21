@@ -6,6 +6,10 @@ use futures_util::{FutureExt, StreamExt, select_biased};
 use nvim_oxi::mlua;
 
 use crate::executor::NeovimLocalSpawner;
+use crate::notify::progress_reporter::{
+    ProgressNotification,
+    ProgressNotificationKind,
+};
 use crate::{notify, utils};
 
 /// Frames for the spinner animation.
@@ -27,18 +31,6 @@ pub struct NvimNotify;
 /// TODO: docs.
 pub struct NvimNotifyProgressReporter {
     notification_tx: flume::Sender<ProgressNotification>,
-}
-
-struct ProgressNotification {
-    message: String,
-    kind: ProgressNotificationKind,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(super) enum ProgressNotificationKind {
-    Progress(Option<notify::Percentage>),
-    Success,
-    Error,
 }
 
 impl NvimNotify {
@@ -93,7 +85,7 @@ impl NvimNotifyProgressReporter {
     /// TODO: docs.
     pub fn report_error(self, chunks: notify::Chunks) {
         self.send_notification(ProgressNotification {
-            message: chunks.concat_text(),
+            chunks,
             kind: ProgressNotificationKind::Error,
         });
     }
@@ -105,7 +97,7 @@ impl NvimNotifyProgressReporter {
         perc: Option<notify::Percentage>,
     ) {
         self.send_notification(ProgressNotification {
-            message: chunks.concat_text(),
+            chunks,
             kind: ProgressNotificationKind::Progress(perc),
         });
     }
@@ -113,9 +105,18 @@ impl NvimNotifyProgressReporter {
     /// TODO: docs.
     pub fn report_success(self, chunks: notify::Chunks) {
         self.send_notification(ProgressNotification {
-            message: chunks.concat_text(),
+            chunks,
             kind: ProgressNotificationKind::Success,
         });
+    }
+
+    pub(super) fn send_notification(&self, notif: ProgressNotification) {
+        if let Err(err) = self.notification_tx.try_send(notif) {
+            match err {
+                TrySendError::Disconnected(_) => unreachable!(),
+                TrySendError::Full(_) => {},
+            }
+        }
     }
 
     async fn event_loop(
@@ -153,8 +154,8 @@ impl NvimNotifyProgressReporter {
 
             let record = notify
                 .call::<mlua::Table>((
-                    &*notif.message,
-                    notif.kind.log_level() as u8,
+                    notif.chunks.concat_text(),
+                    notify::Level::from(notif.kind) as u8,
                     &opts,
                 ))
                 .expect("failed to call 'notify'");
@@ -183,15 +184,6 @@ impl NvimNotifyProgressReporter {
             }
         }
     }
-
-    fn send_notification(&self, notif: ProgressNotification) {
-        if let Err(err) = self.notification_tx.try_send(notif) {
-            match err {
-                TrySendError::Disconnected(_) => unreachable!(),
-                TrySendError::Full(_) => {},
-            }
-        }
-    }
 }
 
 impl ProgressNotificationKind {
@@ -200,13 +192,6 @@ impl ProgressNotificationKind {
             Self::Progress(_) => SPINNER_FRAMES[spinner_frame_idx],
             Self::Success => '✔',
             Self::Error => '✘',
-        }
-    }
-
-    fn log_level(self) -> notify::Level {
-        match self {
-            Self::Progress(_) | Self::Success => notify::Level::Info,
-            Self::Error => notify::Level::Error,
         }
     }
 }

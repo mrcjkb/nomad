@@ -10,10 +10,10 @@ use nvim_oxi::api;
 
 use crate::executor::NeovimLocalSpawner;
 use crate::notify;
-use crate::notify::nvim_notify::{
+use crate::notify::nvim_notify::{SPINNER_FRAMES, SPINNER_UPDATE_INTERVAL};
+use crate::notify::progress_reporter::{
+    ProgressNotification,
     ProgressNotificationKind,
-    SPINNER_FRAMES,
-    SPINNER_UPDATE_INTERVAL,
 };
 
 #[cfg(not(feature = "nightly"))]
@@ -34,11 +34,6 @@ pub struct NvimEcho {}
 /// TODO: docs.
 pub struct NvimEchoProgressReporter {
     notification_tx: flume::Sender<ProgressNotification>,
-}
-
-struct ProgressNotification {
-    chunks: notify::Chunks,
-    kind: ProgressNotificationKind,
 }
 
 /// The chunks given to `nvim_echo`.
@@ -218,6 +213,15 @@ impl NvimEchoProgressReporter {
         });
     }
 
+    pub(super) fn send_notification(&self, notif: ProgressNotification) {
+        if let Err(err) = self.notification_tx.try_send(notif) {
+            match err {
+                TrySendError::Disconnected(_) => unreachable!(),
+                TrySendError::Full(_) => {},
+            }
+        }
+    }
+
     fn echo(
         chunks: &NvimEchoChunks<'_>,
         notif_kind: ProgressNotificationKind,
@@ -327,15 +331,6 @@ impl NvimEchoProgressReporter {
                         break 'spin;
                     },
                 }
-            }
-        }
-    }
-
-    fn send_notification(&self, notif: ProgressNotification) {
-        if let Err(err) = self.notification_tx.try_send(notif) {
-            match err {
-                TrySendError::Disconnected(_) => unreachable!(),
-                TrySendError::Full(_) => {},
             }
         }
     }
