@@ -261,14 +261,22 @@ impl<Ed: CollabEditor> Project<Ed> {
                 Ok(Messages::project_response(collab_types::ProjectResponse {
                     peers: self.peers(),
                     encoded_project: self.inner.encode(),
-                    respond_to: request.requested_by.id,
+                    response_id: request.request_id.into(),
                 }))
             },
 
             Message::ProjectResponse(_) => {
                 tracing::error!(
                     title = %ctx.namespace().dot_separated(),
-                    "received unexpected ProjectResponse message"
+                    "received unexpected ProjectResponse"
+                );
+                Ok(Messages::None)
+            },
+
+            Message::ProjectResponseManifest(_) => {
+                tracing::error!(
+                    title = %ctx.namespace().dot_separated(),
+                    "received unexpected ProjectResponseManifest"
                 );
                 Ok(Messages::None)
             },

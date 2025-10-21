@@ -13,8 +13,8 @@ use collab_project::fs::{
     File as ProjectFile,
     Node,
 };
-use collab_server::client as collab_client;
-use collab_types::{Message, Peer, ProjectRequest, puff};
+use collab_server::client::{self, MessageFragment};
+use collab_types::{Message, MessageId, PeerId, ProjectRequest, puff};
 use editor::command::{self, ToCompletionFn};
 use editor::module::{AsyncAction, Module};
 use editor::shared::{MultiThreaded, Shared};
@@ -71,16 +71,14 @@ impl<Ed: CollabEditor> Join<Ed> {
             .map_err(JoinError::ConnectToServer)?
             .split();
 
-        let knock = collab_client::Knock::<Ed::ServerParams> {
+        let knock = client::Knock::<Ed::ServerParams> {
             auth_infos: jwt.into(),
-            session_intent: collab_client::SessionIntent::JoinExisting(
-                session_id,
-            ),
+            session_intent: client::SessionIntent::JoinExisting(session_id),
         };
 
         progress_reporter.report_progress(JoinState::JoiningSession, ctx);
 
-        let mut welcome = collab_client::knock(reader, writer, knock)
+        let mut welcome = client::knock(reader, writer, knock)
             .await
             .map_err(JoinError::Knock)?;
 
@@ -102,10 +100,14 @@ impl<Ed: CollabEditor> Join<Ed> {
             ctx,
         );
 
-        let (project, buffered) =
-            request_project::<Ed>(local_peer.clone(), &mut welcome)
-                .await
-                .map_err(JoinError::RequestProject)?;
+        let (project, buffered) = request_project::<Ed>(
+            local_peer.id,
+            &mut welcome,
+            progress_reporter,
+            ctx,
+        )
+        .await
+        .map_err(JoinError::RequestProject)?;
 
         progress_reporter.report_progress(
             JoinState::WritingProject(Cow::Borrowed(&project_root)),
@@ -223,19 +225,21 @@ impl<Ed: CollabEditor> ToCompletionFn<Ed> for Join<Ed> {
 
 /// TODO: docs.
 async fn request_project<Ed: CollabEditor>(
-    local_peer: Peer,
+    local_id: PeerId,
     welcome: &mut Welcome<Ed>,
-) -> Result<(Project, Vec<Message>), RequestProjectError> {
-    let local_id = local_peer.id;
+    _progress_reporter: &mut impl ProgressReporter<Ed, Join<Ed>>,
+    _ctx: &mut Context<Ed>,
+) -> Result<(Project, Vec<MessageFragment>), RequestProjectError> {
+    let request_id = MessageId { sender_id: local_id, message_seq: 0 };
 
     let request = ProjectRequest {
-        requested_by: local_peer,
         request_from: welcome
             .other_peers
             .as_slice()
             .first()
             .expect("can't be empty")
             .id,
+        request_id,
     };
 
     welcome.tx.send(Message::ProjectRequest(request)).await?;
@@ -243,20 +247,28 @@ async fn request_project<Ed: CollabEditor>(
     let mut buffered = Vec::new();
 
     loop {
-        let message = welcome
+        let fragment = welcome
             .rx
             .next()
             .await
             .ok_or(RequestProjectError::SessionEnded)??;
 
+        if fragment.header.response_id().is_some_and(|id| id == request_id) {
+            buffered.push(fragment);
+            continue;
+        }
+
+        let Some(message) = fragment.message else { continue };
+
         match message {
+            Message::ProjectResponseManifest(_manifest) => todo!(),
             Message::ProjectResponse(response) => {
                 break Ok((
                     Project::decode(&response.encoded_project, local_id)?,
                     buffered,
                 ));
             },
-            other => buffered.push(other),
+            _ => {},
         }
     }
 }
@@ -420,7 +432,7 @@ pub enum JoinError<Ed: CollabEditor> {
     DefaultDirForRemoteProjects(Ed::DefaultDirForRemoteProjectsError),
 
     /// TODO: docs.
-    Knock(collab_client::KnockError<Ed::ServerParams>),
+    Knock(client::KnockError<Ed::ServerParams>),
 
     /// The project filter couldn't be created.
     ProjectFilter(Ed::ProjectFilterError),
@@ -452,7 +464,7 @@ pub enum RequestProjectError {
     RecvResponse(
         #[from]
         #[partial_eq(skip)]
-        collab_client::ReceiveError,
+        client::ReceiveError,
     ),
 
     /// TODO: docs.

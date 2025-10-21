@@ -246,6 +246,7 @@ impl NvimEchoProgressReporter {
         // it in the iterator.
         let include_title = cfg!(not(feature = "nightly"));
 
+        #[cfg_attr(not(feature = "nightly"), expect(clippy::let_unit_value))]
         let _message_id =
             api::echo(chunks.to_iter(include_title), add_to_history, opts)
                 .expect("couldn't echo progress message");

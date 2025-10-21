@@ -8,7 +8,7 @@ use std::io;
 use std::rc::Rc;
 
 use abs_path::{AbsPathBuf, NodeName};
-use collab_server::client as collab_client;
+use collab_server::client::{self, MessageFragment};
 use collab_types::{Message, Peer, PeerId};
 use editor::{Access, Context, Shared};
 use futures_util::sink::{Sink, SinkExt};
@@ -76,7 +76,7 @@ pub enum SessionError<Ed: CollabEditor> {
     Integrate(#[from] IntegrateError<Ed>),
 
     /// TODO: docs.
-    MessageRx(#[from] collab_client::ReceiveError),
+    MessageRx(#[from] client::ReceiveError),
 
     /// TODO: docs.
     MessageTx(#[from] io::Error),
@@ -241,7 +241,7 @@ impl<Ed, Tx, Rx> Session<Ed, Tx, Rx>
 where
     Ed: CollabEditor,
     Tx: Sink<Message, Error = io::Error> + Unpin,
-    Rx: FusedStream<Item = Result<Message, collab_client::ReceiveError>>
+    Rx: FusedStream<Item = Result<MessageFragment, client::ReceiveError>>
         + Unpin,
 {
     pub(crate) async fn run(mut self, ctx: &mut Context<Ed>) {
@@ -285,11 +285,13 @@ where
                     }
                 },
                 maybe_message_res = message_rx.next() => {
-                    let Some(message_res) = maybe_message_res else {
+                    let Some(fragment_res) = maybe_message_res else {
                         return Ok(SessionEndReason::MessageReceiverExhausted);
                     };
 
-                    let message = message_res?;
+                    let Some(message) = fragment_res?.message else {
+                        continue;
+                    };
 
                     for message in project.integrate(message, ctx).await? {
                         message_tx.send(message).await?;
