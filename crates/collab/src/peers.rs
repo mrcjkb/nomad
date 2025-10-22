@@ -59,6 +59,7 @@ impl RemotePeers {
         })
     }
 
+    #[cfg_attr(not(feature = "neovim"), expect(unused))]
     pub(crate) fn find_map<T>(
         &self,
         fun: impl FnMut(&RemotePeer) -> Option<T>,
@@ -109,6 +110,7 @@ impl RemotePeer {
         self.main_cursor_id
     }
 
+    #[cfg_attr(not(feature = "neovim"), expect(unused))]
     pub(crate) fn into_inner(self) -> Peer {
         self.inner
     }

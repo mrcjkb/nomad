@@ -451,6 +451,7 @@ pub enum JoinError<Ed: CollabEditor> {
     UserNotLoggedIn,
 
     /// TODO: docs.
+    #[display("Couldn't write project: {_0}")]
     WriteProject(WriteProjectError<Ed::Fs>),
 }
 

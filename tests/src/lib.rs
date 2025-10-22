@@ -15,5 +15,6 @@ mod mock;
 #[cfg(feature = "neovim")]
 #[cfg_attr(coverage_nightly, coverage(off))]
 mod neovim;
+mod real_fs;
 mod thread_pool;
 mod utils;

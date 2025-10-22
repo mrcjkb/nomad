@@ -489,6 +489,7 @@ pub enum StartError<Ed: CollabEditor> {
     ProjectRootIsFsRoot,
 
     /// TODO: docs.
+    #[display("Couldn't read project: {_0}")]
     ReadProject(ReadProjectError<Ed>),
 
     /// TODO: docs.

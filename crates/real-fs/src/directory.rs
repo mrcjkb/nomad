@@ -124,7 +124,10 @@ impl fs::Directory for Directory {
             async_fs::unix::symlink(target_path, &path).await.with_context(
                 || format!("couldn't create symlink at {path}"),
             )?;
-            let metadata = async_fs::metadata(&path).await?;
+            let metadata =
+                async_fs::symlink_metadata(&path).await.with_context(
+                    || format!("couldn't get metadata for symlink at {path}"),
+                )?;
             Ok(Symlink { metadata, path })
         }
     }

@@ -305,7 +305,6 @@ impl<Ed: CollabEditor> Project<Ed> {
     }
 
     /// Returns the project root's path.
-    #[cfg(feature = "neovim")]
     pub(crate) fn root_path(&self) -> &AbsPath {
         &self.root_path
     }
