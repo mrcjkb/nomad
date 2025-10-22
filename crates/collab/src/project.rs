@@ -1,6 +1,6 @@
 //! TODO: docs.
 
-use core::{iter, mem};
+use core::iter;
 use std::sync::Arc;
 
 use abs_path::{AbsPath, AbsPathBuf};
@@ -152,10 +152,7 @@ pub enum ContentsAtPathError<Fs: fs::Fs> {
 /// The iterator returned by [`Project::integrate`].
 enum Messages {
     None,
-    ProjectResponse {
-        has_sent_manifest: bool,
-        response: Option<collab_types::ProjectResponse>,
-    },
+    ProjectResponse(Option<collab_types::ProjectResponse>),
     Renames(smallvec::IntoIter<[Rename; 2]>),
 }
 
@@ -272,14 +269,6 @@ impl<Ed: CollabEditor> Project<Ed> {
                 tracing::error!(
                     title = %ctx.namespace().dot_separated(),
                     "received unexpected ProjectResponse"
-                );
-                Ok(Messages::None)
-            },
-
-            Message::ProjectResponseManifest(_) => {
-                tracing::error!(
-                    title = %ctx.namespace().dot_separated(),
-                    "received unexpected ProjectResponseManifest"
                 );
                 Ok(Messages::None)
             },
@@ -1694,10 +1683,7 @@ fn text_diff(
 
 impl Messages {
     fn project_response(response: collab_types::ProjectResponse) -> Self {
-        Self::ProjectResponse {
-            has_sent_manifest: false,
-            response: Some(response),
-        }
+        Self::ProjectResponse(Some(response))
     }
 
     fn renames(renames: SmallVec<[Rename; 2]>) -> Self {
@@ -1711,16 +1697,9 @@ impl Iterator for Messages {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::None => None,
-
-            Self::ProjectResponse { has_sent_manifest, response } => {
-                if !mem::replace(has_sent_manifest, true) {
-                    let response = response.as_ref().expect("not consumed");
-                    Some(Message::ProjectResponseManifest(response.into()))
-                } else {
-                    response.take().map(Message::ProjectResponse)
-                }
+            Self::ProjectResponse(response) => {
+                response.take().map(Message::ProjectResponse)
             },
-
             Self::Renames(iter) => iter.next().map(Message::RenamedFsNode),
         }
     }

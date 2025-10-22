@@ -247,7 +247,6 @@ async fn request_project<Ed: CollabEditor>(
     let mut buffered = Vec::new();
 
     let mut bytes_received = 0;
-    let mut bytes_total = None;
 
     loop {
         let fragment = welcome
@@ -261,35 +260,21 @@ async fn request_project<Ed: CollabEditor>(
             continue;
         }
 
-        bytes_received += fragment.payload_len;
+        bytes_received += fragment.payload_len as u64;
 
-        if let Some(bytes_total) = bytes_total {
-            progress_reporter.report_progress(
-                JoinState::ReceivingProject(bytes_received, bytes_total),
-                ctx,
-            );
-        }
+        progress_reporter.report_progress(
+            JoinState::ReceivingProject(
+                bytes_received,
+                fragment.header.message_len(),
+            ),
+            ctx,
+        );
 
-        let Some(message) = fragment.message else { continue };
-
-        match message {
-            Message::ProjectResponseManifest(manifest) => {
-                bytes_total = Some(manifest.encoded_project_len);
-                progress_reporter.report_progress(
-                    JoinState::ReceivingProject(
-                        bytes_received,
-                        manifest.encoded_project_len,
-                    ),
-                    ctx,
-                );
-            },
-            Message::ProjectResponse(response) => {
-                break Ok((
-                    Project::decode(&response.encoded_project, local_id)?,
-                    buffered,
-                ));
-            },
-            _ => {},
+        if let Some(Message::ProjectResponse(response)) = fragment.message {
+            break Ok((
+                Project::decode(&response.encoded_project, local_id)?,
+                buffered,
+            ));
         }
     }
 }

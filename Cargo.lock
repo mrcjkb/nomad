@@ -759,12 +759,13 @@ dependencies = [
 [[package]]
 name = "collab-server"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/collab-server.git#c136668de4e7c2043b6221bb37a9faf86b83dd01"
+source = "git+ssh://git@github.com/nomad/collab-server.git#653da07b4e6051a69580ce298e2e1b243f123deb"
 dependencies = [
  "cauchy",
  "collab-types",
  "derive_more",
  "duplex-stream",
+ "frames",
  "futures-util",
  "generic-server",
  "message-channel",
@@ -777,7 +778,7 @@ dependencies = [
 [[package]]
 name = "collab-types"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/collab-server.git#c136668de4e7c2043b6221bb37a9faf86b83dd01"
+source = "git+ssh://git@github.com/nomad/collab-server.git#653da07b4e6051a69580ce298e2e1b243f123deb"
 dependencies = [
  "bytes",
  "cauchy",
@@ -1116,7 +1117,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "duplex-stream"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/collab-server.git#c136668de4e7c2043b6221bb37a9faf86b83dd01"
+source = "git+ssh://git@github.com/nomad/collab-server.git#653da07b4e6051a69580ce298e2e1b243f123deb"
 dependencies = [
  "async-compat",
  "futures-util",
@@ -1355,6 +1356,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "frames"
+version = "0.1.0"
+source = "git+ssh://git@github.com/nomad/collab-server.git#653da07b4e6051a69580ce298e2e1b243f123deb"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "leb128",
+ "pin-project-lite",
+ "varint-simd",
+]
+
+[[package]]
 name = "fs"
 version = "0.1.0-dev"
 dependencies = [
@@ -1496,7 +1509,7 @@ dependencies = [
 [[package]]
 name = "generic-server"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/collab-server.git#c136668de4e7c2043b6221bb37a9faf86b83dd01"
+source = "git+ssh://git@github.com/nomad/collab-server.git#653da07b4e6051a69580ce298e2e1b243f123deb"
 dependencies = [
  "flume",
  "futures-util",
@@ -1981,9 +1994,9 @@ dependencies = [
 
 [[package]]
 name = "is_terminal_polyfill"
-version = "1.70.1"
+version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
+checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
 name = "itertools"
@@ -2213,16 +2226,15 @@ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 [[package]]
 name = "message-channel"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/collab-server.git#c136668de4e7c2043b6221bb37a9faf86b83dd01"
+source = "git+ssh://git@github.com/nomad/collab-server.git#653da07b4e6051a69580ce298e2e1b243f123deb"
 dependencies = [
  "bincode",
  "cauchy",
  "collab-types",
  "derive_more",
- "leb128",
+ "frames",
  "nohash",
  "num_enum",
- "varint-simd",
  "zstd",
 ]
 
@@ -2741,9 +2753,9 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "once_cell_polyfill"
-version = "1.70.1"
+version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
+checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "oorandom"
@@ -2858,7 +2870,7 @@ checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 [[package]]
 name = "peer-handle"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nomad/collab-server.git#c136668de4e7c2043b6221bb37a9faf86b83dd01"
+source = "git+ssh://git@github.com/nomad/collab-server.git#653da07b4e6051a69580ce298e2e1b243f123deb"
 dependencies = [
  "cauchy",
  "derive_more",
@@ -3405,9 +3417,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.33"
+version = "0.23.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "751e04a496ca00bb97a5e043158d23d66b5aabf2e1d5aa2a0aaebb1aafe6f82c"
+checksum = "6a9586e9ee2b4f8fab52a0048ca7334d7024eef48e2cb9407e3497bb7cab7fa7"
 dependencies = [
  "log",
  "once_cell",
@@ -3451,9 +3463,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-platform-verifier"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be59af91596cac372a6942530653ad0c3a246cdd491aaa9dcaee47f88d67d5a0"
+checksum = "1d99feebc72bae7ab76ba994bb5e121b8d83d910ca40b36e0921f53becc41784"
 dependencies = [
  "core-foundation",
  "core-foundation-sys",
@@ -3467,7 +3479,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

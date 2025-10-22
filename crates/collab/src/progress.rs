@@ -79,7 +79,7 @@ pub enum JoinState<'a> {
     /// received so far.
     ///
     /// [encoded project]: collab_types::ProjectResponse::encoded_project
-    ReceivingProject(usize, usize),
+    ReceivingProject(u64, u64),
 
     /// We've received the project, and are now writing it to disk under the
     /// directory at the given path.
