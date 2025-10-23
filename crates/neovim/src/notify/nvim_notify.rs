@@ -10,6 +10,7 @@ use nvim_oxi::{api, mlua};
 
 use crate::buffer::Point;
 use crate::executor::NeovimLocalSpawner;
+use crate::notify::Chunk;
 use crate::notify::progress_reporter::{
     ProgressNotification,
     ProgressNotificationKind,
@@ -42,10 +43,11 @@ pub(super) enum Icon {
     Percentage(notify::Percentage),
 }
 
-struct HlRanges<'chunks, Lines: Iterator> {
+struct HlRanges<Lines: Iterator, Chunks> {
     lines: Lines,
     current_line: Option<Lines::Item>,
-    message_chunks: &'chunks notify::Chunks,
+    message_chunks: Chunks,
+    highlight_end: Point,
 }
 
 impl NvimNotify {
@@ -90,26 +92,38 @@ impl NvimNotify {
         message_chunks: notify::Chunks,
         namespace_id: u32,
     ) -> mlua::Function {
+        fn inner(
+            window: api::Window,
+            message_chunks: notify::Chunks,
+            namespace_id: u32,
+        ) -> Result<(), api::Error> {
+            let mut buf = window.get_buf()?;
+            let line_count = buf.line_count()?;
+            let lines = buf.get_lines(0..line_count, true)?;
+            let hl_ranges = HlRanges::new(lines, message_chunks.iter());
+            for (hl_group, point_range) in hl_ranges {
+                buf.set_extmark(
+                    namespace_id,
+                    point_range.start.newline_offset,
+                    point_range.start.byte_offset,
+                    &api::opts::SetExtmarkOpts::builder()
+                        .end_row(point_range.end.newline_offset)
+                        .end_col(point_range.end.byte_offset)
+                        .hl_group(hl_group)
+                        .build(),
+                )?;
+            }
+            Ok(())
+        }
+
         mlua::lua()
             .create_function(move |_, window: api::Window| {
-                let Ok(mut buf) = window.get_buf() else { return Ok(()) };
-                let Ok(lines) = buf
-                    .line_count()
-                    .and_then(|count| buf.get_lines(0..count, true))
-                else {
-                    return Ok(());
-                };
-                let hl_ranges = HlRanges::new(lines, &message_chunks);
-                for (hl_group, point_range) in hl_ranges {
-                    let _ = buf.set_extmark(
-                        namespace_id,
-                        point_range.start.newline_offset,
-                        point_range.end.byte_offset,
-                        &api::opts::SetExtmarkOpts::builder()
-                            .end_row(point_range.start.newline_offset)
-                            .end_col(point_range.end.byte_offset)
-                            .hl_group(hl_group)
-                            .build(),
+                if let Err(err) =
+                    inner(window, message_chunks.clone(), namespace_id)
+                {
+                    tracing::error!(
+                        "couldn't apply highlights in nvim-notify \
+                         notification: {err:?}"
                     );
                 }
                 Ok(())
@@ -288,9 +302,17 @@ impl ProgressNotificationKind {
     }
 }
 
-impl<'chunks, Lines: Iterator> HlRanges<'chunks, Lines> {
-    fn new(lines: Lines, message_chunks: &'chunks notify::Chunks) -> Self {
-        HlRanges { lines, current_line: None, message_chunks }
+impl<Lines, Chunks> HlRanges<Lines, Chunks>
+where
+    Lines: ExactSizeIterator<Item = nvim_oxi::String> + DoubleEndedIterator,
+{
+    fn new(mut lines: Lines, message_chunks: Chunks) -> Self {
+        let last_line = lines.next_back();
+        let highlight_end = Point {
+            newline_offset: lines.len(),
+            byte_offset: last_line.as_ref().map_or(0, |line| line.len()),
+        };
+        Self { lines, current_line: last_line, highlight_end, message_chunks }
     }
 }
 
@@ -316,13 +338,51 @@ impl fmt::Display for Icon {
     }
 }
 
-impl<'chunks, Lines: Iterator<Item = nvim_oxi::String>> Iterator
-    for HlRanges<'chunks, Lines>
+impl<'chunks, Lines, Chunks> Iterator for HlRanges<Lines, Chunks>
+where
+    Lines: DoubleEndedIterator<Item = nvim_oxi::String>,
+    Chunks: DoubleEndedIterator<Item = &'chunks Chunk>,
 {
     type Item = (&'chunks str, Range<Point>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        None
+        let (text, hl_group) = loop {
+            let chunk = self.message_chunks.next_back()?;
+            let Some(hl_group) = chunk.hl_group() else { continue };
+            break (chunk.text(), hl_group);
+        };
+
+        loop {
+            let full_line = self.current_line.as_ref()?.as_bytes();
+
+            let haystack = &full_line[..self.highlight_end.byte_offset];
+
+            let start_byte_offset =
+                match memchr::memmem::rfind(haystack, text.as_bytes()) {
+                    Some(offset) => offset,
+                    None => {
+                        let prev_line = self.lines.next_back()?;
+                        self.highlight_end.newline_offset -= 1;
+                        self.highlight_end.byte_offset = prev_line.len();
+                        self.current_line = Some(prev_line);
+                        continue;
+                    },
+                };
+
+            let hl_start = Point {
+                newline_offset: self.highlight_end.newline_offset,
+                byte_offset: start_byte_offset,
+            };
+
+            let hl_end = Point {
+                newline_offset: hl_start.newline_offset,
+                byte_offset: hl_start.byte_offset + text.len(),
+            };
+
+            self.highlight_end.byte_offset = start_byte_offset;
+
+            return Some((hl_group, hl_start..hl_end));
+        }
     }
 }
 
