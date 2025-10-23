@@ -23,40 +23,36 @@ impl BufferEdited {
     fn on_bytes(
         nvim: &mut impl AccessMut<Neovim>,
         args: api::opts::OnBytesArgs,
-        queued_edits: SmallVec<[Edit; 2]>,
     ) -> ShouldDetach {
         let buffer = args.1.clone();
 
-        // If there are queued edits, process them instead.
-        if !queued_edits.is_empty() {
-            return Self::on_edits(nvim, buffer.into(), &queued_edits);
-        }
-
-        let replacement = replacement_of_on_bytes(args);
+        let replacement = replacement_of_on_bytes(&args);
 
         let inserted_text = replacement.inserted_text();
 
-        let extra_replacement =
-            if buffer.has_uneditable_eol() && !inserted_text.ends_with('\n') {
-                let was_empty = buffer.num_bytes() == inserted_text.len() + 1;
-                let is_empty = buffer.is_empty();
+        let extra_replacement = if buffer.has_uneditable_eol()
+            && !inserted_text.ends_with('\n')
+        {
+            let was_empty = buffer.num_bytes() == inserted_text.len() + 1;
+            let is_empty = buffer.is_empty();
 
-                match (was_empty, is_empty) {
-                    // If the buffer goes from empty to not empty, the trailing
-                    // EOL "activates".
-                    (true, false) => {
-                        Some(Replacement::insertion(inserted_text.len(), "\n"))
-                    },
-
-                    // Viceversa, if the buffer goes from not empty to empty,
-                    // the trailing EOL "deactivates".
-                    (false, true) => Some(Replacement::deletion(0..1)),
-
-                    _ => None,
-                }
+            if was_empty && !is_empty {
+                // If the buffer goes from empty to not empty, the trailing EOL
+                // "activates".
+                Some(Replacement::insertion(inserted_text.len(), "\n"))
+            } else if !was_empty && is_empty {
+                // Viceversa, if the buffer goes from not empty to empty, the
+                // trailing EOL "deactivates" (but only if the edit didn't
+                // already delete it).
+                let old_end_col = args.7;
+                let did_already_delete_eol = old_end_col == 0;
+                (!did_already_delete_eol).then(|| Replacement::deletion(0..1))
             } else {
                 None
-            };
+            }
+        } else {
+            None
+        };
 
         let buffer_id = BufferId::from(buffer.clone());
 
@@ -68,21 +64,14 @@ impl BufferEdited {
                 .unwrap_or(AgentId::UNKNOWN)
         });
 
-        let mut edits = SmallVec::<[Edit; 2]>::new();
-
-        edits.push(Edit {
+        let edit = Edit {
             made_by: edited_by,
-            replacements: smallvec_inline![replacement],
-        });
+            replacements: iter::once(replacement)
+                .chain(extra_replacement)
+                .collect(),
+        };
 
-        if let Some(replacement) = extra_replacement {
-            edits.push(Edit {
-                made_by: AgentId::UNKNOWN,
-                replacements: smallvec_inline![replacement],
-            });
-        }
-
-        Self::on_edits(nvim, buffer.into(), &edits)
+        Self::on_edits(nvim, buffer.into(), iter::once(&edit))
     }
 
     fn on_edits<'a>(
@@ -119,6 +108,44 @@ impl BufferEdited {
 
             false
         })
+    }
+
+    /// Fixes the arguments given to
+    /// [`on_bytes`](api::opts::BufAttachOptsBuilder::on_bytes).
+    fn fix_on_bytes_args(
+        mut args: api::opts::OnBytesArgs,
+    ) -> api::opts::OnBytesArgs {
+        let (
+            _bytes,
+            buffer,
+            _changedtick,
+            start_row,
+            start_col,
+            _start_offset,
+            _old_end_row,
+            _old_end_col,
+            _old_end_len,
+            new_end_row,
+            new_end_col,
+            new_end_len,
+        ) = &mut args;
+
+        // Workaround for edge cases like `dd` in a buffer with a single line
+        // or `dG` from the first line in a buffer, where the entire contents
+        // of the buffer are deleted but the end position given to `on_bytes`
+        // is out of bounds.
+        //
+        // See https://github.com/neovim/neovim/issues/35557 for an example.
+        if (*start_row, *start_col) == (0, 0)
+            && (*new_end_row, *new_end_col) == (1, 0)
+            && buffer.is_empty()
+        {
+            *new_end_row = 0;
+            *new_end_col = 0;
+            *new_end_len = 0;
+        }
+
+        args
     }
 }
 
@@ -183,7 +210,12 @@ impl Event for BufferEdited {
             let mut nvim = nvim.clone();
             let queued_edits = queued_edits.clone();
             move |args: api::opts::OnBytesArgs| {
-                Self::on_bytes(&mut nvim, args, queued_edits.take())
+                let queued_edits = queued_edits.take();
+                if !queued_edits.is_empty() {
+                    Self::on_edits(&mut nvim, buffer_id, &queued_edits)
+                } else {
+                    Self::on_bytes(&mut nvim, Self::fix_on_bytes_args(args))
+                }
             }
         }
         .catch_unwind()
@@ -290,10 +322,10 @@ impl Event for BufferEdited {
 /// [`on_bytes`](api::opts::BufAttachOptsBuilder::on_bytes) callback into
 /// the corresponding [`Replacement`].
 #[inline]
-fn replacement_of_on_bytes(args: api::opts::OnBytesArgs) -> Replacement {
-    let (
-        _bytes,
-        buffer,
+fn replacement_of_on_bytes(args: &api::opts::OnBytesArgs) -> Replacement {
+    let &(
+        ref _bytes,
+        ref buffer,
         _changedtick,
         start_row,
         start_col,
@@ -322,19 +354,6 @@ fn replacement_of_on_bytes(args: api::opts::OnBytesArgs) -> Replacement {
         newline_offset: start_row + new_end_row,
         byte_offset: start_col * (new_end_row == 0) as usize + new_end_col,
     };
-
-    // Workaround for edge cases like `dd` in a buffer with a single line or
-    // `dG` from the first line in a buffer, where the entire contents of the
-    // buffer are deleted but the end position given to `on_bytes` is out of
-    // bounds.
-    //
-    // See https://github.com/neovim/neovim/issues/35557 for an example.
-    if insertion_start == Point::zero()
-        && insertion_end == Point::new(1, 0)
-        && buffer.is_empty()
-    {
-        return Replacement::deletion(deletion_start..deletion_end);
-    }
 
     Replacement::new(
         deletion_start..deletion_end,

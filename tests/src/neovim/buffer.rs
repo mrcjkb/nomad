@@ -166,7 +166,7 @@ async fn setting_eol_is_like_inserting_trailing_newline(
 }
 
 #[neovim::test]
-async fn inserting_in_empty_buf_with_eol_causes_newline_insertion(
+async fn inserting_via_api_in_empty_buf_with_eol_causes_newline_insertion(
     ctx: &mut Context<Neovim>,
 ) {
     let agent_id = ctx.new_agent_id();
@@ -182,15 +182,32 @@ async fn inserting_in_empty_buf_with_eol_causes_newline_insertion(
 
     let edit = edit_stream.next().await.unwrap();
     assert_eq!(edit.made_by, agent_id);
-    assert_eq!(&*edit.replacements, &[Replacement::insertion(0, "foo")]);
-
-    let edit = edit_stream.next().await.unwrap();
-    assert_eq!(edit.made_by, AgentId::UNKNOWN);
-    assert_eq!(&*edit.replacements, &[Replacement::insertion(3, "\n")]);
+    assert_eq!(
+        &*edit.replacements,
+        &[Replacement::insertion(0, "foo"), Replacement::insertion(3, "\n"),]
+    );
 }
 
 #[neovim::test]
-async fn deleting_all_in_buf_with_eol_causes_newline_deletion(
+async fn inserting_by_typing_in_empty_buf_with_eol_causes_newline_insertion(
+    ctx: &mut Context<Neovim>,
+) {
+    let buffer_id = ctx.create_and_focus_scratch_buffer();
+
+    let mut edit_stream = Edit::new_stream(buffer_id, ctx);
+
+    ctx.feedkeys("iH");
+
+    let edit = edit_stream.next().await.unwrap();
+    assert_eq!(edit.made_by, AgentId::UNKNOWN);
+    assert_eq!(
+        &*edit.replacements,
+        &[Replacement::insertion(0, "H"), Replacement::insertion(1, "\n")]
+    );
+}
+
+#[neovim::test]
+async fn deleting_up_to_newline_via_api_in_buf_with_eol_causes_newline_deletion(
     ctx: &mut Context<Neovim>,
 ) {
     let agent_id = ctx.new_agent_id();
@@ -209,11 +226,51 @@ async fn deleting_all_in_buf_with_eol_causes_newline_deletion(
 
     let edit = edit_stream.next().await.unwrap();
     assert_eq!(edit.made_by, agent_id);
-    assert_eq!(&*edit.replacements, &[Replacement::deletion(0..5)]);
+    assert_eq!(
+        &*edit.replacements,
+        &[Replacement::deletion(0..5), Replacement::deletion(0..1)]
+    );
+}
+
+#[neovim::test]
+async fn deleting_up_to_newline_by_typing_in_buf_with_eol_causes_newline_deletion(
+    ctx: &mut Context<Neovim>,
+) {
+    let buffer_id = ctx.create_and_focus_scratch_buffer();
+
+    ctx.feedkeys("iHello");
+
+    let mut edit_stream = Edit::new_stream(buffer_id, ctx);
+
+    ctx.feedkeys("diw");
 
     let edit = edit_stream.next().await.unwrap();
     assert_eq!(edit.made_by, AgentId::UNKNOWN);
-    assert_eq!(&*edit.replacements, &[Replacement::deletion(0..1)]);
+    assert_eq!(
+        &*edit.replacements,
+        &[Replacement::deletion(0..5), Replacement::deletion(0..1)]
+    );
+}
+
+#[neovim::test]
+async fn delete_all_via_api_in_buf_with_eol(ctx: &mut Context<Neovim>) {
+    let agent_id = ctx.new_agent_id();
+
+    let buffer_id = ctx.create_and_focus_scratch_buffer();
+
+    ctx.feedkeys("iHello");
+
+    let mut edit_stream = Edit::new_stream(buffer_id, ctx);
+
+    ctx.with_borrowed(|ctx| {
+        let mut buf = ctx.buffer(buffer_id).unwrap();
+        assert_eq!(buf.get_text(), "Hello\n");
+        let _ = buf.schedule_deletion(0..6, agent_id);
+    });
+
+    let edit = edit_stream.next().await.unwrap();
+    assert_eq!(edit.made_by, agent_id);
+    assert_eq!(&*edit.replacements, &[Replacement::deletion(0..6)]);
 }
 
 #[neovim::test]
