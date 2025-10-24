@@ -439,6 +439,7 @@ fn apply_replacement(
         let mut insert_text = insert_text;
 
         if let Some(stripped) = insert_text.strip_suffix('\n')
+            && !stripped.is_empty()
             && buffer.is_empty()
             && buffer.has_uneditable_eol()
         {
