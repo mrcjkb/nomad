@@ -70,18 +70,14 @@ impl Plugin<Neovim> for Nomad {
         panic_info: PanicInfo,
         ctx: &mut Context<Neovim, Borrowed<'_>>,
     ) {
+        ctx.notify_error(&panic_info);
+
         tracing::error!(
             title = %ctx.namespace().dot_separated(),
-            "panicked{at_location}{with_payload}",
-            at_location = panic_info
-                .location
-                .as_ref()
-                .map(|loc| format!(" at {loc}"))
-                .unwrap_or_default(),
-            with_payload = panic_info
-                .payload_as_str()
-                .map(|payload| format!(": {payload}"))
-                .unwrap_or_default(),
+            location = ?panic_info.location,
+            payload = ?panic_info.payload_as_str().unwrap_or_default(),
+            backtrace = %panic_info.backtrace,
+            "Panicked",
         );
     }
 }

@@ -212,14 +212,15 @@ impl<Ed: Editor> StateMut<'_, Ed> {
 
 impl<Ed: Editor> PanicHook<Ed> {
     thread_local! {
-        static BACKTRACE: Cell<Option<Backtrace>> = const { Cell::new(None) };
+        static BACKTRACE: Cell<Backtrace> = const { Cell::new(Backtrace::disabled()) };
         static LOCATION: Cell<Option<PanicLocation>> = const { Cell::new(None) };
     }
 
     #[inline]
     fn to_info(&self, payload: Box<dyn Any + Send + 'static>) -> PanicInfo {
-        let backtrace = Self::BACKTRACE.with(|b| b.take());
-        let location = Self::LOCATION.with(|l| l.take());
+        let dummy_backtrace = Backtrace::disabled();
+        let backtrace = Self::BACKTRACE.with(|bt| bt.replace(dummy_backtrace));
+        let location = Self::LOCATION.with(|loc| loc.take());
         PanicInfo { backtrace, location, payload }
     }
 
@@ -231,10 +232,10 @@ impl<Ed: Editor> PanicHook<Ed> {
                 if let Some(prev) = &prev_hook {
                     prev(info);
                 }
-                let trace = Backtrace::capture();
+                let backtrace = Backtrace::force_capture();
                 let location = info.location().map(Into::into);
-                Self::BACKTRACE.with(move |b| b.set(Some(trace)));
-                Self::LOCATION.with(move |l| l.set(location));
+                Self::BACKTRACE.with(move |bt| bt.set(backtrace));
+                Self::LOCATION.with(move |loc| loc.set(location));
             })
         });
         Self { editor: PhantomData }

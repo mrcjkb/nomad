@@ -9,7 +9,7 @@ use smol_str::SmolStr;
 #[non_exhaustive]
 pub struct PanicInfo {
     /// TODO: docs.
-    pub backtrace: Option<Backtrace>,
+    pub backtrace: Backtrace,
 
     /// TODO: docs.
     pub location: Option<PanicLocation>,
@@ -19,7 +19,6 @@ pub struct PanicInfo {
 }
 
 /// TODO: docs.
-#[derive(Debug)]
 pub struct PanicLocation {
     column: u32,
     file: SmolStr,
@@ -72,6 +71,13 @@ impl fmt::Display for PanicLocation {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}:{}", self.file, self.line, self.column)
+    }
+}
+
+impl fmt::Debug for PanicLocation {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
