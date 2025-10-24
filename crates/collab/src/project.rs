@@ -164,6 +164,16 @@ enum FsNodeContents {
 }
 
 impl<Ed: CollabEditor> Project<Ed> {
+    pub(crate) fn drop(self, ctx: &mut Context<Ed>) {
+        for tooltip in self.peer_tooltips.into_values() {
+            Ed::remove_peer_tooltip(tooltip, ctx);
+        }
+
+        for selection in self.peer_selections.into_values() {
+            Ed::remove_peer_selection(selection, ctx);
+        }
+    }
+
     /// TODO: docs.
     #[allow(clippy::too_many_lines)]
     pub(crate) async fn integrate(

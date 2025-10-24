@@ -245,12 +245,20 @@ where
         + Unpin,
 {
     pub(crate) async fn run(mut self, ctx: &mut Context<Ed>) {
-        match self.run_event_loop(ctx).await {
+        let result = self.run_event_loop(ctx).await;
+
+        let Self { project, remove_on_drop, .. } = self;
+
+        project.drop(ctx);
+
+        match result {
             Ok(SessionEndReason::MessageReceiverExhausted) => {
-                self.with_infos(|infos| Ed::on_session_ended(infos, ctx));
+                remove_on_drop
+                    .with_infos(|infos| Ed::on_session_ended(infos, ctx));
             },
             Ok(SessionEndReason::UserLeft) => {
-                self.with_infos(|infos| Ed::on_session_left(infos, ctx));
+                remove_on_drop
+                    .with_infos(|infos| Ed::on_session_left(infos, ctx));
             },
             Err(err) => Ed::on_session_error(err, ctx),
         }
@@ -306,16 +314,6 @@ where
                 },
             }
         }
-    }
-
-    /// Calls the given function with the infos for this session.
-    fn with_infos<R>(&self, f: impl FnOnce(&SessionInfos<Ed>) -> R) -> R {
-        self.remove_on_drop.sessions.with_session(
-            self.remove_on_drop.session_id,
-            |maybe_infos| {
-                f(maybe_infos.expect("session is alive, so infos must exist"))
-            },
-        )
     }
 }
 
@@ -398,6 +396,16 @@ impl<Ed: CollabEditor> ProjectAccess<Ed> {
         self.event_loop_has_started.set(true);
 
         CallbackStream { access: self, listener: self.event.listen() }
+    }
+}
+
+impl<Ed: CollabEditor> RemoveOnDrop<Ed> {
+    /// Calls the given function with the infos of the session that owns this
+    /// `RemoveOnDrop` instance.
+    fn with_infos<R>(&self, f: impl FnOnce(&SessionInfos<Ed>) -> R) -> R {
+        self.sessions.with_session(self.session_id, |maybe_infos| {
+            f(maybe_infos.expect("session is alive, so infos must exist"))
+        })
     }
 }
 
