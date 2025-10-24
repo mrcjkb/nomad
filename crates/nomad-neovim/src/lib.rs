@@ -22,8 +22,11 @@ fn nomad() -> Nomad {
 struct Nomad;
 
 impl Nomad {
-    /// The prefix for the log file names.
+    /// The prefix for the log filenames.
     const LOG_FILENAME_PREFIX: &NodeName = node!("nomad.log");
+
+    /// The [tracing target](tracing::Metadata::target) used for panic events.
+    const TRACING_TARGET_PANIC: &str = "nomad::panic";
 
     /// Returns the directory path under which files that need to be persisted
     /// over Neovim restarts should be stored.
@@ -73,6 +76,7 @@ impl Plugin<Neovim> for Nomad {
         ctx.notify_error(&panic_info);
 
         tracing::error!(
+            target: Nomad::TRACING_TARGET_PANIC,
             title = %ctx.namespace().dot_separated(),
             location = ?panic_info.location,
             payload = ?panic_info.payload_as_str().unwrap_or_default(),
@@ -107,7 +111,12 @@ impl Module<Neovim> for Nomad {
 
         // Only show logs in the message area in debug builds.
         #[cfg(debug_assertions)]
-        let subscriber = subscriber.with(ctx.tracing_layer());
+        let subscriber = subscriber.with(ctx.tracing_layer().with_filter(
+            // Panic events are already emitted via the notification system.
+            tracing_subscriber::filter::FilterFn::new(|metadata| {
+                metadata.target() != Self::TRACING_TARGET_PANIC
+            }),
+        ));
 
         if let Err(err) = tracing::subscriber::set_global_default(subscriber) {
             panic!("failed to set global tracing subscriber: {err}");
