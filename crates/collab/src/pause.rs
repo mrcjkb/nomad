@@ -28,7 +28,7 @@ impl<Ed: CollabEditor> Pause<Ed> {
             return Ok(());
         };
 
-        if session_infos.rx_remote.pause() {
+        if session_infos.pause_remote.pause() {
             Ok(())
         } else {
             Err(PauseError::SessionIsAlreadyPaused(session_infos))

@@ -9,7 +9,7 @@ use crate::copy_id::{CopyId, CopyIdError};
 use crate::editors::{CollabEditor, SessionId};
 use crate::join::{Join, JoinError};
 use crate::jump::{Jump, JumpError};
-use crate::leave::{self, Leave, LeaveError};
+use crate::leave::{Leave, LeaveError};
 use crate::pause::{Pause, PauseError};
 use crate::progress::ProgressReporter;
 use crate::resume::{Resume, ResumeError};
@@ -21,7 +21,6 @@ pub struct Collab<Ed: CollabEditor> {
     pub(crate) auth_state: AuthState,
     pub(crate) config: Shared<Config>,
     pub(crate) sessions: Sessions<Ed>,
-    pub(crate) stop_channels: leave::StopChannels<Ed>,
 }
 
 impl<Ed: CollabEditor> Collab<Ed> {
@@ -128,7 +127,6 @@ impl<Ed: CollabEditor> From<&auth::Auth> for Collab<Ed> {
             auth_state: auth.state(),
             config: Default::default(),
             sessions: Default::default(),
-            stop_channels: Default::default(),
         }
     }
 }

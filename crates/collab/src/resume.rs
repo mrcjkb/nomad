@@ -28,7 +28,7 @@ impl<Ed: CollabEditor> Resume<Ed> {
             return Ok(());
         };
 
-        if session_infos.rx_remote.resume() {
+        if session_infos.pause_remote.resume() {
             Ok(())
         } else {
             Err(ResumeError::SessionIsNotPaused(session_infos))

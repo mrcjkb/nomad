@@ -30,7 +30,6 @@ use crate::collab::Collab;
 use crate::config::Config;
 use crate::editors::{CollabEditor, SessionId, Welcome};
 use crate::event_stream::EventStreamBuilder;
-use crate::leave::StopChannels;
 use crate::pausable_stream::PausableStream;
 use crate::peers::RemotePeers;
 use crate::progress::{JoinState, ProgressReporter};
@@ -43,7 +42,6 @@ pub struct Join<Ed: CollabEditor> {
     auth_state: AuthState,
     config: Shared<Config>,
     sessions: Sessions<Ed>,
-    stop_channels: StopChannels<Ed>,
 }
 
 impl<Ed: CollabEditor> Join<Ed> {
@@ -144,14 +142,17 @@ impl<Ed: CollabEditor> Join<Ed> {
             stream::iter(buffered).map(Ok).chain(welcome.rx),
         );
 
+        let (stop_tx, stop_rx) = flume::bounded(1);
+
         let session_infos = SessionInfos {
             host_id: welcome.host_id,
             local_peer,
             remote_peers,
-            rx_remote: message_rx.remote(),
+            pause_remote: message_rx.remote(),
             project_access: Default::default(),
             project_root_path: project_root.path().to_owned(),
             session_id: welcome.session_id,
+            stop_tx,
         };
 
         let session = Session {
@@ -160,7 +161,7 @@ impl<Ed: CollabEditor> Join<Ed> {
             message_tx: welcome.tx,
             project,
             project_access: session_infos.project_access.clone(),
-            stop_rx: self.stop_channels.insert(welcome.session_id),
+            stop_rx,
             remove_on_drop: self.sessions.insert(session_infos.clone()),
         };
 
@@ -214,7 +215,6 @@ impl<Ed: CollabEditor> From<&Collab<Ed>> for Join<Ed> {
             auth_state: collab.auth_state.clone(),
             config: collab.config.clone(),
             sessions: collab.sessions.clone(),
-            stop_channels: collab.stop_channels.clone(),
         }
     }
 }

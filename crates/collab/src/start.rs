@@ -25,7 +25,6 @@ use crate::collab::Collab;
 use crate::config::Config;
 use crate::editors::CollabEditor;
 use crate::event_stream::{EventStream, EventStreamBuilder};
-use crate::leave::StopChannels;
 use crate::pausable_stream::PausableStream;
 use crate::peers::RemotePeers;
 use crate::progress::{ProgressReporter, StartState};
@@ -45,7 +44,6 @@ pub struct Start<Ed: CollabEditor> {
     auth_state: AuthState,
     config: Shared<Config>,
     sessions: Sessions<Ed>,
-    stop_channels: StopChannels<Ed>,
 }
 
 impl<Ed: CollabEditor> Start<Ed> {
@@ -262,14 +260,17 @@ impl<Ed: CollabEditor> Start<Ed> {
 
         let message_rx = PausableStream::new(welcome.rx);
 
+        let (stop_tx, stop_rx) = flume::bounded(1);
+
         let session_infos = SessionInfos {
             host_id: welcome.host_id,
             local_peer,
             remote_peers,
-            rx_remote: message_rx.remote(),
+            pause_remote: message_rx.remote(),
             project_access: Default::default(),
             project_root_path: project_root,
             session_id: welcome.session_id,
+            stop_tx,
         };
 
         let session = Session {
@@ -278,7 +279,7 @@ impl<Ed: CollabEditor> Start<Ed> {
             message_tx: welcome.tx,
             project,
             project_access: session_infos.project_access.clone(),
-            stop_rx: self.stop_channels.insert(welcome.session_id),
+            stop_rx,
             remove_on_drop: self.sessions.insert(session_infos.clone()),
         };
 
@@ -334,7 +335,6 @@ impl<Ed: CollabEditor> From<&Collab<Ed>> for Start<Ed> {
             auth_state: collab.auth_state.clone(),
             config: collab.config.clone(),
             sessions: collab.sessions.clone(),
-            stop_channels: collab.stop_channels.clone(),
         }
     }
 }

@@ -53,7 +53,7 @@ pub struct SessionInfos<Ed: CollabEditor> {
     pub(crate) remote_peers: RemotePeers,
 
     /// The remote used to pause/resume receiving [`Message`]s.
-    pub(crate) rx_remote: pausable_stream::Remote,
+    pub(crate) pause_remote: pausable_stream::Remote,
 
     /// TODO: docs.
     pub(crate) project_access: ProjectAccess<Ed>,
@@ -63,6 +63,9 @@ pub struct SessionInfos<Ed: CollabEditor> {
 
     /// The ID of the session.
     pub(crate) session_id: SessionId<Ed>,
+
+    /// The sender to request the session to stop.
+    pub(crate) stop_tx: flume::Sender<StopRequest>,
 }
 
 /// TODO: docs.

@@ -1,27 +1,18 @@
 //! TODO: docs.
 
-use std::collections::hash_map::Entry;
-
+use editor::Context;
 use editor::command::ToCompletionFn;
 use editor::module::AsyncAction;
-use editor::{Context, Shared};
-use flume::{Receiver, Sender};
-use fxhash::FxHashMap;
+use flume::Sender;
 
 use crate::collab::Collab;
-use crate::editors::{ActionForSelectedSession, CollabEditor, SessionId};
+use crate::editors::{ActionForSelectedSession, CollabEditor};
 use crate::session::{NoActiveSessionError, Sessions};
 
 /// TODO: docs.
 #[derive(cauchy::Clone)]
 pub struct Leave<Ed: CollabEditor> {
-    channels: StopChannels<Ed>,
     sessions: Sessions<Ed>,
-}
-
-#[derive(cauchy::Clone, cauchy::Default)]
-pub(crate) struct StopChannels<Ed: CollabEditor> {
-    inner: Shared<FxHashMap<SessionId<Ed>, Sender<StopRequest>>>,
 }
 
 pub(crate) struct StopRequest {
@@ -33,11 +24,11 @@ impl<Ed: CollabEditor> Leave<Ed> {
         &self,
         ctx: &mut Context<Ed>,
     ) -> Result<(), LeaveError> {
-        let Some(stop_sender) = self
+        let Some(sesh) = self
             .sessions
             .select(ActionForSelectedSession::Leave, ctx)
             .await?
-            .and_then(|(_, session_id)| self.channels.take(session_id))
+            .and_then(|(_, session_id)| self.sessions.get(session_id))
         else {
             return Ok(());
         };
@@ -45,7 +36,7 @@ impl<Ed: CollabEditor> Leave<Ed> {
         let (stopped_tx, stopped_rx) = flume::bounded(1);
 
         // Wait for the session to receive the stop request and actually stop.
-        if stop_sender.send_async(StopRequest { stopped_tx }).await.is_ok() {
+        if sesh.stop_tx.send_async(StopRequest { stopped_tx }).await.is_ok() {
             let _ = stopped_rx.recv_async().await;
         }
 
@@ -73,29 +64,6 @@ pub enum LeaveError {
     NoActiveSession,
 }
 
-impl<Ed: CollabEditor> StopChannels<Ed> {
-    #[track_caller]
-    pub(crate) fn insert(
-        &self,
-        session_id: SessionId<Ed>,
-    ) -> Receiver<StopRequest> {
-        let (tx, rx) = flume::bounded(1);
-        self.inner.with_mut(move |inner| match inner.entry(session_id) {
-            Entry::Vacant(vacant) => {
-                vacant.insert(tx);
-            },
-            Entry::Occupied(_) => {
-                panic!("already have a sender for {session_id:?}")
-            },
-        });
-        rx
-    }
-
-    fn take(&self, session_id: SessionId<Ed>) -> Option<Sender<StopRequest>> {
-        self.inner.with_mut(|inner| inner.remove(&session_id))
-    }
-}
-
 impl StopRequest {
     pub(crate) fn send_stopped(self) {
         self.stopped_tx.send(()).expect("rx is still alive");
@@ -104,10 +72,7 @@ impl StopRequest {
 
 impl<Ed: CollabEditor> From<&Collab<Ed>> for Leave<Ed> {
     fn from(collab: &Collab<Ed>) -> Self {
-        Self {
-            channels: collab.stop_channels.clone(),
-            sessions: collab.sessions.clone(),
-        }
+        Self { sessions: collab.sessions.clone() }
     }
 }
 
