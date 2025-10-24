@@ -2,7 +2,7 @@ use compact_str::CompactString;
 
 /// A chunk of text in a notification message, possibly associated with a given
 /// highlight group.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Chunk {
     text: CompactString,
     hl_group: Option<CompactString>,

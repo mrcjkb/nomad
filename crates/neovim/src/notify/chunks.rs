@@ -1,3 +1,4 @@
+use core::fmt;
 use core::ops::Deref;
 
 use compact_str::CompactString;
@@ -48,10 +49,19 @@ impl Chunks {
     #[inline]
     pub fn push_newline(&mut self) -> &mut Self {
         match self.inner.last_mut() {
-            Some(last) => last.text_mut().push('\n'),
-            None => self.inner.push(Chunk::new("\n")),
+            Some(last) if last.hl_group().is_none() => {
+                last.text_mut().push('\n')
+            },
+            _ => self.inner.push(Chunk::new("\n")),
         }
         self
+    }
+}
+
+impl fmt::Debug for Chunks {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.inner, f)
     }
 }
 
