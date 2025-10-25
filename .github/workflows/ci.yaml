@@ -11,6 +11,8 @@ on:
 # TODO: remove after publishing private crates.
 env:
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUSTC_WRAPPER: "sccache"
+  SCCACHE_GHA_ENABLED: true
 
 jobs:
   clippy:
@@ -22,8 +24,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Rust cache
-        uses: ./.github/actions/setup-rust-cache
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - name: Enter Clippy environment
         uses: ./.github/actions/setup-nix
         with:
@@ -44,8 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Rust cache
-        uses: ./.github/actions/setup-rust-cache
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - name: Enter coverage environment
         uses: ./.github/actions/setup-nix
         with:
@@ -74,8 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Rust cache
-        uses: ./.github/actions/setup-rust-cache
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - name: Enter docs environment
         uses: ./.github/actions/setup-nix
         with:
@@ -112,8 +111,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Rust cache
-        uses: ./.github/actions/setup-rust-cache
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - name: Enter test environment
         uses: ./.github/actions/setup-nix
         with:
@@ -148,8 +146,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Rust cache
-        uses: ./.github/actions/setup-rust-cache
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - name: Enter Neovim test environment
         uses: ./.github/actions/setup-nix
         with:
