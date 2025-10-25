@@ -14,9 +14,9 @@ use executor::{
 use futures_lite::future::{self, FutureExt};
 use rand::rngs::StdRng;
 
-use crate::context::{self, EventHandle, ResumeUnwinding, State};
+use crate::context::{self, EventHandle, State};
 use crate::editor::{AgentId, Editor};
-use crate::module::{Module, Plugin, PluginId};
+use crate::module::{Module, PluginId};
 use crate::notify::{self, Namespace};
 use crate::{Access, AccessMut, Shared};
 
@@ -445,12 +445,15 @@ impl<Ed: Editor> Context<Ed, NotBorrowed> {
     }
 
     /// TODO: docs.
-    #[inline]
+    #[cfg(feature = "tests")]
     pub(crate) fn from_editor(editor: Ed) -> Self {
+        use crate::module::{Plugin, ResumeUnwinding};
+        let mut state = State::new(editor);
+        state.add_plugin(ResumeUnwinding);
         Self::new(NotBorrowedInner {
-            namespace: Namespace::default(),
+            namespace: Namespace::new("test"),
             plugin_id: <ResumeUnwinding as Plugin<Ed>>::id(),
-            state_handle: Shared::new(State::new(editor)),
+            state_handle: Shared::new(state),
         })
     }
 }

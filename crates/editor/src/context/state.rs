@@ -46,9 +46,6 @@ pub(crate) struct StateMut<'a, Ed: Editor> {
     handle: &'a StateHandle<Ed>,
 }
 
-/// A `PanicHandler` that handles panics by resuming to unwind the stack.
-pub(crate) struct ResumeUnwinding;
-
 struct PanicHook<Ed: Editor> {
     editor: PhantomData<Ed>,
 }
@@ -128,8 +125,6 @@ impl<Ed: Editor> State<Ed> {
 
     #[inline]
     pub(crate) fn new(editor: Ed) -> Self {
-        const RESUME_UNWINDING: &ResumeUnwinding = &ResumeUnwinding;
-
         let rng: StdRng = editor
             .rng_seed()
             .map(SeedableRng::seed_from_u64)
@@ -140,10 +135,7 @@ impl<Ed: Editor> State<Ed> {
             editor,
             modules: FxHashMap::default(),
             next_agent_id: AgentId::new(NonZeroU64::new(1).expect("not zero")),
-            panic_handlers: FxHashMap::from_iter(core::iter::once((
-                <ResumeUnwinding as Plugin<Ed>>::id(),
-                RESUME_UNWINDING as &'static dyn PanicHandler<Ed>,
-            ))),
+            panic_handlers: FxHashMap::default(),
             rng,
         }
     }
@@ -301,32 +293,5 @@ where
         ctx: &mut Context<Ed, Borrowed<'_>>,
     ) {
         Plugin::handle_panic(self, panic_info, ctx);
-    }
-}
-
-impl<Ed: Editor> Plugin<Ed> for ResumeUnwinding {
-    #[inline]
-    fn handle_panic(
-        &self,
-        info: PanicInfo,
-        _: &mut Context<Ed, Borrowed<'_>>,
-    ) {
-        panic::resume_unwind(info.payload);
-    }
-}
-
-impl<Ed: Editor> Module<Ed> for ResumeUnwinding {
-    const NAME: &str = "";
-    type Config = ();
-
-    fn api(&self, _: &mut crate::module::ApiCtx<Ed>) {
-        unreachable!()
-    }
-    fn on_new_config(
-        &self,
-        _: Self::Config,
-        _: &mut Context<Ed, Borrowed<'_>>,
-    ) {
-        unreachable!()
     }
 }

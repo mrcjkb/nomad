@@ -18,4 +18,4 @@ pub use context::{
 pub use cursor::Cursor;
 pub use event_handle::EventHandle;
 pub use selection::Selection;
-pub(crate) use state::{ResumeUnwinding, State, StateHandle, StateMut};
+pub(crate) use state::{State, StateHandle, StateMut};

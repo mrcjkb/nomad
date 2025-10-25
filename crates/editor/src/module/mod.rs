@@ -9,6 +9,8 @@ mod function;
 mod module;
 mod panic_infos;
 mod plugin;
+#[cfg(feature = "tests")]
+mod resume_unwinding;
 
 pub use action::Action;
 pub use api_ctx::ApiCtx;
@@ -22,3 +24,5 @@ pub(crate) use module::ModuleId;
 pub use panic_infos::{PanicInfo, PanicLocation};
 pub use plugin::Plugin;
 pub(crate) use plugin::{NO_COMMAND_NAME, PluginId};
+#[cfg(feature = "tests")]
+pub(crate) use resume_unwinding::ResumeUnwinding;

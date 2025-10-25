@@ -6,6 +6,9 @@ authors.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+tests = []
+
 [dependencies]
 abs-path = { workspace = true, features = ["serde"] }
 cauchy = { workspace = true }

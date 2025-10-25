@@ -8,7 +8,7 @@ publish.workspace = true
 
 [features]
 nightly = ["nvim-oxi/neovim-nightly"]
-test = ["nvim-oxi/test", "nvim-oxi/test-terminator"]
+test = ["editor/tests", "nvim-oxi/test", "nvim-oxi/test-terminator"]
 tracing = ["dep:tracing-subscriber"]
 
 [dependencies]

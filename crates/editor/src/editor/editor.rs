@@ -7,6 +7,7 @@ use executor::Executor;
 use serde::Serialize;
 use serde::de::Deserialize;
 
+use crate::AccessMut;
 use crate::editor::{
     AgentId,
     Api,
@@ -20,7 +21,6 @@ use crate::editor::{
 };
 use crate::module::Plugin;
 use crate::notify::{self, Emitter};
-use crate::{AccessMut, Context};
 
 /// TODO: docs.
 pub trait Editor: 'static + Sized {
@@ -246,8 +246,11 @@ pub trait Editor: 'static + Sized {
     }
 
     /// TODO: docs.
-    #[inline]
-    fn with_ctx<R>(self, fun: impl FnOnce(&mut Context<Self>) -> R) -> R {
-        fun(&mut Context::from_editor(self))
+    #[cfg(feature = "tests")]
+    fn with_ctx<R>(
+        self,
+        fun: impl FnOnce(&mut crate::Context<Self>) -> R,
+    ) -> R {
+        fun(&mut crate::Context::from_editor(self))
     }
 }
