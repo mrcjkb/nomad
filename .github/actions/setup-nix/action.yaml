@@ -9,8 +9,7 @@ inputs:
     default: "true"
   cachix-auth-token:
     description: "Auth token for pushing Nix artifacts to Cachix"
-    required: false
-    default: ""
+    required: true
   devshell:
     description: "Nix devshell to enter, if any"
     required: false
@@ -42,11 +41,7 @@ runs:
         extra_nix_config: ${{ inputs.accept-flake-config == 'true' && 'accept-flake-config = true' || '' }}
         github_access_token: ${{ github.token }}
 
-    - name: Setup Magic Nix Cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
-
     - name: Setup Cachix
-      if: ${{ inputs.cachix-auth-token != '' }}
       uses: cachix/cachix-action@v15
       with:
         name: "nomad"

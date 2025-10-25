@@ -27,6 +27,7 @@ jobs:
       - name: Enter Clippy environment
         uses: ./.github/actions/setup-nix
         with:
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
           devshell: ".#ci-clippy"
           ssh-private-keys: |
             ${{ secrets.ABS_PATH_DEPLOY_KEY }}
@@ -48,6 +49,7 @@ jobs:
       - name: Enter coverage environment
         uses: ./.github/actions/setup-nix
         with:
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
           devshell: ".#ci-coverage"
           ssh-private-keys: |
             ${{ secrets.ABS_PATH_DEPLOY_KEY }}
@@ -77,6 +79,7 @@ jobs:
       - name: Enter docs environment
         uses: ./.github/actions/setup-nix
         with:
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
           devshell: ".#ci-docs"
           ssh-private-keys: |
             ${{ secrets.ABS_PATH_DEPLOY_KEY }}
@@ -95,6 +98,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Nix
         uses: ./.github/actions/setup-nix
+        with:
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - name: Check formatting
         run: nix run .#check-format
 
@@ -112,6 +117,7 @@ jobs:
       - name: Enter test environment
         uses: ./.github/actions/setup-nix
         with:
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
           devshell: ".#ci-tests"
           ssh-private-keys: |
             ${{ secrets.ABS_PATH_DEPLOY_KEY }}
@@ -147,6 +153,7 @@ jobs:
       - name: Enter Neovim test environment
         uses: ./.github/actions/setup-nix
         with:
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
           devshell: ${{ matrix.devshell }}
           ssh-private-keys: |
             ${{ secrets.ABS_PATH_DEPLOY_KEY }}
