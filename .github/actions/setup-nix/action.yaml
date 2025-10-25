@@ -36,10 +36,9 @@ runs:
       run: echo "nix_start_time=$(date +%s)" >> $GITHUB_OUTPUT
 
     - name: Install Nix
-      uses: cachix/install-nix-action@v31
+      uses: DeterminateSystems/nix-installer-action@main
       with:
-        extra_nix_config: ${{ inputs.accept-flake-config == 'true' && 'accept-flake-config = true' || '' }}
-        github_access_token: ${{ github.token }}
+        extra-conf: ${{ inputs.accept-flake-config == 'true' && 'accept-flake-config = true' || '' }}
 
     - name: Setup Cachix
       uses: cachix/cachix-action@v15
