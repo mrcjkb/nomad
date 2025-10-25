@@ -13,4 +13,4 @@ pub use nomad_params::NomadParams;
 pub use session_id::SessionId;
 
 /// TODO: docs.
-pub const API_VERSION: u32 = 3;
+pub const API_VERSION: u32 = 4;

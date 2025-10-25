@@ -3,7 +3,7 @@
 pub struct NomadParams;
 
 impl collab_server::Params for NomadParams {
-    const MAX_FRAME_LEN: u32 = 2048;
+    const MAX_FRAME_LEN: u32 = 32 * 1024; // 32 KiB
 
     type AuthenticateInfos = crate::AuthInfos;
     type AuthenticateError = crate::AuthError;
