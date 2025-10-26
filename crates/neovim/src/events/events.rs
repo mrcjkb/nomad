@@ -45,9 +45,9 @@ pub(crate) struct Events {
         NoHashMap<BufferId, Callbacks<events::BufferRemoved>>,
 
     /// Map from a buffer's ID to the callbacks registered to the
-    /// [`BufWritePost`] event on that buffer.
+    /// [`BufferSaved`] event on that buffer.
     pub(crate) on_buffer_saved:
-        NoHashMap<BufferId, Callbacks<events::BufWritePost>>,
+        NoHashMap<BufferId, Callbacks<events::BufferSaved>>,
 
     /// Map from a buffer's ID to the callbacks registered to the [`BufLeave`]
     /// event on that buffer.
@@ -75,9 +75,6 @@ pub(crate) struct AgentIds {
 
     /// TODO: docs.
     pub(crate) removed_buffer: NoHashMap<BufferId, AgentId>,
-
-    /// TODO: docs.
-    pub(crate) saved_buffer: NoHashMap<BufferId, AgentId>,
 }
 
 /// Groups the callbacks registered for a specific event type.
@@ -99,7 +96,7 @@ pub(crate) enum EventKind {
     BufferCreated(events::BufferCreated),
     BufferEdited(events::BufferEdited),
     BufferRemoved(events::BufferRemoved),
-    BufWritePost(events::BufWritePost),
+    BufferSaved(events::BufferSaved),
     CursorMoved(events::CursorMoved),
     ModeChanged(events::ModeChanged),
 }
@@ -167,7 +164,7 @@ impl Events {
                 BufferCreated(ev) => self.remove_callback(ev, cb_key),
                 BufferEdited(ev) => self.remove_callback(ev, cb_key),
                 BufferRemoved(ev) => self.remove_callback(ev, cb_key),
-                BufWritePost(ev) => self.remove_callback(ev, cb_key),
+                BufferSaved(ev) => self.remove_callback(ev, cb_key),
                 CursorMoved(ev) => self.remove_callback(ev, cb_key),
                 ModeChanged(ev) => self.remove_callback(ev, cb_key),
             }

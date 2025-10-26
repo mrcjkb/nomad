@@ -779,6 +779,30 @@ fn empty_buffer_with_no_fixeol_is_empty(ctx: &mut Context<Neovim>) {
 }
 
 #[neovim::test]
+async fn save_buffer_via_api(ctx: &mut Context<Neovim>) {
+    let buffer_id = ctx.create_and_focus_scratch_buffer();
+
+    let saved_by = Shared::<Option<AgentId>>::new(None);
+
+    let _event_handle = ctx.with_borrowed(|ctx| {
+        ctx.buffer(buffer_id).unwrap().on_saved({
+            let saved_by = saved_by.clone();
+            move |_, agent_id| saved_by.set(Some(agent_id))
+        })
+    });
+
+    let agent_id = ctx.new_agent_id();
+
+    ctx.with_borrowed(|ctx| {
+        ctx.buffer(buffer_id).unwrap().schedule_save(agent_id).boxed_local()
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(saved_by.copied(), Some(agent_id));
+}
+
+#[neovim::test]
 async fn save_buffer_via_write(ctx: &mut Context<Neovim>) {
     let buffer_id = ctx.create_and_focus_scratch_buffer();
 

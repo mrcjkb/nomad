@@ -277,7 +277,7 @@ impl<'a> editor::Buffer for NeovimBuffer<'a> {
     {
         let buffer_id = self.id();
         self.nvim.events.insert(
-            events::BufWritePost(buffer_id),
+            events::BufferSaved(buffer_id),
             move |(this, saved_by)| fun(&this, saved_by),
             nvim,
         )
@@ -357,8 +357,6 @@ impl<'a> editor::Buffer for NeovimBuffer<'a> {
         &mut self,
         agent_id: AgentId,
     ) -> impl Future<Output = ()> + 'static {
-        let buffer = self.inner.clone();
-
         if let Some(callbacks) = &mut self.nvim.events.on_cursor_created {
             callbacks.register_output_mut().set_created_by(agent_id);
         }
@@ -366,22 +364,29 @@ impl<'a> editor::Buffer for NeovimBuffer<'a> {
         // We schedule this because setting the current window's buffer will
         // immediately trigger a BufEnter event, which would panic due to a
         // double mutable borrow of Neovim.
+        let buffer = self.inner.clone();
         utils::schedule(move || buffer.focus())
     }
 
     #[inline]
     fn schedule_save(
         &mut self,
-        _agent_id: AgentId,
+        agent_id: AgentId,
     ) -> impl Future<
         Output = Result<(), <Self::Editor as editor::Editor>::BufferSaveError>,
     > + 'static {
+        let buffer_id = self.id();
+
+        if let Some(callbacks) =
+            self.nvim.events.on_buffer_saved.get_mut(&buffer_id)
+        {
+            callbacks.register_output_mut().set_saved_by(agent_id);
+        }
+
         // We schedule this because writing the buffer will immediately trigger
         // a BufWritePost event, which would panic due to a double mutable
         // borrow of Neovim.
-        //
-        // TODO: save agent ID.
-        let buffer = self.buffer();
+        let buffer = self.inner.clone();
         utils::schedule(move || {
             buffer
                 .call(|()| {

@@ -1,3 +1,5 @@
+use core::mem;
+
 use editor::{AccessMut, AgentId, Editor};
 use nohash::IntMap as NoHashMap;
 
@@ -8,12 +10,24 @@ use crate::oxi::api;
 use crate::utils::CallbackExt;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct BufWritePost(pub(crate) BufferId);
+pub(crate) struct BufferSaved(pub(crate) BufferId);
 
-impl Event for BufWritePost {
+#[derive(Debug)]
+pub(crate) struct BufferSavedRegisterOutput {
+    autocmd_id: AutocmdId,
+    saved_by: AgentId,
+}
+
+impl BufferSavedRegisterOutput {
+    pub(crate) fn set_saved_by(&mut self, agent_id: AgentId) {
+        self.saved_by = agent_id;
+    }
+}
+
+impl Event for BufferSaved {
     type Args<'a> = (NeovimBuffer<'a>, AgentId);
     type Container<'ev> = &'ev mut NoHashMap<BufferId, Callbacks<Self>>;
-    type RegisterOutput = AutocmdId;
+    type RegisterOutput = BufferSavedRegisterOutput;
 
     #[inline]
     fn container<'ev>(&self, events: &'ev mut Events) -> Self::Container<'ev> {
@@ -27,7 +41,7 @@ impl Event for BufWritePost {
 
     #[inline]
     fn kind(&self) -> EventKind {
-        EventKind::BufWritePost(*self)
+        EventKind::BufferSaved(*self)
     }
 
     #[inline]
@@ -35,26 +49,10 @@ impl Event for BufWritePost {
         &self,
         events: &Events,
         mut nvim: impl AccessMut<Neovim> + 'static,
-    ) -> AutocmdId {
+    ) -> Self::RegisterOutput {
         let callback = (move |args: api::types::AutocmdCallbackArgs| {
             nvim.with_mut(|nvim| {
                 let buffer_id = BufferId::from(args.buffer.clone());
-
-                let Some(callbacks) = nvim
-                    .events
-                    .on_buffer_saved
-                    .get(&buffer_id)
-                    .map(|cbs| cbs.cloned())
-                else {
-                    return true;
-                };
-
-                let saved_by = nvim
-                    .events
-                    .agent_ids
-                    .saved_buffer
-                    .remove(&buffer_id)
-                    .unwrap_or(AgentId::UNKNOWN);
 
                 let Some(mut buffer) = nvim.buffer(buffer_id) else {
                     tracing::error!(
@@ -64,7 +62,16 @@ impl Event for BufWritePost {
                     return true;
                 };
 
-                for callback in callbacks {
+                let Some(callbacks) =
+                    buffer.nvim.events.on_buffer_saved.get_mut(&buffer_id)
+                else {
+                    return true;
+                };
+
+                let saved_by =
+                    mem::take(&mut callbacks.register_output_mut().saved_by);
+
+                for callback in callbacks.cloned() {
                     callback((buffer.reborrow(), saved_by));
                 }
 
@@ -75,7 +82,7 @@ impl Event for BufWritePost {
         .map(|maybe_detach| maybe_detach.unwrap_or(true))
         .into_function();
 
-        api::create_autocmd(
+        let autocmd_id = api::create_autocmd(
             ["BufWritePost"],
             &api::opts::CreateAutocmdOpts::builder()
                 .group(events.augroup_id)
@@ -83,11 +90,13 @@ impl Event for BufWritePost {
                 .callback(callback)
                 .build(),
         )
-        .expect("couldn't create autocmd on BufWritePost")
+        .expect("couldn't create autocmd on BufWritePost");
+
+        BufferSavedRegisterOutput { autocmd_id, saved_by: AgentId::UNKNOWN }
     }
 
     #[inline]
-    fn unregister(autocmd_id: Self::RegisterOutput) {
-        let _ = api::del_autocmd(autocmd_id);
+    fn unregister(output: Self::RegisterOutput) {
+        let _ = api::del_autocmd(output.autocmd_id);
     }
 }

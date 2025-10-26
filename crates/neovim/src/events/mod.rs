@@ -1,5 +1,5 @@
 mod buf_leave;
-mod buf_write_post;
+mod buffer_saved;
 mod buffer_created;
 mod buffer_edited;
 mod buffer_removed;
@@ -10,7 +10,7 @@ mod events;
 mod mode_changed;
 
 pub(crate) use buf_leave::BufLeave;
-pub(crate) use buf_write_post::BufWritePost;
+pub(crate) use buffer_saved::BufferSaved;
 pub(crate) use buffer_created::BufferCreated;
 pub(crate) use buffer_edited::{BufferEdited, BufferEditedRegisterOutput};
 pub(crate) use buffer_removed::BufferRemoved;
