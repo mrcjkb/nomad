@@ -9,7 +9,6 @@ on:
 
 jobs:
   release-stable:
-    needs: setup
     uses: ./.github/workflows/build-and-release.yaml
     secrets: inherit
     with:
