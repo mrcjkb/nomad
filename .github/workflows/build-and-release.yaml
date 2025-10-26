@@ -71,8 +71,8 @@ jobs:
         with:
           ref: ${{ inputs.release-tag }}
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v6
         with:
           path: artifacts/
 
@@ -93,7 +93,7 @@ jobs:
           prerelease: ${{ !inputs.is-stable }}
           tag_name: ${{ inputs.release-tag }}
 
-      - name: Delete all artifacts after creating the release
+      - name: Delete artifacts after creating the release
         uses: geekyeggo/delete-artifact@v5
         with:
           name: "*"
