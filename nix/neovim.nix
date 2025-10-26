@@ -18,15 +18,7 @@
     let
       inherit (common) releaseTag;
 
-      xtask = "${common.xtask}/bin/xtask";
-
-      crateInfos = builtins.fromJSON (
-        builtins.readFile (
-          pkgs.runCommand "crate-infos" { } ''
-            ${xtask} neovim print-crate-infos > $out
-          ''
-        )
-      );
+      cargoToml = lib.importTOML ../crates/nomad-neovim/Cargo.toml;
 
       mkPackage =
         isNightly: if isNightly then inputs'.neovim-nightly-overlay.packages.default else pkgs.neovim;
@@ -70,12 +62,12 @@
         craneLib.buildPackage (
           targetCrane.commonArgs
           // {
-            pname = crateInfos.name;
+            pname = cargoToml.package.name;
             version = if releaseTag != null then releaseTag else "dev";
             src = pluginSrc;
             doCheck = false;
             buildPhaseCargoCommand = ''
-              ${xtask} neovim build \
+              ${lib.getExe common.xtask} neovim build \
                 ${lib.optionalString isNightly "--nightly"} \
                 ${lib.optionalString isRelease "--release"} \
                 ${lib.optionalString isCross "--target=${hostPlatform.rust.rustcTarget}"} \
@@ -109,7 +101,7 @@
       mkReleaseArtifacts =
         targetPackageSets:
         pkgs.stdenv.mkDerivation {
-          pname = "${crateInfos.name}-release-artifacts";
+          pname = "${cargoToml.package.name}-release-artifacts";
           version = if releaseTag != null then releaseTag else "dev";
           src = null;
           dontUnpack = true;

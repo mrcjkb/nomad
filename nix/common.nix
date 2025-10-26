@@ -83,12 +83,12 @@
         # A compiled version of the xtask executable defined in this workspace.
         xtask = crane.lib.buildPackage (
           let
-            pname = "xtask";
+            cargoToml = lib.importTOML ../xtask/Cargo.toml;
             xtaskSrc = src.rust crane.lib;
           in
           {
             inherit (crane.commonArgs) cargoArtifacts strictDeps;
-            inherit pname;
+            pname = cargoToml.package.name;
             src = xtaskSrc;
             cargoExtraArgs = "--bin xtask";
             doCheck = false;
@@ -97,6 +97,7 @@
               CARGO_PROFILE = "";
               WORKSPACE_ROOT = xtaskSrc.outPath;
             };
+            meta.mainProgram = cargoToml.package.name;
           }
         );
 
