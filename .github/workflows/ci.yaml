@@ -21,7 +21,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust cache
         uses: ./.github/actions/setup-rust-cache
       - name: Enter Clippy environment
@@ -43,7 +43,7 @@ jobs:
     name: coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust cache
         uses: ./.github/actions/setup-rust-cache
       - name: Enter coverage environment
@@ -73,7 +73,7 @@ jobs:
     name: docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust cache
         uses: ./.github/actions/setup-rust-cache
       - name: Enter docs environment
@@ -95,7 +95,7 @@ jobs:
     name: format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Nix
         uses: ./.github/actions/setup-nix
         with:
@@ -111,7 +111,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust cache
         uses: ./.github/actions/setup-rust-cache
       - name: Enter test environment
@@ -147,7 +147,7 @@ jobs:
             features: "neovim-nightly"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust cache
         uses: ./.github/actions/setup-rust-cache
       - name: Enter Neovim test environment

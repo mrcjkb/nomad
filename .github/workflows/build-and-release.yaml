@@ -33,7 +33,7 @@ jobs:
             release-artifacts-package: ".#neovim-release-artifacts-macos"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.release-tag }}
 
@@ -67,6 +67,10 @@ jobs:
     needs: [build-neovim]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release-tag }}
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
