@@ -1,6 +1,7 @@
 use core::time::Duration;
 
-use editor::{AgentId, Buffer, Context, Edit, Replacement};
+use editor::{AgentId, Buffer, Context, Edit, Replacement, Shared};
+use futures_lite::FutureExt as _;
 use futures_util::stream::StreamExt;
 use neovim::Neovim;
 use neovim::buffer::BufferExt;
@@ -8,7 +9,7 @@ use neovim::oxi::api::{self, opts};
 use neovim::tests::NeovimExt;
 
 use crate::editor::buffer::EditExt;
-use crate::utils::FutureExt;
+use crate::utils::FutureExt as _;
 
 #[neovim::test]
 async fn trailing_newline_is_reinserted_after_deleting_it(
@@ -775,6 +776,24 @@ fn empty_buffer_with_no_fixeol_is_empty(ctx: &mut Context<Neovim>) {
         assert_eq!(buf.byte_len(), 0);
         assert_eq!(buf.get_text(), "");
     });
+}
+
+#[neovim::test]
+async fn save_buffer_via_write(ctx: &mut Context<Neovim>) {
+    let buffer_id = ctx.create_and_focus_scratch_buffer();
+
+    let saved_by = Shared::<Option<AgentId>>::new(None);
+
+    let _event_handle = ctx.with_borrowed(|ctx| {
+        ctx.buffer(buffer_id).unwrap().on_saved({
+            let saved_by = saved_by.clone();
+            move |_, agent_id| saved_by.set(Some(agent_id))
+        })
+    });
+
+    ctx.command("write");
+
+    assert_eq!(saved_by.copied(), Some(AgentId::UNKNOWN));
 }
 
 mod ed_buffer {
