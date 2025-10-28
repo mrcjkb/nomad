@@ -6,7 +6,7 @@ use editor::ByteOffset;
 use neovim::buffer::BufferExt;
 use neovim::oxi::api;
 
-use crate::editors::neovim::PeerHighlightGroup;
+use crate::editors::neovim::{PeerCursorHighlightGroup, PeerHighlightGroup};
 
 /// A remote peer's selection in a buffer.
 pub struct NeovimPeerSelection {
@@ -29,7 +29,8 @@ pub(super) struct PeerSelectionHighlightGroup;
 
 impl PeerSelectionHighlightGroup {
     thread_local! {
-        static GROUP_IDS: Cell<[u32; 16]> = const { Cell::new([0; _]) };
+        static GROUP_IDS: Cell<[u32; PeerCursorHighlightGroup::NUM_HIGHLIGHTS]>
+            = const { Cell::new([0; _]) };
     }
 }
 

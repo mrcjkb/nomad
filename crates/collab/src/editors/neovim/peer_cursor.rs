@@ -28,8 +28,11 @@ pub struct NeovimPeerCursor {
 pub(super) struct PeerCursorHighlightGroup;
 
 impl PeerCursorHighlightGroup {
+    pub(super) const NUM_HIGHLIGHTS: usize = 8;
+
     thread_local! {
-        static GROUP_IDS: Cell<[u32; 16]> = const { Cell::new([0; _]) };
+        static GROUP_IDS: Cell<[u32; PeerCursorHighlightGroup::NUM_HIGHLIGHTS]>
+            = const { Cell::new([0; _]) };
     }
 }
 
