@@ -61,6 +61,14 @@ pub(super) trait PeerHighlightGroup {
     fn create(group_idx: usize) -> u32 {
         let name = format_compact!("{}{}", Self::NAME_PREFIX, group_idx + 1);
 
+        if let Ok(id) = api::call_function::<_, u32>("hlID", (&*name,))
+            && id != 0
+        {
+            // The highlight group already exists, so we shouldn't overwrite
+            // the user's definition.
+            return id;
+        }
+
         api::set_hl(0, name.as_ref(), &Self::set_hl_opts())
             .expect("couldn't create highlight group");
 
