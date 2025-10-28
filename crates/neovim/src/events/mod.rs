@@ -1,8 +1,8 @@
 mod buf_leave;
-mod buffer_saved;
 mod buffer_created;
 mod buffer_edited;
 mod buffer_removed;
+mod buffer_saved;
 mod cursor_created;
 mod cursor_moved;
 mod event;
@@ -10,10 +10,10 @@ mod events;
 mod mode_changed;
 
 pub(crate) use buf_leave::BufLeave;
-pub(crate) use buffer_saved::BufferSaved;
 pub(crate) use buffer_created::BufferCreated;
 pub(crate) use buffer_edited::{BufferEdited, BufferEditedRegisterOutput};
 pub(crate) use buffer_removed::BufferRemoved;
+pub(crate) use buffer_saved::BufferSaved;
 pub(crate) use cursor_created::CursorCreated;
 pub(crate) use cursor_moved::CursorMoved;
 pub(crate) use event::{CallbacksContainer, Event};

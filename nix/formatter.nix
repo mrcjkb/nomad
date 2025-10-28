@@ -26,17 +26,17 @@
           programs.nixfmt.enable = true;
           programs.rustfmt = {
             enable = true;
-            # cargo-sort messes up the indentation, so make sure to run taplo
-            # after it.
             package = crane.lib.rustfmt;
           };
           programs.taplo = {
             enable = true;
+            # cargo-sort messes up the indentation, so make sure to run taplo
+            # after it.
             priority = cargoSortPriority + 1;
           };
           # TODO: make it format [workspace.dependencies].
           settings.formatter.cargo-sort = {
-            command = "${pkgs.cargo-sort}/bin/cargo-sort";
+            command = "${lib.getExe pkgs.cargo-sort}";
             options =
               let
                 cargoDotTomlSections = [
