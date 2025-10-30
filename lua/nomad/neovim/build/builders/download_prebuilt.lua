@@ -14,6 +14,7 @@ local Command = require("nomad.neovim.command")
 ---
 ---@type table<string, string>
 local commands = {
+  chmod = "chmod",
   cp = "cp",
   curl = "curl",
   git = "git",
@@ -124,11 +125,18 @@ local build_fn = function(opts, build_ctx)
 
     if tar_res:is_err() then return tar_res:map_err(err) end
 
-    return Command.new(commands.cp)
-        :args({ out_dir:join("/lua/*"):display(), "lua/" })
-        :current_dir(build_ctx:repo_dir())
+    -- Add write permissions.
+    local chmod_res = Command.new(commands.chmod)
+        :args({ "-R", "u+w", out_dir:display() })
         :await(ctx)
+
+    if chmod_res:is_err() then return chmod_res:map_err(err) end
+
+    return Command.new(commands.cp)
+        :args({ "-r", out_dir:join("lua"):display() .. "/.", "lua/" })
+        :current_dir(build_ctx:repo_dir())
         :on_stderr(build_ctx.notify)
+        :await(ctx)
         :map_err(err)
   end)
 end
