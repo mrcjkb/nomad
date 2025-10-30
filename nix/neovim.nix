@@ -190,7 +190,15 @@
       };
       packages = {
         neovim = mkPlugin { isNightly = false; };
+        neovim-debug = mkPlugin {
+          isNightly = false;
+          isRelease = false;
+        };
         neovim-nightly = mkPlugin { isNightly = true; };
+        neovim-nightly-debug = mkPlugin {
+          isNightly = true;
+          isRelease = false;
+        };
         neovim-release-artifacts-linux = mkReleaseArtifacts [
           pkgs.pkgsCross.aarch64-multiplatform
           pkgs.pkgsCross.gnu64
