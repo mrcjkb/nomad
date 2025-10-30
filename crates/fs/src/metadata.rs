@@ -33,8 +33,8 @@ pub trait Metadata: fmt::Debug + Send + Sync {
 #[derive(Debug, Clone, derive_more::Display, PartialEq, Eq, cauchy::Error)]
 pub enum MetadataNameError {
     /// TODO: docs.
-    #[display("{_0}")]
-    Invalid(InvalidNodeNameError),
+    #[display("file name {_0:?} is not a valid node name: {_1}")]
+    Invalid(OsString, InvalidNodeNameError),
 
     /// TODO: docs.
     #[display("file name {_0:?} is not valid UTF-8")]

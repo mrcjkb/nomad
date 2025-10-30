@@ -48,7 +48,9 @@ impl fs::Metadata for Metadata {
                 fs::MetadataNameError::NotUtf8(self.node_name.clone())
             })?
             .try_into()
-            .map_err(fs::MetadataNameError::Invalid)
+            .map_err(|err| {
+                fs::MetadataNameError::Invalid(self.node_name.clone(), err)
+            })
     }
 
     #[inline]
