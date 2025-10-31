@@ -246,7 +246,7 @@ impl CommandCompletionsBuilder {
                 .keys()
                 .chain(self.submodules.keys())
                 .copied()
-                .map(CommandCompletion::from_static_str)
+                .map(CommandCompletion::new_static)
                 .collect();
         };
 
@@ -262,7 +262,7 @@ impl CommandCompletionsBuilder {
                 .chain(self.submodules.keys())
                 .filter(|&candidate| candidate.starts_with(prefix))
                 .copied()
-                .map(CommandCompletion::from_static_str)
+                .map(CommandCompletion::new_static)
                 .collect();
         } else {
             cursor_offset -= first_arg.offset() + first_arg.len();

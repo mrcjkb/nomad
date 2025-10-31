@@ -43,36 +43,26 @@ pub trait ToCompletionFn<Ed: Editor> {
 /// TODO: docs.
 #[derive(Debug, Clone)]
 pub struct CommandCompletion {
-    kind: CommandCompletionKind,
-}
-
-#[derive(Debug, Clone)]
-enum CommandCompletionKind {
-    Str(SmolStr),
-    StaticStr(&'static str),
+    inner: SmolStr,
 }
 
 impl CommandCompletion {
-    /// TODO: docs.
+    /// Returns the completion as a string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
-        match &self.kind {
-            CommandCompletionKind::Str(s) => s.as_str(),
-            CommandCompletionKind::StaticStr(s) => s,
-        }
+        self.inner.as_str()
     }
 
-    /// TODO: docs.
+    /// Creates a new `CommandCompletion`.
     #[inline]
-    pub fn from_static_str(s: &'static str) -> Self {
-        Self { kind: CommandCompletionKind::StaticStr(s) }
+    pub fn new(s: &str) -> Self {
+        Self { inner: SmolStr::new(s) }
     }
 
-    /// TODO: docs.
-    #[allow(clippy::should_implement_trait)]
+    /// Creates a new `CommandCompletion` from a static string.
     #[inline]
-    pub fn from_str(s: &str) -> Self {
-        Self { kind: CommandCompletionKind::Str(s.into()) }
+    pub fn new_static(s: &'static str) -> Self {
+        Self { inner: SmolStr::new_static(s) }
     }
 }
 

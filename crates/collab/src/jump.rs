@@ -172,7 +172,7 @@ impl<Ed: CollabEditor> command::ToCompletionFn<Ed> for Jump<Ed> {
             sessions.for_each(|session_infos| {
                 session_infos.remote_peers.for_each(|peer| {
                     if peer.handle.as_str().starts_with(handle_prefix) {
-                        completions.push(CommandCompletion::from_str(
+                        completions.push(CommandCompletion::new(
                             peer.handle.as_str(),
                         ));
                     }
