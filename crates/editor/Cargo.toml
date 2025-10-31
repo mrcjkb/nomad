@@ -21,6 +21,7 @@ fs = { workspace = true }
 futures-lite = { workspace = true, features = ["std"] }
 fxhash = { workspace = true }
 http-client = { workspace = true }
+itertools = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true }

@@ -1,6 +1,7 @@
 allow-unwrap-in-tests = true
 allowed-duplicate-crates = [
   "getrandom",
+  "itertools",
   "linux-raw-sys",
   "rand",
   "rand_chacha",

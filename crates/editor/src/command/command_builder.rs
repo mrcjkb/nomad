@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use smallvec::SmallVec;
 
 use crate::command::{
@@ -237,14 +238,14 @@ impl CommandCompletionsBuilder {
         &mut self,
         args: CommandArgs<ByteOffset>,
     ) -> Vec<CommandCompletion> {
-        let mut cursor_offset = args.cursor_offset();
+        let cursor_offset = args.cursor_offset();
         let mut iter = args.iter();
 
         let Some(first_arg) = iter.next() else {
             return self
                 .handlers
                 .keys()
-                .chain(self.submodules.keys())
+                .merge(self.submodules.keys())
                 .copied()
                 .map(CommandCompletion::new_static)
                 .collect();
@@ -259,18 +260,16 @@ impl CommandCompletionsBuilder {
             return self
                 .handlers
                 .keys()
-                .chain(self.submodules.keys())
+                .merge(self.submodules.keys())
                 .filter(|&candidate| candidate.starts_with(prefix))
                 .copied()
                 .map(CommandCompletion::new_static)
                 .collect();
-        } else {
-            cursor_offset -= first_arg.offset() + first_arg.len();
         }
 
         let remainder = CommandArgs::<ByteOffset>::new(
             iter.remainder().as_str(),
-            cursor_offset,
+            cursor_offset - first_arg.offset() - first_arg.len(),
         );
 
         if let Some(command) = self.handlers.get_mut(first_arg.as_str()) {
