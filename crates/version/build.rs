@@ -66,12 +66,25 @@ pub(crate) const COMMIT: crate::version::Commit = crate::version::Commit {{
 }
 
 fn add_tag(file: &mut GeneratedFile) {
+    let tag_str = match env::var(RELEASE_TAG_ENV) {
+        Ok(str) => Some(str),
+        Err(env::VarError::NotPresent) => {
+            let repo = LazyRepo::default();
+            let mut opts = git2::DescribeOptions::new();
+            opts.describe_tags().max_candidates_tags(0);
+            repo.describe(&opts).ok().and_then(|desc| desc.format(None).ok())
+        },
+        Err(env::VarError::NotUnicode(_)) => {
+            panic!("${RELEASE_TAG_ENV} is not valid unicode")
+        },
+    };
+
     let tag_path = "crate::version::ReleaseTag";
 
-    let tag = match env::var(RELEASE_TAG_ENV) {
-        Ok(tag) if tag == "nightly" => format!("Some({tag_path}::Nightly)"),
+    let tag = match tag_str {
+        Some(tag) if tag == "nightly" => format!("Some({tag_path}::Nightly)"),
 
-        Ok(tag) => {
+        Some(tag) => {
             let try_block = || {
                 let mut parts = tag.split('.');
                 let year = parts.next()?;
@@ -90,11 +103,7 @@ fn add_tag(file: &mut GeneratedFile) {
             })
         },
 
-        Err(env::VarError::NotPresent) => "None".to_owned(),
-
-        Err(env::VarError::NotUnicode(_)) => {
-            panic!("${RELEASE_TAG_ENV} is not valid unicode")
-        },
+        None => "None".to_owned(),
     };
 
     file.contents.push_str(&format!(
