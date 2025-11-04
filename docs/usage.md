@@ -121,4 +121,9 @@ This command resumes a session previously paused by `:Mad collab pause`. All
 events that had been buffered while the session was paused will be applied at
 once.
 
+## `:Mad version`
+
+This command emits a notification showing the current version of Nomad you're
+running.
+
 [collab-server]: https://github.com/nomad/collab-server
