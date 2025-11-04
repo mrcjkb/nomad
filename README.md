@@ -3,6 +3,8 @@
 [![CI][badge-ci]](https://github.com/nomad/nomad/actions/workflows/ci.yaml)
 <!-- [![Discord][badge-discord]](https://discord.gg/xxxxxxxxxx) -->
 
+https://github.com/user-attachments/assets/14b0ab51-5cb9-43cd-a942-d37d2f4da5ed
+
 Nomad brings real-time collaborative editing to Neovim. Create a session with
 `:Mad collab start`, share the session ID with others, and they can join with
 `:Mad collab join <session_id>`. Every peer in the session sees live cursor
