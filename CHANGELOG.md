@@ -27,6 +27,6 @@ Initial release.
 [pr-24]: https://github.com/nomad/nomad/pull/24
 
 [unreleased]: https://github.com/nomad/nomad/compare/2025.11.2...HEAD
-[2025.11.2]: https://github.com/nomad/nomad/compare/2025.11.0...2025.11.2
+[2025.11.2]: https://github.com/nomad/nomad/compare/2025.11.1...2025.11.2
 [2025.11.1]: https://github.com/nomad/nomad/compare/2025.11.0...2025.11.1
 [2025.11.0]: https://github.com/nomad/nomad/releases/tag/2025.11.0

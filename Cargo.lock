@@ -725,8 +725,8 @@ dependencies = [
 
 [[package]]
 name = "collab-server"
-version = "0.1.0"
-source = "git+https://github.com/nomad/collab-server.git#f33c131ac21a9baebdba6a34992890f4d2eead92"
+version = "0.2.0"
+source = "git+https://github.com/nomad/collab-server.git?tag=v0.2.0#b805b3a6326913c75ec2d16e8fe84edeceed2f7f"
 dependencies = [
  "cauchy",
  "collab-types",
@@ -744,8 +744,8 @@ dependencies = [
 
 [[package]]
 name = "collab-types"
-version = "0.1.0"
-source = "git+https://github.com/nomad/collab-server.git#f33c131ac21a9baebdba6a34992890f4d2eead92"
+version = "0.2.0"
+source = "git+https://github.com/nomad/collab-server.git?tag=v0.2.0#b805b3a6326913c75ec2d16e8fe84edeceed2f7f"
 dependencies = [
  "bytes",
  "cauchy",
@@ -1083,8 +1083,8 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
 name = "duplex-stream"
-version = "0.1.0"
-source = "git+https://github.com/nomad/collab-server.git#f33c131ac21a9baebdba6a34992890f4d2eead92"
+version = "0.2.0"
+source = "git+https://github.com/nomad/collab-server.git?tag=v0.2.0#b805b3a6326913c75ec2d16e8fe84edeceed2f7f"
 dependencies = [
  "async-compat",
  "futures-util",
@@ -1315,8 +1315,8 @@ dependencies = [
 
 [[package]]
 name = "frames"
-version = "0.1.0"
-source = "git+https://github.com/nomad/collab-server.git#f33c131ac21a9baebdba6a34992890f4d2eead92"
+version = "0.2.0"
+source = "git+https://github.com/nomad/collab-server.git?tag=v0.2.0#b805b3a6326913c75ec2d16e8fe84edeceed2f7f"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1466,8 +1466,8 @@ dependencies = [
 
 [[package]]
 name = "generic-server"
-version = "0.1.0"
-source = "git+https://github.com/nomad/collab-server.git#f33c131ac21a9baebdba6a34992890f4d2eead92"
+version = "0.2.0"
+source = "git+https://github.com/nomad/collab-server.git?tag=v0.2.0#b805b3a6326913c75ec2d16e8fe84edeceed2f7f"
 dependencies = [
  "flume",
  "futures-util",
@@ -2168,8 +2168,8 @@ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
 name = "message-channel"
-version = "0.1.0"
-source = "git+https://github.com/nomad/collab-server.git#f33c131ac21a9baebdba6a34992890f4d2eead92"
+version = "0.2.0"
+source = "git+https://github.com/nomad/collab-server.git?tag=v0.2.0#b805b3a6326913c75ec2d16e8fe84edeceed2f7f"
 dependencies = [
  "bincode",
  "cauchy",
@@ -2877,8 +2877,8 @@ dependencies = [
 
 [[package]]
 name = "peer-handle"
-version = "0.1.0"
-source = "git+https://github.com/nomad/collab-server.git#f33c131ac21a9baebdba6a34992890f4d2eead92"
+version = "0.2.0"
+source = "git+https://github.com/nomad/collab-server.git?tag=v0.2.0#b805b3a6326913c75ec2d16e8fe84edeceed2f7f"
 dependencies = [
  "cauchy",
  "derive_more",

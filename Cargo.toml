@@ -27,13 +27,13 @@ cargo_metadata = "0.23"
 cauchy = { git = "https://github.com/nomad/cauchy.git" }
 chrono = { version = "0.4", default-features = false }
 clap = "4"
-collab-server = { git = "https://github.com/nomad/collab-server.git", default-features = false }
-collab-types = { git = "https://github.com/nomad/collab-server.git" }
+collab-server = { git = "https://github.com/nomad/collab-server.git", default-features = false, tag = "v0.2.0" }
+collab-types = { git = "https://github.com/nomad/collab-server.git", tag = "v0.2.0" }
 compact_str = "0.9"
 concurrent-queue = "2.5"
 criterion = "0.7"
 derive_more = { version = "2", features = ["display"] }
-duplex-stream = { git = "https://github.com/nomad/collab-server.git" }
+duplex-stream = { git = "https://github.com/nomad/collab-server.git", tag = "v0.2.0" }
 either = "1"
 event-listener = "5"
 fastrand = "2"
@@ -57,7 +57,7 @@ memchr = "2"
 nohash = "0.2"
 notify = "8"
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi" }
-peer-handle = { git = "https://github.com/nomad/collab-server.git" }
+peer-handle = { git = "https://github.com/nomad/collab-server.git", tag = "v0.2.0" }
 pin-project-lite = "0.2"
 rand = "0.9"
 rand_chacha = "0.9"
