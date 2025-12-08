@@ -13,6 +13,7 @@ use git2::Repository;
 const COMMIT_HASH_ENV: &str = "COMMIT_HASH";
 const COMMIT_UNIX_TIMESTAMP_ENV: &str = "COMMIT_UNIX_TIMESTAMP";
 const RELEASE_TAG_ENV: &str = "RELEASE_TAG";
+const NIX_BUILD_TOP_ENV: &str = "NIX_BUILD_TOP";
 
 fn main() {
     let mut file = GeneratedFile::default();
@@ -69,10 +70,19 @@ fn add_tag(file: &mut GeneratedFile) {
     let tag_str = match env::var(RELEASE_TAG_ENV) {
         Ok(str) => Some(str),
         Err(env::VarError::NotPresent) => {
-            let repo = LazyRepo::default();
-            let mut opts = git2::DescribeOptions::new();
-            opts.describe_tags().max_candidates_tags(0);
-            repo.describe(&opts).ok().and_then(|desc| desc.format(None).ok())
+            // Don't try to load the git repo if we're in the Nix build
+            // sandbox, as Nix deletes the `.git` directory before copying the
+            // project to the Nix store.
+            if env::var(NIX_BUILD_TOP_ENV).is_ok() {
+                None
+            } else {
+                let repo = LazyRepo::default();
+                let mut opts = git2::DescribeOptions::new();
+                opts.describe_tags().max_candidates_tags(0);
+                repo.describe(&opts)
+                    .ok()
+                    .and_then(|desc| desc.format(None).ok())
+            }
         },
         Err(env::VarError::NotUnicode(_)) => {
             panic!("${RELEASE_TAG_ENV} is not valid unicode")
