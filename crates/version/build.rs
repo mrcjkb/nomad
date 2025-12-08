@@ -13,6 +13,7 @@ use git2::Repository;
 const COMMIT_HASH_ENV: &str = "COMMIT_HASH";
 const COMMIT_UNIX_TIMESTAMP_ENV: &str = "COMMIT_UNIX_TIMESTAMP";
 const RELEASE_TAG_ENV: &str = "RELEASE_TAG";
+const NIX_BUILD_TOP_ENV: &str = "NIX_BUILD_TOP";
 
 fn main() {
     let mut file = GeneratedFile::default();
@@ -66,15 +67,20 @@ pub(crate) const COMMIT: crate::version::Commit = crate::version::Commit {{
 }
 
 fn add_tag(file: &mut GeneratedFile) {
-    let tag_str = match env::var(RELEASE_TAG_ENV) {
-        Ok(str) => Some(str),
-        Err(env::VarError::NotPresent) => {
+    let tag_str = match (env::var(RELEASE_TAG_ENV), env::var(NIX_BUILD_TOP_ENV)) {
+        (Ok(str), _) => Some(str),
+        (Err(env::VarError::NotPresent), Err(_)) => {
             let repo = LazyRepo::default();
             let mut opts = git2::DescribeOptions::new();
             opts.describe_tags().max_candidates_tags(0);
             repo.describe(&opts).ok().and_then(|desc| desc.format(None).ok())
         },
-        Err(env::VarError::NotUnicode(_)) => {
+        (Err(env::VarError::NotPresent), Ok(_)) => {
+            // In a Nix build. Cannot detect version from git repo,
+            // as Nix deletes the .git directory.
+            None
+        },
+        (Err(env::VarError::NotUnicode(_)), _) => {
             panic!("${RELEASE_TAG_ENV} is not valid unicode")
         },
     };
